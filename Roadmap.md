@@ -72,13 +72,13 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 **Goal:** A `<keepsave-widget>` Web Component that third-party sites can embed.
 
 ### Frontend (Embed SDK)
-- [ ] Web Component shell using Shadow DOM
-- [ ] Configurable via HTML attributes (`project-id`, `api-url`, `theme`)
-- [ ] Auth flow via postMessage handshake with parent page
-- [ ] Read-only and read-write modes
-- [ ] Theming support (light/dark, custom CSS variables)
-- [ ] NPM package + CDN script for easy integration
-- [ ] Integration guide and example host page
+- [x] Web Component shell using Shadow DOM
+- [x] Configurable via HTML attributes (`project-id`, `api-url`, `theme`)
+- [x] Auth flow via postMessage handshake with parent page
+- [x] Read-only and read-write modes
+- [x] Theming support (light/dark, custom CSS variables)
+- [x] NPM package + CDN script for easy integration
+- [x] Integration guide and example host page
 
 ### Deliverables
 - Single `<script>` tag inclusion for any website
