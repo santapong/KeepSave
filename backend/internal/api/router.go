@@ -14,6 +14,7 @@ func SetupRouter(
 	projectHandler *ProjectHandler,
 	secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler,
+	promotionHandler *PromotionHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -48,6 +49,20 @@ func SetupRouter(
 			secretGroup.GET("/:secretId", secretHandler.Get)
 			secretGroup.PUT("/:secretId", secretHandler.Update)
 			secretGroup.DELETE("/:secretId", secretHandler.Delete)
+		}
+
+		// Promotion routes (JWT required)
+		promoteGroup := v1.Group("/projects/:id")
+		promoteGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			promoteGroup.POST("/promote", promotionHandler.Promote)
+			promoteGroup.POST("/promote/diff", promotionHandler.Diff)
+			promoteGroup.GET("/promotions", promotionHandler.ListPromotions)
+			promoteGroup.GET("/promotions/:promotionId", promotionHandler.GetPromotion)
+			promoteGroup.POST("/promotions/:promotionId/approve", promotionHandler.ApprovePromotion)
+			promoteGroup.POST("/promotions/:promotionId/reject", promotionHandler.RejectPromotion)
+			promoteGroup.POST("/promotions/:promotionId/rollback", promotionHandler.Rollback)
+			promoteGroup.GET("/audit-log", promotionHandler.AuditLog)
 		}
 
 		// API key routes (JWT required)

@@ -11,16 +11,16 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 **Goal:** Encrypted secret storage with CRUD API and basic auth.
 
 ### Backend
-- [ ] Project scaffold (Go + Gin, PostgreSQL, Docker Compose)
-- [ ] Database schema: `projects`, `environments`, `secrets`, `audit_log`
-- [ ] AES-256-GCM encryption layer with envelope encryption
-- [ ] CRUD API for projects (`POST/GET/PUT/DELETE /api/v1/projects`)
-- [ ] CRUD API for secrets (`POST/GET/PUT/DELETE /api/v1/projects/:id/secrets`)
-- [ ] Environment scoping (Alpha, UAT, PROD per project)
-- [ ] JWT authentication (register/login)
-- [ ] API key generation for AI Agent access
-- [ ] Request validation and error handling
-- [ ] Unit tests for crypto and service layers
+- [x] Project scaffold (Go + Gin, PostgreSQL, Docker Compose)
+- [x] Database schema: `projects`, `environments`, `secrets`, `audit_log`
+- [x] AES-256-GCM encryption layer with envelope encryption
+- [x] CRUD API for projects (`POST/GET/PUT/DELETE /api/v1/projects`)
+- [x] CRUD API for secrets (`POST/GET/PUT/DELETE /api/v1/projects/:id/secrets`)
+- [x] Environment scoping (Alpha, UAT, PROD per project)
+- [x] JWT authentication (register/login)
+- [x] API key generation for AI Agent access
+- [x] Request validation and error handling
+- [x] Unit tests for crypto and service layers
 
 ### Deliverables
 - Running API that stores and retrieves encrypted secrets
@@ -33,13 +33,13 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 **Goal:** Move secrets safely between Alpha -> UAT -> PROD.
 
 ### Backend
-- [ ] Promotion endpoint (`POST /api/v1/projects/:id/promote`)
-- [ ] Promotion rules engine (which keys to promote, override policy)
-- [ ] Diff view: show what will change in target environment
-- [ ] Audit log for every promotion event
-- [ ] Rollback support (restore previous secret set)
-- [ ] Optional approval workflow for PROD promotions
-- [ ] Integration tests for promotion flows
+- [x] Promotion endpoint (`POST /api/v1/projects/:id/promote`)
+- [x] Promotion rules engine (which keys to promote, override policy)
+- [x] Diff view: show what will change in target environment
+- [x] Audit log for every promotion event
+- [x] Rollback support (restore previous secret set)
+- [x] Optional approval workflow for PROD promotions
+- [x] Integration tests for promotion flows
 
 ### Deliverables
 - One-command promotion of secrets between environments

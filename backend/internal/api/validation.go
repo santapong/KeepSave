@@ -36,3 +36,17 @@ type CreateAPIKeyRequest struct {
 	Scopes      []string `json:"scopes"`
 	Environment *string  `json:"environment"`
 }
+
+type PromoteRequest struct {
+	SourceEnvironment string   `json:"source_environment" binding:"required,oneof=alpha uat"`
+	TargetEnvironment string   `json:"target_environment" binding:"required,oneof=uat prod"`
+	Keys              []string `json:"keys"`
+	OverridePolicy    string   `json:"override_policy" binding:"omitempty,oneof=skip overwrite"`
+	Notes             string   `json:"notes"`
+}
+
+type DiffRequest struct {
+	SourceEnvironment string   `json:"source_environment" binding:"required,oneof=alpha uat"`
+	TargetEnvironment string   `json:"target_environment" binding:"required,oneof=uat prod"`
+	Keys              []string `json:"keys"`
+}
