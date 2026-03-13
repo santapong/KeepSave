@@ -133,4 +133,17 @@ jobs:
         working-directory: ./backend
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          mkdir -p reports
+          govulncheck -show verbose ./... 2>&1 | tee reports/govulncheck-report.txt
+          exit_code=${PIPESTATUS[0]}
+          if [ $exit_code -ne 0 ]; then
+            echo "::warning::govulncheck found vulnerabilities (exit code $exit_code). See uploaded report."
+          fi
+          exit $exit_code
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: backend/reports/govulncheck-report.txt
+          retention-days: 90
