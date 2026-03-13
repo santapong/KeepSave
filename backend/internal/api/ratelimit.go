@@ -19,8 +19,8 @@ type RateLimiter struct {
 }
 
 type bucket struct {
-	tokens    int
-	lastFill  time.Time
+	tokens     int
+	lastFill   time.Time
 	lastAccess time.Time
 }
 
@@ -61,8 +61,8 @@ func (rl *RateLimiter) allow(key string) bool {
 	b, exists := rl.clients[key]
 	if !exists {
 		rl.clients[key] = &bucket{
-			tokens:    rl.burst - 1,
-			lastFill:  now,
+			tokens:     rl.burst - 1,
+			lastFill:   now,
 			lastAccess: now,
 		}
 		return true
@@ -72,7 +72,7 @@ func (rl *RateLimiter) allow(key string) bool {
 
 	// Refill tokens based on elapsed time
 	elapsed := now.Sub(b.lastFill)
-	refill := int(elapsed / rl.interval) * rl.rate
+	refill := int(elapsed/rl.interval) * rl.rate
 	if refill > 0 {
 		b.tokens += refill
 		if b.tokens > rl.burst {

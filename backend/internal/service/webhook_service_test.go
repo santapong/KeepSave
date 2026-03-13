@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -58,25 +59,29 @@ func TestWebhookServiceListEmpty(t *testing.T) {
 
 func TestWebhookServiceNotify(t *testing.T) {
 	var receivedCount int32
+	var mu sync.Mutex
 	var receivedPayload []byte
+	var headerErrors []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&receivedCount, 1)
 
+		mu.Lock()
 		// Verify headers
 		if r.Header.Get("Content-Type") != "application/json" {
-			t.Error("expected Content-Type application/json")
+			headerErrors = append(headerErrors, "expected Content-Type application/json")
 		}
 		if r.Header.Get("X-KeepSave-Event") == "" {
-			t.Error("expected X-KeepSave-Event header")
+			headerErrors = append(headerErrors, "expected X-KeepSave-Event header")
 		}
 		if r.Header.Get("X-KeepSave-Delivery") == "" {
-			t.Error("expected X-KeepSave-Delivery header")
+			headerErrors = append(headerErrors, "expected X-KeepSave-Delivery header")
 		}
 
 		buf := make([]byte, 4096)
 		n, _ := r.Body.Read(buf)
 		receivedPayload = buf[:n]
+		mu.Unlock()
 
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -102,8 +107,16 @@ func TestWebhookServiceNotify(t *testing.T) {
 		t.Errorf("expected 1 delivery, got %d", receivedCount)
 	}
 
+	mu.Lock()
+	for _, errMsg := range headerErrors {
+		t.Error(errMsg)
+	}
+	payload := make([]byte, len(receivedPayload))
+	copy(payload, receivedPayload)
+	mu.Unlock()
+
 	var event WebhookEvent
-	if err := json.Unmarshal(receivedPayload, &event); err != nil {
+	if err := json.Unmarshal(payload, &event); err != nil {
 		t.Fatalf("failed to parse webhook payload: %v", err)
 	}
 
@@ -169,10 +182,13 @@ func TestWebhookServiceWildcardEvents(t *testing.T) {
 }
 
 func TestWebhookServiceHMACSignature(t *testing.T) {
+	var mu sync.Mutex
 	var signature string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		signature = r.Header.Get("X-KeepSave-Signature")
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -190,14 +206,18 @@ func TestWebhookServiceHMACSignature(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	if signature == "" {
+	mu.Lock()
+	sig := signature
+	mu.Unlock()
+
+	if sig == "" {
 		t.Error("expected HMAC signature header")
 	}
-	if len(signature) < 10 {
+	if len(sig) < 10 {
 		t.Error("signature seems too short")
 	}
-	if signature[:7] != "sha256=" {
-		t.Errorf("signature should start with 'sha256=', got %q", signature[:7])
+	if sig[:7] != "sha256=" {
+		t.Errorf("signature should start with 'sha256=', got %q", sig[:7])
 	}
 }
 

@@ -81,3 +81,58 @@ export interface DiffEntry {
   source_exists: boolean;
   target_exists: boolean;
 }
+
+// Phase 6 types
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrgMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: 'viewer' | 'editor' | 'admin' | 'promoter';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SecretTemplate {
+  id: string;
+  name: string;
+  description: string;
+  stack: string;
+  keys: Record<string, unknown>;
+  created_by: string;
+  organization_id?: string;
+  is_global: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SecretDependency {
+  id: string;
+  project_id: string;
+  environment_id: string;
+  secret_key: string;
+  depends_on_key: string;
+  reference_pattern: string;
+  created_at: string;
+}
+
+export interface DependencyNode {
+  key: string;
+  depends_on: string[];
+  referenced_by: string[];
+}
+
+export interface ImportResult {
+  created: string[];
+  updated: string[];
+  skipped: string[];
+}

@@ -6,6 +6,11 @@ import type {
   AuditEntry,
   PromotionRequest,
   DiffEntry,
+  Organization,
+  OrgMember,
+  SecretTemplate,
+  DependencyNode,
+  ImportResult,
 } from '../types';
 
 const BASE_URL = '/api/v1';
@@ -254,4 +259,165 @@ export async function createAPIKey(
 
 export async function deleteAPIKey(id: string): Promise<void> {
   await request(`/api-keys/${id}`, { method: 'DELETE' });
+}
+
+// Organizations
+export async function listOrganizations(): Promise<Organization[]> {
+  const data = await request<{ organizations: Organization[] }>('/organizations');
+  return data.organizations || [];
+}
+
+export async function createOrganization(name: string): Promise<Organization> {
+  const data = await request<{ organization: Organization }>('/organizations', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  return data.organization;
+}
+
+export async function getOrganization(orgId: string): Promise<Organization> {
+  const data = await request<{ organization: Organization }>(`/organizations/${orgId}`);
+  return data.organization;
+}
+
+export async function updateOrganization(orgId: string, name: string): Promise<Organization> {
+  const data = await request<{ organization: Organization }>(`/organizations/${orgId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+  return data.organization;
+}
+
+export async function deleteOrganization(orgId: string): Promise<void> {
+  await request(`/organizations/${orgId}`, { method: 'DELETE' });
+}
+
+export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
+  const data = await request<{ members: OrgMember[] }>(`/organizations/${orgId}/members`);
+  return data.members || [];
+}
+
+export async function addOrgMember(orgId: string, userId: string, role: string): Promise<OrgMember> {
+  const data = await request<{ member: OrgMember }>(`/organizations/${orgId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, role }),
+  });
+  return data.member;
+}
+
+export async function updateOrgMemberRole(orgId: string, userId: string, role: string): Promise<OrgMember> {
+  const data = await request<{ member: OrgMember }>(`/organizations/${orgId}/members/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ role }),
+  });
+  return data.member;
+}
+
+export async function removeOrgMember(orgId: string, userId: string): Promise<void> {
+  await request(`/organizations/${orgId}/members/${userId}`, { method: 'DELETE' });
+}
+
+export async function assignProjectToOrg(orgId: string, projectId: string): Promise<void> {
+  await request(`/organizations/${orgId}/projects`, {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId }),
+  });
+}
+
+export async function listOrgProjects(orgId: string): Promise<Project[]> {
+  const data = await request<{ projects: Project[] }>(`/organizations/${orgId}/projects`);
+  return data.projects || [];
+}
+
+// Templates
+export async function listTemplates(organizationId?: string): Promise<SecretTemplate[]> {
+  const query = organizationId ? `?organization_id=${organizationId}` : '';
+  const data = await request<{ templates: SecretTemplate[] }>(`/templates${query}`);
+  return data.templates || [];
+}
+
+export async function listBuiltinTemplates(): Promise<SecretTemplate[]> {
+  const data = await request<{ templates: SecretTemplate[] }>('/templates/builtin');
+  return data.templates || [];
+}
+
+export async function createTemplate(
+  name: string,
+  description: string,
+  stack: string,
+  keys: Record<string, unknown>,
+  organizationId?: string,
+  isGlobal?: boolean
+): Promise<SecretTemplate> {
+  const data = await request<{ template: SecretTemplate }>('/templates', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      description,
+      stack,
+      keys,
+      organization_id: organizationId || '',
+      is_global: isGlobal || false,
+    }),
+  });
+  return data.template;
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await request(`/templates/${templateId}`, { method: 'DELETE' });
+}
+
+export async function applyTemplate(
+  templateId: string,
+  projectId: string,
+  environment: string
+): Promise<Secret[]> {
+  const data = await request<{ secrets: Secret[] }>(`/templates/${templateId}/apply`, {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId, environment }),
+  });
+  return data.secrets;
+}
+
+// Import/Export .env
+export async function exportEnv(projectId: string, environment: string): Promise<string> {
+  const data = await request<{ content: string }>(
+    `/projects/${projectId}/env-export?environment=${environment}`
+  );
+  return data.content;
+}
+
+export async function importEnv(
+  projectId: string,
+  environment: string,
+  content: string,
+  overwrite: boolean
+): Promise<ImportResult> {
+  const data = await request<{ result: ImportResult }>(`/projects/${projectId}/env-import`, {
+    method: 'POST',
+    body: JSON.stringify({ environment, content, overwrite }),
+  });
+  return data.result;
+}
+
+// Dependency Graph
+export async function analyzeDependencies(
+  projectId: string,
+  environment: string
+): Promise<unknown[]> {
+  const data = await request<{ dependencies: unknown[] }>(
+    `/projects/${projectId}/dependencies/analyze?environment=${environment}`,
+    { method: 'POST' }
+  );
+  return data.dependencies || [];
+}
+
+export async function getDependencyGraph(
+  projectId: string,
+  environment: string
+): Promise<DependencyNode[]> {
+  const data = await request<{ graph: DependencyNode[] }>(
+    `/projects/${projectId}/dependencies/graph?environment=${environment}`
+  );
+  return data.graph || [];
 }

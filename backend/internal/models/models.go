@@ -143,3 +143,69 @@ type DiffEntry struct {
 
 // StringList handles PostgreSQL TEXT[] arrays.
 type StringList []string
+
+// Organization represents a multi-tenant organization account.
+type Organization struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	OwnerID   uuid.UUID `json:"owner_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// OrgMember represents a user's membership and role in an organization.
+type OrgMember struct {
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	Role           string    `json:"role"` // viewer, editor, admin, promoter
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// TemplateKey represents a single key definition within a secret template.
+type TemplateKey struct {
+	Key          string `json:"key"`
+	Description  string `json:"description,omitempty"`
+	DefaultValue string `json:"default_value,omitempty"`
+	Required     bool   `json:"required"`
+}
+
+// SecretTemplate represents a predefined set of secret keys for common stacks.
+type SecretTemplate struct {
+	ID             uuid.UUID  `json:"id"`
+	Name           string     `json:"name"`
+	Description    string     `json:"description"`
+	Stack          string     `json:"stack"`
+	Keys           JSONMap    `json:"keys"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	OrganizationID *uuid.UUID `json:"organization_id,omitempty"`
+	IsGlobal       bool       `json:"is_global"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// SecretDependency represents a reference relationship between secrets.
+type SecretDependency struct {
+	ID               uuid.UUID `json:"id"`
+	ProjectID        uuid.UUID `json:"project_id"`
+	EnvironmentID    uuid.UUID `json:"environment_id"`
+	SecretKey        string    `json:"secret_key"`
+	DependsOnKey     string    `json:"depends_on_key"`
+	ReferencePattern string    `json:"reference_pattern"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// DependencyNode represents a node in the secrets dependency graph.
+type DependencyNode struct {
+	Key          string   `json:"key"`
+	DependsOn    []string `json:"depends_on"`
+	ReferencedBy []string `json:"referenced_by"`
+}
+
+// EnvFile represents a parsed .env file for import/export.
+type EnvFile struct {
+	Environment string            `json:"environment"`
+	Variables   map[string]string `json:"variables"`
+}

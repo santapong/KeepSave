@@ -51,6 +51,9 @@ func main() {
 	auditRepo := repository.NewAuditRepository(db)
 	promotionRepo := repository.NewPromotionRepository(db)
 	versionRepo := repository.NewSecretVersionRepository(db)
+	orgRepo := repository.NewOrganizationRepository(db)
+	templateRepo := repository.NewTemplateRepository(db)
+	depRepo := repository.NewDependencyRepository(db)
 
 	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
@@ -60,6 +63,10 @@ func main() {
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, cryptoSvc)
 	webhookService := service.NewWebhookService()
+	orgService := service.NewOrganizationService(orgRepo)
+	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
+	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, cryptoSvc)
+	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
@@ -71,6 +78,10 @@ func main() {
 	webhookHandler := api.NewWebhookHandler(webhookService)
 	versionHandler := api.NewVersionHandler(versionRepo, secretRepo, projectRepo, cryptoSvc)
 	healthHandler := api.NewHealthHandler(db)
+	orgHandler := api.NewOrganizationHandler(orgService)
+	templateHandler := api.NewTemplateHandler(templateService)
+	envFileHandler := api.NewEnvFileHandler(envFileService)
+	depHandler := api.NewDependencyHandler(depService)
 
 	// Router
 	router := api.SetupRouter(
@@ -86,6 +97,10 @@ func main() {
 		webhookHandler,
 		versionHandler,
 		healthHandler,
+		orgHandler,
+		templateHandler,
+		envFileHandler,
+		depHandler,
 		db,
 		logger,
 	)
