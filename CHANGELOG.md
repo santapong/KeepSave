@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.0] - 2026-03-13
+
+### Added
+
+- **Frontend Dashboard** - React 18 + TypeScript + Vite web application for managing secrets and promotions
+  - **Auth pages** - Login and registration forms with JWT token management and localStorage persistence
+  - **Project management** - List, create, and delete projects from the dashboard
+  - **Secret management UI** - Full CRUD for secrets with environment switcher (Alpha / UAT / PROD tabs)
+  - **Mask/reveal toggle** - Secret values masked by default with one-click reveal
+  - **Inline editing** - Edit secret values directly in the table view
+  - **Promotion wizard** - Step-by-step workflow: select promotion path, configure override policy, preview diff, confirm
+  - **Diff review** - Checkbox-based key selection with add/update/no_change action indicators
+  - **Promotion history** - View all promotions with approve, reject, and rollback actions
+  - **Audit log viewer** - Table of all project audit events with timestamps, actions, and JSON details
+  - **API key management** - Create, list, and delete scoped API keys with one-time raw key display
+  - **Responsive navigation** - Top nav bar with project/API key links and user session controls
+- Docker support with Nginx reverse proxy for frontend container
+- Updated `docker-compose.yml` with frontend service
+- Vite proxy configuration for local development (`/api` → backend)
+- Comprehensive frontend test suite (27 tests across 5 test files)
+  - API client tests: auth state management, request/response handling, error handling, 204 responses
+  - SecretsPanel tests: environment switching, reveal/hide, CRUD operations, empty and error states
+  - PromotionWizard tests: configure step, diff preview, promotion execution, PROD approval flow
+  - LoginPage tests: form rendering, successful login, error display, register link
+  - ProjectsPage tests: list rendering, empty state, project creation
+
+---
+
 ## [0.2.0] - 2026-03-13
 
 ### Added
