@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.5.0] - 2026-03-13
+
+### Added
+
+- **Phase 5: Hardening and Operations** - Production-grade reliability, security, and deployment features
+  - **Rate limiting middleware** - Per-IP token bucket rate limiter with configurable burst capacity and automatic refill
+  - **Health check endpoints** - `/healthz` (liveness) and `/readyz` (readiness with database connectivity check) for Kubernetes probes
+  - **Structured JSON logging** - Structured log entries with timestamps, levels, and fields; Gin request logging middleware with latency, status codes, user IDs
+  - **Key rotation mechanism** - DEK rotation per-project with automatic re-encryption of all secrets across all environments; bulk rotation for all user projects; encryption verification endpoint
+  - **Secret versioning** - Historical version tracking for secrets with version numbering, pruning of old versions (keep N), and version retrieval API
+  - **Webhook notifications** - Configurable webhook endpoints per project with event filtering, HMAC-SHA256 signature verification, retry with exponential backoff (3 attempts), and delivery logging
+  - **CI/CD pipeline** - GitHub Actions workflow with backend lint (go vet, gofmt), backend tests with race detection, frontend TypeScript check, frontend tests, Docker image builds, and govulncheck security scanning
+  - **Helm chart** - Kubernetes deployment chart with backend/frontend deployments, services, ingress, secrets management, HPA autoscaling, liveness/readiness probes, and configurable resource limits
+  - **Security audit checklist** - Complete OWASP Top 10 review with mitigation status for each category and production deployment recommendations
+- Database migration for `secret_versions`, `webhook_configs`, and `webhook_deliveries` tables
+- New API endpoints:
+  - `POST /api/v1/projects/:id/rotate-keys` - Rotate project encryption keys
+  - `GET /api/v1/projects/:id/verify-encryption` - Verify all secrets can be decrypted
+  - `POST /api/v1/rotate-keys` - Rotate keys for all user projects
+  - `GET /api/v1/projects/:id/secrets/:secretId/versions` - List secret version history
+  - `GET /api/v1/projects/:id/secrets/:secretId/versions/:version` - Get specific version
+  - `POST /api/v1/projects/:id/webhooks` - Register webhook endpoint
+  - `GET /api/v1/projects/:id/webhooks` - List project webhooks
+  - `DELETE /api/v1/projects/:id/webhooks` - Remove project webhooks
+  - `GET /api/v1/webhook-deliveries` - View webhook delivery log
+  - `GET /healthz` - Liveness probe
+  - `GET /readyz` - Readiness probe with DB check
+- Comprehensive test suite expansion (49+ backend tests):
+  - Rate limiter tests: burst capacity, refill, client isolation, concurrency safety, middleware integration
+  - Health endpoint tests: liveness response validation
+  - Structured logging tests: level filtering, JSON format, nil fields, newline separation
+  - Webhook service tests: registration, removal, event delivery, filtering, wildcard events, HMAC signatures, delivery logging
+  - Key rotation tests: service construction, rotation result fields, encrypt-decrypt cycle simulation, DEK uniqueness
+  - **High load tests**: concurrent request handling (5000 requests, 100 goroutines), rate limiter under stress (23K+ RPS), 200 concurrent client isolation, memory stability (10K clients), sequential latency (<2µs avg)
+  - **Crypto benchmarks**: concurrent encryption (250K ops/sec), envelope encryption load test, large payload throughput (64B-64KB, up to 1.3 GB/s), parallel encrypt benchmark, DEK generation benchmark
+
+---
+
 ## [0.3.0] - 2026-03-13
 
 ### Added

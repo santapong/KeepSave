@@ -1,0 +1,73 @@
+replicaCount: 2
+
+backend:
+  image:
+    repository: keepsave-backend
+    tag: "0.5.0"
+    pullPolicy: IfNotPresent
+  port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    PORT: "8080"
+    CORS_ORIGINS: "*"
+
+frontend:
+  image:
+    repository: keepsave-frontend
+    tag: "0.5.0"
+    pullPolicy: IfNotPresent
+  port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+postgresql:
+  enabled: true
+  auth:
+    username: keepsave
+    password: ""
+    database: keepsave
+  primary:
+    persistence:
+      size: 10Gi
+
+secrets:
+  masterKey: ""
+  jwtSecret: ""
+  databaseUrl: ""
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: keepsave.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80

@@ -117,6 +117,20 @@ type SecretSnapshot struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// SecretVersion stores a historical version of a secret value.
+type SecretVersion struct {
+	ID             uuid.UUID  `json:"id"`
+	SecretID       uuid.UUID  `json:"secret_id"`
+	ProjectID      uuid.UUID  `json:"project_id"`
+	EnvironmentID  uuid.UUID  `json:"environment_id"`
+	Version        int        `json:"version"`
+	EncryptedValue []byte     `json:"-"`
+	ValueNonce     []byte     `json:"-"`
+	Value          string     `json:"value,omitempty"`
+	CreatedBy      *uuid.UUID `json:"created_by,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
 // DiffEntry represents a single key difference between two environments.
 type DiffEntry struct {
 	Key          string `json:"key"`
