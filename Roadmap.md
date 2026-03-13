@@ -52,15 +52,15 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 **Goal:** Web UI for managing projects, secrets, and promotions.
 
 ### Frontend
-- [ ] Project scaffold (React 18 + TypeScript + Vite)
-- [ ] Auth pages (login, register)
-- [ ] Project list and detail views
-- [ ] Secret management UI (add, edit, mask/reveal, delete)
-- [ ] Environment switcher (Alpha / UAT / PROD tabs)
-- [ ] Promotion wizard (select env, review diff, confirm)
-- [ ] Audit log viewer
-- [ ] API key management page
-- [ ] Responsive layout
+- [x] Project scaffold (React 18 + TypeScript + Vite)
+- [x] Auth pages (login, register)
+- [x] Project list and detail views
+- [x] Secret management UI (add, edit, mask/reveal, delete)
+- [x] Environment switcher (Alpha / UAT / PROD tabs)
+- [x] Promotion wizard (select env, review diff, confirm)
+- [x] Audit log viewer
+- [x] API key management page
+- [x] Responsive layout
 
 ### Deliverables
 - Fully functional dashboard to manage secrets and promotions via browser
