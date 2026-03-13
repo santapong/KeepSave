@@ -19,7 +19,7 @@ func NewAPIKeyService(apikeyRepo *repository.APIKeyRepository) *APIKeyService {
 
 type CreateAPIKeyResponse struct {
 	APIKey *models.APIKey `json:"api_key"`
-	RawKey string        `json:"raw_key"`
+	RawKey string         `json:"raw_key"`
 }
 
 func (s *APIKeyService) Create(name string, userID, projectID uuid.UUID, scopes []string, environment *string) (*CreateAPIKeyResponse, error) {

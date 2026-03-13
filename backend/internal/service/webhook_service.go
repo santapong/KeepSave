@@ -25,8 +25,8 @@ type WebhookEvent struct {
 
 // WebhookConfig defines a webhook endpoint configuration.
 type WebhookConfig struct {
-	URL    string `json:"url"`
-	Secret string `json:"secret"`
+	URL    string   `json:"url"`
+	Secret string   `json:"secret"`
 	Events []string `json:"events"` // e.g., "promotion.completed", "promotion.requested"
 }
 
@@ -40,11 +40,11 @@ type WebhookService struct {
 
 // WebhookDelivery records a webhook delivery attempt.
 type WebhookDelivery struct {
-	EventID    string    `json:"event_id"`
-	URL        string    `json:"url"`
-	StatusCode int       `json:"status_code"`
-	Success    bool      `json:"success"`
-	Error      string    `json:"error,omitempty"`
+	EventID     string    `json:"event_id"`
+	URL         string    `json:"url"`
+	StatusCode  int       `json:"status_code"`
+	Success     bool      `json:"success"`
+	Error       string    `json:"error,omitempty"`
 	DeliveredAt time.Time `json:"delivered_at"`
 }
 
@@ -180,11 +180,11 @@ func (ws *WebhookService) recordDelivery(eventID, url string, statusCode int, su
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.eventLog = append(ws.eventLog, WebhookDelivery{
-		EventID:    eventID,
-		URL:        url,
-		StatusCode: statusCode,
-		Success:    success,
-		Error:      errMsg,
+		EventID:     eventID,
+		URL:         url,
+		StatusCode:  statusCode,
+		Success:     success,
+		Error:       errMsg,
 		DeliveredAt: time.Now(),
 	})
 	// Keep only last 1000 deliveries

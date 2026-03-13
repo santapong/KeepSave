@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	version     = "1.0.0"
-	envAPIURL   = "KEEPSAVE_API_URL"
-	envAPIKey   = "KEEPSAVE_API_KEY"
-	envToken    = "KEEPSAVE_TOKEN"
-	envProject  = "KEEPSAVE_PROJECT_ID"
+	version    = "1.0.0"
+	envAPIURL  = "KEEPSAVE_API_URL"
+	envAPIKey  = "KEEPSAVE_API_KEY"
+	envToken   = "KEEPSAVE_TOKEN"
+	envProject = "KEEPSAVE_PROJECT_ID"
 )
 
 type CLI struct {

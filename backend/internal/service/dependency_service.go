@@ -13,10 +13,10 @@ import (
 
 // referencePatterns matches common patterns for secret references within values.
 var referencePatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`),          // ${VAR_NAME}
-	regexp.MustCompile(`\$([A-Z_][A-Z0-9_]*)`),              // $VAR_NAME
-	regexp.MustCompile(`\{\{([A-Z_][A-Z0-9_]*)\}\}`),        // {{VAR_NAME}}
-	regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`),              // %VAR_NAME%
+	regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`),   // ${VAR_NAME}
+	regexp.MustCompile(`\$([A-Z_][A-Z0-9_]*)`),       // $VAR_NAME
+	regexp.MustCompile(`\{\{([A-Z_][A-Z0-9_]*)\}\}`), // {{VAR_NAME}}
+	regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`),       // %VAR_NAME%
 }
 
 type DependencyService struct {
