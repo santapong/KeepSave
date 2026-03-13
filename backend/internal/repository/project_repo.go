@@ -86,3 +86,18 @@ func (r *ProjectRepository) Delete(id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (r *ProjectRepository) UpdateDEK(id uuid.UUID, encryptedDEK, dekNonce []byte) error {
+	_, err := r.db.Exec(
+		`UPDATE projects SET encrypted_dek = $2, dek_nonce = $3, updated_at = NOW() WHERE id = $1`,
+		id, encryptedDEK, dekNonce,
+	)
+	if err != nil {
+		return fmt.Errorf("updating project DEK: %w", err)
+	}
+	return nil
+}
+
+func (r *ProjectRepository) ListByOwner(ownerID uuid.UUID) ([]models.Project, error) {
+	return r.ListByOwnerID(ownerID)
+}

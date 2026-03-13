@@ -1,0 +1,13 @@
+apiVersion: v2
+name: keepsave
+description: A Helm chart for KeepSave - Secure Environment Variable Storage
+type: application
+version: 0.5.0
+appVersion: "0.5.0"
+keywords:
+  - secrets
+  - environment-variables
+  - encryption
+  - vault
+maintainers:
+  - name: KeepSave Team

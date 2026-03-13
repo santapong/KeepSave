@@ -90,15 +90,22 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 **Goal:** Production-grade reliability and security.
 
-- [ ] Rate limiting and request throttling
-- [ ] Key rotation mechanism (re-encrypt secrets with new master key)
-- [ ] Secret versioning (keep N previous values)
-- [ ] Webhook notifications on promotion events
-- [ ] Health check and readiness endpoints
-- [ ] Structured JSON logging
-- [ ] Helm chart for Kubernetes deployment
-- [ ] CI/CD pipeline (GitHub Actions: lint, test, build, push image)
-- [ ] Security audit checklist (OWASP top 10 review)
+- [x] Rate limiting and request throttling
+- [x] Key rotation mechanism (re-encrypt secrets with new master key)
+- [x] Secret versioning (keep N previous values)
+- [x] Webhook notifications on promotion events
+- [x] Health check and readiness endpoints
+- [x] Structured JSON logging
+- [x] Helm chart for Kubernetes deployment
+- [x] CI/CD pipeline (GitHub Actions: lint, test, build, push image)
+- [x] Security audit checklist (OWASP top 10 review)
+
+### Deliverables
+- Production-ready deployment with Kubernetes Helm chart
+- Comprehensive CI/CD pipeline with security scanning
+- Rate limiting, structured logging, and health checks for operational monitoring
+- Key rotation and secret versioning for security compliance
+- Webhook notifications for event-driven integrations
 
 ---
 
