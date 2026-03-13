@@ -1,11 +1,13 @@
 {
   "name": "keepsave-frontend",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:widget": "tsc -b && vite build --config vite.embed.config.ts",
+    "build:all": "npm run build && npm run build:widget",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
