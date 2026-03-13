@@ -109,15 +109,47 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 6 - Advanced Features (Future)
+## Phase 6 - Advanced Features
 
-- [ ] Multi-tenant SaaS mode with organization accounts
-- [ ] RBAC with custom roles (viewer, editor, admin, promoter)
-- [ ] Secret templates (predefined sets for common stacks)
-- [ ] CLI tool (`keepsave pull`, `keepsave push`, `keepsave promote`)
-- [ ] Integration plugins (GitHub Actions, GitLab CI, Terraform provider)
-- [ ] Import/export from `.env` files
-- [ ] Secrets dependency graph (detect references between secrets)
+**Goal:** CLI tooling, RBAC, multi-tenant SaaS, templates, integrations, and dependency analysis.
+
+### Backend
+- [x] Multi-tenant SaaS mode with organization accounts
+- [x] RBAC with custom roles (viewer, editor, admin, promoter)
+- [x] Secret templates (predefined sets for common stacks)
+- [x] CLI tool (`keepsave pull`, `keepsave push`, `keepsave promote`)
+- [x] Integration plugins (GitHub Actions, GitLab CI, Terraform provider)
+- [x] Import/export from `.env` files
+- [x] Secrets dependency graph (detect references between secrets)
+- [x] Unit tests for organization, RBAC, dependency, and env file services
+
+### Frontend
+- [x] Organizations management page (create, members, roles)
+- [x] Templates page (create, apply builtin/custom templates)
+- [x] Updated navigation with Organizations and Templates links
+- [x] API client extended with all Phase 6 endpoints
+
+### CLI
+- [x] `keepsave pull` - Pull secrets as env/json/table format
+- [x] `keepsave push` - Push .env file to project environment
+- [x] `keepsave promote` - Promote secrets between environments
+- [x] `keepsave export` - Export secrets as .env content
+- [x] `keepsave import` - Import secrets from .env file
+- [x] `keepsave projects` - List all projects
+- [x] `keepsave login` - Authenticate with API
+
+### Integrations
+- [x] GitHub Actions action (pull secrets, export as env/file/json)
+- [x] GitLab CI templates (pull, pull-to-file, promote)
+- [x] Terraform provider (external data source + local file)
+
+### Deliverables
+- CLI tool for AI agents and CI/CD pipelines
+- Multi-tenant organization management with role-based access control
+- Secret templates for rapid project bootstrapping
+- CI/CD integration plugins for GitHub Actions, GitLab CI, and Terraform
+- .env file import/export for easy migration
+- Dependency graph analysis for secret reference tracking
 
 ---
 

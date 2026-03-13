@@ -50,3 +50,53 @@ type DiffRequest struct {
 	TargetEnvironment string   `json:"target_environment" binding:"required,oneof=uat prod"`
 	Keys              []string `json:"keys"`
 }
+
+// Phase 6 request types
+
+type CreateOrganizationRequest struct {
+	Name string `json:"name" binding:"required,min=1,max=255"`
+}
+
+type UpdateOrganizationRequest struct {
+	Name string `json:"name" binding:"required,min=1,max=255"`
+}
+
+type AddMemberRequest struct {
+	UserID string `json:"user_id" binding:"required,uuid"`
+	Role   string `json:"role" binding:"required,oneof=viewer editor admin promoter"`
+}
+
+type UpdateMemberRoleRequest struct {
+	Role string `json:"role" binding:"required,oneof=viewer editor admin promoter"`
+}
+
+type AssignProjectRequest struct {
+	ProjectID string `json:"project_id" binding:"required,uuid"`
+}
+
+type CreateTemplateRequest struct {
+	Name           string                 `json:"name" binding:"required,min=1,max=255"`
+	Description    string                 `json:"description"`
+	Stack          string                 `json:"stack" binding:"required"`
+	Keys           map[string]interface{} `json:"keys" binding:"required"`
+	OrganizationID string                 `json:"organization_id"`
+	IsGlobal       bool                   `json:"is_global"`
+}
+
+type UpdateTemplateRequest struct {
+	Name        string                 `json:"name" binding:"required,min=1,max=255"`
+	Description string                 `json:"description"`
+	Stack       string                 `json:"stack" binding:"required"`
+	Keys        map[string]interface{} `json:"keys" binding:"required"`
+}
+
+type ApplyTemplateRequest struct {
+	ProjectID   string `json:"project_id" binding:"required,uuid"`
+	Environment string `json:"environment" binding:"required,oneof=alpha uat prod"`
+}
+
+type ImportEnvRequest struct {
+	Environment string `json:"environment" binding:"required,oneof=alpha uat prod"`
+	Content     string `json:"content" binding:"required"`
+	Overwrite   bool   `json:"overwrite"`
+}

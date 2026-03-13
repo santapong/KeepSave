@@ -23,6 +23,10 @@ func SetupRouter(
 	webhookHandler *WebhookHandler,
 	versionHandler *VersionHandler,
 	healthHandler *HealthHandler,
+	orgHandler *OrganizationHandler,
+	templateHandler *TemplateHandler,
+	envFileHandler *EnvFileHandler,
+	depHandler *DependencyHandler,
 	db *sql.DB,
 	logger *logging.Logger,
 ) *gin.Engine {
@@ -101,6 +105,14 @@ func SetupRouter(
 			promoteGroup.POST("/webhooks", webhookHandler.Register)
 			promoteGroup.GET("/webhooks", webhookHandler.List)
 			promoteGroup.DELETE("/webhooks", webhookHandler.Remove)
+
+			// Import/Export .env files
+			promoteGroup.GET("/env-export", envFileHandler.Export)
+			promoteGroup.POST("/env-import", envFileHandler.Import)
+
+			// Secret dependency graph
+			promoteGroup.POST("/dependencies/analyze", depHandler.Analyze)
+			promoteGroup.GET("/dependencies/graph", depHandler.Graph)
 		}
 
 		// Key rotation for all projects (JWT required)
@@ -124,6 +136,40 @@ func SetupRouter(
 		webhookGroup.Use(JWTAuthMiddleware(jwtService))
 		{
 			webhookGroup.GET("", webhookHandler.Deliveries)
+		}
+
+		// Organization routes (JWT required)
+		orgGroup := v1.Group("/organizations")
+		orgGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			orgGroup.POST("", orgHandler.Create)
+			orgGroup.GET("", orgHandler.List)
+			orgGroup.GET("/:orgId", orgHandler.Get)
+			orgGroup.PUT("/:orgId", orgHandler.Update)
+			orgGroup.DELETE("/:orgId", orgHandler.Delete)
+
+			// Members
+			orgGroup.POST("/:orgId/members", orgHandler.AddMember)
+			orgGroup.GET("/:orgId/members", orgHandler.ListMembers)
+			orgGroup.PUT("/:orgId/members/:userId", orgHandler.UpdateMemberRole)
+			orgGroup.DELETE("/:orgId/members/:userId", orgHandler.RemoveMember)
+
+			// Project assignment
+			orgGroup.POST("/:orgId/projects", orgHandler.AssignProject)
+			orgGroup.GET("/:orgId/projects", orgHandler.ListProjects)
+		}
+
+		// Template routes (JWT required)
+		templateGroup := v1.Group("/templates")
+		templateGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			templateGroup.POST("", templateHandler.Create)
+			templateGroup.GET("", templateHandler.List)
+			templateGroup.GET("/builtin", templateHandler.ListBuiltin)
+			templateGroup.GET("/:templateId", templateHandler.Get)
+			templateGroup.PUT("/:templateId", templateHandler.Update)
+			templateGroup.DELETE("/:templateId", templateHandler.Delete)
+			templateGroup.POST("/:templateId/apply", templateHandler.Apply)
 		}
 	}
 

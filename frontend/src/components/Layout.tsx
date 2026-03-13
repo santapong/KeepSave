@@ -13,6 +13,8 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
 
   const navLinks = [
     { to: '/', label: 'Projects' },
+    { to: '/organizations', label: 'Organizations' },
+    { to: '/templates', label: 'Templates' },
     { to: '/api-keys', label: 'API Keys' },
   ];
 
