@@ -90,5 +90,42 @@ func (j *JSONMap) Scan(src interface{}) error {
 	return json.Unmarshal(source, j)
 }
 
+// PromotionRequest represents a request to promote secrets between environments.
+type PromotionRequest struct {
+	ID                uuid.UUID  `json:"id"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	SourceEnvironment string     `json:"source_environment"`
+	TargetEnvironment string     `json:"target_environment"`
+	Status            string     `json:"status"` // pending, approved, rejected, completed
+	RequestedBy       uuid.UUID  `json:"requested_by"`
+	ApprovedBy        *uuid.UUID `json:"approved_by,omitempty"`
+	KeysFilter        StringList `json:"keys_filter,omitempty"`
+	OverridePolicy    string     `json:"override_policy"` // skip, overwrite
+	Notes             string     `json:"notes,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	CompletedAt       *time.Time `json:"completed_at,omitempty"`
+}
+
+// SecretSnapshot stores a snapshot of a secret value before promotion for rollback.
+type SecretSnapshot struct {
+	ID             uuid.UUID `json:"id"`
+	PromotionID    uuid.UUID `json:"promotion_id"`
+	EnvironmentID  uuid.UUID `json:"environment_id"`
+	Key            string    `json:"key"`
+	EncryptedValue []byte    `json:"-"`
+	ValueNonce     []byte    `json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// DiffEntry represents a single key difference between two environments.
+type DiffEntry struct {
+	Key          string `json:"key"`
+	Action       string `json:"action"` // add, update, no_change
+	SourceValue  string `json:"source_value,omitempty"`
+	TargetValue  string `json:"target_value,omitempty"`
+	SourceExists bool   `json:"source_exists"`
+	TargetExists bool   `json:"target_exists"`
+}
+
 // StringList handles PostgreSQL TEXT[] arrays.
 type StringList []string

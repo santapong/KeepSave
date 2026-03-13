@@ -86,3 +86,32 @@ func (r *SecretRepository) Delete(id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string, encryptedValue, valueNonce []byte) (*models.Secret, error) {
+	s := &models.Secret{}
+	err := r.db.QueryRow(
+		`INSERT INTO secrets (project_id, environment_id, key, encrypted_value, value_nonce)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (environment_id, key) DO UPDATE
+		 SET encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = NOW()
+		 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`,
+		projectID, environmentID, key, encryptedValue, valueNonce,
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("upserting secret: %w", err)
+	}
+	return s, nil
+}
+
+func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (*models.Secret, error) {
+	s := &models.Secret{}
+	err := r.db.QueryRow(
+		`SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE environment_id = $1 AND key = $2`,
+		environmentID, key,
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("getting secret by env and key: %w", err)
+	}
+	return s, nil
+}

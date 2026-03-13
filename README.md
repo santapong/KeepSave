@@ -113,10 +113,32 @@ curl http://localhost:8080/api/v1/projects/:id/secrets?environment=alpha \
 ### Environment Promotion
 
 ```bash
-# Promote alpha -> uat
+# Preview what will change (diff)
+curl -X POST http://localhost:8080/api/v1/projects/:id/promote/diff \
+  -H "Authorization: Bearer <jwt-token>" \
+  -d '{"source_environment": "alpha", "target_environment": "uat"}'
+
+# Promote alpha -> uat (executes immediately)
 curl -X POST http://localhost:8080/api/v1/projects/:id/promote \
   -H "Authorization: Bearer <jwt-token>" \
-  -d '{"from": "alpha", "to": "uat"}'
+  -d '{"source_environment": "alpha", "target_environment": "uat", "override_policy": "skip"}'
+
+# Promote uat -> prod (requires approval)
+curl -X POST http://localhost:8080/api/v1/projects/:id/promote \
+  -H "Authorization: Bearer <jwt-token>" \
+  -d '{"source_environment": "uat", "target_environment": "prod"}'
+
+# Approve a pending PROD promotion
+curl -X POST http://localhost:8080/api/v1/projects/:id/promotions/:promotionId/approve \
+  -H "Authorization: Bearer <jwt-token>"
+
+# Rollback a completed promotion
+curl -X POST http://localhost:8080/api/v1/projects/:id/promotions/:promotionId/rollback \
+  -H "Authorization: Bearer <jwt-token>"
+
+# View audit log
+curl http://localhost:8080/api/v1/projects/:id/audit-log \
+  -H "Authorization: Bearer <jwt-token>"
 ```
 
 ## Embedding the Widget

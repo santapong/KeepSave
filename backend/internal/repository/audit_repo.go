@@ -31,3 +31,28 @@ func (r *AuditRepository) Create(userID, projectID *uuid.UUID, action, environme
 	}
 	return nil
 }
+
+func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]models.AuditEntry, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := r.db.Query(
+		`SELECT id, user_id, project_id, action, environment, details, ip_address, created_at
+		 FROM audit_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2`,
+		projectID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing audit entries: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []models.AuditEntry
+	for rows.Next() {
+		var e models.AuditEntry
+		if err := rows.Scan(&e.ID, &e.UserID, &e.ProjectID, &e.Action, &e.Environment, &e.Details, &e.IPAddress, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scanning audit entry: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}

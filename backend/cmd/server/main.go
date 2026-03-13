@@ -41,18 +41,22 @@ func main() {
 	envRepo := repository.NewEnvironmentRepository(db)
 	secretRepo := repository.NewSecretRepository(db)
 	apikeyRepo := repository.NewAPIKeyRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
+	promotionRepo := repository.NewPromotionRepository(db)
 
 	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, cryptoSvc)
 	apikeyService := service.NewAPIKeyService(apikeyRepo)
+	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
 	projectHandler := api.NewProjectHandler(projectService)
 	secretHandler := api.NewSecretHandler(secretService)
 	apikeyHandler := api.NewAPIKeyHandler(apikeyService)
+	promotionHandler := api.NewPromotionHandler(promotionService)
 
 	// Router
 	router := api.SetupRouter(
@@ -63,6 +67,7 @@ func main() {
 		projectHandler,
 		secretHandler,
 		apikeyHandler,
+		promotionHandler,
 	)
 
 	log.Printf("Starting server on port %s", cfg.Port)
