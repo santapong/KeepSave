@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+node_modules
+dist
+.env
+.env.*
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
