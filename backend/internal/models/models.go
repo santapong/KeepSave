@@ -1,7 +1,10 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,11 +86,16 @@ func (j *JSONMap) Scan(src interface{}) error {
 		*j = make(JSONMap)
 		return nil
 	}
-	source, ok := src.([]byte)
-	if !ok {
+	var data []byte
+	switch v := src.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
 		return nil
 	}
-	return json.Unmarshal(source, j)
+	return json.Unmarshal(data, j)
 }
 
 // PromotionRequest represents a request to promote secrets between environments.
@@ -141,8 +149,62 @@ type DiffEntry struct {
 	TargetExists bool   `json:"target_exists"`
 }
 
-// StringList handles PostgreSQL TEXT[] arrays.
+// StringList handles database array columns.
+// For PostgreSQL, it serializes as pg array format {a,b,c}.
+// For MySQL/SQLite, it serializes as JSON ["a","b","c"].
 type StringList []string
+
+// Value implements driver.Valuer for database storage.
+func (s StringList) Value() (driver.Value, error) {
+	if s == nil {
+		return "[]", nil
+	}
+	data, err := json.Marshal([]string(s))
+	if err != nil {
+		return nil, fmt.Errorf("marshaling StringList: %w", err)
+	}
+	return string(data), nil
+}
+
+// Scan implements sql.Scanner for reading from the database.
+func (s *StringList) Scan(src interface{}) error {
+	if src == nil {
+		*s = StringList{}
+		return nil
+	}
+	var data string
+	switch v := src.(type) {
+	case []byte:
+		data = string(v)
+	case string:
+		data = v
+	default:
+		return fmt.Errorf("unsupported StringList source type: %T", src)
+	}
+	if data == "" {
+		*s = StringList{}
+		return nil
+	}
+	// Detect format: pg array {a,b,c} or JSON ["a","b","c"]
+	if strings.HasPrefix(data, "{") && !strings.HasPrefix(data, "{\"") && !strings.HasPrefix(data, "[") {
+		// PostgreSQL array format
+		inner := strings.TrimPrefix(data, "{")
+		inner = strings.TrimSuffix(inner, "}")
+		if inner == "" {
+			*s = StringList{}
+			return nil
+		}
+		*s = StringList(strings.Split(inner, ","))
+		return nil
+	}
+	// JSON format
+	var result []string
+	if err := json.Unmarshal([]byte(data), &result); err != nil {
+		return fmt.Errorf("scanning StringList: %w", err)
+	}
+	*s = StringList(result)
+	return nil
+}
 
 // Organization represents a multi-tenant organization account.
 type Organization struct {

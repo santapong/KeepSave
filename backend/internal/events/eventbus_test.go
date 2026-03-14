@@ -10,7 +10,7 @@ import (
 )
 
 func TestBusPublishSubscribe(t *testing.T) {
-	bus := NewBus(nil)
+	bus := NewBus(nil, nil)
 
 	var received atomic.Int32
 
@@ -32,7 +32,7 @@ func TestBusPublishSubscribe(t *testing.T) {
 }
 
 func TestBusWildcardSubscriber(t *testing.T) {
-	bus := NewBus(nil)
+	bus := NewBus(nil, nil)
 
 	var received atomic.Int32
 
@@ -51,7 +51,7 @@ func TestBusWildcardSubscriber(t *testing.T) {
 }
 
 func TestBusMultipleSubscribers(t *testing.T) {
-	bus := NewBus(nil)
+	bus := NewBus(nil, nil)
 
 	var count1, count2 atomic.Int32
 
@@ -72,7 +72,7 @@ func TestBusMultipleSubscribers(t *testing.T) {
 }
 
 func TestBusNoSubscribers(t *testing.T) {
-	bus := NewBus(nil)
+	bus := NewBus(nil, nil)
 
 	err := bus.Publish("nobody.listens", uuid.New(), nil)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestBusNoSubscribers(t *testing.T) {
 }
 
 func TestBusEventPayload(t *testing.T) {
-	bus := NewBus(nil)
+	bus := NewBus(nil, nil)
 
 	var receivedPayload models.JSONMap
 	done := make(chan struct{})
