@@ -50,60 +50,78 @@ export function ProjectsPage() {
     }
   }
 
-  if (loading) return <p>Loading projects...</p>;
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading projects...</div>;
+  }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700 }}>Projects</h1>
+      <div style={headerRow}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Projects</h1>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+            {projects.length} project{projects.length !== 1 ? 's' : ''}
+          </p>
+        </div>
         <button onClick={() => setShowCreate(!showCreate)} style={btnPrimary}>
-          {showCreate ? 'Cancel' : 'New Project'}
+          {showCreate ? 'Cancel' : '+ New Project'}
         </button>
       </div>
 
       {error && <div style={errorStyle}>{error}</div>}
 
       {showCreate && (
-        <form onSubmit={handleCreate} style={formCard}>
-          <input
-            placeholder="Project name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            style={inputStyle}
-          />
-          <input
-            placeholder="Description (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            style={inputStyle}
-          />
-          <button type="submit" style={btnPrimary}>Create</button>
+        <form onSubmit={handleCreate} style={createForm}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Create Project</h3>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <input
+              placeholder="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              style={inputStyle}
+            />
+            <input
+              placeholder="Description (optional)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              style={{ ...inputStyle, flex: 2 }}
+            />
+            <button type="submit" style={btnPrimary}>Create</button>
+          </div>
         </form>
       )}
 
       {projects.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>No projects yet. Create your first project to get started.</p>
+        <div style={emptyState}>
+          <p style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>No projects yet</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Create your first project to start managing secrets securely.</p>
+        </div>
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
           {projects.map((p) => (
-            <div
-              key={p.id}
-              style={card}
-            >
+            <div key={p.id} style={projectCard}>
               <div
                 style={{ flex: 1, cursor: 'pointer' }}
                 onClick={() => navigate(`/projects/${p.id}`)}
               >
-                <h3 style={{ fontSize: 16, fontWeight: 600 }}>{p.name}</h3>
-                {p.description && (
-                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                    {p.description}
-                  </p>
-                )}
-                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 8 }}>
-                  Created {new Date(p.created_at).toLocaleDateString()}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={projectIcon}>{p.name.charAt(0).toUpperCase()}</div>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 600 }}>{p.name}</h3>
+                    {p.description && (
+                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                        {p.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+                  <span style={metaTag}>
+                    Created {new Date(p.created_at).toLocaleDateString()}
+                  </span>
+                  <span style={metaTag}>3 environments</span>
+                </div>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
@@ -119,6 +137,13 @@ export function ProjectsPage() {
   );
 }
 
+const headerRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  marginBottom: 24,
+};
+
 const btnPrimary: React.CSSProperties = {
   padding: '8px 16px',
   background: 'var(--color-primary)',
@@ -133,46 +158,78 @@ const btnDanger: React.CSSProperties = {
   padding: '6px 12px',
   background: 'transparent',
   color: 'var(--color-danger)',
-  border: '1px solid var(--color-danger)',
+  border: '1px solid rgba(239, 68, 68, 0.3)',
   borderRadius: 'var(--radius)',
   fontSize: 12,
+  alignSelf: 'flex-start',
 };
 
-const card: React.CSSProperties = {
+const projectCard: React.CSSProperties = {
   background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
   padding: 20,
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   gap: 16,
 };
 
-const formCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  padding: 20,
+const projectIcon: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: 8,
+  background: 'rgba(99, 102, 241, 0.15)',
+  color: 'var(--color-primary)',
   display: 'flex',
-  gap: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontWeight: 700,
+  fontSize: 16,
+  flexShrink: 0,
+};
+
+const metaTag: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--color-text-secondary)',
+  padding: '2px 8px',
+  background: 'var(--color-input-bg)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 4,
+};
+
+const createForm: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius)',
+  padding: 20,
   marginBottom: 24,
-  flexWrap: 'wrap',
 };
 
 const inputStyle: React.CSSProperties = {
   padding: '8px 12px',
+  background: 'var(--color-input-bg)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   fontSize: 14,
+  color: 'var(--color-text)',
   flex: 1,
   minWidth: 200,
 };
 
+const emptyState: React.CSSProperties = {
+  textAlign: 'center',
+  padding: 60,
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius)',
+};
+
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
-  padding: '8px 12px',
+  padding: '10px 14px',
   borderRadius: 'var(--radius)',
   fontSize: 13,
   marginBottom: 16,
+  border: '1px solid rgba(239, 68, 68, 0.2)',
 };

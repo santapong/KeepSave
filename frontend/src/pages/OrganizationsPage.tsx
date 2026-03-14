@@ -112,7 +112,7 @@ export function OrganizationsPage() {
       <h1 style={{ marginBottom: 24 }}>Organizations</h1>
 
       {error && (
-        <div style={{ padding: 12, background: '#fef2f2', color: '#dc2626', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ padding: 12, background: 'var(--color-error-bg)', color: 'var(--color-danger)', borderRadius: 8, marginBottom: 16 }}>
           {error}
           <button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
         </div>

@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: keepsave_dev
       POSTGRES_DB: keepsave
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
       - "8080:8080"
     environment:
       DATABASE_URL: postgres://keepsave:keepsave_dev@db:5432/keepsave?sslmode=disable
-      MASTER_KEY: dGhpcy1pcy1hLTMyLWJ5dGUtZGV2LWtleS4u
+      MASTER_KEY: 43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=
       JWT_SECRET: dev-jwt-secret-change-me
       PORT: "8080"
       CORS_ORIGINS: "*"
@@ -30,7 +30,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +39,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "3002:3000"
     depends_on:
       api:
         condition: service_healthy

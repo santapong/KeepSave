@@ -193,7 +193,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                     <td style={tdStyle}>
                       <span style={{
                         ...badgeBase,
-                        background: entry.action === 'add' ? '#dcfce7' : entry.action === 'update' ? '#fef3c7' : '#f3f4f6',
+                        background: entry.action === 'add' ? 'rgba(34, 197, 94, 0.15)' : entry.action === 'update' ? 'rgba(245, 158, 11, 0.15)' : 'var(--color-input-bg)',
                         color: entry.action === 'add' ? 'var(--color-success)' : entry.action === 'update' ? 'var(--color-warning)' : 'var(--color-text-secondary)',
                       }}>
                         {entry.action}
@@ -308,7 +308,7 @@ const badgeBase: React.CSSProperties = {
 };
 
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
   padding: '8px 12px',
   borderRadius: 'var(--radius)',

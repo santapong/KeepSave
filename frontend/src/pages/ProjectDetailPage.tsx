@@ -97,7 +97,7 @@ const tabBtn: React.CSSProperties = {
 };
 
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
   padding: '8px 12px',
   borderRadius: 'var(--radius)',

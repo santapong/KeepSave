@@ -82,7 +82,7 @@ export function APIKeysPage() {
           <p style={{ fontSize: 13, marginBottom: 8 }}>
             Copy this key now. You won&apos;t be able to see it again.
           </p>
-          <code style={{ fontSize: 13, wordBreak: 'break-all', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4 }}>
+          <code style={{ fontSize: 13, wordBreak: 'break-all', background: 'var(--color-input-bg)', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--color-border)' }}>
             {newRawKey}
           </code>
         </div>
@@ -243,20 +243,21 @@ const scopeBadge: React.CSSProperties = {
   padding: '1px 6px',
   borderRadius: 3,
   fontSize: 11,
-  background: '#f3f4f6',
+  background: 'var(--color-input-bg)',
+  border: '1px solid var(--color-border)',
   marginRight: 4,
 };
 
 const successBox: React.CSSProperties = {
-  background: '#f0fdf4',
-  border: '1px solid #bbf7d0',
+  background: 'rgba(34, 197, 94, 0.1)',
+  border: '1px solid rgba(34, 197, 94, 0.25)',
   borderRadius: 'var(--radius)',
   padding: 16,
   marginBottom: 16,
 };
 
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
   padding: '8px 12px',
   borderRadius: 'var(--radius)',

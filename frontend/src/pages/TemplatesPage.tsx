@@ -117,14 +117,14 @@ export function TemplatesPage() {
       </div>
 
       {error && (
-        <div style={{ padding: 12, background: '#fef2f2', color: '#dc2626', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ padding: 12, background: 'var(--color-error-bg)', color: 'var(--color-danger)', borderRadius: 8, marginBottom: 16 }}>
           {error}
           <button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
         </div>
       )}
 
       {success && (
-        <div style={{ padding: 12, background: '#f0fdf4', color: '#16a34a', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ padding: 12, background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', borderRadius: 8, marginBottom: 16 }}>
           {success}
           <button onClick={() => setSuccess('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
         </div>

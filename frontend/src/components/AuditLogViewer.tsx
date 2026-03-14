@@ -97,13 +97,13 @@ const envBadge: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 11,
   fontWeight: 600,
-  background: '#dbeafe',
-  color: '#1e40af',
+  background: 'rgba(99, 102, 241, 0.15)',
+  color: '#818cf8',
   textTransform: 'uppercase',
 };
 
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
   padding: '8px 12px',
   borderRadius: 'var(--radius)',

@@ -120,10 +120,10 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
 }
 
 const statusColors: Record<string, { bg: string; text: string }> = {
-  pending: { bg: '#fef3c7', text: '#92400e' },
-  approved: { bg: '#dbeafe', text: '#1e40af' },
-  completed: { bg: '#dcfce7', text: '#166534' },
-  rejected: { bg: '#fef2f2', text: '#991b1b' },
+  pending: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' },
+  approved: { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8' },
+  completed: { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e' },
+  rejected: { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444' },
 };
 
 const cardStyle: React.CSSProperties = {
@@ -171,7 +171,7 @@ const btnOutline: React.CSSProperties = {
 };
 
 const errorStyle: React.CSSProperties = {
-  background: '#fef2f2',
+  background: 'var(--color-error-bg)',
   color: 'var(--color-danger)',
   padding: '8px 12px',
   borderRadius: 'var(--radius)',
