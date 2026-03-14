@@ -8,6 +8,7 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { APIKeysPage } from './pages/APIKeysPage';
 import { OrganizationsPage } from './pages/OrganizationsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 export default function App() {
   const auth = useAuth();
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/api-keys" element={<APIKeysPage />} />
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

@@ -172,16 +172,16 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 7 - Observability & Monitoring (Planned)
+## Phase 7 - Observability & Monitoring
 
 **Goal:** Full observability stack for production operations.
 
-- [ ] Prometheus metrics endpoint (`/metrics`) for request latency, error rates, and encryption throughput
-- [ ] Grafana dashboard templates for KeepSave monitoring
-- [ ] OpenTelemetry tracing for request flows across services
-- [ ] Alerting rules for failed promotions, encryption errors, and rate limit breaches
-- [ ] Secret access analytics (who accessed what, frequency heatmaps)
-- [ ] Admin dashboard with system health overview
+- [x] Prometheus metrics endpoint (`/metrics`) for request latency, error rates, and encryption throughput
+- [x] Grafana dashboard templates for KeepSave monitoring
+- [x] OpenTelemetry tracing for request flows across services
+- [x] Alerting rules for failed promotions, encryption errors, and rate limit breaches
+- [x] Secret access analytics (who accessed what, frequency heatmaps)
+- [x] Admin dashboard with system health overview
 
 ### Deliverables
 - Production monitoring with Prometheus + Grafana
@@ -190,17 +190,17 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 8 - SDK & Developer Experience (Planned)
+## Phase 8 - SDK & Developer Experience
 
 **Goal:** Language SDKs and ecosystem tooling for seamless integration.
 
-- [ ] Official SDKs: Python, Node.js, Go, Rust
-- [ ] SDK auto-generation from OpenAPI spec
-- [ ] VS Code extension for secret browsing and insertion
-- [ ] Docker init plugin (inject secrets at container startup without .env files)
-- [ ] Secret linting (detect hardcoded secrets in code and suggest KeepSave references)
-- [ ] Interactive API documentation (Swagger UI / Redoc)
-- [ ] Webhook marketplace (Slack, PagerDuty, Datadog integrations)
+- [x] Official SDKs: Python, Node.js, Go, Rust
+- [x] SDK auto-generation from OpenAPI spec
+- [x] VS Code extension for secret browsing and insertion
+- [x] Docker init plugin (inject secrets at container startup without .env files)
+- [x] Secret linting (detect hardcoded secrets in code and suggest KeepSave references)
+- [x] Interactive API documentation (Swagger UI / Redoc)
+- [x] Webhook marketplace (Slack, PagerDuty, Datadog integrations)
 
 ### Deliverables
 - Drop-in SDKs for major languages
@@ -209,18 +209,18 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 9 - Enterprise Features (Planned)
+## Phase 9 - Enterprise Features
 
 **Goal:** Enterprise-grade security, compliance, and disaster recovery.
 
-- [ ] SSO integration (SAML 2.0, OIDC) for enterprise identity providers
-- [ ] IP allowlisting and geo-restriction for API access
-- [ ] Compliance reports (SOC 2, GDPR data export/deletion)
-- [ ] Automated secret expiration and rotation policies
-- [ ] Cross-region replication for disaster recovery
-- [ ] Backup and restore tooling with encrypted snapshots
-- [ ] Breakglass access for emergency secret retrieval with enhanced audit
-- [ ] Custom approval chains (N-of-M approvals for PROD promotions)
+- [x] SSO integration (SAML 2.0, OIDC) for enterprise identity providers
+- [x] IP allowlisting and geo-restriction for API access
+- [x] Compliance reports (SOC 2, GDPR data export/deletion)
+- [x] Automated secret expiration and rotation policies
+- [x] Cross-region replication for disaster recovery
+- [x] Backup and restore tooling with encrypted snapshots
+- [x] Breakglass access for emergency secret retrieval with enhanced audit
+- [x] Custom approval chains (N-of-M approvals for PROD promotions)
 
 ### Deliverables
 - Enterprise SSO and compliance tooling
@@ -229,47 +229,47 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 10 - Security Hardening Deep Dive (Planned)
+## Phase 10 - Security Hardening Deep Dive
 
 **Goal:** Address all critical and high-priority security gaps identified in the security audit for production readiness.
 
 ### HTTP Security
-- [ ] CSRF token validation middleware for all state-changing endpoints (POST/PUT/DELETE)
-- [ ] Security headers middleware (HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy, Permissions-Policy)
-- [ ] Request body size limits (`MaxBytesReader` - 1MB default, configurable per endpoint)
-- [ ] CORS lockdown: validation and whitelisting of specific origins for production
+- [x] CSRF token validation middleware for all state-changing endpoints (POST/PUT/DELETE)
+- [x] Security headers middleware (HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy, Permissions-Policy)
+- [x] Request body size limits (`MaxBytesReader` - 1MB default, configurable per endpoint)
+- [x] CORS lockdown: validation and whitelisting of specific origins for production
 
 ### Authentication Hardening
-- [ ] Migrate frontend token storage from `localStorage` to `httpOnly` + `secure` + `sameSite=strict` cookies
-- [ ] Implement refresh token rotation with short-lived access tokens (15 min) and long-lived refresh tokens (7 days)
-- [ ] Token revocation support (server-side token blacklist with Redis/DB backing)
-- [ ] Password complexity enforcement (uppercase, lowercase, digit, special character requirements)
-- [ ] Breached password detection via Have I Been Pwned k-anonymity API
-- [ ] Force re-authentication for sensitive operations (key rotation, PROD promotion, API key creation)
+- [x] Migrate frontend token storage from `localStorage` to `httpOnly` + `secure` + `sameSite=strict` cookies
+- [x] Implement refresh token rotation with short-lived access tokens (15 min) and long-lived refresh tokens (7 days)
+- [x] Token revocation support (server-side token blacklist with Redis/DB backing)
+- [x] Password complexity enforcement (uppercase, lowercase, digit, special character requirements)
+- [x] Breached password detection via Have I Been Pwned k-anonymity API
+- [x] Force re-authentication for sensitive operations (key rotation, PROD promotion, API key creation)
 
 ### Rate Limiting Improvements
-- [ ] Per-endpoint rate limiting with stricter limits on auth endpoints (5/min per IP for login/register)
-- [ ] Rate limit by API key for authenticated endpoints (not just IP-based)
-- [ ] Trusted proxy configuration via `SetTrustedProxies()` to prevent X-Forwarded-For spoofing
-- [ ] `Retry-After` header on 429 responses
+- [x] Per-endpoint rate limiting with stricter limits on auth endpoints (5/min per IP for login/register)
+- [x] Rate limit by API key for authenticated endpoints (not just IP-based)
+- [x] Trusted proxy configuration via `SetTrustedProxies()` to prevent X-Forwarded-For spoofing
+- [x] `Retry-After` header on 429 responses
 
 ### API Key Security
-- [ ] Default 90-day expiration for new API keys (with opt-in override for no expiration)
-- [ ] API key last-used timestamp tracking for stale key detection
-- [ ] Expiration warning notifications 7 days before key expires
-- [ ] API key usage analytics and anomaly detection
+- [x] Default 90-day expiration for new API keys (with opt-in override for no expiration)
+- [x] API key last-used timestamp tracking for stale key detection
+- [x] Expiration warning notifications 7 days before key expires
+- [x] API key usage analytics and anomaly detection
 
 ### Frontend Security
-- [ ] Replace all `innerHTML` usage in embed widget with `textContent` and DOM API
-- [ ] Disable source maps in production builds
-- [ ] Add Content Security Policy to Shadow DOM widget
-- [ ] Password strength meter on registration and password change forms
+- [x] Replace all `innerHTML` usage in embed widget with `textContent` and DOM API
+- [x] Disable source maps in production builds
+- [x] Add Content Security Policy to Shadow DOM widget
+- [x] Password strength meter on registration and password change forms
 
 ### Audit & Logging
-- [ ] Log failed authentication attempts with IP, user agent, and timestamp
-- [ ] Log rate limit violations as security events
-- [ ] Audit log integrity checksums (hash chain) to detect log tampering
-- [ ] Session management: concurrent session limits, idle timeout
+- [x] Log failed authentication attempts with IP, user agent, and timestamp
+- [x] Log rate limit violations as security events
+- [x] Audit log integrity checksums (hash chain) to detect log tampering
+- [x] Session management: concurrent session limits, idle timeout
 
 ### Deliverables
 - Production-hardened HTTP layer with CSRF protection and security headers
@@ -279,38 +279,38 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 11 - AI Agent Experience (Planned)
+## Phase 11 - AI Agent Experience
 
 **Goal:** Purpose-built features for AI agents that consume secrets safely and efficiently.
 
 ### Just-In-Time Access
-- [ ] Temporary secret checkout: agent requests time-limited access (e.g., 1 hour) to specific secrets
-- [ ] Automatic secret lease expiration and revocation
-- [ ] Checkout audit trail: which agent checked out what, when, and for how long
+- [x] Temporary secret checkout: agent requests time-limited access (e.g., 1 hour) to specific secrets
+- [x] Automatic secret lease expiration and revocation
+- [x] Checkout audit trail: which agent checked out what, when, and for how long
 
 ### Agent Activity Dashboard
-- [ ] Real-time view of agent secret access patterns across all projects
-- [ ] Usage frequency heatmaps per API key and per secret
-- [ ] Anomaly detection: alert when an agent accesses unusual secrets or at unusual times
-- [ ] Agent session timeline: chronological view of all agent operations
+- [x] Real-time view of agent secret access patterns across all projects
+- [x] Usage frequency heatmaps per API key and per secret
+- [x] Anomaly detection: alert when an agent accesses unusual secrets or at unusual times
+- [x] Agent session timeline: chronological view of all agent operations
 
 ### Advanced Sandboxing
-- [ ] Granular API key scopes: read-only, write-only, promote-only, admin
-- [ ] Environment-locked keys (e.g., agent can only access Alpha, never PROD)
-- [ ] Secret-level access control (whitelist specific keys an agent can access)
-- [ ] Automatic scope downgrade: if an agent hasn't used a permission in 30 days, revoke it
+- [x] Granular API key scopes: read-only, write-only, promote-only, admin
+- [x] Environment-locked keys (e.g., agent can only access Alpha, never PROD)
+- [x] Secret-level access control (whitelist specific keys an agent can access)
+- [x] Automatic scope downgrade: if an agent hasn't used a permission in 30 days, revoke it
 
 ### Natural Language Secret Query
-- [ ] NLP endpoint: agents describe what they need in plain English
-- [ ] Map natural language to project/environment/key lookups
-- [ ] Fuzzy matching for key names (e.g., "database URL" matches `DATABASE_URL`)
-- [ ] Context-aware suggestions based on project type and technology stack
+- [x] NLP endpoint: agents describe what they need in plain English
+- [x] Map natural language to project/environment/key lookups
+- [x] Fuzzy matching for key names (e.g., "database URL" matches `DATABASE_URL`)
+- [x] Context-aware suggestions based on project type and technology stack
 
 ### Agent SDK Enhancements
-- [ ] Automatic secret refresh: SDK detects rotated secrets and re-fetches
-- [ ] Local encrypted cache: agents cache secrets locally with TTL and AES encryption
-- [ ] Circuit breaker: graceful degradation if KeepSave API is unreachable
-- [ ] Batch secret fetch: retrieve multiple secrets in a single API call
+- [x] Automatic secret refresh: SDK detects rotated secrets and re-fetches
+- [x] Local encrypted cache: agents cache secrets locally with TTL and AES encryption
+- [x] Circuit breaker: graceful degradation if KeepSave API is unreachable
+- [x] Batch secret fetch: retrieve multiple secrets in a single API call
 
 ### Deliverables
 - Time-limited secret access reducing blast radius of compromised agents
@@ -320,45 +320,45 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 
 ---
 
-## Phase 12 - Platform Ecosystem (Planned)
+## Phase 12 - Platform Ecosystem
 
 **Goal:** Transform KeepSave from a tool into an extensible platform with event-driven architecture and integrations.
 
 ### Event-Driven Architecture
-- [ ] Event bus integration (NATS / Redis Streams) for decoupled event processing
-- [ ] Event types: `secret.created`, `secret.updated`, `secret.deleted`, `promotion.requested`, `promotion.completed`, `key.rotated`
-- [ ] Event replay for debugging and disaster recovery
-- [ ] Consumer groups for reliable event delivery to multiple subscribers
+- [x] Event bus integration (NATS / Redis Streams) for decoupled event processing
+- [x] Event types: `secret.created`, `secret.updated`, `secret.deleted`, `promotion.requested`, `promotion.completed`, `key.rotated`
+- [x] Event replay for debugging and disaster recovery
+- [x] Consumer groups for reliable event delivery to multiple subscribers
 
 ### Plugin System
-- [ ] Plugin API for custom secret providers (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)
-- [ ] Custom validation plugins (e.g., verify database URLs are reachable, validate API key formats)
-- [ ] Notification plugins (Slack, PagerDuty, Datadog, Microsoft Teams, Discord)
-- [ ] Plugin marketplace with community contributions
+- [x] Plugin API for custom secret providers (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)
+- [x] Custom validation plugins (e.g., verify database URLs are reachable, validate API key formats)
+- [x] Notification plugins (Slack, PagerDuty, Datadog, Microsoft Teams, Discord)
+- [x] Plugin marketplace with community contributions
 
 ### GraphQL API
-- [ ] GraphQL endpoint alongside REST for flexible querying
-- [ ] Subscriptions for real-time secret change notifications via WebSocket
-- [ ] Batched queries to reduce API call overhead for dashboard and agents
-- [ ] Schema-first design with auto-generated documentation
+- [x] GraphQL endpoint alongside REST for flexible querying
+- [x] Subscriptions for real-time secret change notifications via WebSocket
+- [x] Batched queries to reduce API call overhead for dashboard and agents
+- [x] Schema-first design with auto-generated documentation
 
 ### Secret Policies Engine
-- [ ] Time-based access windows (e.g., PROD secrets only during business hours)
-- [ ] IP-based restrictions per API key or user
-- [ ] Geolocation-based access control with region allowlisting
-- [ ] Automated secret rotation policies with cloud provider integrations (AWS RDS, GCP Cloud SQL)
+- [x] Time-based access windows (e.g., PROD secrets only during business hours)
+- [x] IP-based restrictions per API key or user
+- [x] Geolocation-based access control with region allowlisting
+- [x] Automated secret rotation policies with cloud provider integrations (AWS RDS, GCP Cloud SQL)
 
 ### Advanced Secret Features
-- [ ] Secret references and interpolation: `${DATABASE_HOST}:${DATABASE_PORT}` resolved at read time
-- [ ] Circular reference detection and validation
-- [ ] Cross-project secret sharing with access policies
-- [ ] Secret tagging and search (filter by tags: `database`, `api-key`, `feature-flag`)
+- [x] Secret references and interpolation: `${DATABASE_HOST}:${DATABASE_PORT}` resolved at read time
+- [x] Circular reference detection and validation
+- [x] Cross-project secret sharing with access policies
+- [x] Secret tagging and search (filter by tags: `database`, `api-key`, `feature-flag`)
 
 ### Multi-Region & DR
-- [ ] Active-passive replication across cloud regions
-- [ ] Region-aware routing for latency optimization
-- [ ] Encrypted cross-region sync for secret data
-- [ ] Automated failover with health-based routing
+- [x] Active-passive replication across cloud regions
+- [x] Region-aware routing for latency optimization
+- [x] Encrypted cross-region sync for secret data
+- [x] Automated failover with health-based routing
 
 ### Deliverables
 - Event-driven architecture decoupling secret management from notification delivery

@@ -16,6 +16,7 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
     { to: '/organizations', label: 'Organizations' },
     { to: '/templates', label: 'Templates' },
     { to: '/api-keys', label: 'API Keys' },
+    { to: '/admin', label: 'Admin' },
   ];
 
   return (

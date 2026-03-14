@@ -40,6 +40,11 @@ func (s *Service) DecryptDEK(ciphertext, nonce []byte) ([]byte, error) {
 	return decrypt(s.masterKey, ciphertext, nonce)
 }
 
+// GetMasterKey returns the master key for direct encryption operations.
+func (s *Service) GetMasterKey() []byte {
+	return s.masterKey
+}
+
 // Encrypt encrypts plaintext using the given key. Returns (ciphertext, nonce, error).
 func Encrypt(key, plaintext []byte) ([]byte, []byte, error) {
 	return encrypt(key, plaintext)

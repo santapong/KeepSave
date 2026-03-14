@@ -1,0 +1,16 @@
+{
+  "name": "@keepsave/sdk",
+  "version": "1.0.0",
+  "description": "KeepSave Node.js SDK - Secure environment variable storage for AI Agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "files": ["dist/"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
