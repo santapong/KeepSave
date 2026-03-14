@@ -163,3 +163,263 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 | 4     | Embeddable Widget     | `<keepsave-widget>` for third-party sites |
 | 5     | Hardening             | Production readiness                     |
 | 6     | Advanced Features     | CLI, RBAC, SaaS, integrations            |
+| 7     | Observability & Monitoring | Metrics, dashboards, alerting        |
+| 8     | SDK & Developer Experience | Language SDKs, plugin ecosystem      |
+| 9     | Enterprise Features   | SSO, compliance, disaster recovery       |
+
+---
+
+## Phase 7 - Observability & Monitoring (Planned)
+
+**Goal:** Full observability stack for production operations.
+
+- [ ] Prometheus metrics endpoint (`/metrics`) for request latency, error rates, and encryption throughput
+- [ ] Grafana dashboard templates for KeepSave monitoring
+- [ ] OpenTelemetry tracing for request flows across services
+- [ ] Alerting rules for failed promotions, encryption errors, and rate limit breaches
+- [ ] Secret access analytics (who accessed what, frequency heatmaps)
+- [ ] Admin dashboard with system health overview
+
+### Deliverables
+- Production monitoring with Prometheus + Grafana
+- Distributed tracing for debugging complex promotion flows
+- Proactive alerting for security-relevant events
+
+---
+
+## Phase 8 - SDK & Developer Experience (Planned)
+
+**Goal:** Language SDKs and ecosystem tooling for seamless integration.
+
+- [ ] Official SDKs: Python, Node.js, Go, Rust
+- [ ] SDK auto-generation from OpenAPI spec
+- [ ] VS Code extension for secret browsing and insertion
+- [ ] Docker init plugin (inject secrets at container startup without .env files)
+- [ ] Secret linting (detect hardcoded secrets in code and suggest KeepSave references)
+- [ ] Interactive API documentation (Swagger UI / Redoc)
+- [ ] Webhook marketplace (Slack, PagerDuty, Datadog integrations)
+
+### Deliverables
+- Drop-in SDKs for major languages
+- IDE integration for developer productivity
+- Self-documenting API with interactive explorer
+
+---
+
+## Phase 9 - Enterprise Features (Planned)
+
+**Goal:** Enterprise-grade security, compliance, and disaster recovery.
+
+- [ ] SSO integration (SAML 2.0, OIDC) for enterprise identity providers
+- [ ] IP allowlisting and geo-restriction for API access
+- [ ] Compliance reports (SOC 2, GDPR data export/deletion)
+- [ ] Automated secret expiration and rotation policies
+- [ ] Cross-region replication for disaster recovery
+- [ ] Backup and restore tooling with encrypted snapshots
+- [ ] Breakglass access for emergency secret retrieval with enhanced audit
+- [ ] Custom approval chains (N-of-M approvals for PROD promotions)
+
+### Deliverables
+- Enterprise SSO and compliance tooling
+- Automated secret lifecycle management
+- Disaster recovery with cross-region replication
+
+---
+
+## Getting Started
+
+This section walks you through setting up KeepSave from scratch for local development or production deployment.
+
+### Prerequisites
+
+| Tool              | Version  | Purpose                          |
+|-------------------|----------|----------------------------------|
+| Docker            | 20.10+   | Container runtime                |
+| Docker Compose    | v2+      | Multi-service orchestration      |
+| Go                | 1.22+    | Backend development (local only) |
+| Node.js           | 20+      | Frontend development (local only)|
+| PostgreSQL        | 16       | Database (or use Docker)         |
+| Git               | 2.30+    | Source control                   |
+
+### Option 1: Docker Compose (Recommended)
+
+The fastest way to get the full stack running:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/santapong/KeepSave.git
+cd KeepSave
+
+# 2. (Optional) Generate a secure master key for non-dev use
+#    The docker-compose.yml ships with a dev key that works out of the box
+export MASTER_KEY=$(openssl rand -base64 32)
+
+# 3. Start all services (PostgreSQL + API + Frontend)
+docker-compose up --build
+
+# 4. Verify the stack is healthy
+curl http://localhost:8080/healthz    # API health check
+curl http://localhost:8080/readyz     # API readiness (DB connected)
+```
+
+**Services:**
+
+| Service   | URL                       | Description          |
+|-----------|---------------------------|----------------------|
+| API       | http://localhost:8080      | Go backend           |
+| Dashboard | http://localhost:3000      | React frontend       |
+| Database  | localhost:5432             | PostgreSQL           |
+
+### Option 2: Local Development (Backend + Frontend Separately)
+
+For active development with hot-reloading:
+
+#### 1. Start PostgreSQL
+
+```bash
+# Use Docker for the database only
+docker run -d \
+  --name keepsave-db \
+  -e POSTGRES_USER=keepsave \
+  -e POSTGRES_PASSWORD=keepsave_dev \
+  -e POSTGRES_DB=keepsave \
+  -p 5432:5432 \
+  postgres:16-alpine
+```
+
+#### 2. Start the Backend
+
+```bash
+cd backend
+
+# Copy and review environment config
+cp .env.example .env
+
+# Install dependencies and run
+go mod download
+go run ./cmd/server
+```
+
+The API starts on http://localhost:8080. Migrations run automatically on startup.
+
+#### 3. Start the Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server (proxies API requests to localhost:8080)
+npm run dev
+```
+
+The dashboard starts on http://localhost:5173 (Vite dev server).
+
+### First Steps After Setup
+
+```bash
+# 1. Register a user account
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "your-secure-password"}'
+
+# 2. Log in and get a JWT token
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "your-secure-password"}'
+# Save the returned token
+
+# 3. Create a project
+curl -X POST http://localhost:8080/api/v1/projects \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app", "description": "My application secrets"}'
+
+# 4. Store a secret in Alpha
+curl -X POST http://localhost:8080/api/v1/projects/<project-id>/secrets \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "DATABASE_URL", "value": "postgres://...", "environment": "alpha"}'
+
+# 5. Generate an API key for AI Agent access
+curl -X POST http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-agent-key", "project_id": "<project-id>", "scopes": ["read"]}'
+```
+
+Or simply open the **Dashboard** at http://localhost:3000 and do everything through the UI.
+
+### Using the CLI
+
+```bash
+# Build the CLI tool
+cd backend
+go build -o keepsave ./cmd/keepsave
+
+# Authenticate
+./keepsave login --api-url http://localhost:8080 --email admin@example.com
+
+# List projects
+./keepsave projects
+
+# Pull secrets as environment variables
+./keepsave pull --project <project-id> --env alpha --format env
+
+# Import from a .env file
+./keepsave import --project <project-id> --env alpha --file .env
+
+# Promote Alpha -> UAT
+./keepsave promote --project <project-id> --from alpha --to uat
+```
+
+### Running Tests
+
+```bash
+# Backend tests (with race detection)
+cd backend && go test -race ./...
+
+# Frontend tests
+cd frontend && npm test
+
+# Full CI pipeline locally (lint + test + build)
+cd backend && go vet ./... && go test -race ./...
+cd frontend && npx tsc --noEmit && npm test && npm run build
+```
+
+### Embedding the Widget
+
+Add KeepSave to any website with a single script tag:
+
+```html
+<script src="http://localhost:3000/embed/keepsave-widget.js"></script>
+<keepsave-widget
+  api-url="http://localhost:8080"
+  project-id="your-project-id"
+  theme="light">
+</keepsave-widget>
+```
+
+### Environment Variables Reference
+
+| Variable         | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `DATABASE_URL`   | Yes      | —       | PostgreSQL connection string             |
+| `MASTER_KEY`     | Yes      | —       | Base64-encoded 32-byte encryption key    |
+| `JWT_SECRET`     | Yes      | —       | Secret for signing JWT tokens            |
+| `PORT`           | No       | 8080    | API server listen port                   |
+| `CORS_ORIGINS`   | No       | *       | Comma-separated allowed origins          |
+
+### Production Deployment
+
+For Kubernetes deployments, use the included Helm chart:
+
+```bash
+helm install keepsave ./helm/keepsave \
+  --set config.masterKey="$(openssl rand -base64 32)" \
+  --set config.jwtSecret="$(openssl rand -base64 32)" \
+  --set config.databaseUrl="postgres://user:pass@db-host:5432/keepsave?sslmode=require"
+```
+
+See `helm/keepsave/values.yaml` for all configurable options.
