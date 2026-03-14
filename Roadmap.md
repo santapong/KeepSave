@@ -166,6 +166,9 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 | 7     | Observability & Monitoring | Metrics, dashboards, alerting        |
 | 8     | SDK & Developer Experience | Language SDKs, plugin ecosystem      |
 | 9     | Enterprise Features   | SSO, compliance, disaster recovery       |
+| 10    | Security Hardening    | CSRF, security headers, token hardening  |
+| 11    | AI Agent Experience   | JIT access, sandboxing, activity dashboard |
+| 12    | Platform Ecosystem    | Event bus, plugin system, GraphQL        |
 
 ---
 
@@ -223,6 +226,146 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 - Enterprise SSO and compliance tooling
 - Automated secret lifecycle management
 - Disaster recovery with cross-region replication
+
+---
+
+## Phase 10 - Security Hardening Deep Dive (Planned)
+
+**Goal:** Address all critical and high-priority security gaps identified in the security audit for production readiness.
+
+### HTTP Security
+- [ ] CSRF token validation middleware for all state-changing endpoints (POST/PUT/DELETE)
+- [ ] Security headers middleware (HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy, Permissions-Policy)
+- [ ] Request body size limits (`MaxBytesReader` - 1MB default, configurable per endpoint)
+- [ ] CORS lockdown: validation and whitelisting of specific origins for production
+
+### Authentication Hardening
+- [ ] Migrate frontend token storage from `localStorage` to `httpOnly` + `secure` + `sameSite=strict` cookies
+- [ ] Implement refresh token rotation with short-lived access tokens (15 min) and long-lived refresh tokens (7 days)
+- [ ] Token revocation support (server-side token blacklist with Redis/DB backing)
+- [ ] Password complexity enforcement (uppercase, lowercase, digit, special character requirements)
+- [ ] Breached password detection via Have I Been Pwned k-anonymity API
+- [ ] Force re-authentication for sensitive operations (key rotation, PROD promotion, API key creation)
+
+### Rate Limiting Improvements
+- [ ] Per-endpoint rate limiting with stricter limits on auth endpoints (5/min per IP for login/register)
+- [ ] Rate limit by API key for authenticated endpoints (not just IP-based)
+- [ ] Trusted proxy configuration via `SetTrustedProxies()` to prevent X-Forwarded-For spoofing
+- [ ] `Retry-After` header on 429 responses
+
+### API Key Security
+- [ ] Default 90-day expiration for new API keys (with opt-in override for no expiration)
+- [ ] API key last-used timestamp tracking for stale key detection
+- [ ] Expiration warning notifications 7 days before key expires
+- [ ] API key usage analytics and anomaly detection
+
+### Frontend Security
+- [ ] Replace all `innerHTML` usage in embed widget with `textContent` and DOM API
+- [ ] Disable source maps in production builds
+- [ ] Add Content Security Policy to Shadow DOM widget
+- [ ] Password strength meter on registration and password change forms
+
+### Audit & Logging
+- [ ] Log failed authentication attempts with IP, user agent, and timestamp
+- [ ] Log rate limit violations as security events
+- [ ] Audit log integrity checksums (hash chain) to detect log tampering
+- [ ] Session management: concurrent session limits, idle timeout
+
+### Deliverables
+- Production-hardened HTTP layer with CSRF protection and security headers
+- Secure token lifecycle with refresh rotation and revocation
+- Granular rate limiting that resists proxy-based evasion
+- Comprehensive security event logging with tamper detection
+
+---
+
+## Phase 11 - AI Agent Experience (Planned)
+
+**Goal:** Purpose-built features for AI agents that consume secrets safely and efficiently.
+
+### Just-In-Time Access
+- [ ] Temporary secret checkout: agent requests time-limited access (e.g., 1 hour) to specific secrets
+- [ ] Automatic secret lease expiration and revocation
+- [ ] Checkout audit trail: which agent checked out what, when, and for how long
+
+### Agent Activity Dashboard
+- [ ] Real-time view of agent secret access patterns across all projects
+- [ ] Usage frequency heatmaps per API key and per secret
+- [ ] Anomaly detection: alert when an agent accesses unusual secrets or at unusual times
+- [ ] Agent session timeline: chronological view of all agent operations
+
+### Advanced Sandboxing
+- [ ] Granular API key scopes: read-only, write-only, promote-only, admin
+- [ ] Environment-locked keys (e.g., agent can only access Alpha, never PROD)
+- [ ] Secret-level access control (whitelist specific keys an agent can access)
+- [ ] Automatic scope downgrade: if an agent hasn't used a permission in 30 days, revoke it
+
+### Natural Language Secret Query
+- [ ] NLP endpoint: agents describe what they need in plain English
+- [ ] Map natural language to project/environment/key lookups
+- [ ] Fuzzy matching for key names (e.g., "database URL" matches `DATABASE_URL`)
+- [ ] Context-aware suggestions based on project type and technology stack
+
+### Agent SDK Enhancements
+- [ ] Automatic secret refresh: SDK detects rotated secrets and re-fetches
+- [ ] Local encrypted cache: agents cache secrets locally with TTL and AES encryption
+- [ ] Circuit breaker: graceful degradation if KeepSave API is unreachable
+- [ ] Batch secret fetch: retrieve multiple secrets in a single API call
+
+### Deliverables
+- Time-limited secret access reducing blast radius of compromised agents
+- Visibility into agent behavior with anomaly alerting
+- Fine-grained access control beyond project/environment scoping
+- Agent-friendly SDK with caching, refresh, and resilience patterns
+
+---
+
+## Phase 12 - Platform Ecosystem (Planned)
+
+**Goal:** Transform KeepSave from a tool into an extensible platform with event-driven architecture and integrations.
+
+### Event-Driven Architecture
+- [ ] Event bus integration (NATS / Redis Streams) for decoupled event processing
+- [ ] Event types: `secret.created`, `secret.updated`, `secret.deleted`, `promotion.requested`, `promotion.completed`, `key.rotated`
+- [ ] Event replay for debugging and disaster recovery
+- [ ] Consumer groups for reliable event delivery to multiple subscribers
+
+### Plugin System
+- [ ] Plugin API for custom secret providers (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)
+- [ ] Custom validation plugins (e.g., verify database URLs are reachable, validate API key formats)
+- [ ] Notification plugins (Slack, PagerDuty, Datadog, Microsoft Teams, Discord)
+- [ ] Plugin marketplace with community contributions
+
+### GraphQL API
+- [ ] GraphQL endpoint alongside REST for flexible querying
+- [ ] Subscriptions for real-time secret change notifications via WebSocket
+- [ ] Batched queries to reduce API call overhead for dashboard and agents
+- [ ] Schema-first design with auto-generated documentation
+
+### Secret Policies Engine
+- [ ] Time-based access windows (e.g., PROD secrets only during business hours)
+- [ ] IP-based restrictions per API key or user
+- [ ] Geolocation-based access control with region allowlisting
+- [ ] Automated secret rotation policies with cloud provider integrations (AWS RDS, GCP Cloud SQL)
+
+### Advanced Secret Features
+- [ ] Secret references and interpolation: `${DATABASE_HOST}:${DATABASE_PORT}` resolved at read time
+- [ ] Circular reference detection and validation
+- [ ] Cross-project secret sharing with access policies
+- [ ] Secret tagging and search (filter by tags: `database`, `api-key`, `feature-flag`)
+
+### Multi-Region & DR
+- [ ] Active-passive replication across cloud regions
+- [ ] Region-aware routing for latency optimization
+- [ ] Encrypted cross-region sync for secret data
+- [ ] Automated failover with health-based routing
+
+### Deliverables
+- Event-driven architecture decoupling secret management from notification delivery
+- Extensible plugin system for secret providers and notification channels
+- GraphQL API for flexible data access and real-time subscriptions
+- Policy engine for time, location, and role-based access control
+- Multi-region deployment for global availability and disaster recovery
 
 ---
 

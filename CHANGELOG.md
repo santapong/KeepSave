@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.6.0] - 2026-03-14
+
+### Added
+
+- **Completed Roadmap** - Extended project roadmap from 9 to 12 phases with detailed task breakdowns
+  - **Phase 10: Security Hardening Deep Dive** - CSRF protection, security headers, secure token storage, per-endpoint rate limiting, password complexity, API key lifecycle management, audit log integrity
+  - **Phase 11: AI Agent Experience** - Just-in-time secret access, agent activity dashboard, advanced sandboxing with granular scopes, natural language secret query, agent SDK with caching and circuit breaker
+  - **Phase 12: Platform Ecosystem** - Event-driven architecture (NATS/Redis Streams), plugin system for secret providers and notifications, GraphQL API with subscriptions, secret policies engine, multi-region disaster recovery
+- **idea.md** - Comprehensive ideas document with 36 improvement proposals across security, developer experience, AI agent integration, infrastructure, and architecture categories
+  - **16 security improvements** prioritized by severity (critical, high, medium, low) based on codebase audit
+  - **8 feature ideas** for developer experience and AI agent integration
+  - **4 architecture proposals** for event-driven design, plugin system, GraphQL API, and edge caching
+- Updated milestone summary table with Phase 10-12
+
+---
+
 ## [0.5.0] - 2026-03-13
 
 ### Added
