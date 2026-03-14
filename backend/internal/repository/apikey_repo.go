@@ -82,10 +82,17 @@ func (r *APIKeyRepository) ListByUserID(userID uuid.UUID) ([]models.APIKey, erro
 	return keys, rows.Err()
 }
 
-func (r *APIKeyRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM api_keys WHERE id = $1`, id)
+func (r *APIKeyRepository) Delete(id, userID uuid.UUID) error {
+	result, err := r.db.Exec(`DELETE FROM api_keys WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("deleting api key: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking delete result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("api key not found")
 	}
 	return nil
 }

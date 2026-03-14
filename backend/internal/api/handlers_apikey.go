@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,14 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 
 	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment)
 	if err != nil {
+		if errors.Is(err, service.ErrProjectNotFound) {
+			RespondError(c, http.StatusNotFound, "project not found")
+			return
+		}
+		if errors.Is(err, service.ErrNotAuthorized) {
+			RespondError(c, http.StatusForbidden, "not authorized for this project")
+			return
+		}
 		RespondError(c, http.StatusInternalServerError, err.Error())
 		return
 	}

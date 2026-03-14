@@ -33,8 +33,8 @@ type UpdateSecretRequest struct {
 type CreateAPIKeyRequest struct {
 	Name        string   `json:"name" binding:"required,min=1,max=255"`
 	ProjectID   string   `json:"project_id" binding:"required,uuid"`
-	Scopes      []string `json:"scopes"`
-	Environment *string  `json:"environment"`
+	Scopes      []string `json:"scopes" binding:"omitempty,dive,oneof=read write"`
+	Environment *string  `json:"environment" binding:"omitempty,oneof=alpha uat prod"`
 }
 
 type PromoteRequest struct {

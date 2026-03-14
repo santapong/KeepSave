@@ -79,7 +79,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, cryptoSvc)
-	apikeyService := service.NewAPIKeyService(apikeyRepo)
+	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo)
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, cryptoSvc)
 	webhookService := service.NewWebhookService()

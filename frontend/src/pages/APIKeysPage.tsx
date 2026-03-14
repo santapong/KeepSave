@@ -37,7 +37,7 @@ export function APIKeysPage() {
       const resp = await createAPIKey(
         name,
         projectId,
-        scopes.split(',').map((s) => s.trim()),
+        scopes.split(',').map((s) => s.trim()).filter(Boolean),
         environment || undefined
       );
       setNewRawKey(resp.raw_key);
@@ -88,7 +88,11 @@ export function APIKeysPage() {
         </div>
       )}
 
-      {showCreate && (
+      {showCreate && projects.length === 0 && (
+        <div style={errorStyle}>You must create a project before you can create an API key.</div>
+      )}
+
+      {showCreate && projects.length > 0 && (
         <form onSubmit={handleCreate} style={formCard}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <label style={labelStyle}>

@@ -66,6 +66,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Navigation updated with Admin link
   - API client extended with 20+ new endpoint functions for all Phase 7-12 features
 
+### Fixed
+
+- **API key error display** - Frontend showed `[object Object]` instead of actual error message when API key creation failed; fixed error extraction from nested `{ error: { code, message } }` response format
+- **API key scopes parsing** - Empty scopes input no longer sends `[""]` to the backend; added `.filter(Boolean)` to scope splitting
+- **API key empty projects guard** - Create form now shows informational message when no projects exist instead of rendering a broken form
+- **API key environment validation** - Backend now rejects invalid environment values with binding tag `oneof=alpha uat prod`
+- **API key scope validation** - Backend now validates each scope value must be `read` or `write`
+- **API key project authorization** - Backend verifies project ownership before creating API key; returns 403 for unauthorized access and 404 for missing projects
+- **API key delete authorization** - Delete query now filters by `user_id` to prevent users from deleting other users' API keys; returns error when key not found or not owned
+
 ### Changed
 
 - **Router** - Extended with 30+ new endpoints across admin, enterprise, agent, and platform route groups
