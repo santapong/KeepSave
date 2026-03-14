@@ -103,6 +103,28 @@ func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string
 	return s, nil
 }
 
+func (r *SecretRepository) ListByProject(projectID uuid.UUID) ([]models.Secret, error) {
+	rows, err := r.db.Query(
+		`SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE project_id = $1 ORDER BY key`,
+		projectID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing secrets by project: %w", err)
+	}
+	defer rows.Close()
+
+	var secrets []models.Secret
+	for rows.Next() {
+		var s models.Secret
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scanning secret: %w", err)
+		}
+		secrets = append(secrets, s)
+	}
+	return secrets, rows.Err()
+}
+
 func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (*models.Secret, error) {
 	s := &models.Secret{}
 	err := r.db.QueryRow(

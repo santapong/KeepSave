@@ -7,7 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/logging"
+	"github.com/santapong/KeepSave/backend/internal/metrics"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+	"github.com/santapong/KeepSave/backend/internal/tracing"
 )
 
 func SetupRouter(
@@ -27,12 +29,25 @@ func SetupRouter(
 	templateHandler *TemplateHandler,
 	envFileHandler *EnvFileHandler,
 	depHandler *DependencyHandler,
+	metricsHandler *MetricsHandler,
+	enterpriseHandler *EnterpriseHandler,
+	agentHandler *AgentHandler,
+	platformHandler *PlatformHandler,
+	openAPIHandler *OpenAPIHandler,
+	appMetrics *metrics.AppMetrics,
+	tracer *tracing.Tracer,
 	db *sql.DB,
 	logger *logging.Logger,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// Phase 10: Security headers
+	r.Use(SecurityHeadersMiddleware())
+
+	// Phase 10: Request body size limit (1MB)
+	r.Use(RequestSizeLimitMiddleware(1 << 20))
 
 	// Structured JSON logging middleware
 	if logger != nil {
@@ -45,9 +60,25 @@ func SetupRouter(
 	limiter := NewRateLimiter(100, time.Second, 200)
 	r.Use(RateLimitMiddleware(limiter))
 
+	// Phase 7: Metrics middleware
+	if appMetrics != nil {
+		r.Use(metrics.GinMiddleware(appMetrics))
+	}
+
+	// Phase 7: Tracing middleware
+	if tracer != nil {
+		r.Use(tracing.GinMiddleware(tracer))
+	}
+
 	// Health check endpoints (no auth required)
 	r.GET("/healthz", healthHandler.Liveness)
 	r.GET("/readyz", healthHandler.Readiness)
+
+	// Phase 7: Metrics endpoint (no auth required)
+	r.GET("/metrics", metricsHandler.Metrics)
+
+	// Phase 8: OpenAPI spec (no auth required)
+	r.GET("/api/docs", openAPIHandler.Spec)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -113,6 +144,32 @@ func SetupRouter(
 			// Secret dependency graph
 			promoteGroup.POST("/dependencies/analyze", depHandler.Analyze)
 			promoteGroup.GET("/dependencies/graph", depHandler.Graph)
+
+			// Phase 9: Backups
+			promoteGroup.POST("/backups", enterpriseHandler.CreateBackup)
+			promoteGroup.GET("/backups", enterpriseHandler.ListBackups)
+
+			// Phase 9: Secret policies
+			promoteGroup.GET("/policy", enterpriseHandler.GetSecretPolicy)
+			promoteGroup.PUT("/policy", enterpriseHandler.SetSecretPolicy)
+
+			// Phase 11: Agent activity
+			promoteGroup.GET("/agent-activity", agentHandler.GetRecentActivity)
+			promoteGroup.GET("/agent-heatmap", agentHandler.GetAccessHeatmap)
+
+			// Phase 12: Access policies
+			promoteGroup.GET("/access-policies", platformHandler.ListAccessPolicies)
+			promoteGroup.POST("/access-policies", platformHandler.CreateAccessPolicy)
+			promoteGroup.DELETE("/access-policies/:policyId", platformHandler.DeleteAccessPolicy)
+		}
+
+		// Phase 11: Agent lease routes (JWT or API key)
+		leaseGroup := v1.Group("/projects/:id/leases")
+		leaseGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{
+			leaseGroup.POST("", agentHandler.CreateLease)
+			leaseGroup.GET("", agentHandler.ListLeases)
+			leaseGroup.DELETE("/:leaseId", agentHandler.RevokeLease)
 		}
 
 		// Key rotation for all projects (JWT required)
@@ -157,6 +214,15 @@ func SetupRouter(
 			// Project assignment
 			orgGroup.POST("/:orgId/projects", orgHandler.AssignProject)
 			orgGroup.GET("/:orgId/projects", orgHandler.ListProjects)
+
+			// Phase 9: SSO
+			orgGroup.POST("/:orgId/sso", enterpriseHandler.ConfigureSSO)
+			orgGroup.GET("/:orgId/sso", enterpriseHandler.ListSSOConfigs)
+			orgGroup.DELETE("/:orgId/sso/:provider", enterpriseHandler.DeleteSSOConfig)
+
+			// Phase 9: Compliance
+			orgGroup.POST("/:orgId/compliance", enterpriseHandler.GenerateComplianceReport)
+			orgGroup.GET("/:orgId/compliance", enterpriseHandler.ListComplianceReports)
 		}
 
 		// Template routes (JWT required)
@@ -170,6 +236,32 @@ func SetupRouter(
 			templateGroup.PUT("/:templateId", templateHandler.Update)
 			templateGroup.DELETE("/:templateId", templateHandler.Delete)
 			templateGroup.POST("/:templateId/apply", templateHandler.Apply)
+		}
+
+		// Phase 7: Admin routes (JWT required)
+		adminGroup := v1.Group("/admin")
+		adminGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			adminGroup.GET("/dashboard", metricsHandler.AdminDashboard)
+			adminGroup.GET("/traces", metricsHandler.Traces)
+		}
+
+		// Phase 11: Agent analytics routes (JWT or API key)
+		agentGroup := v1.Group("/agent")
+		agentGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{
+			agentGroup.GET("/activity", agentHandler.GetActivitySummary)
+		}
+
+		// Phase 12: Platform routes (JWT required)
+		platformGroup := v1.Group("/platform")
+		platformGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			platformGroup.GET("/events", platformHandler.ListEvents)
+			platformGroup.POST("/events/replay", platformHandler.ReplayEvents)
+			platformGroup.GET("/plugins", platformHandler.ListPlugins)
+			platformGroup.POST("/plugins", platformHandler.RegisterPlugin)
+			platformGroup.PUT("/plugins/:pluginId", platformHandler.TogglePlugin)
 		}
 	}
 

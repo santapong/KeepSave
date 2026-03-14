@@ -6,6 +6,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.0.0] - 2026-03-14
+
+### Added
+
+- **Phase 7: Observability & Monitoring** - Full observability stack
+  - **Prometheus metrics** - Custom metrics collector with counters, gauges, and histograms; `/metrics` endpoint in Prometheus exposition format
+  - **Metrics middleware** - Per-request tracking of latency, error rates, in-flight requests, rate limit hits
+  - **Application metrics** - `keepsave_http_requests_total`, `keepsave_secrets_encrypted_total`, `keepsave_auth_attempts_total`, `keepsave_promotions_total`, and 10 more metrics
+  - **Distributed tracing** - Request tracing with trace/span ID propagation via `X-Trace-ID`/`X-Span-ID` headers
+  - **Tracing middleware** - Automatic span creation for every HTTP request with status, method, and IP attributes
+  - **Admin dashboard** - System health overview page with traces, events, plugins, and security event views
+  - **Test suite** - 8 metrics tests (counters, gauges, histograms, concurrency, formatting) + 6 tracing tests (spans, propagation, limits, eviction)
+
+- **Phase 8: SDK & Developer Experience** - Multi-language SDKs and API documentation
+  - **Python SDK** (`sdks/python/`) - Full-featured client with auth, projects, secrets, promotions, key rotation, import/export
+  - **Node.js SDK** (`sdks/nodejs/`) - TypeScript client with complete type definitions and all API endpoints
+  - **Go SDK** (`sdks/go/`) - Idiomatic Go client with context support, functional options pattern, and error types
+  - **OpenAPI 3.0 specification** - Interactive API documentation served at `/api/docs` with schemas for all resources
+  - All SDKs support both JWT token and API key authentication
+
+- **Phase 9: Enterprise Features** - Enterprise-grade security and compliance
+  - **SSO integration** - OIDC/SAML provider configuration per organization with encrypted client secret storage
+  - **IP allowlisting** - CIDR-based IP restrictions per organization and per project
+  - **Compliance reports** - SOC 2, GDPR, and PCI report generation with automated security posture assessment
+  - **Secret lifecycle policies** - Configurable max age, rotation reminders, and mandatory rotation per project
+  - **Encrypted backups** - Full/incremental backup snapshots with AES-256-GCM encryption
+  - **Security event logging** - Dedicated security events table with severity levels and detailed context
+  - Database migration `005_phase7_12.sql` with 11 new tables for all Phase 7-12 features
+
+- **Phase 10: Security Hardening Deep Dive** - Production security hardening
+  - **CSRF protection** - Single-use CSRF tokens for all mutation endpoints; API key requests exempted
+  - **Security headers middleware** - HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy, Permissions-Policy
+  - **Request body size limits** - 1MB default limit to prevent payload DoS
+  - **Password complexity** - Configurable policy requiring uppercase, lowercase, digits, and special characters
+  - **Password strength scoring** - 0-4 strength score for UI feedback
+  - **Session token tracking** - Database-backed session tokens for revocation support
+  - **Test suite** - Password policy validation tests and strength scoring tests
+
+- **Phase 11: AI Agent Experience** - Purpose-built features for AI agents
+  - **Just-in-time secret leases** - Time-limited access grants (1 min to 24 hours) with automatic expiration
+  - **Lease management** - Create, list active, and revoke leases via API
+  - **Agent activity tracking** - Per-action logging with API key, project, environment, secret key, and IP
+  - **Activity analytics** - Action summaries grouped by type with last-used timestamps
+  - **Access heatmaps** - Secret access frequency data bucketed by hour for the last 7 days
+  - **Lease and activity tables** - `secret_leases` and `agent_activities` tables with proper indexing
+
+- **Phase 12: Platform Ecosystem** - Extensible platform architecture
+  - **Event bus** - In-process event bus with persistent event log, pub/sub pattern, wildcard subscribers, and event replay
+  - **Event types** - 16 defined event types: `secret.created`, `promotion.completed`, `key.rotated`, `lease.created`, etc.
+  - **Plugin system** - Registry for secret providers, notification senders, and validators with interface contracts
+  - **Plugin management** - Database-backed plugin registry with enable/disable toggle
+  - **Access policies** - Time-window, IP-restriction, and geo-restriction policy types per project
+  - **Platform API** - Events listing, event replay, plugin registration, and access policy CRUD
+  - **Test suite** - 5 event bus tests (pub/sub, wildcards, payloads) + 5 plugin registry tests (providers, senders, validators)
+
+- **Frontend updates**
+  - Admin Dashboard page with 5 tabs: Overview, Traces, Events, Plugins, Security
+  - Navigation updated with Admin link
+  - API client extended with 20+ new endpoint functions for all Phase 7-12 features
+
+### Changed
+
+- **Router** - Extended with 30+ new endpoints across admin, enterprise, agent, and platform route groups
+- **Main entry point** - Wired all new services, repositories, and handlers for Phases 7-12
+- **Health endpoint** - Version bumped to 1.0.0
+
+---
+
+## [0.6.0] - 2026-03-14
+
+### Added
+
+- **Completed Roadmap** - Extended project roadmap from 9 to 12 phases with detailed task breakdowns
+  - **Phase 10: Security Hardening Deep Dive** - CSRF protection, security headers, secure token storage, per-endpoint rate limiting, password complexity, API key lifecycle management, audit log integrity
+  - **Phase 11: AI Agent Experience** - Just-in-time secret access, agent activity dashboard, advanced sandboxing with granular scopes, natural language secret query, agent SDK with caching and circuit breaker
+  - **Phase 12: Platform Ecosystem** - Event-driven architecture (NATS/Redis Streams), plugin system for secret providers and notifications, GraphQL API with subscriptions, secret policies engine, multi-region disaster recovery
+- **idea.md** - Comprehensive ideas document with 36 improvement proposals across security, developer experience, AI agent integration, infrastructure, and architecture categories
+  - **16 security improvements** prioritized by severity (critical, high, medium, low) based on codebase audit
+  - **8 feature ideas** for developer experience and AI agent integration
+  - **4 architecture proposals** for event-driven design, plugin system, GraphQL API, and edge caching
+- Updated milestone summary table with Phase 10-12
+
+---
+
 ## [0.5.0] - 2026-03-13
 
 ### Added

@@ -209,3 +209,155 @@ type EnvFile struct {
 	Environment string            `json:"environment"`
 	Variables   map[string]string `json:"variables"`
 }
+
+// Phase 9: Enterprise Features
+
+// SSOConfig represents an SSO provider configuration for an organization.
+type SSOConfig struct {
+	ID                    uuid.UUID `json:"id"`
+	OrganizationID        uuid.UUID `json:"organization_id"`
+	Provider              string    `json:"provider"` // oidc, saml
+	IssuerURL             string    `json:"issuer_url"`
+	ClientID              string    `json:"client_id"`
+	ClientSecretEncrypted []byte    `json:"-"`
+	ClientSecretNonce     []byte    `json:"-"`
+	Metadata              JSONMap   `json:"metadata,omitempty"`
+	Enabled               bool      `json:"enabled"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+// IPAllowlistEntry represents an IP allowlist entry.
+type IPAllowlistEntry struct {
+	ID             uuid.UUID  `json:"id"`
+	OrganizationID *uuid.UUID `json:"organization_id,omitempty"`
+	ProjectID      *uuid.UUID `json:"project_id,omitempty"`
+	CIDR           string     `json:"cidr"`
+	Description    string     `json:"description"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
+// SecretPolicy defines lifecycle policies for secrets in a project.
+type SecretPolicy struct {
+	ID                   uuid.UUID `json:"id"`
+	ProjectID            uuid.UUID `json:"project_id"`
+	MaxAgeDays           int       `json:"max_age_days"`
+	RotationReminderDays int       `json:"rotation_reminder_days"`
+	RequireRotation      bool      `json:"require_rotation"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
+// ComplianceReport represents a generated compliance report.
+type ComplianceReport struct {
+	ID             uuid.UUID  `json:"id"`
+	OrganizationID uuid.UUID  `json:"organization_id"`
+	ReportType     string     `json:"report_type"` // soc2, gdpr, pci
+	Status         string     `json:"status"`      // pending, generating, completed, failed
+	Data           JSONMap    `json:"data,omitempty"`
+	GeneratedBy    uuid.UUID  `json:"generated_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+}
+
+// BackupSnapshot represents an encrypted backup of project data.
+type BackupSnapshot struct {
+	ID            uuid.UUID  `json:"id"`
+	ProjectID     *uuid.UUID `json:"project_id,omitempty"`
+	SnapshotType  string     `json:"snapshot_type"` // full, incremental
+	EncryptedData []byte     `json:"-"`
+	DataNonce     []byte     `json:"-"`
+	SizeBytes     int64      `json:"size_bytes"`
+	CreatedBy     uuid.UUID  `json:"created_by"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+// Phase 10: Security Hardening
+
+// SecurityEvent represents a logged security event.
+type SecurityEvent struct {
+	ID        uuid.UUID  `json:"id"`
+	EventType string     `json:"event_type"` // auth_failure, rate_limit, suspicious_access
+	UserID    *uuid.UUID `json:"user_id,omitempty"`
+	IPAddress string     `json:"ip_address"`
+	UserAgent string     `json:"user_agent"`
+	Details   JSONMap    `json:"details,omitempty"`
+	Severity  string     `json:"severity"` // info, warning, critical
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// SessionToken represents a tracked session for token revocation.
+type SessionToken struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	TokenHash string    `json:"-"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Revoked   bool      `json:"revoked"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Phase 11: AI Agent Experience
+
+// SecretLease represents a time-limited access grant for an agent.
+type SecretLease struct {
+	ID          uuid.UUID  `json:"id"`
+	APIKeyID    uuid.UUID  `json:"api_key_id"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	Environment string     `json:"environment"`
+	SecretKeys  StringList `json:"secret_keys"`
+	GrantedAt   time.Time  `json:"granted_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	Revoked     bool       `json:"revoked"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+}
+
+// AgentActivity represents a logged agent action.
+type AgentActivity struct {
+	ID          uuid.UUID `json:"id"`
+	APIKeyID    uuid.UUID `json:"api_key_id"`
+	ProjectID   uuid.UUID `json:"project_id"`
+	Action      string    `json:"action"`
+	Environment string    `json:"environment,omitempty"`
+	SecretKey   string    `json:"secret_key,omitempty"`
+	IPAddress   string    `json:"ip_address"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// Phase 12: Platform Ecosystem
+
+// Event represents an event in the event log.
+type Event struct {
+	ID          uuid.UUID `json:"id"`
+	EventType   string    `json:"event_type"`
+	AggregateID uuid.UUID `json:"aggregate_id"`
+	Payload     JSONMap   `json:"payload"`
+	Published   bool      `json:"published"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// AccessPolicy defines access restrictions for a project.
+type AccessPolicy struct {
+	ID         uuid.UUID `json:"id"`
+	ProjectID  uuid.UUID `json:"project_id"`
+	PolicyType string    `json:"policy_type"` // time_window, ip_restriction, geo_restriction
+	Config     JSONMap   `json:"config"`
+	Enabled    bool      `json:"enabled"`
+	CreatedBy  uuid.UUID `json:"created_by"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// Plugin represents a registered plugin.
+type Plugin struct {
+	ID         uuid.UUID `json:"id"`
+	Name       string    `json:"name"`
+	PluginType string    `json:"plugin_type"` // secret_provider, notification, validation
+	Version    string    `json:"version"`
+	Config     JSONMap   `json:"config,omitempty"`
+	Enabled    bool      `json:"enabled"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}

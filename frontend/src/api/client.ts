@@ -400,6 +400,175 @@ export async function importEnv(
   return data.result;
 }
 
+// Phase 7: Admin Dashboard & Observability
+export async function getAdminDashboard(): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>('/admin/dashboard');
+}
+
+export async function getTraces(): Promise<Record<string, unknown>[]> {
+  const data = await request<{ spans: Record<string, unknown>[] }>('/admin/traces');
+  return data.spans || [];
+}
+
+// Phase 9: Enterprise - SSO
+export async function configureSSOProvider(
+  orgId: string,
+  provider: string,
+  issuerUrl: string,
+  clientId: string,
+  clientSecret: string
+): Promise<Record<string, unknown>> {
+  const data = await request<{ sso_config: Record<string, unknown> }>(`/organizations/${orgId}/sso`, {
+    method: 'POST',
+    body: JSON.stringify({ provider, issuer_url: issuerUrl, client_id: clientId, client_secret: clientSecret }),
+  });
+  return data.sso_config;
+}
+
+export async function listSSOConfigs(orgId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ sso_configs: Record<string, unknown>[] }>(`/organizations/${orgId}/sso`);
+  return data.sso_configs || [];
+}
+
+// Phase 9: Enterprise - Compliance
+export async function generateComplianceReport(orgId: string, reportType: string): Promise<Record<string, unknown>> {
+  const data = await request<{ report: Record<string, unknown> }>(`/organizations/${orgId}/compliance`, {
+    method: 'POST',
+    body: JSON.stringify({ report_type: reportType }),
+  });
+  return data.report;
+}
+
+export async function listComplianceReports(orgId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ reports: Record<string, unknown>[] }>(`/organizations/${orgId}/compliance`);
+  return data.reports || [];
+}
+
+// Phase 9: Enterprise - Backups
+export async function createBackup(projectId: string, type = 'full'): Promise<Record<string, unknown>> {
+  const data = await request<{ backup: Record<string, unknown> }>(`/projects/${projectId}/backups`, {
+    method: 'POST',
+    body: JSON.stringify({ type }),
+  });
+  return data.backup;
+}
+
+export async function listBackups(projectId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ backups: Record<string, unknown>[] }>(`/projects/${projectId}/backups`);
+  return data.backups || [];
+}
+
+// Phase 9: Enterprise - Secret Policies
+export async function getSecretPolicy(projectId: string): Promise<Record<string, unknown>> {
+  const data = await request<{ policy: Record<string, unknown> }>(`/projects/${projectId}/policy`);
+  return data.policy;
+}
+
+export async function setSecretPolicy(
+  projectId: string,
+  maxAgeDays: number,
+  reminderDays: number,
+  requireRotation: boolean
+): Promise<Record<string, unknown>> {
+  const data = await request<{ policy: Record<string, unknown> }>(`/projects/${projectId}/policy`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      max_age_days: maxAgeDays,
+      rotation_reminder_days: reminderDays,
+      require_rotation: requireRotation,
+    }),
+  });
+  return data.policy;
+}
+
+// Phase 11: Agent Leases
+export async function createLease(
+  projectId: string,
+  environment: string,
+  secretKeys: string[],
+  durationMinutes: number
+): Promise<Record<string, unknown>> {
+  const data = await request<{ lease: Record<string, unknown> }>(`/projects/${projectId}/leases`, {
+    method: 'POST',
+    body: JSON.stringify({
+      environment,
+      secret_keys: secretKeys,
+      duration_minutes: durationMinutes,
+    }),
+  });
+  return data.lease;
+}
+
+export async function listLeases(projectId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ leases: Record<string, unknown>[] }>(`/projects/${projectId}/leases`);
+  return data.leases || [];
+}
+
+export async function revokeLease(projectId: string, leaseId: string): Promise<void> {
+  await request(`/projects/${projectId}/leases/${leaseId}`, { method: 'DELETE' });
+}
+
+// Phase 11: Agent Analytics
+export async function getAgentActivity(projectId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ activities: Record<string, unknown>[] }>(`/projects/${projectId}/agent-activity`);
+  return data.activities || [];
+}
+
+export async function getAgentHeatmap(projectId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ heatmap: Record<string, unknown>[] }>(`/projects/${projectId}/agent-heatmap`);
+  return data.heatmap || [];
+}
+
+// Phase 12: Platform - Events
+export async function getEvents(): Promise<Record<string, unknown>[]> {
+  const data = await request<{ events: Record<string, unknown>[] }>('/platform/events');
+  return data.events || [];
+}
+
+export async function replayEvents(eventType: string): Promise<void> {
+  await request('/platform/events/replay', {
+    method: 'POST',
+    body: JSON.stringify({ event_type: eventType }),
+  });
+}
+
+// Phase 12: Platform - Plugins
+export async function getPlugins(): Promise<Record<string, unknown>[]> {
+  const data = await request<{ plugins: Record<string, unknown>[] }>('/platform/plugins');
+  return data.plugins || [];
+}
+
+export async function registerPlugin(
+  name: string,
+  pluginType: string,
+  version: string,
+  config: Record<string, unknown> = {}
+): Promise<Record<string, unknown>> {
+  const data = await request<{ plugin: Record<string, unknown> }>('/platform/plugins', {
+    method: 'POST',
+    body: JSON.stringify({ name, plugin_type: pluginType, version, config }),
+  });
+  return data.plugin;
+}
+
+// Phase 12: Platform - Access Policies
+export async function listAccessPolicies(projectId: string): Promise<Record<string, unknown>[]> {
+  const data = await request<{ policies: Record<string, unknown>[] }>(`/projects/${projectId}/access-policies`);
+  return data.policies || [];
+}
+
+export async function createAccessPolicy(
+  projectId: string,
+  policyType: string,
+  config: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const data = await request<{ policy: Record<string, unknown> }>(`/projects/${projectId}/access-policies`, {
+    method: 'POST',
+    body: JSON.stringify({ policy_type: policyType, config }),
+  });
+  return data.policy;
+}
+
 // Dependency Graph
 export async function analyzeDependencies(
   projectId: string,
