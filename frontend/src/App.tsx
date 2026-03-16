@@ -10,6 +10,8 @@ import { OrganizationsPage } from './pages/OrganizationsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { HelpPage } from './pages/HelpPage';
+import { MCPHubPage } from './pages/MCPHubPage';
+import { OAuthClientsPage } from './pages/OAuthClientsPage';
 
 export default function App() {
   useTheme();
@@ -34,6 +36,8 @@ export default function App() {
           <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/mcp-hub" element={<MCPHubPage />} />
+          <Route path="/oauth-clients" element={<OAuthClientsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -17,6 +17,8 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
     { to: '/', label: 'Projects' },
     { to: '/organizations', label: 'Organizations' },
     { to: '/templates', label: 'Templates' },
+    { to: '/mcp-hub', label: 'MCP Hub' },
+    { to: '/oauth-clients', label: 'OAuth' },
     { to: '/admin', label: 'Admin' },
     { to: '/help', label: 'Docs' },
   ];
