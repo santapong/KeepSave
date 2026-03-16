@@ -10,36 +10,53 @@ import (
 
 // SSORepository handles SSO configuration persistence.
 type SSORepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-// NewSSORepository creates a new SSO repository.
-func NewSSORepository(db *sql.DB) *SSORepository {
-	return &SSORepository{db: db}
+func NewSSORepository(db *sql.DB, dialect Dialect) *SSORepository {
+	return &SSORepository{db: db, dialect: dialect}
 }
 
-// Upsert creates or updates an SSO configuration.
 func (r *SSORepository) Upsert(config *models.SSOConfig) (*models.SSOConfig, error) {
-	err := r.db.QueryRow(
-		`INSERT INTO sso_configs (organization_id, provider, issuer_url, client_id, client_secret_encrypted, client_secret_nonce, metadata, enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (organization_id, provider) DO UPDATE SET issuer_url = $3, client_id = $4, client_secret_encrypted = $5, client_secret_nonce = $6, metadata = $7, enabled = $8, updated_at = NOW()
-		RETURNING id, created_at, updated_at`,
-		config.OrganizationID, config.Provider, config.IssuerURL, config.ClientID,
-		config.ClientSecretEncrypted, config.ClientSecretNonce, config.Metadata, config.Enabled,
-	).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("upserting SSO config: %w", err)
+	id := uuid.New()
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			`INSERT INTO sso_configs (id, organization_id, provider, issuer_url, client_id, client_secret_encrypted, client_secret_nonce, metadata, enabled)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (organization_id, provider) DO UPDATE SET issuer_url = $4, client_id = $5, client_secret_encrypted = $6, client_secret_nonce = $7, metadata = $8, enabled = $9, updated_at = NOW()
+			RETURNING id, created_at, updated_at`,
+			id, config.OrganizationID, config.Provider, config.IssuerURL, config.ClientID,
+			config.ClientSecretEncrypted, config.ClientSecretNonce, config.Metadata, config.Enabled,
+		).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("upserting SSO config: %w", err)
+		}
+	} else {
+		upsertClause := r.dialect.FormatUpsert("organization_id, provider",
+			"issuer_url = EXCLUDED.issuer_url, client_id = EXCLUDED.client_id, client_secret_encrypted = EXCLUDED.client_secret_encrypted, client_secret_nonce = EXCLUDED.client_secret_nonce, metadata = EXCLUDED.metadata, enabled = EXCLUDED.enabled, updated_at = "+r.dialect.Now())
+		insertQ := Q(r.dialect, `INSERT INTO sso_configs (id, organization_id, provider, issuer_url, client_id, client_secret_encrypted, client_secret_nonce, metadata, enabled)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) `+upsertClause)
+		_, err := r.db.Exec(insertQ, id, config.OrganizationID, config.Provider, config.IssuerURL, config.ClientID,
+			config.ClientSecretEncrypted, config.ClientSecretNonce, config.Metadata, config.Enabled)
+		if err != nil {
+			return nil, fmt.Errorf("upserting SSO config: %w", err)
+		}
+		selectQ := Q(r.dialect, `SELECT id, created_at, updated_at FROM sso_configs WHERE organization_id = $1 AND provider = $2`)
+		err = r.db.QueryRow(selectQ, config.OrganizationID, config.Provider).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading upserted SSO config: %w", err)
+		}
 	}
 	return config, nil
 }
 
-// GetByOrgAndProvider returns an SSO config by org and provider.
 func (r *SSORepository) GetByOrgAndProvider(orgID uuid.UUID, provider string) (*models.SSOConfig, error) {
 	config := &models.SSOConfig{}
 	err := r.db.QueryRow(
-		`SELECT id, organization_id, provider, issuer_url, client_id, client_secret_encrypted, client_secret_nonce, metadata, enabled, created_at, updated_at
-		FROM sso_configs WHERE organization_id = $1 AND provider = $2`,
+		Q(r.dialect, `SELECT id, organization_id, provider, issuer_url, client_id, client_secret_encrypted, client_secret_nonce, metadata, enabled, created_at, updated_at
+		FROM sso_configs WHERE organization_id = $1 AND provider = $2`),
 		orgID, provider,
 	).Scan(&config.ID, &config.OrganizationID, &config.Provider, &config.IssuerURL, &config.ClientID,
 		&config.ClientSecretEncrypted, &config.ClientSecretNonce, &config.Metadata, &config.Enabled,
@@ -50,11 +67,10 @@ func (r *SSORepository) GetByOrgAndProvider(orgID uuid.UUID, provider string) (*
 	return config, nil
 }
 
-// ListByOrg returns all SSO configs for an organization.
 func (r *SSORepository) ListByOrg(orgID uuid.UUID) ([]models.SSOConfig, error) {
 	rows, err := r.db.Query(
-		`SELECT id, organization_id, provider, issuer_url, client_id, metadata, enabled, created_at, updated_at
-		FROM sso_configs WHERE organization_id = $1`, orgID,
+		Q(r.dialect, `SELECT id, organization_id, provider, issuer_url, client_id, metadata, enabled, created_at, updated_at
+		FROM sso_configs WHERE organization_id = $1`), orgID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing SSO configs: %w", err)
@@ -73,9 +89,8 @@ func (r *SSORepository) ListByOrg(orgID uuid.UUID) ([]models.SSOConfig, error) {
 	return configs, nil
 }
 
-// Delete removes an SSO configuration.
 func (r *SSORepository) Delete(orgID uuid.UUID, provider string) error {
-	_, err := r.db.Exec(`DELETE FROM sso_configs WHERE organization_id = $1 AND provider = $2`, orgID, provider)
+	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM sso_configs WHERE organization_id = $1 AND provider = $2`), orgID, provider)
 	if err != nil {
 		return fmt.Errorf("deleting SSO config: %w", err)
 	}
@@ -84,48 +99,75 @@ func (r *SSORepository) Delete(orgID uuid.UUID, provider string) error {
 
 // ComplianceRepository handles compliance report persistence.
 type ComplianceRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-// NewComplianceRepository creates a new compliance repository.
-func NewComplianceRepository(db *sql.DB) *ComplianceRepository {
-	return &ComplianceRepository{db: db}
+func NewComplianceRepository(db *sql.DB, dialect Dialect) *ComplianceRepository {
+	return &ComplianceRepository{db: db, dialect: dialect}
 }
 
-// Create creates a new compliance report.
 func (r *ComplianceRepository) Create(report *models.ComplianceReport) (*models.ComplianceReport, error) {
-	err := r.db.QueryRow(
-		`INSERT INTO compliance_reports (organization_id, report_type, status, generated_by)
-		VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
-		report.OrganizationID, report.ReportType, report.Status, report.GeneratedBy,
-	).Scan(&report.ID, &report.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("creating compliance report: %w", err)
+	id := uuid.New()
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			`INSERT INTO compliance_reports (id, organization_id, report_type, status, generated_by)
+			VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
+			id, report.OrganizationID, report.ReportType, report.Status, report.GeneratedBy,
+		).Scan(&report.ID, &report.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("creating compliance report: %w", err)
+		}
+	} else {
+		insertQ := Q(r.dialect, `INSERT INTO compliance_reports (id, organization_id, report_type, status, generated_by) VALUES ($1, $2, $3, $4, $5)`)
+		_, err := r.db.Exec(insertQ, id, report.OrganizationID, report.ReportType, report.Status, report.GeneratedBy)
+		if err != nil {
+			return nil, fmt.Errorf("creating compliance report: %w", err)
+		}
+		selectQ := Q(r.dialect, `SELECT id, created_at FROM compliance_reports WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&report.ID, &report.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading created compliance report: %w", err)
+		}
 	}
 	return report, nil
 }
 
-// Complete marks a report as completed with data.
 func (r *ComplianceRepository) Complete(id uuid.UUID, data models.JSONMap) (*models.ComplianceReport, error) {
 	report := &models.ComplianceReport{}
-	err := r.db.QueryRow(
-		`UPDATE compliance_reports SET status = 'completed', data = $2, completed_at = NOW()
-		WHERE id = $1
-		RETURNING id, organization_id, report_type, status, data, generated_by, created_at, completed_at`,
-		id, data,
-	).Scan(&report.ID, &report.OrganizationID, &report.ReportType, &report.Status, &report.Data,
-		&report.GeneratedBy, &report.CreatedAt, &report.CompletedAt)
-	if err != nil {
-		return nil, fmt.Errorf("completing compliance report: %w", err)
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			Q(r.dialect, `UPDATE compliance_reports SET status = 'completed', data = $2, completed_at = NOW()
+			WHERE id = $1
+			RETURNING id, organization_id, report_type, status, data, generated_by, created_at, completed_at`),
+			id, data,
+		).Scan(&report.ID, &report.OrganizationID, &report.ReportType, &report.Status, &report.Data,
+			&report.GeneratedBy, &report.CreatedAt, &report.CompletedAt)
+		if err != nil {
+			return nil, fmt.Errorf("completing compliance report: %w", err)
+		}
+	} else {
+		updateQ := Q(r.dialect, `UPDATE compliance_reports SET status = 'completed', data = $2, completed_at = `+r.dialect.Now()+` WHERE id = $1`)
+		_, err := r.db.Exec(updateQ, id, data)
+		if err != nil {
+			return nil, fmt.Errorf("completing compliance report: %w", err)
+		}
+		selectQ := Q(r.dialect, `SELECT id, organization_id, report_type, status, data, generated_by, created_at, completed_at FROM compliance_reports WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&report.ID, &report.OrganizationID, &report.ReportType, &report.Status, &report.Data,
+			&report.GeneratedBy, &report.CreatedAt, &report.CompletedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading completed compliance report: %w", err)
+		}
 	}
 	return report, nil
 }
 
-// ListByOrg returns compliance reports for an organization.
 func (r *ComplianceRepository) ListByOrg(orgID uuid.UUID) ([]models.ComplianceReport, error) {
 	rows, err := r.db.Query(
-		`SELECT id, organization_id, report_type, status, data, generated_by, created_at, completed_at
-		FROM compliance_reports WHERE organization_id = $1 ORDER BY created_at DESC`, orgID,
+		Q(r.dialect, `SELECT id, organization_id, report_type, status, data, generated_by, created_at, completed_at
+		FROM compliance_reports WHERE organization_id = $1 ORDER BY created_at DESC`), orgID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing compliance reports: %w", err)
@@ -134,45 +176,59 @@ func (r *ComplianceRepository) ListByOrg(orgID uuid.UUID) ([]models.ComplianceRe
 
 	var reports []models.ComplianceReport
 	for rows.Next() {
-		var r models.ComplianceReport
-		if err := rows.Scan(&r.ID, &r.OrganizationID, &r.ReportType, &r.Status, &r.Data,
-			&r.GeneratedBy, &r.CreatedAt, &r.CompletedAt); err != nil {
+		var rp models.ComplianceReport
+		if err := rows.Scan(&rp.ID, &rp.OrganizationID, &rp.ReportType, &rp.Status, &rp.Data,
+			&rp.GeneratedBy, &rp.CreatedAt, &rp.CompletedAt); err != nil {
 			return nil, fmt.Errorf("scanning compliance report: %w", err)
 		}
-		reports = append(reports, r)
+		reports = append(reports, rp)
 	}
 	return reports, nil
 }
 
 // BackupRepository handles backup snapshot persistence.
 type BackupRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-// NewBackupRepository creates a new backup repository.
-func NewBackupRepository(db *sql.DB) *BackupRepository {
-	return &BackupRepository{db: db}
+func NewBackupRepository(db *sql.DB, dialect Dialect) *BackupRepository {
+	return &BackupRepository{db: db, dialect: dialect}
 }
 
-// Create creates a new backup snapshot.
 func (r *BackupRepository) Create(snapshot *models.BackupSnapshot) (*models.BackupSnapshot, error) {
-	err := r.db.QueryRow(
-		`INSERT INTO backup_snapshots (project_id, snapshot_type, encrypted_data, data_nonce, size_bytes, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
-		snapshot.ProjectID, snapshot.SnapshotType, snapshot.EncryptedData, snapshot.DataNonce,
-		snapshot.SizeBytes, snapshot.CreatedBy,
-	).Scan(&snapshot.ID, &snapshot.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("creating backup snapshot: %w", err)
+	id := uuid.New()
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			`INSERT INTO backup_snapshots (id, project_id, snapshot_type, encrypted_data, data_nonce, size_bytes, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at`,
+			id, snapshot.ProjectID, snapshot.SnapshotType, snapshot.EncryptedData, snapshot.DataNonce,
+			snapshot.SizeBytes, snapshot.CreatedBy,
+		).Scan(&snapshot.ID, &snapshot.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("creating backup snapshot: %w", err)
+		}
+	} else {
+		insertQ := Q(r.dialect, `INSERT INTO backup_snapshots (id, project_id, snapshot_type, encrypted_data, data_nonce, size_bytes, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+		_, err := r.db.Exec(insertQ, id, snapshot.ProjectID, snapshot.SnapshotType, snapshot.EncryptedData, snapshot.DataNonce,
+			snapshot.SizeBytes, snapshot.CreatedBy)
+		if err != nil {
+			return nil, fmt.Errorf("creating backup snapshot: %w", err)
+		}
+		selectQ := Q(r.dialect, `SELECT id, created_at FROM backup_snapshots WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&snapshot.ID, &snapshot.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading created backup snapshot: %w", err)
+		}
 	}
 	return snapshot, nil
 }
 
-// ListByProject returns backups for a project.
 func (r *BackupRepository) ListByProject(projectID uuid.UUID) ([]models.BackupSnapshot, error) {
 	rows, err := r.db.Query(
-		`SELECT id, project_id, snapshot_type, size_bytes, created_by, created_at
-		FROM backup_snapshots WHERE project_id = $1 ORDER BY created_at DESC`, projectID,
+		Q(r.dialect, `SELECT id, project_id, snapshot_type, size_bytes, created_by, created_at
+		FROM backup_snapshots WHERE project_id = $1 ORDER BY created_at DESC`), projectID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing backups: %w", err)
@@ -192,19 +248,18 @@ func (r *BackupRepository) ListByProject(projectID uuid.UUID) ([]models.BackupSn
 
 // SecurityEventRepository logs security events.
 type SecurityEventRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-// NewSecurityEventRepository creates a new security event repository.
-func NewSecurityEventRepository(db *sql.DB) *SecurityEventRepository {
-	return &SecurityEventRepository{db: db}
+func NewSecurityEventRepository(db *sql.DB, dialect Dialect) *SecurityEventRepository {
+	return &SecurityEventRepository{db: db, dialect: dialect}
 }
 
-// Log records a security event.
 func (r *SecurityEventRepository) Log(event *models.SecurityEvent) error {
 	_, err := r.db.Exec(
-		`INSERT INTO security_events (event_type, user_id, ip_address, user_agent, details, severity)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
+		Q(r.dialect, `INSERT INTO security_events (event_type, user_id, ip_address, user_agent, details, severity)
+		VALUES ($1, $2, $3, $4, $5, $6)`),
 		event.EventType, event.UserID, event.IPAddress, event.UserAgent, event.Details, event.Severity,
 	)
 	if err != nil {
@@ -213,11 +268,10 @@ func (r *SecurityEventRepository) Log(event *models.SecurityEvent) error {
 	return nil
 }
 
-// ListRecent returns recent security events.
 func (r *SecurityEventRepository) ListRecent(limit int) ([]models.SecurityEvent, error) {
 	rows, err := r.db.Query(
-		`SELECT id, event_type, user_id, ip_address, user_agent, details, severity, created_at
-		FROM security_events ORDER BY created_at DESC LIMIT $1`, limit,
+		Q(r.dialect, `SELECT id, event_type, user_id, ip_address, user_agent, details, severity, created_at
+		FROM security_events ORDER BY created_at DESC LIMIT $1`), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing security events: %w", err)

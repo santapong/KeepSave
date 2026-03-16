@@ -9,11 +9,12 @@ import (
 )
 
 type EnvironmentRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-func NewEnvironmentRepository(db *sql.DB) *EnvironmentRepository {
-	return &EnvironmentRepository{db: db}
+func NewEnvironmentRepository(db *sql.DB, dialect Dialect) *EnvironmentRepository {
+	return &EnvironmentRepository{db: db, dialect: dialect}
 }
 
 func (r *EnvironmentRepository) CreateDefaultsForProject(projectID uuid.UUID) ([]models.Environment, error) {
@@ -22,13 +23,28 @@ func (r *EnvironmentRepository) CreateDefaultsForProject(projectID uuid.UUID) ([
 
 	for _, name := range names {
 		env := models.Environment{}
-		err := r.db.QueryRow(
-			`INSERT INTO environments (project_id, name) VALUES ($1, $2)
-			 RETURNING id, project_id, name, created_at`,
-			projectID, name,
-		).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("creating environment %s: %w", name, err)
+		id := uuid.New()
+
+		if r.dialect.SupportsReturning() {
+			err := r.db.QueryRow(
+				`INSERT INTO environments (id, project_id, name) VALUES ($1, $2, $3)
+				 RETURNING id, project_id, name, created_at`,
+				id, projectID, name,
+			).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
+			if err != nil {
+				return nil, fmt.Errorf("creating environment %s: %w", name, err)
+			}
+		} else {
+			insertQ := Q(r.dialect, `INSERT INTO environments (id, project_id, name) VALUES ($1, $2, $3)`)
+			_, err := r.db.Exec(insertQ, id, projectID, name)
+			if err != nil {
+				return nil, fmt.Errorf("creating environment %s: %w", name, err)
+			}
+			selectQ := Q(r.dialect, `SELECT id, project_id, name, created_at FROM environments WHERE id = $1`)
+			err = r.db.QueryRow(selectQ, id).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
+			if err != nil {
+				return nil, fmt.Errorf("reading created environment %s: %w", name, err)
+			}
 		}
 		envs = append(envs, env)
 	}
@@ -37,7 +53,7 @@ func (r *EnvironmentRepository) CreateDefaultsForProject(projectID uuid.UUID) ([
 
 func (r *EnvironmentRepository) ListByProjectID(projectID uuid.UUID) ([]models.Environment, error) {
 	rows, err := r.db.Query(
-		`SELECT id, project_id, name, created_at FROM environments WHERE project_id = $1 ORDER BY name`,
+		Q(r.dialect, `SELECT id, project_id, name, created_at FROM environments WHERE project_id = $1 ORDER BY name`),
 		projectID,
 	)
 	if err != nil {
@@ -59,7 +75,7 @@ func (r *EnvironmentRepository) ListByProjectID(projectID uuid.UUID) ([]models.E
 func (r *EnvironmentRepository) GetByProjectAndName(projectID uuid.UUID, name string) (*models.Environment, error) {
 	env := &models.Environment{}
 	err := r.db.QueryRow(
-		`SELECT id, project_id, name, created_at FROM environments WHERE project_id = $1 AND name = $2`,
+		Q(r.dialect, `SELECT id, project_id, name, created_at FROM environments WHERE project_id = $1 AND name = $2`),
 		projectID, name,
 	).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
 	if err != nil {

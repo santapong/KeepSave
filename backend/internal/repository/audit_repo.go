@@ -9,11 +9,12 @@ import (
 )
 
 type AuditRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-func NewAuditRepository(db *sql.DB) *AuditRepository {
-	return &AuditRepository{db: db}
+func NewAuditRepository(db *sql.DB, dialect Dialect) *AuditRepository {
+	return &AuditRepository{db: db, dialect: dialect}
 }
 
 func (r *AuditRepository) Create(userID, projectID *uuid.UUID, action, environment string, details models.JSONMap, ipAddress string) error {
@@ -22,8 +23,8 @@ func (r *AuditRepository) Create(userID, projectID *uuid.UUID, action, environme
 		return fmt.Errorf("marshaling audit details: %w", err)
 	}
 	_, err = r.db.Exec(
-		`INSERT INTO audit_log (user_id, project_id, action, environment, details, ip_address)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		Q(r.dialect, `INSERT INTO audit_log (user_id, project_id, action, environment, details, ip_address)
+		 VALUES ($1, $2, $3, $4, $5, $6)`),
 		userID, projectID, action, environment, detailsBytes, ipAddress,
 	)
 	if err != nil {
@@ -37,8 +38,8 @@ func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]mod
 		limit = 50
 	}
 	rows, err := r.db.Query(
-		`SELECT id, user_id, project_id, action, environment, details, ip_address, created_at
-		 FROM audit_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2`,
+		Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, created_at
+		 FROM audit_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2`),
 		projectID, limit,
 	)
 	if err != nil {

@@ -7,32 +7,50 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
 // LeaseService manages just-in-time secret leases for agents.
 type LeaseService struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect repository.Dialect
 }
 
 // NewLeaseService creates a new lease service.
-func NewLeaseService(db *sql.DB) *LeaseService {
-	return &LeaseService{db: db}
+func NewLeaseService(db *sql.DB, dialect repository.Dialect) *LeaseService {
+	return &LeaseService{db: db, dialect: dialect}
 }
 
 // CreateLease grants time-limited access to specific secrets.
 func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment string, secretKeys []string, duration time.Duration) (*models.SecretLease, error) {
 	lease := &models.SecretLease{}
+	id := uuid.New()
 	expiresAt := time.Now().Add(duration)
+	secretKeysVal := models.StringList(secretKeys)
 
-	err := s.db.QueryRow(
-		`INSERT INTO secret_leases (api_key_id, project_id, environment, secret_keys, expires_at)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked`,
-		apiKeyID, projectID, environment, models.StringList(secretKeys), expiresAt,
-	).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
-		&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked)
-	if err != nil {
-		return nil, fmt.Errorf("creating lease: %w", err)
+	if s.dialect.SupportsReturning() {
+		err := s.db.QueryRow(
+			`INSERT INTO secret_leases (id, api_key_id, project_id, environment, secret_keys, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked`,
+			id, apiKeyID, projectID, environment, secretKeysVal, expiresAt,
+		).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
+			&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked)
+		if err != nil {
+			return nil, fmt.Errorf("creating lease: %w", err)
+		}
+	} else {
+		insertQ := repository.Q(s.dialect, `INSERT INTO secret_leases (id, api_key_id, project_id, environment, secret_keys, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`)
+		_, err := s.db.Exec(insertQ, id, apiKeyID, projectID, environment, secretKeysVal, expiresAt)
+		if err != nil {
+			return nil, fmt.Errorf("creating lease: %w", err)
+		}
+		selectQ := repository.Q(s.dialect, `SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked FROM secret_leases WHERE id = $1`)
+		err = s.db.QueryRow(selectQ, id).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
+			&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked)
+		if err != nil {
+			return nil, fmt.Errorf("reading created lease: %w", err)
+		}
 	}
 	return lease, nil
 }
@@ -40,10 +58,9 @@ func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment st
 // GetActiveLease returns an active (non-expired, non-revoked) lease.
 func (s *LeaseService) GetActiveLease(leaseID uuid.UUID) (*models.SecretLease, error) {
 	lease := &models.SecretLease{}
-	err := s.db.QueryRow(
-		`SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked, revoked_at
-		FROM secret_leases WHERE id = $1 AND revoked = FALSE AND expires_at > NOW()`, leaseID,
-	).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
+	q := repository.Q(s.dialect, `SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked, revoked_at
+		FROM secret_leases WHERE id = $1 AND revoked = `+s.dialect.BoolLiteral(false)+` AND expires_at > `+s.dialect.Now())
+	err := s.db.QueryRow(q, leaseID).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
 		&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked, &lease.RevokedAt)
 	if err != nil {
 		return nil, fmt.Errorf("getting active lease: %w", err)
@@ -53,11 +70,10 @@ func (s *LeaseService) GetActiveLease(leaseID uuid.UUID) (*models.SecretLease, e
 
 // ListActiveLeases returns all active leases for an API key.
 func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLease, error) {
-	rows, err := s.db.Query(
-		`SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked
-		FROM secret_leases WHERE api_key_id = $1 AND revoked = FALSE AND expires_at > NOW()
-		ORDER BY granted_at DESC`, apiKeyID,
-	)
+	q := repository.Q(s.dialect, `SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked
+		FROM secret_leases WHERE api_key_id = $1 AND revoked = `+s.dialect.BoolLiteral(false)+` AND expires_at > `+s.dialect.Now()+`
+		ORDER BY granted_at DESC`)
+	rows, err := s.db.Query(q, apiKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("listing active leases: %w", err)
 	}
@@ -77,9 +93,8 @@ func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLeas
 
 // RevokeLease revokes an active lease.
 func (s *LeaseService) RevokeLease(leaseID uuid.UUID) error {
-	_, err := s.db.Exec(
-		`UPDATE secret_leases SET revoked = TRUE, revoked_at = NOW() WHERE id = $1`, leaseID,
-	)
+	q := repository.Q(s.dialect, `UPDATE secret_leases SET revoked = `+s.dialect.BoolLiteral(true)+`, revoked_at = `+s.dialect.Now()+` WHERE id = $1`)
+	_, err := s.db.Exec(q, leaseID)
 	if err != nil {
 		return fmt.Errorf("revoking lease: %w", err)
 	}
@@ -88,19 +103,20 @@ func (s *LeaseService) RevokeLease(leaseID uuid.UUID) error {
 
 // AgentAnalyticsService tracks and analyzes agent activity.
 type AgentAnalyticsService struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect repository.Dialect
 }
 
 // NewAgentAnalyticsService creates a new agent analytics service.
-func NewAgentAnalyticsService(db *sql.DB) *AgentAnalyticsService {
-	return &AgentAnalyticsService{db: db}
+func NewAgentAnalyticsService(db *sql.DB, dialect repository.Dialect) *AgentAnalyticsService {
+	return &AgentAnalyticsService{db: db, dialect: dialect}
 }
 
 // LogActivity records an agent action.
 func (s *AgentAnalyticsService) LogActivity(apiKeyID, projectID uuid.UUID, action, environment, secretKey, ipAddress string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO agent_activities (api_key_id, project_id, action, environment, secret_key, ip_address)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
+		repository.Q(s.dialect, `INSERT INTO agent_activities (api_key_id, project_id, action, environment, secret_key, ip_address)
+		VALUES ($1, $2, $3, $4, $5, $6)`),
 		apiKeyID, projectID, action, environment, secretKey, ipAddress,
 	)
 	if err != nil {
@@ -112,9 +128,9 @@ func (s *AgentAnalyticsService) LogActivity(apiKeyID, projectID uuid.UUID, actio
 // GetActivitySummary returns activity counts grouped by action for an API key.
 func (s *AgentAnalyticsService) GetActivitySummary(apiKeyID uuid.UUID) ([]map[string]interface{}, error) {
 	rows, err := s.db.Query(
-		`SELECT action, COUNT(*) as count, MAX(created_at) as last_used
+		repository.Q(s.dialect, `SELECT action, COUNT(*) as count, MAX(created_at) as last_used
 		FROM agent_activities WHERE api_key_id = $1
-		GROUP BY action ORDER BY count DESC`, apiKeyID,
+		GROUP BY action ORDER BY count DESC`), apiKeyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting activity summary: %w", err)
@@ -141,9 +157,9 @@ func (s *AgentAnalyticsService) GetActivitySummary(apiKeyID uuid.UUID) ([]map[st
 // GetRecentActivity returns recent agent activities.
 func (s *AgentAnalyticsService) GetRecentActivity(projectID uuid.UUID, limit int) ([]models.AgentActivity, error) {
 	rows, err := s.db.Query(
-		`SELECT id, api_key_id, project_id, action, environment, secret_key, ip_address, created_at
+		repository.Q(s.dialect, `SELECT id, api_key_id, project_id, action, environment, secret_key, ip_address, created_at
 		FROM agent_activities WHERE project_id = $1
-		ORDER BY created_at DESC LIMIT $2`, projectID, limit,
+		ORDER BY created_at DESC LIMIT $2`), projectID, limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting recent activity: %w", err)
@@ -164,14 +180,17 @@ func (s *AgentAnalyticsService) GetRecentActivity(projectID uuid.UUID, limit int
 
 // GetAccessHeatmap returns secret access frequency data.
 func (s *AgentAnalyticsService) GetAccessHeatmap(projectID uuid.UUID) ([]map[string]interface{}, error) {
-	rows, err := s.db.Query(
-		`SELECT secret_key, environment, COUNT(*) as access_count,
-		DATE_TRUNC('hour', created_at) as hour
+	dateTrunc := s.dialect.DateTrunc("hour", "created_at")
+	intervalAgo := s.dialect.IntervalAgo("7 days")
+
+	q := repository.Q(s.dialect, fmt.Sprintf(`SELECT secret_key, environment, COUNT(*) as access_count,
+		%s as hour
 		FROM agent_activities
-		WHERE project_id = $1 AND secret_key != '' AND created_at > NOW() - INTERVAL '7 days'
+		WHERE project_id = $1 AND secret_key != '' AND created_at > %s
 		GROUP BY secret_key, environment, hour
-		ORDER BY access_count DESC`, projectID,
-	)
+		ORDER BY access_count DESC`, dateTrunc, intervalAgo))
+
+	rows, err := s.db.Query(q, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting access heatmap: %w", err)
 	}

@@ -3,6 +3,7 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"net"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
@@ -122,13 +123,11 @@ func NewBackupService(backupRepo *repository.BackupRepository, secretRepo *repos
 
 // CreateBackup creates an encrypted backup of project secrets.
 func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType string) (*models.BackupSnapshot, error) {
-	// Collect all secrets (still encrypted) for the project
 	secrets, err := s.secretRepo.ListByProject(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("listing secrets for backup: %w", err)
 	}
 
-	// Serialize secret metadata
 	data := models.JSONMap{
 		"project_id":   projectID.String(),
 		"secret_count": len(secrets),
@@ -170,19 +169,19 @@ func (s *BackupService) ListBackups(projectID uuid.UUID) ([]models.BackupSnapsho
 
 // IPAllowlistService manages IP allowlists.
 type IPAllowlistService struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect repository.Dialect
 }
 
 // NewIPAllowlistService creates a new IP allowlist service.
-func NewIPAllowlistService(db *sql.DB) *IPAllowlistService {
-	return &IPAllowlistService{db: db}
+func NewIPAllowlistService(db *sql.DB, dialect repository.Dialect) *IPAllowlistService {
+	return &IPAllowlistService{db: db, dialect: dialect}
 }
 
 // CheckIPAllowed checks if an IP is in the allowlist for a project or org.
 func (s *IPAllowlistService) CheckIPAllowed(projectID *uuid.UUID, orgID *uuid.UUID, clientIP string) (bool, error) {
-	// If no allowlist entries exist, all IPs are allowed
 	var count int
-	query := `SELECT COUNT(*) FROM ip_allowlists WHERE project_id = $1 OR organization_id = $2`
+	countQ := repository.Q(s.dialect, `SELECT COUNT(*) FROM ip_allowlists WHERE project_id = $1 OR organization_id = $2`)
 	var pid, oid interface{}
 	if projectID != nil {
 		pid = *projectID
@@ -190,7 +189,7 @@ func (s *IPAllowlistService) CheckIPAllowed(projectID *uuid.UUID, orgID *uuid.UU
 	if orgID != nil {
 		oid = *orgID
 	}
-	err := s.db.QueryRow(query, pid, oid).Scan(&count)
+	err := s.db.QueryRow(countQ, pid, oid).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("checking allowlist: %w", err)
 	}
@@ -198,34 +197,66 @@ func (s *IPAllowlistService) CheckIPAllowed(projectID *uuid.UUID, orgID *uuid.UU
 		return true, nil // No restrictions
 	}
 
-	// Check if IP matches any CIDR
-	checkQuery := `SELECT COUNT(*) FROM ip_allowlists
-		WHERE (project_id = $1 OR organization_id = $2)
-		AND $3::inet <<= cidr::inet`
-	err = s.db.QueryRow(checkQuery, pid, oid, clientIP).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("checking IP against allowlist: %w", err)
+	if s.dialect.DBType() == repository.DBTypePostgres {
+		// Use PostgreSQL's native CIDR matching
+		checkQuery := repository.Q(s.dialect, `SELECT COUNT(*) FROM ip_allowlists
+			WHERE (project_id = $1 OR organization_id = $2)
+			AND $3::inet <<= cidr::inet`)
+		err = s.db.QueryRow(checkQuery, pid, oid, clientIP).Scan(&count)
+		if err != nil {
+			return false, fmt.Errorf("checking IP against allowlist: %w", err)
+		}
+		return count > 0, nil
 	}
 
-	return count > 0, nil
+	// For MySQL/SQLite: fetch all CIDRs and check in application code
+	rows, err := s.db.Query(
+		repository.Q(s.dialect, `SELECT cidr FROM ip_allowlists WHERE project_id = $1 OR organization_id = $2`),
+		pid, oid,
+	)
+	if err != nil {
+		return false, fmt.Errorf("fetching allowlist CIDRs: %w", err)
+	}
+	defer rows.Close()
+
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return false, fmt.Errorf("invalid client IP: %s", clientIP)
+	}
+
+	for rows.Next() {
+		var cidrStr string
+		if err := rows.Scan(&cidrStr); err != nil {
+			return false, fmt.Errorf("scanning CIDR: %w", err)
+		}
+		_, cidrNet, err := net.ParseCIDR(cidrStr)
+		if err != nil {
+			continue // skip invalid CIDRs
+		}
+		if cidrNet.Contains(ip) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // SecretPolicyService manages secret lifecycle policies.
 type SecretPolicyService struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect repository.Dialect
 }
 
 // NewSecretPolicyService creates a new secret policy service.
-func NewSecretPolicyService(db *sql.DB) *SecretPolicyService {
-	return &SecretPolicyService{db: db}
+func NewSecretPolicyService(db *sql.DB, dialect repository.Dialect) *SecretPolicyService {
+	return &SecretPolicyService{db: db, dialect: dialect}
 }
 
 // GetPolicy returns the policy for a project.
 func (s *SecretPolicyService) GetPolicy(projectID uuid.UUID) (*models.SecretPolicy, error) {
 	policy := &models.SecretPolicy{}
 	err := s.db.QueryRow(
-		`SELECT id, project_id, max_age_days, rotation_reminder_days, require_rotation, created_at, updated_at
-		FROM secret_policies WHERE project_id = $1`, projectID,
+		repository.Q(s.dialect, `SELECT id, project_id, max_age_days, rotation_reminder_days, require_rotation, created_at, updated_at
+		FROM secret_policies WHERE project_id = $1`), projectID,
 	).Scan(&policy.ID, &policy.ProjectID, &policy.MaxAgeDays, &policy.RotationReminderDays,
 		&policy.RequireRotation, &policy.CreatedAt, &policy.UpdatedAt)
 	if err != nil {
@@ -237,16 +268,35 @@ func (s *SecretPolicyService) GetPolicy(projectID uuid.UUID) (*models.SecretPoli
 // SetPolicy creates or updates a project's secret policy.
 func (s *SecretPolicyService) SetPolicy(projectID uuid.UUID, maxAgeDays, reminderDays int, requireRotation bool) (*models.SecretPolicy, error) {
 	policy := &models.SecretPolicy{}
-	err := s.db.QueryRow(
-		`INSERT INTO secret_policies (project_id, max_age_days, rotation_reminder_days, require_rotation)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (project_id) DO UPDATE SET max_age_days = $2, rotation_reminder_days = $3, require_rotation = $4, updated_at = NOW()
-		RETURNING id, project_id, max_age_days, rotation_reminder_days, require_rotation, created_at, updated_at`,
-		projectID, maxAgeDays, reminderDays, requireRotation,
-	).Scan(&policy.ID, &policy.ProjectID, &policy.MaxAgeDays, &policy.RotationReminderDays,
-		&policy.RequireRotation, &policy.CreatedAt, &policy.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("upserting secret policy: %w", err)
+	id := uuid.New()
+
+	if s.dialect.SupportsReturning() {
+		err := s.db.QueryRow(
+			`INSERT INTO secret_policies (id, project_id, max_age_days, rotation_reminder_days, require_rotation)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (project_id) DO UPDATE SET max_age_days = $3, rotation_reminder_days = $4, require_rotation = $5, updated_at = NOW()
+			RETURNING id, project_id, max_age_days, rotation_reminder_days, require_rotation, created_at, updated_at`,
+			id, projectID, maxAgeDays, reminderDays, requireRotation,
+		).Scan(&policy.ID, &policy.ProjectID, &policy.MaxAgeDays, &policy.RotationReminderDays,
+			&policy.RequireRotation, &policy.CreatedAt, &policy.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("upserting secret policy: %w", err)
+		}
+	} else {
+		upsertClause := s.dialect.FormatUpsert("project_id",
+			"max_age_days = EXCLUDED.max_age_days, rotation_reminder_days = EXCLUDED.rotation_reminder_days, require_rotation = EXCLUDED.require_rotation, updated_at = "+s.dialect.Now())
+		insertQ := repository.Q(s.dialect, `INSERT INTO secret_policies (id, project_id, max_age_days, rotation_reminder_days, require_rotation)
+			VALUES ($1, $2, $3, $4, $5) `+upsertClause)
+		_, err := s.db.Exec(insertQ, id, projectID, maxAgeDays, reminderDays, requireRotation)
+		if err != nil {
+			return nil, fmt.Errorf("upserting secret policy: %w", err)
+		}
+		selectQ := repository.Q(s.dialect, `SELECT id, project_id, max_age_days, rotation_reminder_days, require_rotation, created_at, updated_at FROM secret_policies WHERE project_id = $1`)
+		err = s.db.QueryRow(selectQ, projectID).Scan(&policy.ID, &policy.ProjectID, &policy.MaxAgeDays, &policy.RotationReminderDays,
+			&policy.RequireRotation, &policy.CreatedAt, &policy.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading upserted secret policy: %w", err)
+		}
 	}
 	return policy, nil
 }

@@ -25,14 +25,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := repository.NewDB(cfg.DatabaseURL)
+	db, dialect, err := repository.NewDB(cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("failed to connect to database", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	if err := repository.RunMigrations(db, "migrations"); err != nil {
+	logger.Info("connected to database", map[string]interface{}{"type": string(dialect.DBType())})
+
+	if err := repository.RunMigrations(db, dialect, "migrations"); err != nil {
 		logger.Error("failed to run migrations", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
@@ -51,29 +53,29 @@ func main() {
 	tracer := tracing.NewTracer("keepsave-api")
 
 	// Phase 12: Event bus and plugin registry
-	eventBus := events.NewBus(db)
-	pluginRegistry := plugins.NewRegistry(db)
+	eventBus := events.NewBus(db, dialect)
+	pluginRegistry := plugins.NewRegistry(db, dialect)
 
 	// Repositories
-	userRepo := repository.NewUserRepository(db)
-	projectRepo := repository.NewProjectRepository(db)
-	envRepo := repository.NewEnvironmentRepository(db)
-	secretRepo := repository.NewSecretRepository(db)
-	apikeyRepo := repository.NewAPIKeyRepository(db)
-	auditRepo := repository.NewAuditRepository(db)
-	promotionRepo := repository.NewPromotionRepository(db)
-	versionRepo := repository.NewSecretVersionRepository(db)
-	orgRepo := repository.NewOrganizationRepository(db)
-	templateRepo := repository.NewTemplateRepository(db)
-	depRepo := repository.NewDependencyRepository(db)
+	userRepo := repository.NewUserRepository(db, dialect)
+	projectRepo := repository.NewProjectRepository(db, dialect)
+	envRepo := repository.NewEnvironmentRepository(db, dialect)
+	secretRepo := repository.NewSecretRepository(db, dialect)
+	apikeyRepo := repository.NewAPIKeyRepository(db, dialect)
+	auditRepo := repository.NewAuditRepository(db, dialect)
+	promotionRepo := repository.NewPromotionRepository(db, dialect)
+	versionRepo := repository.NewSecretVersionRepository(db, dialect)
+	orgRepo := repository.NewOrganizationRepository(db, dialect)
+	templateRepo := repository.NewTemplateRepository(db, dialect)
+	depRepo := repository.NewDependencyRepository(db, dialect)
 
 	// Phase 9: Enterprise repositories
-	ssoRepo := repository.NewSSORepository(db)
-	complianceRepo := repository.NewComplianceRepository(db)
-	backupRepo := repository.NewBackupRepository(db)
+	ssoRepo := repository.NewSSORepository(db, dialect)
+	complianceRepo := repository.NewComplianceRepository(db, dialect)
+	backupRepo := repository.NewBackupRepository(db, dialect)
 
 	// Phase 12: Platform repositories
-	accessPolicyRepo := repository.NewAccessPolicyRepository(db)
+	accessPolicyRepo := repository.NewAccessPolicyRepository(db, dialect)
 
 	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
@@ -92,11 +94,11 @@ func main() {
 	ssoService := service.NewSSOService(ssoRepo, cryptoSvc)
 	complianceService := service.NewComplianceService(complianceRepo, auditRepo, orgRepo)
 	backupService := service.NewBackupService(backupRepo, secretRepo, cryptoSvc)
-	policyService := service.NewSecretPolicyService(db)
+	policyService := service.NewSecretPolicyService(db, dialect)
 
 	// Phase 11: Agent services
-	leaseService := service.NewLeaseService(db)
-	analyticsService := service.NewAgentAnalyticsService(db)
+	leaseService := service.NewLeaseService(db, dialect)
+	analyticsService := service.NewAgentAnalyticsService(db, dialect)
 
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
