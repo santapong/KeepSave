@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
 // EventType constants for the event bus.
@@ -38,13 +39,15 @@ type Bus struct {
 	mu       sync.RWMutex
 	handlers map[string][]Handler
 	db       *sql.DB
+	dialect  repository.Dialect
 }
 
 // NewBus creates a new event bus.
-func NewBus(db *sql.DB) *Bus {
+func NewBus(db *sql.DB, dialect repository.Dialect) *Bus {
 	return &Bus{
 		handlers: make(map[string][]Handler),
 		db:       db,
+		dialect:  dialect,
 	}
 }
 
@@ -69,8 +72,8 @@ func (b *Bus) Publish(eventType string, aggregateID uuid.UUID, payload models.JS
 	// Persist to event log
 	if b.db != nil {
 		_, err := b.db.Exec(
-			`INSERT INTO event_log (id, event_type, aggregate_id, payload, published)
-			VALUES ($1, $2, $3, $4, $5)`,
+			repository.Q(b.dialect, `INSERT INTO event_log (id, event_type, aggregate_id, payload, published)
+			VALUES ($1, $2, $3, $4, $5)`),
 			event.ID, event.EventType, event.AggregateID, event.Payload, false,
 		)
 		if err != nil {
@@ -93,7 +96,10 @@ func (b *Bus) Publish(eventType string, aggregateID uuid.UUID, payload models.JS
 
 	// Mark as published
 	if b.db != nil {
-		_, _ = b.db.Exec(`UPDATE event_log SET published = TRUE WHERE id = $1`, event.ID)
+		_, _ = b.db.Exec(
+			repository.Q(b.dialect, `UPDATE event_log SET published = `+b.dialect.BoolLiteral(true)+` WHERE id = $1`),
+			event.ID,
+		)
 	}
 
 	return nil
@@ -106,8 +112,8 @@ func (b *Bus) GetUnpublished(limit int) ([]models.Event, error) {
 	}
 
 	rows, err := b.db.Query(
-		`SELECT id, event_type, aggregate_id, payload, published, created_at
-		FROM event_log WHERE published = FALSE ORDER BY created_at ASC LIMIT $1`, limit,
+		repository.Q(b.dialect, `SELECT id, event_type, aggregate_id, payload, published, created_at
+		FROM event_log WHERE published = `+b.dialect.BoolLiteral(false)+` ORDER BY created_at ASC LIMIT $1`), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying unpublished events: %w", err)
@@ -132,8 +138,8 @@ func (b *Bus) Replay(eventType string, since time.Time) error {
 	}
 
 	rows, err := b.db.Query(
-		`SELECT id, event_type, aggregate_id, payload, published, created_at
-		FROM event_log WHERE event_type = $1 AND created_at >= $2 ORDER BY created_at ASC`,
+		repository.Q(b.dialect, `SELECT id, event_type, aggregate_id, payload, published, created_at
+		FROM event_log WHERE event_type = $1 AND created_at >= $2 ORDER BY created_at ASC`),
 		eventType, since,
 	)
 	if err != nil {
@@ -164,8 +170,8 @@ func (b *Bus) GetRecentEvents(limit int) ([]models.Event, error) {
 	}
 
 	rows, err := b.db.Query(
-		`SELECT id, event_type, aggregate_id, payload, published, created_at
-		FROM event_log ORDER BY created_at DESC LIMIT $1`, limit,
+		repository.Q(b.dialect, `SELECT id, event_type, aggregate_id, payload, published, created_at
+		FROM event_log ORDER BY created_at DESC LIMIT $1`), limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("querying recent events: %w", err)

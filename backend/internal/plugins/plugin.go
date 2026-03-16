@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
 // SecretProvider is the interface for external secret storage providers.
@@ -37,15 +38,17 @@ type Registry struct {
 	notificationSinks map[string]NotificationSender
 	validators        map[string]Validator
 	db                *sql.DB
+	dialect           repository.Dialect
 }
 
 // NewRegistry creates a new plugin registry.
-func NewRegistry(db *sql.DB) *Registry {
+func NewRegistry(db *sql.DB, dialect repository.Dialect) *Registry {
 	return &Registry{
 		secretProviders:   make(map[string]SecretProvider),
 		notificationSinks: make(map[string]NotificationSender),
 		validators:        make(map[string]Validator),
 		db:                db,
+		dialect:           dialect,
 	}
 }
 
@@ -120,16 +123,35 @@ func (r *Registry) RegisterPlugin(name, pluginType, version string, config model
 	}
 
 	plugin := &models.Plugin{}
-	err := r.db.QueryRow(
-		`INSERT INTO plugins (name, plugin_type, version, config, enabled)
-		VALUES ($1, $2, $3, $4, TRUE)
-		ON CONFLICT (name) DO UPDATE SET version = $3, config = $4, updated_at = NOW()
-		RETURNING id, name, plugin_type, version, config, enabled, created_at, updated_at`,
-		name, pluginType, version, config,
-	).Scan(&plugin.ID, &plugin.Name, &plugin.PluginType, &plugin.Version, &plugin.Config,
-		&plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("registering plugin: %w", err)
+	id := uuid.New()
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			`INSERT INTO plugins (id, name, plugin_type, version, config, enabled)
+			VALUES ($1, $2, $3, $4, $5, TRUE)
+			ON CONFLICT (name) DO UPDATE SET version = $4, config = $5, updated_at = NOW()
+			RETURNING id, name, plugin_type, version, config, enabled, created_at, updated_at`,
+			id, name, pluginType, version, config,
+		).Scan(&plugin.ID, &plugin.Name, &plugin.PluginType, &plugin.Version, &plugin.Config,
+			&plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("registering plugin: %w", err)
+		}
+	} else {
+		upsertClause := r.dialect.FormatUpsert("name",
+			"version = EXCLUDED.version, config = EXCLUDED.config, updated_at = "+r.dialect.Now())
+		insertQ := repository.Q(r.dialect, `INSERT INTO plugins (id, name, plugin_type, version, config, enabled)
+			VALUES ($1, $2, $3, $4, $5, `+r.dialect.BoolLiteral(true)+`) `+upsertClause)
+		_, err := r.db.Exec(insertQ, id, name, pluginType, version, config)
+		if err != nil {
+			return nil, fmt.Errorf("registering plugin: %w", err)
+		}
+		selectQ := repository.Q(r.dialect, `SELECT id, name, plugin_type, version, config, enabled, created_at, updated_at FROM plugins WHERE name = $1`)
+		err = r.db.QueryRow(selectQ, name).Scan(&plugin.ID, &plugin.Name, &plugin.PluginType, &plugin.Version, &plugin.Config,
+			&plugin.Enabled, &plugin.CreatedAt, &plugin.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading registered plugin: %w", err)
+		}
 	}
 	return plugin, nil
 }
@@ -140,7 +162,8 @@ func (r *Registry) TogglePlugin(pluginID uuid.UUID, enabled bool) error {
 		return fmt.Errorf("database not configured")
 	}
 
-	_, err := r.db.Exec(`UPDATE plugins SET enabled = $2, updated_at = NOW() WHERE id = $1`, pluginID, enabled)
+	q := repository.Q(r.dialect, `UPDATE plugins SET enabled = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
+	_, err := r.db.Exec(q, pluginID, enabled)
 	if err != nil {
 		return fmt.Errorf("toggling plugin: %w", err)
 	}

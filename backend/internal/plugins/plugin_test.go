@@ -41,7 +41,7 @@ func (m *mockValidator) Validate(key, value string) error {
 }
 
 func TestRegistrySecretProvider(t *testing.T) {
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, nil)
 
 	provider := &mockSecretProvider{
 		name:    "vault",
@@ -64,7 +64,7 @@ func TestRegistrySecretProvider(t *testing.T) {
 }
 
 func TestRegistryNotificationSender(t *testing.T) {
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, nil)
 
 	sender := &mockNotificationSender{name: "slack"}
 	registry.RegisterNotificationSender(sender)
@@ -79,7 +79,7 @@ func TestRegistryNotificationSender(t *testing.T) {
 }
 
 func TestRegistryNotifyAll(t *testing.T) {
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, nil)
 
 	s1 := &mockNotificationSender{name: "slack"}
 	s2 := &mockNotificationSender{name: "pagerduty"}
@@ -90,7 +90,7 @@ func TestRegistryNotifyAll(t *testing.T) {
 }
 
 func TestRegistryValidateAll(t *testing.T) {
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, nil)
 
 	v1 := &mockValidator{name: "format", rejects: false}
 	registry.RegisterValidator(v1)
@@ -110,7 +110,7 @@ func TestRegistryValidateAll(t *testing.T) {
 }
 
 func TestRegistryProviderNotFound(t *testing.T) {
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, nil)
 
 	_, ok := registry.GetSecretProvider("nonexistent")
 	if ok {

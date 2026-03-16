@@ -10,19 +10,18 @@ import (
 
 // AccessPolicyRepository handles access policy persistence.
 type AccessPolicyRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect Dialect
 }
 
-// NewAccessPolicyRepository creates a new access policy repository.
-func NewAccessPolicyRepository(db *sql.DB) *AccessPolicyRepository {
-	return &AccessPolicyRepository{db: db}
+func NewAccessPolicyRepository(db *sql.DB, dialect Dialect) *AccessPolicyRepository {
+	return &AccessPolicyRepository{db: db, dialect: dialect}
 }
 
-// GetPolicies returns access policies for a project.
 func (r *AccessPolicyRepository) GetPolicies(projectID uuid.UUID) ([]models.AccessPolicy, error) {
 	rows, err := r.db.Query(
-		`SELECT id, project_id, policy_type, config, enabled, created_by, created_at, updated_at
-		FROM access_policies WHERE project_id = $1 ORDER BY created_at`, projectID,
+		Q(r.dialect, `SELECT id, project_id, policy_type, config, enabled, created_by, created_at, updated_at
+		FROM access_policies WHERE project_id = $1 ORDER BY created_at`), projectID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing access policies: %w", err)
@@ -41,23 +40,36 @@ func (r *AccessPolicyRepository) GetPolicies(projectID uuid.UUID) ([]models.Acce
 	return policies, nil
 }
 
-// CreatePolicy creates a new access policy.
 func (r *AccessPolicyRepository) CreatePolicy(policy *models.AccessPolicy) (*models.AccessPolicy, error) {
-	err := r.db.QueryRow(
-		`INSERT INTO access_policies (project_id, policy_type, config, enabled, created_by)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`,
-		policy.ProjectID, policy.PolicyType, policy.Config, policy.Enabled, policy.CreatedBy,
-	).Scan(&policy.ID, &policy.CreatedAt, &policy.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("creating access policy: %w", err)
+	id := uuid.New()
+
+	if r.dialect.SupportsReturning() {
+		err := r.db.QueryRow(
+			`INSERT INTO access_policies (id, project_id, policy_type, config, enabled, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id, created_at, updated_at`,
+			id, policy.ProjectID, policy.PolicyType, policy.Config, policy.Enabled, policy.CreatedBy,
+		).Scan(&policy.ID, &policy.CreatedAt, &policy.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("creating access policy: %w", err)
+		}
+	} else {
+		insertQ := Q(r.dialect, `INSERT INTO access_policies (id, project_id, policy_type, config, enabled, created_by) VALUES ($1, $2, $3, $4, $5, $6)`)
+		_, err := r.db.Exec(insertQ, id, policy.ProjectID, policy.PolicyType, policy.Config, policy.Enabled, policy.CreatedBy)
+		if err != nil {
+			return nil, fmt.Errorf("creating access policy: %w", err)
+		}
+		selectQ := Q(r.dialect, `SELECT id, created_at, updated_at FROM access_policies WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&policy.ID, &policy.CreatedAt, &policy.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("reading created access policy: %w", err)
+		}
 	}
 	return policy, nil
 }
 
-// DeletePolicy removes an access policy.
 func (r *AccessPolicyRepository) DeletePolicy(policyID uuid.UUID) error {
-	_, err := r.db.Exec(`DELETE FROM access_policies WHERE id = $1`, policyID)
+	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM access_policies WHERE id = $1`), policyID)
 	if err != nil {
 		return fmt.Errorf("deleting access policy: %w", err)
 	}
