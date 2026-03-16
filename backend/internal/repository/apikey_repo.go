@@ -122,6 +122,13 @@ func (r *APIKeyRepository) Delete(id uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("deleting api key: %w", err)
 	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking delete result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("api key not found")
+	}
 	return nil
 }
 

@@ -57,7 +57,11 @@ async function request<T>(
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || `Request failed with status ${response.status}`);
+    const errorMessage =
+      typeof data.error === 'object' && data.error !== null
+        ? data.error.message
+        : data.error;
+    throw new Error(errorMessage || `Request failed with status ${response.status}`);
   }
 
   return data;

@@ -1,5 +1,41 @@
 # Error Log
 
+## API Key Creation - `[object Object]` Error Display
+
+### 2026-03-14: API key error shows `[object Object]` instead of message (RESOLVED)
+
+**Error:**
+User sees `[object Object]` in the error display when API key creation fails, instead of the actual error message (e.g., "invalid project_id").
+
+**Root Cause:**
+The backend `RespondError` function returns errors in a nested format:
+```json
+{ "error": { "code": 400, "message": "invalid project_id" } }
+```
+
+The frontend `client.ts` line 60 treated `data.error` as a string:
+```typescript
+throw new Error(data.error || `Request failed with status ${response.status}`);
+```
+
+Since `data.error` is an object `{ code, message }`, JavaScript's implicit string coercion converts it to `[object Object]`.
+
+**Affected Code Paths:**
+- `frontend/src/api/client.ts:60` → generic `request()` function used by ALL API calls
+- All error responses from the backend were affected, not just API key creation
+
+**Fix Applied:**
+- Extract `.message` from the error object when it's an object type
+- Added `.filter(Boolean)` to scopes parsing to prevent `[""]` from empty input
+- Added empty projects guard to prevent form submission without a valid project
+- Added backend validation: environment must be `alpha|uat|prod`, scopes must be `read|write`
+- Added project ownership verification before API key creation (403 if not owner)
+- Added `user_id` filter to API key delete query (prevents cross-user deletion)
+
+**Commit:** See branch `claude/fix-api-key-error-Xn5lN`
+
+---
+
 ## Security Scan - govulncheck
 
 ### 2026-03-13: govulncheck type resolution failure (RESOLVED)
