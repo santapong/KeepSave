@@ -34,6 +34,9 @@ func SetupRouter(
 	agentHandler *AgentHandler,
 	platformHandler *PlatformHandler,
 	openAPIHandler *OpenAPIHandler,
+	oauthHandler *OAuthHandler,
+	mcpHubHandler *MCPHubHandler,
+	mcpGatewayHandler *MCPGatewayHandler,
 	appMetrics *metrics.AppMetrics,
 	tracer *tracing.Tracer,
 	db *sql.DB,
@@ -79,6 +82,9 @@ func SetupRouter(
 
 	// Phase 8: OpenAPI spec (no auth required)
 	r.GET("/api/docs", openAPIHandler.Spec)
+
+	// OIDC Discovery (no auth required)
+	r.GET("/.well-known/openid-configuration", oauthHandler.OpenIDConfiguration)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -269,6 +275,54 @@ func SetupRouter(
 			platformGroup.GET("/plugins", platformHandler.ListPlugins)
 			platformGroup.POST("/plugins", platformHandler.RegisterPlugin)
 			platformGroup.PUT("/plugins/:pluginId", platformHandler.TogglePlugin)
+		}
+
+		// Phase 13: OAuth 2.0 Provider
+		oauthPublicGroup := v1.Group("/oauth")
+		{
+			oauthPublicGroup.POST("/token", oauthHandler.Token)
+			oauthPublicGroup.GET("/userinfo", oauthHandler.UserInfo)
+			oauthPublicGroup.POST("/revoke", oauthHandler.Revoke)
+			oauthPublicGroup.GET("/.well-known/jwks.json", oauthHandler.JWKS)
+		}
+
+		oauthAuthGroup := v1.Group("/oauth")
+		oauthAuthGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			oauthAuthGroup.GET("/authorize", oauthHandler.Authorize)
+			oauthAuthGroup.POST("/clients", oauthHandler.RegisterClient)
+			oauthAuthGroup.GET("/clients", oauthHandler.ListClients)
+			oauthAuthGroup.DELETE("/clients/:clientId", oauthHandler.DeleteClient)
+		}
+
+		// Phase 13: MCP Server Hub
+		mcpPublicGroup := v1.Group("/mcp")
+		{
+			mcpPublicGroup.GET("/servers/public", mcpHubHandler.ListPublicServers)
+		}
+
+		mcpAuthGroup := v1.Group("/mcp")
+		mcpAuthGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			// Server management
+			mcpAuthGroup.POST("/servers", mcpHubHandler.RegisterServer)
+			mcpAuthGroup.GET("/servers", mcpHubHandler.ListMyServers)
+			mcpAuthGroup.GET("/servers/:serverId", mcpHubHandler.GetServer)
+			mcpAuthGroup.PUT("/servers/:serverId", mcpHubHandler.UpdateServer)
+			mcpAuthGroup.DELETE("/servers/:serverId", mcpHubHandler.DeleteServer)
+			mcpAuthGroup.POST("/servers/:serverId/rebuild", mcpHubHandler.RebuildServer)
+
+			// Installation management
+			mcpAuthGroup.POST("/installations", mcpHubHandler.InstallServer)
+			mcpAuthGroup.GET("/installations", mcpHubHandler.ListInstallations)
+			mcpAuthGroup.PUT("/installations/:installId", mcpHubHandler.UpdateInstallation)
+			mcpAuthGroup.DELETE("/installations/:installId", mcpHubHandler.UninstallServer)
+
+			// Gateway
+			mcpAuthGroup.POST("/gateway", mcpGatewayHandler.HandleToolCall)
+			mcpAuthGroup.GET("/gateway/tools", mcpGatewayHandler.ListTools)
+			mcpAuthGroup.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
+			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
 		}
 	}
 

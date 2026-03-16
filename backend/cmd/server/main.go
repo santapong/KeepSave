@@ -77,6 +77,10 @@ func main() {
 	// Phase 12: Platform repositories
 	accessPolicyRepo := repository.NewAccessPolicyRepository(db, dialect)
 
+	// Phase 13: OAuth & MCP repositories
+	oauthRepo := repository.NewOAuthRepository(db, dialect)
+	mcpRepo := repository.NewMCPRepository(db, dialect)
+
 	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
@@ -99,6 +103,11 @@ func main() {
 	// Phase 11: Agent services
 	leaseService := service.NewLeaseService(db, dialect)
 	analyticsService := service.NewAgentAnalyticsService(db, dialect)
+
+	// Phase 13: OAuth & MCP services
+	oauthService := service.NewOAuthService(oauthRepo, userRepo)
+	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
+	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
@@ -130,6 +139,11 @@ func main() {
 	// Phase 12: Platform handler
 	platformHandler := api.NewPlatformHandler(eventBus, pluginRegistry, accessPolicyRepo)
 
+	// Phase 13: OAuth & MCP handlers
+	oauthHandler := api.NewOAuthHandler(oauthService)
+	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
+	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
+
 	// Router
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
@@ -153,6 +167,9 @@ func main() {
 		agentHandler,
 		platformHandler,
 		openAPIHandler,
+		oauthHandler,
+		mcpHubHandler,
+		mcpGatewayHandler,
 		appMetrics,
 		tracer,
 		db,

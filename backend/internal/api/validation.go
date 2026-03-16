@@ -100,3 +100,63 @@ type ImportEnvRequest struct {
 	Content     string `json:"content" binding:"required"`
 	Overwrite   bool   `json:"overwrite"`
 }
+
+// Phase 13: OAuth & MCP Hub request types
+
+type RegisterOAuthClientRequest struct {
+	Name         string   `json:"name" binding:"required,min=1,max=255"`
+	Description  string   `json:"description"`
+	RedirectURIs []string `json:"redirect_uris" binding:"required"`
+	Scopes       []string `json:"scopes"`
+	GrantTypes   []string `json:"grant_types"`
+	LogoURL      string   `json:"logo_url"`
+	HomepageURL  string   `json:"homepage_url"`
+	IsPublic     bool     `json:"is_public"`
+}
+
+type TokenRequest struct {
+	GrantType    string `json:"grant_type"`
+	Code         string `json:"code"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURI  string `json:"redirect_uri"`
+	CodeVerifier string `json:"code_verifier"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
+}
+
+type RegisterMCPServerRequest struct {
+	Name         string                 `json:"name" binding:"required,min=1,max=255"`
+	Description  string                 `json:"description"`
+	GitHubURL    string                 `json:"github_url" binding:"required"`
+	GitHubBranch string                 `json:"github_branch"`
+	EntryCommand string                 `json:"entry_command"`
+	Transport    string                 `json:"transport"`
+	IconURL      string                 `json:"icon_url"`
+	Version      string                 `json:"version"`
+	EnvMappings  map[string]interface{} `json:"env_mappings"`
+	IsPublic     bool                   `json:"is_public"`
+}
+
+type UpdateMCPServerRequest struct {
+	Name         string                 `json:"name" binding:"required,min=1,max=255"`
+	Description  string                 `json:"description"`
+	GitHubBranch string                 `json:"github_branch"`
+	EntryCommand string                 `json:"entry_command"`
+	Transport    string                 `json:"transport"`
+	IconURL      string                 `json:"icon_url"`
+	Version      string                 `json:"version"`
+	EnvMappings  map[string]interface{} `json:"env_mappings"`
+	IsPublic     bool                   `json:"is_public"`
+}
+
+type InstallMCPServerRequest struct {
+	MCPServerID string                 `json:"mcp_server_id" binding:"required,uuid"`
+	ProjectID   string                 `json:"project_id"`
+	Config      map[string]interface{} `json:"config"`
+}
+
+type UpdateInstallationRequest struct {
+	Enabled bool                   `json:"enabled"`
+	Config  map[string]interface{} `json:"config"`
+}

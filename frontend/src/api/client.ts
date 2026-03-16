@@ -12,6 +12,13 @@ import type {
   DependencyNode,
   ImportResult,
 } from '../types';
+import type {
+  OAuthClient,
+  MCPServer,
+  MCPInstallation,
+  MCPServerWithTools,
+  GatewayStats,
+} from '../types/mcp';
 
 const BASE_URL = '/api/v1';
 
@@ -577,6 +584,128 @@ export async function createAccessPolicy(
     body: JSON.stringify({ policy_type: policyType, config }),
   });
   return data.policy;
+}
+
+// Phase 13: OAuth Client Management
+export async function listOAuthClients(): Promise<OAuthClient[]> {
+  const data = await request<{ clients: OAuthClient[] }>('/oauth/clients');
+  return data.clients || [];
+}
+
+export async function registerOAuthClient(
+  name: string,
+  description: string,
+  redirectURIs: string[],
+  scopes: string[],
+  grantTypes: string[],
+  isPublic: boolean
+): Promise<{ client: OAuthClient; client_secret: string }> {
+  return request('/oauth/clients', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      description,
+      redirect_uris: redirectURIs,
+      scopes,
+      grant_types: grantTypes,
+      is_public: isPublic,
+    }),
+  });
+}
+
+export async function deleteOAuthClient(clientId: string): Promise<void> {
+  await request(`/oauth/clients/${clientId}`, { method: 'DELETE' });
+}
+
+// Phase 13: MCP Server Hub
+export async function listPublicMCPServers(): Promise<MCPServer[]> {
+  const data = await request<{ servers: MCPServer[] }>('/mcp/servers/public');
+  return data.servers || [];
+}
+
+export async function listMyMCPServers(): Promise<MCPServer[]> {
+  const data = await request<{ servers: MCPServer[] }>('/mcp/servers');
+  return data.servers || [];
+}
+
+export async function getMCPServer(serverId: string): Promise<MCPServer> {
+  const data = await request<{ server: MCPServer }>(`/mcp/servers/${serverId}`);
+  return data.server;
+}
+
+export async function registerMCPServer(
+  name: string,
+  description: string,
+  githubUrl: string,
+  githubBranch: string,
+  entryCommand: string,
+  transport: string,
+  envMappings: Record<string, unknown>,
+  isPublic: boolean
+): Promise<MCPServer> {
+  const data = await request<{ server: MCPServer }>('/mcp/servers', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      description,
+      github_url: githubUrl,
+      github_branch: githubBranch,
+      entry_command: entryCommand,
+      transport,
+      env_mappings: envMappings,
+      is_public: isPublic,
+    }),
+  });
+  return data.server;
+}
+
+export async function deleteMCPServer(serverId: string): Promise<void> {
+  await request(`/mcp/servers/${serverId}`, { method: 'DELETE' });
+}
+
+export async function rebuildMCPServer(serverId: string): Promise<void> {
+  await request(`/mcp/servers/${serverId}/rebuild`, { method: 'POST' });
+}
+
+// MCP Installations
+export async function listMCPInstallations(): Promise<MCPInstallation[]> {
+  const data = await request<{ installations: MCPInstallation[] }>('/mcp/installations');
+  return data.installations || [];
+}
+
+export async function installMCPServer(
+  mcpServerId: string,
+  projectId?: string,
+  config?: Record<string, unknown>
+): Promise<MCPInstallation> {
+  const data = await request<{ installation: MCPInstallation }>('/mcp/installations', {
+    method: 'POST',
+    body: JSON.stringify({
+      mcp_server_id: mcpServerId,
+      project_id: projectId || '',
+      config: config || {},
+    }),
+  });
+  return data.installation;
+}
+
+export async function uninstallMCPServer(installId: string): Promise<void> {
+  await request(`/mcp/installations/${installId}`, { method: 'DELETE' });
+}
+
+// MCP Gateway
+export async function listMCPTools(): Promise<MCPServerWithTools[]> {
+  const data = await request<{ servers: MCPServerWithTools[] }>('/mcp/gateway/tools');
+  return data.servers || [];
+}
+
+export async function getMCPGatewayStats(): Promise<GatewayStats[]> {
+  const data = await request<{ stats: GatewayStats[] }>('/mcp/gateway/stats');
+  return data.stats || [];
+}
+
+export async function getMCPConfig(): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>('/mcp/config');
 }
 
 // Dependency Graph
