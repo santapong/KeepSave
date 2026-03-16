@@ -86,8 +86,11 @@ export function AdminDashboardPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700 }}>Admin Dashboard</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Admin Dashboard</h1>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>Monitor system health, traces, events, and plugins</p>
+        </div>
         <button onClick={loadData} style={refreshBtn}>Refresh</button>
       </div>
 

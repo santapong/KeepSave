@@ -89,6 +89,13 @@ func SetupRouter(
 			authGroup.POST("/login", authHandler.Login)
 		}
 
+		// User lookup (JWT required)
+		usersGroup := v1.Group("/users")
+		usersGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			usersGroup.GET("/lookup", authHandler.LookupUser)
+		}
+
 		// Project routes (JWT required)
 		projectGroup := v1.Group("/projects")
 		projectGroup.Use(JWTAuthMiddleware(jwtService))

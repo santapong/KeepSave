@@ -31,6 +31,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+func (h *AuthHandler) LookupUser(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		RespondError(c, http.StatusBadRequest, "email query parameter required")
+		return
+	}
+
+	user, err := h.authService.LookupByEmail(email)
+	if err != nil {
+		RespondError(c, http.StatusNotFound, "user not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": gin.H{"id": user.ID, "email": user.Email}})
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

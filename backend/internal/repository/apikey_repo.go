@@ -34,7 +34,7 @@ func (r *APIKeyRepository) Create(name, hashedKey string, userID, projectID uuid
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)
 			 RETURNING id, name, hashed_key, user_id, project_id, scopes, environment, expires_at, created_at`,
 			id, name, hashedKey, userID, projectID, pq.Array(scopes), env,
-		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, pq.Array(&k.Scopes), &env, &k.ExpiresAt, &k.CreatedAt)
+		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, &k.Scopes, &env, &k.ExpiresAt, &k.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("creating api key: %w", err)
 		}
@@ -65,7 +65,7 @@ func (r *APIKeyRepository) GetByHashedKey(hashedKey string) (*models.APIKey, err
 			`SELECT id, name, hashed_key, user_id, project_id, scopes, environment, expires_at, created_at
 			 FROM api_keys WHERE hashed_key = $1`,
 			hashedKey,
-		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, pq.Array(&k.Scopes), &env, &k.ExpiresAt, &k.CreatedAt)
+		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, &k.Scopes, &env, &k.ExpiresAt, &k.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("getting api key by hash: %w", err)
 		}
@@ -101,7 +101,7 @@ func (r *APIKeyRepository) ListByUserID(userID uuid.UUID) ([]models.APIKey, erro
 		var k models.APIKey
 		var env sql.NullString
 		if r.dialect.DBType() == DBTypePostgres {
-			if err := rows.Scan(&k.ID, &k.Name, &k.UserID, &k.ProjectID, pq.Array(&k.Scopes), &env, &k.ExpiresAt, &k.CreatedAt); err != nil {
+			if err := rows.Scan(&k.ID, &k.Name, &k.UserID, &k.ProjectID, &k.Scopes, &env, &k.ExpiresAt, &k.CreatedAt); err != nil {
 				return nil, fmt.Errorf("scanning api key: %w", err)
 			}
 		} else {
@@ -117,8 +117,8 @@ func (r *APIKeyRepository) ListByUserID(userID uuid.UUID) ([]models.APIKey, erro
 	return keys, rows.Err()
 }
 
-func (r *APIKeyRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM api_keys WHERE id = $1`), id)
+func (r *APIKeyRepository) Delete(id, userID uuid.UUID) error {
+	result, err := r.db.Exec(Q(r.dialect, `DELETE FROM api_keys WHERE id = $1 AND user_id = $2`), id, userID)
 	if err != nil {
 		return fmt.Errorf("deleting api key: %w", err)
 	}

@@ -117,7 +117,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 600,
     height: 600,
     borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(79, 70, 229, 0.04) 0%, transparent 70%)',
     pointerEvents: 'none',
   },
   bgOrb2: {
@@ -127,7 +127,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 500,
     height: 500,
     borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(139, 92, 246, 0.03) 0%, transparent 70%)',
     pointerEvents: 'none',
   },
   container: {
@@ -148,7 +148,7 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: 32,
     fontWeight: 800,
-    color: '#fff',
+    color: 'var(--color-text)',
     letterSpacing: '-0.02em',
   },
   tagline: {
@@ -166,7 +166,7 @@ const styles: Record<string, React.CSSProperties> = {
   cardTitle: {
     fontSize: 20,
     fontWeight: 700,
-    color: '#fff',
+    color: 'var(--color-text)',
     textAlign: 'center' as const,
   },
   cardSubtitle: {
@@ -189,7 +189,7 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     fontSize: 13,
     fontWeight: 500,
-    color: 'var(--color-text-secondary)',
+    color: 'var(--color-text)',
   },
   input: {
     padding: '10px 14px',
@@ -242,12 +242,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-secondary)',
   },
   link: {
-    color: 'var(--color-primary-hover)',
+    color: 'var(--color-primary)',
     fontWeight: 500,
   },
   copyright: {
     fontSize: 12,
-    color: '#4b5563',
+    color: 'var(--color-text-secondary)',
     textAlign: 'center' as const,
     marginTop: 24,
   },

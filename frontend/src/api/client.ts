@@ -265,6 +265,12 @@ export async function deleteAPIKey(id: string): Promise<void> {
   await request(`/api-keys/${id}`, { method: 'DELETE' });
 }
 
+// User lookup
+export async function lookupUserByEmail(email: string): Promise<{ id: string; email: string }> {
+  const data = await request<{ user: { id: string; email: string } }>(`/users/lookup?email=${encodeURIComponent(email)}`);
+  return data.user;
+}
+
 // Organizations
 export async function listOrganizations(): Promise<Organization[]> {
   const data = await request<{ organizations: Organization[] }>('/organizations');

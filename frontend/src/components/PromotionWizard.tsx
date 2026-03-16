@@ -9,9 +9,19 @@ interface PromotionWizardProps {
 type Step = 'configure' | 'review' | 'done';
 
 const PATHS = [
-  { source: 'alpha', target: 'uat', label: 'Alpha → UAT' },
-  { source: 'uat', target: 'prod', label: 'UAT → PROD' },
+  { source: 'alpha', target: 'uat', label: 'Alpha \u2192 UAT' },
+  { source: 'uat', target: 'prod', label: 'UAT \u2192 PROD' },
 ];
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'configure', label: 'Configure' },
+  { key: 'review', label: 'Review' },
+  { key: 'done', label: 'Done' },
+];
+
+function stepIndex(step: Step): number {
+  return STEPS.findIndex((s) => s.key === step);
+}
 
 export function PromotionWizard({ projectId }: PromotionWizardProps) {
   const [step, setStep] = useState<Step>('configure');
@@ -25,6 +35,16 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
   const [result, setResult] = useState<string>('');
 
   const path = PATHS[pathIdx];
+  const currentStepIdx = stepIndex(step);
+
+  function resetWizard() {
+    setStep('configure');
+    setResult('');
+    setDiff([]);
+    setSelectedKeys(new Set());
+    setNotes('');
+    setError('');
+  }
 
   async function handlePreview() {
     setLoading(true);
@@ -76,30 +96,111 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
     });
   }
 
+  function rowBackground(action: string): string | undefined {
+    if (action === 'add') return 'rgba(34, 197, 94, 0.06)';
+    if (action === 'update') return 'rgba(245, 158, 11, 0.06)';
+    return undefined;
+  }
+
+  /* ---------- Step Indicator ---------- */
+  function renderStepIndicator() {
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 28 }}>
+        {STEPS.map((s, idx) => {
+          const isCompleted = idx < currentStepIdx;
+          const isCurrent = idx === currentStepIdx;
+
+          const circleStyle: React.CSSProperties = {
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 13,
+            fontWeight: 700,
+            flexShrink: 0,
+            ...(isCompleted
+              ? { background: 'var(--color-primary)', color: '#fff' }
+              : isCurrent
+                ? { background: 'transparent', border: '2px solid var(--color-primary)', color: 'var(--color-primary)' }
+                : { background: 'var(--color-border)', color: 'var(--color-text-secondary)' }),
+          };
+
+          const labelColor = isCompleted || isCurrent ? 'var(--color-text)' : 'var(--color-text-secondary)';
+
+          return (
+            <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
+              {/* Connector before (except first) */}
+              {idx > 0 && (
+                <div
+                  style={{
+                    width: 48,
+                    height: 2,
+                    background: idx <= currentStepIdx ? 'var(--color-primary)' : 'var(--color-border)',
+                    marginBottom: 18, // align with circle center
+                  }}
+                />
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
+                <div style={circleStyle}>
+                  {isCompleted ? '\u2713' : idx + 1}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, marginTop: 6, color: labelColor }}>
+                  {s.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /* ---------- Done Step ---------- */
   if (step === 'done') {
     return (
       <div style={cardStyle}>
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <h3 style={{ fontSize: 18, color: 'var(--color-success)', marginBottom: 8 }}>
+        {renderStepIndicator()}
+        <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              background: 'rgba(34, 197, 94, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            {path.source.toUpperCase()} &rarr; {path.target.toUpperCase()}
+          </p>
+          <h3 style={{ fontSize: 18, color: 'var(--color-success)', marginBottom: 20, fontWeight: 600 }}>
             {result}
           </h3>
-          <button
-            onClick={() => { setStep('configure'); setResult(''); setDiff([]); }}
-            style={btnPrimary}
-          >
-            New Promotion
+          <button onClick={resetWizard} style={btnPrimary}>
+            Start New Promotion
           </button>
         </div>
       </div>
     );
   }
 
+  /* ---------- Configure & Review ---------- */
   return (
     <div>
       {error && <div style={errorStyle}>{error}</div>}
 
       {step === 'configure' && (
         <div style={cardStyle}>
+          {renderStepIndicator()}
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Configure Promotion</h3>
 
           <div style={{ marginBottom: 16 }}>
@@ -118,6 +219,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                     color: pathIdx === idx ? '#fff' : 'var(--color-text)',
                     fontSize: 13,
                     fontWeight: 600,
+                    cursor: 'pointer',
                   }}
                 >
                   {p.label}
@@ -125,6 +227,23 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
               ))}
             </div>
           </div>
+
+          {/* PROD approval banner */}
+          {pathIdx === 1 && (
+            <div
+              style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: 'var(--radius)',
+                padding: '10px 14px',
+                fontSize: 13,
+                color: '#f59e0b',
+                marginBottom: 16,
+              }}
+            >
+              PROD promotions require multi-party approval before secrets are applied.
+            </div>
+          )}
 
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Override Policy</label>
@@ -156,12 +275,30 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
 
       {step === 'review' && (
         <div style={cardStyle}>
+          {renderStepIndicator()}
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
             Review Changes: {path.label}
           </h3>
           <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
             Select which keys to promote. Override policy: <strong>{overridePolicy}</strong>
           </p>
+
+          {/* PROD approval banner in review step too */}
+          {pathIdx === 1 && (
+            <div
+              style={{
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                borderRadius: 'var(--radius)',
+                padding: '10px 14px',
+                fontSize: 13,
+                color: '#f59e0b',
+                marginBottom: 16,
+              }}
+            >
+              PROD promotions require multi-party approval before secrets are applied.
+            </div>
+          )}
 
           {diff.length === 0 ? (
             <p style={{ color: 'var(--color-text-secondary)' }}>No differences found.</p>
@@ -178,7 +315,13 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
               </thead>
               <tbody>
                 {diff.map((entry) => (
-                  <tr key={entry.key} style={{ opacity: entry.action === 'no_change' ? 0.5 : 1 }}>
+                  <tr
+                    key={entry.key}
+                    style={{
+                      opacity: entry.action === 'no_change' ? 0.5 : 1,
+                      background: rowBackground(entry.action),
+                    }}
+                  >
                     <td style={tdStyle}>
                       <input
                         type="checkbox"
@@ -200,10 +343,10 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <code style={{ fontSize: 12 }}>{entry.source_exists ? '••••••' : '-'}</code>
+                      <code style={{ fontSize: 12 }}>{entry.source_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
                     </td>
                     <td style={tdStyle}>
-                      <code style={{ fontSize: 12 }}>{entry.target_exists ? '••••••' : '-'}</code>
+                      <code style={{ fontSize: 12 }}>{entry.target_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
                     </td>
                   </tr>
                 ))}
@@ -236,8 +379,11 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
   );
 }
 
+/* ---------- Styles ---------- */
+
 const cardStyle: React.CSSProperties = {
   background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   boxShadow: 'var(--shadow)',
   padding: 24,
@@ -266,6 +412,7 @@ const btnPrimary: React.CSSProperties = {
   borderRadius: 'var(--radius)',
   fontSize: 13,
   fontWeight: 600,
+  cursor: 'pointer',
 };
 
 const btnOutline: React.CSSProperties = {
@@ -275,6 +422,7 @@ const btnOutline: React.CSSProperties = {
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   fontSize: 13,
+  cursor: 'pointer',
 };
 
 const tableStyle: React.CSSProperties = {

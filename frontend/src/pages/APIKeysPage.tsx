@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   listAPIKeys,
   createAPIKey,
@@ -89,7 +90,10 @@ export function APIKeysPage() {
       )}
 
       {showCreate && projects.length === 0 && (
-        <div style={errorStyle}>You must create a project before you can create an API key.</div>
+        <div style={errorStyle}>
+          You must create a project before you can create an API key.{' '}
+          <Link to="/projects" style={{ color: 'inherit', fontWeight: 600 }}>Go to Projects →</Link>
+        </div>
       )}
 
       {showCreate && projects.length > 0 && (

@@ -5,9 +5,10 @@ import { SecretsPanel } from '../components/SecretsPanel';
 import { PromotionWizard } from '../components/PromotionWizard';
 import { PromotionsList } from '../components/PromotionsList';
 import { AuditLogViewer } from '../components/AuditLogViewer';
+import { ProjectAPIKeysPanel } from '../components/ProjectAPIKeysPanel';
 import type { Project } from '../types';
 
-type Tab = 'secrets' | 'promote' | 'promotions' | 'audit';
+type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys';
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ export function ProjectDetailPage() {
     if (path.includes('/promote')) return 'promote';
     if (path.includes('/promotions')) return 'promotions';
     if (path.includes('/audit')) return 'audit';
+    if (path.includes('/api-keys')) return 'api-keys';
     return 'secrets';
   })();
 
@@ -39,6 +41,7 @@ export function ProjectDetailPage() {
     { key: 'promote', label: 'Promote', path: `/projects/${id}/promote` },
     { key: 'promotions', label: 'History', path: `/projects/${id}/promotions` },
     { key: 'audit', label: 'Audit Log', path: `/projects/${id}/audit` },
+    { key: 'api-keys', label: 'API Keys', path: `/projects/${id}/api-keys` },
   ];
 
   return (
@@ -75,6 +78,7 @@ export function ProjectDetailPage() {
         <Route path="promote" element={<PromotionWizard projectId={id!} />} />
         <Route path="promotions" element={<PromotionsList projectId={id!} />} />
         <Route path="audit" element={<AuditLogViewer projectId={id!} />} />
+        <Route path="api-keys" element={<ProjectAPIKeysPanel projectId={id!} />} />
       </Routes>
     </div>
   );

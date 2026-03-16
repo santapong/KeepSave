@@ -49,6 +49,10 @@ func (s *AuthService) Register(email, password string) (*AuthResponse, error) {
 	return &AuthResponse{User: user, Token: token}, nil
 }
 
+func (s *AuthService) LookupByEmail(email string) (*models.User, error) {
+	return s.userRepo.GetByEmail(email)
+}
+
 func (s *AuthService) Login(email, password string) (*AuthResponse, error) {
 	user, err := s.userRepo.GetByEmail(email)
 	if err != nil {

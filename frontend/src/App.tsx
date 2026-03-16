@@ -1,17 +1,18 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useTheme } from './hooks/useTheme';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
-import { APIKeysPage } from './pages/APIKeysPage';
 import { OrganizationsPage } from './pages/OrganizationsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { HelpPage } from './pages/HelpPage';
 
 export default function App() {
+  useTheme();
   const auth = useAuth();
 
   if (!auth.authenticated) {
@@ -31,7 +32,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ProjectsPage />} />
           <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
-          <Route path="/api-keys" element={<APIKeysPage />} />
           <Route path="/organizations" element={<OrganizationsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
