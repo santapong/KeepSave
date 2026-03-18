@@ -37,6 +37,7 @@ func SetupRouter(
 	oauthHandler *OAuthHandler,
 	mcpHubHandler *MCPHubHandler,
 	mcpGatewayHandler *MCPGatewayHandler,
+	applicationHandler *ApplicationHandler,
 	appMetrics *metrics.AppMetrics,
 	tracer *tracing.Tracer,
 	db *sql.DB,
@@ -45,6 +46,9 @@ func SetupRouter(
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// Trusted proxy support (nginx, Traefik, Kong, etc.)
+	r.Use(TrustedProxyMiddleware())
 
 	// Phase 10: Security headers
 	r.Use(SecurityHeadersMiddleware())
@@ -323,6 +327,18 @@ func SetupRouter(
 			mcpAuthGroup.GET("/gateway/tools", mcpGatewayHandler.ListTools)
 			mcpAuthGroup.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
 			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
+		}
+
+		// Phase 14: Application Dashboard (JWT or API key)
+		appGroup := v1.Group("/applications")
+		appGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{
+			appGroup.POST("", applicationHandler.Create)
+			appGroup.GET("", applicationHandler.List)
+			appGroup.GET("/:appId", applicationHandler.Get)
+			appGroup.PUT("/:appId", applicationHandler.Update)
+			appGroup.DELETE("/:appId", applicationHandler.Delete)
+			appGroup.POST("/:appId/favorite", applicationHandler.ToggleFavorite)
 		}
 	}
 

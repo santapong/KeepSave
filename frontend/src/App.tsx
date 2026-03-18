@@ -12,6 +12,8 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { HelpPage } from './pages/HelpPage';
 import { MCPHubPage } from './pages/MCPHubPage';
 import { OAuthClientsPage } from './pages/OAuthClientsPage';
+import { ApplicationDashboardPage } from './pages/ApplicationDashboardPage';
+import { ApplicationSettingsPage } from './pages/ApplicationSettingsPage';
 
 export default function App() {
   useTheme();
@@ -38,6 +40,8 @@ export default function App() {
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/mcp-hub" element={<MCPHubPage />} />
           <Route path="/oauth-clients" element={<OAuthClientsPage />} />
+          <Route path="/applications" element={<ApplicationDashboardPage />} />
+          <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

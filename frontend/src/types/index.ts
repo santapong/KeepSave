@@ -136,3 +136,18 @@ export interface ImportResult {
   updated: string[];
   skipped: string[];
 }
+
+// Phase 14: Application Dashboard types
+
+export interface DashboardApplication {
+  id: string;
+  name: string;
+  url: string;
+  description: string;
+  icon: string;
+  category: string;
+  owner_id: string;
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}

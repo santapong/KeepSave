@@ -382,3 +382,54 @@ class KeepSaveClient:
             "environment": environment, "content": content, "overwrite": overwrite,
         })
         return resp.get("result", {})
+
+    # ── Application Dashboard ───────────────────────────────────────
+
+    def list_applications(self, search: str = "", category: str = "",
+                          limit: int = 50, offset: int = 0) -> dict:
+        """List applications with optional search, category filter, and pagination.
+
+        Returns dict with 'applications', 'categories', 'total', 'limit', 'offset'.
+        """
+        params = []
+        if search:
+            params.append(f"search={search}")
+        if category and category != "All":
+            params.append(f"category={category}")
+        params.append(f"limit={limit}")
+        params.append(f"offset={offset}")
+        query = "&".join(params)
+        return self._request("GET", f"/applications?{query}")
+
+    def create_application(self, name: str, url: str, description: str = "",
+                           icon: str = "🚀", category: str = "General") -> dict:
+        """Create a new application."""
+        resp = self._request("POST", "/applications", {
+            "name": name, "url": url, "description": description,
+            "icon": icon, "category": category,
+        })
+        return resp.get("application", {})
+
+    def get_application(self, app_id: str) -> dict:
+        """Get a single application by ID."""
+        resp = self._request("GET", f"/applications/{app_id}")
+        return resp.get("application", {})
+
+    def update_application(self, app_id: str, name: str, url: str,
+                           description: str = "", icon: str = "",
+                           category: str = "") -> dict:
+        """Update an application."""
+        resp = self._request("PUT", f"/applications/{app_id}", {
+            "name": name, "url": url, "description": description,
+            "icon": icon, "category": category,
+        })
+        return resp.get("application", {})
+
+    def delete_application(self, app_id: str) -> None:
+        """Delete an application."""
+        self._request("DELETE", f"/applications/{app_id}")
+
+    def toggle_application_favorite(self, app_id: str) -> bool:
+        """Toggle favorite status for an application. Returns new is_favorite state."""
+        resp = self._request("POST", f"/applications/{app_id}/favorite")
+        return resp.get("is_favorite", False)
