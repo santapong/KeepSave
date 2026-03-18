@@ -381,8 +381,45 @@ keepsave/
 | [CLAUDE.md](./CLAUDE.md) | Development guide and conventions |
 | [Roadmap.md](./Roadmap.md) | Phased delivery plan |
 | [MedQCNN Integration](./docs/medqcnn_integration.md) | Integration guide for MedQCNN quantum diagnostics |
+| [NEXUS Integration](./docs/nexus_integration.md) | Integration guide for NEXUS Agentic AI platform |
 
-## MedQCNN Integration
+## Integrations
+
+### NEXUS Integration
+
+KeepSave integrates with [NEXUS](https://github.com/santapong/Nexus), an Agentic AI Company-as-a-Service platform where every department is staffed by an AI agent (CEO, Engineer, Analyst, Writer, QA, Prompt Creator).
+
+| KeepSave Role | What It Does for NEXUS |
+|--------------|------------------------|
+| **Secret Vault** | Stores LLM API keys (Anthropic, Google, OpenAI, Groq, Mistral), database URLs, JWT secrets, Kafka credentials |
+| **OAuth Provider** | Issues authentication tokens for NEXUS API and A2A gateway access |
+| **MCP Hub** | Hosts NEXUS agent tools for external discovery |
+| **Promotion Engine** | Manages NEXUS configs across dev ($5/day limit) → staging ($10/day) → production ($50/day) |
+| **API Key Manager** | Scoped, time-limited keys for NEXUS agents to fetch secrets at runtime |
+| **Audit System** | Tracks all secret access — critical for NEXUS multi-tenant compliance |
+
+**Quick start:**
+```bash
+# 1. Create NEXUS project in KeepSave
+curl -X POST http://localhost:8080/api/v1/projects \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "nexus", "description": "Agentic AI Company-as-a-Service"}'
+
+# 2. Import NEXUS secrets
+keepsave import --project <nexus-id> --env alpha --file /path/to/Nexus/.env
+
+# 3. Create runtime API key
+curl -X POST http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "nexus-runtime", "project_id": "<nexus-id>", "scopes": ["read"], "environment": "alpha"}'
+
+# 4. NEXUS fetches secrets at startup via Python SDK
+# Only KEEPSAVE_URL, KEEPSAVE_API_KEY, KEEPSAVE_PROJECT_ID needed in .env
+```
+
+For the full guide, see [docs/nexus_integration.md](./docs/nexus_integration.md).
+
+### MedQCNN Integration
 
 KeepSave integrates with [MedQCNN](https://github.com/santapong/MedQCNN), a hybrid quantum-classical CNN for medical image diagnostics. This integration provides secure secret management, centralized MCP server hosting, and OAuth-based authentication for MedQCNN deployments.
 
