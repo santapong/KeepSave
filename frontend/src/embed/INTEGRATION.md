@@ -1,6 +1,8 @@
-# KeepSave Widget - Integration Guide
+# KeepSave Widget - Integration Guide (v2.0)
 
 The `<keepsave-widget>` is a Web Component that can be embedded in any website to manage secrets stored in KeepSave. It uses Shadow DOM for style isolation and supports multiple authentication methods.
+
+> **v2.0 Changes:** Updated to align with KeepSave SDK v2.0.0. The programmatic API now supports batch secret fetch. For full SDK features (retry, circuit breaker, caching), use the dedicated language SDKs (`@keepsave/sdk`, `keepsave` Python package, or Go module).
 
 ## Quick Start
 

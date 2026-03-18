@@ -92,4 +92,15 @@ export class KeepSaveAPI {
       method: 'DELETE',
     });
   }
+
+  async batchGetSecrets(
+    projectId: string,
+    environment: string,
+    keys: string[],
+  ): Promise<{ secrets: Secret[]; missing_keys?: string[] }> {
+    return this.request(`/api/v1/projects/${projectId}/secrets/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ environment, keys }),
+    });
+  }
 }
