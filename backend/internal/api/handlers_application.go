@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -56,7 +57,24 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	search := c.Query("search")
 	category := c.Query("category")
 
-	apps, err := h.appService.List(userID, search, category)
+	// Pagination
+	limit := 50
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			if v > 100 {
+				v = 100
+			}
+			limit = v
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	apps, total, err := h.appService.List(userID, search, category, limit, offset)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err.Error())
 		return
@@ -74,6 +92,9 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"applications": apps,
 		"categories":   categories,
+		"total":        total,
+		"limit":        limit,
+		"offset":       offset,
 	})
 }
 

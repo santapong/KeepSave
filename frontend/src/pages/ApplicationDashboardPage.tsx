@@ -1,27 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import type { DashboardApplication } from '../types';
+import { AppChatbot } from '../components/AppChatbot';
 import * as api from '../api/client';
 
 export function ApplicationDashboardPage() {
   const [apps, setApps] = useState<DashboardApplication[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingApp, setEditingApp] = useState<DashboardApplication | null>(null);
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.listApplications(search, activeCategory);
+      const data = await api.listApplications(search, activeCategory, pageSize, page * pageSize);
       setApps(data.applications || []);
       setCategories(data.categories || []);
+      setTotal(data.total || 0);
     } catch {
       // ignore
     }
     setLoading(false);
-  }, [search, activeCategory]);
+  }, [search, activeCategory, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -53,12 +59,20 @@ export function ApplicationDashboardPage() {
             Application Dashboard
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            Manage your services and applications &middot; {apps.length} registered
+            Manage your services and applications &middot; {total} registered
           </p>
         </div>
-        <button onClick={() => { setEditingApp(null); setShowAddForm(true); }} style={primaryBtn}>
-          + Register Service
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/applications/settings" style={{ ...secondaryBtn, textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            Settings & API
+          </Link>
+          <button onClick={() => { setEditingApp(null); setShowAddForm(true); }} style={primaryBtn}>
+            + Register Service
+          </button>
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -113,6 +127,29 @@ export function ApplicationDashboardPage() {
         </div>
       )}
 
+      {/* Pagination */}
+      {total > pageSize && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24 }}>
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            style={{ ...paginationBtn, opacity: page === 0 ? 0.5 : 1 }}
+          >
+            Previous
+          </button>
+          <span style={{ display: 'flex', alignItems: 'center', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            Page {page + 1} of {Math.ceil(total / pageSize)}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={(page + 1) * pageSize >= total}
+            style={{ ...paginationBtn, opacity: (page + 1) * pageSize >= total ? 0.5 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      )}
+
       {/* Add/Edit Form Modal */}
       {showAddForm && (
         <AddEditForm
@@ -121,6 +158,9 @@ export function ApplicationDashboardPage() {
           onSaved={load}
         />
       )}
+
+      {/* AI Chatbot */}
+      <AppChatbot applications={apps} />
     </div>
   );
 }
@@ -317,6 +357,28 @@ const primaryBtn: React.CSSProperties = {
   fontWeight: 600,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
+};
+
+const secondaryBtn: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-secondary)',
+  border: '1px solid var(--color-border)',
+  padding: '8px 14px',
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const paginationBtn: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  color: 'var(--color-text)',
+  border: '1px solid var(--color-border)',
+  padding: '6px 14px',
+  borderRadius: 8,
+  fontSize: 13,
+  cursor: 'pointer',
 };
 
 const searchInput: React.CSSProperties = {

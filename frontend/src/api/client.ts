@@ -733,12 +733,19 @@ export async function getDependencyGraph(
 
 // Phase 14: Application Dashboard
 
-export async function listApplications(search?: string, category?: string): Promise<{ applications: DashboardApplication[]; categories: string[] }> {
+export async function listApplications(
+  search?: string,
+  category?: string,
+  limit?: number,
+  offset?: number
+): Promise<{ applications: DashboardApplication[]; categories: string[]; total: number; limit: number; offset: number }> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (category && category !== 'All') params.set('category', category);
+  if (limit) params.set('limit', String(limit));
+  if (offset) params.set('offset', String(offset));
   const query = params.toString() ? `?${params.toString()}` : '';
-  return request<{ applications: DashboardApplication[]; categories: string[] }>(`/applications${query}`);
+  return request<{ applications: DashboardApplication[]; categories: string[]; total: number; limit: number; offset: number }>(`/applications${query}`);
 }
 
 export async function createApplication(

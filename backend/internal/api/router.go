@@ -326,9 +326,9 @@ func SetupRouter(
 			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
 		}
 
-		// Phase 14: Application Dashboard
+		// Phase 14: Application Dashboard (JWT or API key)
 		appGroup := v1.Group("/applications")
-		appGroup.Use(JWTAuthMiddleware(jwtService))
+		appGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
 		{
 			appGroup.POST("", applicationHandler.Create)
 			appGroup.GET("", applicationHandler.List)

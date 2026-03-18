@@ -49,16 +49,16 @@ func (s *ApplicationService) Get(id uuid.UUID) (*models.Application, error) {
 	return s.appRepo.GetByID(id)
 }
 
-func (s *ApplicationService) List(ownerID uuid.UUID, search, category string) ([]models.Application, error) {
-	apps, err := s.appRepo.ListByOwner(ownerID, search, category)
+func (s *ApplicationService) List(ownerID uuid.UUID, search, category string, limit, offset int) ([]models.Application, int, error) {
+	apps, total, err := s.appRepo.ListByOwner(ownerID, search, category, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Annotate favorites
 	favs, err := s.appRepo.GetFavoriteAppIDs(ownerID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := range apps {
 		if favs[apps[i].ID] {
@@ -66,7 +66,7 @@ func (s *ApplicationService) List(ownerID uuid.UUID, search, category string) ([
 		}
 	}
 
-	return apps, nil
+	return apps, total, nil
 }
 
 func (s *ApplicationService) Update(id uuid.UUID, name, url, description, icon, category string, ownerID uuid.UUID) (*models.Application, error) {

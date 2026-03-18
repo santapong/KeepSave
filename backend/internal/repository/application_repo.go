@@ -46,29 +46,40 @@ func (r *ApplicationRepository) GetByID(id uuid.UUID) (*models.Application, erro
 	return app, nil
 }
 
-func (r *ApplicationRepository) ListByOwner(ownerID uuid.UUID, search, category string) ([]models.Application, error) {
-	baseQuery := `SELECT id, name, url, description, icon, category, owner_id, created_at, updated_at
-		FROM applications WHERE owner_id = $1`
+func (r *ApplicationRepository) ListByOwner(ownerID uuid.UUID, search, category string, limit, offset int) ([]models.Application, int, error) {
+	whereClause := ` WHERE owner_id = $1`
 	args := []interface{}{ownerID}
 	argIdx := 2
 
 	if search != "" {
-		baseQuery += fmt.Sprintf(` AND (LOWER(name) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d))`, argIdx, argIdx)
+		whereClause += fmt.Sprintf(` AND (LOWER(name) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d))`, argIdx, argIdx)
 		args = append(args, "%"+search+"%")
 		argIdx++
 	}
 	if category != "" && category != "All" {
-		baseQuery += fmt.Sprintf(` AND category = $%d`, argIdx)
+		whereClause += fmt.Sprintf(` AND category = $%d`, argIdx)
 		args = append(args, category)
 		argIdx++
 	}
 
-	baseQuery += ` ORDER BY created_at DESC`
-	query := Q(r.dialect, baseQuery)
+	// Count total
+	countQuery := Q(r.dialect, `SELECT COUNT(*) FROM applications`+whereClause)
+	var total int
+	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("counting applications: %w", err)
+	}
+
+	// Fetch page
+	dataQuery := `SELECT id, name, url, description, icon, category, owner_id, created_at, updated_at
+		FROM applications` + whereClause + ` ORDER BY created_at DESC`
+	if limit > 0 {
+		dataQuery += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+	query := Q(r.dialect, dataQuery)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("listing applications: %w", err)
+		return nil, 0, fmt.Errorf("listing applications: %w", err)
 	}
 	defer rows.Close()
 
@@ -77,11 +88,11 @@ func (r *ApplicationRepository) ListByOwner(ownerID uuid.UUID, search, category 
 		var app models.Application
 		if err := rows.Scan(&app.ID, &app.Name, &app.URL, &app.Description, &app.Icon, &app.Category,
 			&app.OwnerID, &app.CreatedAt, &app.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("scanning application: %w", err)
+			return nil, 0, fmt.Errorf("scanning application: %w", err)
 		}
 		apps = append(apps, app)
 	}
-	return apps, rows.Err()
+	return apps, total, rows.Err()
 }
 
 func (r *ApplicationRepository) Update(app *models.Application) error {
