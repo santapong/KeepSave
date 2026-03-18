@@ -81,6 +81,9 @@ func main() {
 	oauthRepo := repository.NewOAuthRepository(db, dialect)
 	mcpRepo := repository.NewMCPRepository(db, dialect)
 
+	// Phase 14: Application Dashboard repository
+	appRepo := repository.NewApplicationRepository(db, dialect)
+
 	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
@@ -108,6 +111,9 @@ func main() {
 	oauthService := service.NewOAuthService(oauthRepo, userRepo)
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
+
+	// Phase 14: Application Dashboard service
+	appService := service.NewApplicationService(appRepo)
 
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
@@ -144,6 +150,9 @@ func main() {
 	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
+	// Phase 14: Application Dashboard handler
+	applicationHandler := api.NewApplicationHandler(appService)
+
 	// Router
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
@@ -170,6 +179,7 @@ func main() {
 		oauthHandler,
 		mcpHubHandler,
 		mcpGatewayHandler,
+		applicationHandler,
 		appMetrics,
 		tracer,
 		db,

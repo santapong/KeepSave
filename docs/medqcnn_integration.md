@@ -381,6 +381,35 @@ helm install keepsave ./helm/keepsave \
 
 ---
 
+## Application Dashboard Integration
+
+MedQCNN can be registered as a managed application in KeepSave's Application Dashboard, providing a centralized view alongside other services:
+
+### Register MedQCNN as an Application
+
+```bash
+curl -X POST http://localhost:8080/api/v1/applications \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "MedQCNN",
+    "url": "http://localhost:8000",
+    "description": "Hybrid quantum-classical CNN for medical image diagnostics. Supports BreastMNIST, PathMNIST, and custom DICOM images.",
+    "icon": "🧬",
+    "category": "AI & ML"
+  }'
+```
+
+Once registered, MedQCNN appears in the KeepSave Application Dashboard alongside all your other homelab services. You can:
+- Quick-link to the MedQCNN frontend dashboard
+- Mark it as a favorite for easy access
+- Search and filter by category (AI & ML)
+- Track all registered services in one place
+
+This replaces the need for a separate application-dashboard project — all service management is now unified within KeepSave.
+
+---
+
 ## Security Considerations
 
 | Concern | KeepSave Mitigation |

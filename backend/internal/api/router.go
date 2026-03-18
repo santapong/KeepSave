@@ -37,6 +37,7 @@ func SetupRouter(
 	oauthHandler *OAuthHandler,
 	mcpHubHandler *MCPHubHandler,
 	mcpGatewayHandler *MCPGatewayHandler,
+	applicationHandler *ApplicationHandler,
 	appMetrics *metrics.AppMetrics,
 	tracer *tracing.Tracer,
 	db *sql.DB,
@@ -323,6 +324,18 @@ func SetupRouter(
 			mcpAuthGroup.GET("/gateway/tools", mcpGatewayHandler.ListTools)
 			mcpAuthGroup.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
 			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
+		}
+
+		// Phase 14: Application Dashboard
+		appGroup := v1.Group("/applications")
+		appGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			appGroup.POST("", applicationHandler.Create)
+			appGroup.GET("", applicationHandler.List)
+			appGroup.GET("/:appId", applicationHandler.Get)
+			appGroup.PUT("/:appId", applicationHandler.Update)
+			appGroup.DELETE("/:appId", applicationHandler.Delete)
+			appGroup.POST("/:appId/favorite", applicationHandler.ToggleFavorite)
 		}
 	}
 

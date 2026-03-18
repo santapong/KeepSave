@@ -11,6 +11,7 @@ import type {
   SecretTemplate,
   DependencyNode,
   ImportResult,
+  DashboardApplication,
 } from '../types';
 import type {
   OAuthClient,
@@ -728,4 +729,54 @@ export async function getDependencyGraph(
     `/projects/${projectId}/dependencies/graph?environment=${environment}`
   );
   return data.graph || [];
+}
+
+// Phase 14: Application Dashboard
+
+export async function listApplications(search?: string, category?: string): Promise<{ applications: DashboardApplication[]; categories: string[] }> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (category && category !== 'All') params.set('category', category);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return request<{ applications: DashboardApplication[]; categories: string[] }>(`/applications${query}`);
+}
+
+export async function createApplication(
+  name: string,
+  url: string,
+  description: string,
+  icon: string,
+  category: string
+): Promise<DashboardApplication> {
+  const data = await request<{ application: DashboardApplication }>('/applications', {
+    method: 'POST',
+    body: JSON.stringify({ name, url, description, icon, category }),
+  });
+  return data.application;
+}
+
+export async function updateApplication(
+  id: string,
+  name: string,
+  url: string,
+  description: string,
+  icon: string,
+  category: string
+): Promise<DashboardApplication> {
+  const data = await request<{ application: DashboardApplication }>(`/applications/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, url, description, icon, category }),
+  });
+  return data.application;
+}
+
+export async function deleteApplication(id: string): Promise<void> {
+  await request(`/applications/${id}`, { method: 'DELETE' });
+}
+
+export async function toggleApplicationFavorite(id: string): Promise<boolean> {
+  const data = await request<{ is_favorite: boolean }>(`/applications/${id}/favorite`, {
+    method: 'POST',
+  });
+  return data.is_favorite;
 }
