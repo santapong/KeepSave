@@ -576,3 +576,54 @@ curl -X POST http://localhost:8080/api/v1/applications \
 | Audit compliance | Full audit trail for every secret access, promotion, and tool call |
 | Secret rotation | KeepSave manages rotation; NEXUS auto-refreshes via SDK cache TTL |
 | A2A external agent authentication | OAuth 2.0 client credentials flow replaces hardcoded bearer tokens |
+
+---
+
+## NEXUS Agent Tool Calling Integration
+
+NEXUS agents can now call KeepSave directly through Nexus's tool calling layer, enabling agents to manage secrets, rotate API keys, and invoke MCP tools with proper security controls.
+
+### How It Works
+
+NEXUS wraps KeepSave's REST API as Pydantic AI tool functions (`nexus/keepsave/tools.py`). These tools are registered in Nexus's per-role tool registry alongside existing tools like `web_search` and `file_read`.
+
+### Dual Approval for Security
+
+Secret-modifying operations pass through **two** approval gates:
+
+1. **Nexus-side approval** (`guards.py`) — The agent's request is blocked until a human approves in the Nexus dashboard. This prevents agents from autonomously modifying secrets.
+
+2. **KeepSave-side approval** (promotion pipeline) — For promotions targeting PROD, KeepSave enforces its own approval workflow. Even if Nexus approves, a KeepSave admin must also approve before PROD secrets change.
+
+### KeepSave API Endpoints Used by NEXUS Agents
+
+| Endpoint | Tool Function | Approval Required |
+|----------|--------------|-------------------|
+| `GET /api/v1/projects/{id}/secrets` | `tool_keepsave_list_secrets` | None |
+| `GET /api/v1/projects/{id}/secrets/{id}/versions` | `tool_keepsave_get_secret_versions` | None |
+| `PUT /api/v1/projects/{id}/secrets/{id}` | `tool_keepsave_update_secret` | Nexus |
+| `POST /api/v1/projects/{id}/secrets` | `tool_keepsave_create_secret` | Nexus |
+| `POST /api/v1/projects/{id}/promote/diff` | `tool_keepsave_preview_promotion` | None |
+| `POST /api/v1/projects/{id}/promote` | `tool_keepsave_promote_environment` | Nexus + KeepSave (PROD) |
+| `GET /api/v1/projects/{id}/promotions` | `tool_keepsave_list_promotions` | None |
+| `GET /api/v1/projects/{id}/audit-log` | `tool_keepsave_audit_log` | None |
+| `POST /api/v1/mcp/gateway` | `tool_keepsave_mcp_call` | Nexus |
+| `GET /api/v1/mcp/gateway/tools` | `tool_keepsave_mcp_list_tools` | None |
+
+### Authentication
+
+NEXUS authenticates to KeepSave using a scoped API key (`X-API-Key` header). The key is created with `read` scope for the specific project and environment. Write operations use a key with `read+write` scope.
+
+### Example Flow: API Key Rotation
+
+```
+NEXUS CEO Agent wants to rotate ANTHROPIC_API_KEY:
+
+1. [Read-only] Agent checks current secret info via KeepSave API
+2. [Nexus approval] Agent updates the secret → blocked until human approves
+3. [Nexus approval] Agent promotes alpha → uat → instant
+4. [Nexus + KeepSave approval] Agent promotes uat → prod → dual approval
+5. NEXUS restarts to load new secrets
+```
+
+This ensures no API key change reaches production without both a Nexus operator AND a KeepSave admin explicitly approving.
