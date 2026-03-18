@@ -10,6 +10,37 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
+// TrustedProxyMiddleware extracts the real client IP from reverse proxy headers
+// (X-Forwarded-For, X-Real-IP) and sets X-Forwarded-Proto awareness.
+// This allows KeepSave to work correctly behind nginx, Traefik, Kong, etc.
+func TrustedProxyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Prefer X-Real-IP (set by nginx), then X-Forwarded-For (first IP in chain)
+		if realIP := c.GetHeader("X-Real-IP"); realIP != "" {
+			c.Set("client_ip", realIP)
+		} else if forwarded := c.GetHeader("X-Forwarded-For"); forwarded != "" {
+			// X-Forwarded-For may contain comma-separated list; first is the client
+			parts := strings.SplitN(forwarded, ",", 2)
+			c.Set("client_ip", strings.TrimSpace(parts[0]))
+		} else {
+			c.Set("client_ip", c.ClientIP())
+		}
+
+		// Set scheme awareness for redirect URLs (OAuth flows, etc.)
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+			c.Set("scheme", proto)
+		} else {
+			if c.Request.TLS != nil {
+				c.Set("scheme", "https")
+			} else {
+				c.Set("scheme", "http")
+			}
+		}
+
+		c.Next()
+	}
+}
+
 func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", allowedOrigins)

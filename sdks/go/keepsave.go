@@ -176,6 +176,29 @@ type BatchSecretResponse struct {
 	MissingKeys []string `json:"missing_keys,omitempty"`
 }
 
+// Application represents a registered service in the Application Dashboard.
+type Application struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Category    string `json:"category"`
+	OwnerID     string `json:"owner_id"`
+	IsFavorite  bool   `json:"is_favorite"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// ApplicationListResponse is returned by ListApplications.
+type ApplicationListResponse struct {
+	Applications []Application `json:"applications"`
+	Categories   []string      `json:"categories"`
+	Total        int           `json:"total"`
+	Limit        int           `json:"limit"`
+	Offset       int           `json:"offset"`
+}
+
 // ── Circuit Breaker ─────────────────────────────────────────────────
 
 type cbState int
@@ -623,4 +646,104 @@ func (c *Client) ExportEnv(ctx context.Context, projectID, environment string) (
 		return "", fmt.Errorf("decoding response: %w", err)
 	}
 	return resp.Content, nil
+}
+
+// ── Application Dashboard ──────────────────────────────────────────
+
+// ListApplications lists applications with optional search, category filter, and pagination.
+func (c *Client) ListApplications(ctx context.Context, search, category string, limit, offset int) (*ApplicationListResponse, error) {
+	params := url.Values{}
+	if search != "" {
+		params.Set("search", search)
+	}
+	if category != "" && category != "All" {
+		params.Set("category", category)
+	}
+	params.Set("limit", fmt.Sprintf("%d", limit))
+	params.Set("offset", fmt.Sprintf("%d", offset))
+
+	data, err := c.doWithRetry(ctx, "GET", "/applications?"+params.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp ApplicationListResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &resp, nil
+}
+
+// CreateApplication creates a new application.
+func (c *Client) CreateApplication(ctx context.Context, name, appURL, description, icon, category string) (*Application, error) {
+	body := map[string]string{
+		"name": name, "url": appURL, "description": description,
+		"icon": icon, "category": category,
+	}
+	data, err := c.doWithRetry(ctx, "POST", "/applications", body)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Application Application `json:"application"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &resp.Application, nil
+}
+
+// GetApplication gets a single application by ID.
+func (c *Client) GetApplication(ctx context.Context, appID string) (*Application, error) {
+	data, err := c.doWithRetry(ctx, "GET", "/applications/"+appID, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Application Application `json:"application"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &resp.Application, nil
+}
+
+// UpdateApplication updates an application.
+func (c *Client) UpdateApplication(ctx context.Context, appID, name, appURL, description, icon, category string) (*Application, error) {
+	body := map[string]string{
+		"name": name, "url": appURL, "description": description,
+		"icon": icon, "category": category,
+	}
+	data, err := c.doWithRetry(ctx, "PUT", "/applications/"+appID, body)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Application Application `json:"application"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &resp.Application, nil
+}
+
+// DeleteApplication deletes an application.
+func (c *Client) DeleteApplication(ctx context.Context, appID string) error {
+	_, err := c.doWithRetry(ctx, "DELETE", "/applications/"+appID, nil)
+	return err
+}
+
+// ToggleApplicationFavorite toggles the favorite status of an application.
+// Returns the new is_favorite state.
+func (c *Client) ToggleApplicationFavorite(ctx context.Context, appID string) (bool, error) {
+	data, err := c.doWithRetry(ctx, "POST", "/applications/"+appID+"/favorite", nil)
+	if err != nil {
+		return false, err
+	}
+	var resp struct {
+		IsFavorite bool `json:"is_favorite"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return false, fmt.Errorf("decoding response: %w", err)
+	}
+	return resp.IsFavorite, nil
 }

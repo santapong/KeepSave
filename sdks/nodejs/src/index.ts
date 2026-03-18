@@ -87,6 +87,27 @@ export interface BatchSecretResponse {
   missing_keys?: string[];
 }
 
+export interface Application {
+  id: string;
+  name: string;
+  url: string;
+  description: string;
+  icon: string;
+  category: string;
+  owner_id: string;
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationListResponse {
+  applications: Application[];
+  categories: string[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // ── Errors ──────────────────────────────────────────────────────────
 
 export class KeepSaveError extends Error {
@@ -505,5 +526,52 @@ export class KeepSaveClient {
       },
     );
     return resp.result || {};
+  }
+
+  // ── Application Dashboard ──────────────────────────────────────────
+
+  async listApplications(
+    search = '', category = '', limit = 50, offset = 0,
+  ): Promise<ApplicationListResponse> {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (category && category !== 'All') params.set('category', category);
+    params.set('limit', String(limit));
+    params.set('offset', String(offset));
+    return this.request<ApplicationListResponse>('GET', `/applications?${params}`);
+  }
+
+  async createApplication(
+    name: string, url: string, description = '', icon = '🚀', category = 'General',
+  ): Promise<Application> {
+    const resp = await this.request<{ application: Application }>(
+      'POST', '/applications', { name, url, description, icon, category },
+    );
+    return resp.application;
+  }
+
+  async getApplication(appId: string): Promise<Application> {
+    const resp = await this.request<{ application: Application }>('GET', `/applications/${appId}`);
+    return resp.application;
+  }
+
+  async updateApplication(
+    appId: string, name: string, url: string, description = '', icon = '', category = '',
+  ): Promise<Application> {
+    const resp = await this.request<{ application: Application }>(
+      'PUT', `/applications/${appId}`, { name, url, description, icon, category },
+    );
+    return resp.application;
+  }
+
+  async deleteApplication(appId: string): Promise<void> {
+    await this.request('DELETE', `/applications/${appId}`);
+  }
+
+  async toggleApplicationFavorite(appId: string): Promise<boolean> {
+    const resp = await this.request<{ is_favorite: boolean }>(
+      'POST', `/applications/${appId}/favorite`,
+    );
+    return resp.is_favorite;
   }
 }

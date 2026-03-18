@@ -47,6 +47,9 @@ func SetupRouter(
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Trusted proxy support (nginx, Traefik, Kong, etc.)
+	r.Use(TrustedProxyMiddleware())
+
 	// Phase 10: Security headers
 	r.Use(SecurityHeadersMiddleware())
 
