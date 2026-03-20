@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-type Section = 'getting-started' | 'concepts' | 'api' | 'api-keys' | 'sdks' | 'promotion' | 'embed' | 'security' | 'developer-guide' | 'agent-integration' | 'mcp-server';
+type Section = 'getting-started' | 'concepts' | 'api' | 'api-keys' | 'sdks' | 'promotion' | 'embed' | 'security' | 'developer-guide' | 'agent-integration' | 'mcp-server' | 'examples';
 
 export function HelpPage() {
   const [active, setActive] = useState<Section>('getting-started');
@@ -17,6 +17,7 @@ export function HelpPage() {
     { key: 'developer-guide', label: 'Developer Guide' },
     { key: 'agent-integration', label: 'Agent Integration' },
     { key: 'mcp-server', label: 'MCP Server' },
+    { key: 'examples', label: 'Examples' },
   ];
 
   return (
@@ -54,6 +55,7 @@ export function HelpPage() {
         {active === 'developer-guide' && <DeveloperGuide />}
         {active === 'agent-integration' && <AgentIntegration />}
         {active === 'mcp-server' && <MCPServer />}
+        {active === 'examples' && <Examples />}
       </div>
     </div>
   );
@@ -973,6 +975,394 @@ function MCPServer() {
           <li>Test by asking your AI assistant: "List my KeepSave projects"</li>
           <li>Optional: set up separate MCP configs for different environments (dev vs staging)</li>
         </ol>
+      </div>
+    </div>
+  );
+}
+
+function Examples() {
+  return (
+    <div>
+      <h1 style={pageTitle}>Examples</h1>
+      <p style={intro}>Practical, end-to-end usage examples for common KeepSave integration scenarios. Each example is self-contained and can be adapted to your stack.</p>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Docker Compose Quick Start</h3>
+        <p style={stepDesc}>Spin up a complete KeepSave stack from scratch, create a project, and store your first secret.</p>
+        <CodeBlock code={`# 1. Clone and start the stack
+git clone https://github.com/santapong/KeepSave.git
+cd KeepSave
+docker-compose up --build -d
+
+# 2. Register a user
+curl -s -X POST http://localhost:8080/api/v1/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"admin@example.com","password":"Str0ngP@ss!"}'
+
+# 3. Login and capture the JWT
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"admin@example.com","password":"Str0ngP@ss!"}' \\
+  | jq -r '.token')
+
+# 4. Create a project
+PROJECT_ID=$(curl -s -X POST http://localhost:8080/api/v1/projects \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"my-first-project","description":"Quick start demo"}' \\
+  | jq -r '.id')
+
+# 5. Add a secret to the alpha environment
+curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/secrets" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"DATABASE_URL","value":"postgres://app:secret@db:5432/myapp","environment":"alpha"}'
+
+# 6. Create an API key for programmatic access
+API_KEY=$(curl -s -X POST http://localhost:8080/api/v1/api-keys \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\\"name\\\":\\\"dev-key\\\",\\\"project_id\\\":\\\"$PROJECT_ID\\\",\\\"scopes\\\":[\\\"read\\\",\\\"write\\\"],\\\"environment\\\":\\\"alpha\\\"}" \\
+  | jq -r '.raw_key')
+
+# 7. Fetch secrets using the API key
+curl -s -H "X-API-Key: $API_KEY" \\
+  "http://localhost:8080/api/v1/agent/secrets?env=alpha"
+# => {"DATABASE_URL":"postgres://app:secret@db:5432/myapp"}`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Node.js Express App</h3>
+        <p style={stepDesc}>Load secrets from KeepSave at application startup and inject them into <code style={inlineCode}>process.env</code> before your Express server begins accepting requests.</p>
+        <CodeBlock code={`npm install @keepsave/sdk express`} />
+        <CodeBlock code={`// server.js
+import express from 'express';
+import { KeepSave } from '@keepsave/sdk';
+
+const app = express();
+
+async function start() {
+  // Load secrets before anything else
+  const ks = new KeepSave({
+    apiKey: process.env.KEEPSAVE_API_KEY,
+    baseURL: process.env.KEEPSAVE_URL || 'http://localhost:8080',
+  });
+
+  const env = process.env.NODE_ENV === 'production' ? 'prod' : 'alpha';
+  const secrets = await ks.getSecrets(env);
+  Object.assign(process.env, secrets);
+
+  console.log(\`Loaded \${Object.keys(secrets).length} secrets from KeepSave (\${env})\`);
+
+  // Now process.env.DATABASE_URL, process.env.STRIPE_KEY, etc. are available
+  app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => console.log(\`Server running on :\${port}\`));
+}
+
+start().catch(err => {
+  console.error('Failed to start:', err);
+  process.exit(1);
+});`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Python FastAPI App</h3>
+        <p style={stepDesc}>Use the KeepSave Python SDK to load secrets during FastAPI's lifespan startup hook.</p>
+        <CodeBlock code={`pip install keepsave fastapi uvicorn`} />
+        <CodeBlock code={`# main.py
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from keepsave import KeepSaveClient
+
+secrets_cache: dict[str, str] = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: load secrets from KeepSave
+    ks = KeepSaveClient(
+        api_key=os.environ["KEEPSAVE_API_KEY"],
+        base_url=os.environ.get("KEEPSAVE_URL", "http://localhost:8080"),
+    )
+    env = "prod" if os.environ.get("ENV") == "production" else "alpha"
+    secrets_cache.update(ks.get_secrets(env))
+    print(f"Loaded {len(secrets_cache)} secrets from KeepSave ({env})")
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/db-check")
+def db_check():
+    # Access secrets from the cache (never log values!)
+    db_url = secrets_cache.get("DATABASE_URL", "not set")
+    return {"database_configured": db_url != "not set"}`} />
+        <CodeBlock code={`# Run it
+KEEPSAVE_API_KEY=ks_your_key uvicorn main:app --reload`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>CI/CD Pipeline</h3>
+        <p style={stepDesc}>Inject KeepSave secrets into your build and deploy steps. Examples for both GitHub Actions and GitLab CI.</p>
+        <p style={{ ...stepDesc, marginTop: 12 }}><strong>GitHub Actions</strong></p>
+        <CodeBlock code={`# .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch secrets from KeepSave
+        run: |
+          SECRETS=$(curl -sf -H "X-API-Key: \${{ secrets.KEEPSAVE_API_KEY }}" \\
+            "\${{ vars.KEEPSAVE_URL }}/api/v1/agent/secrets?env=prod")
+          echo "$SECRETS" | jq -r 'to_entries[] | "\\(.key)=\\(.value)"' | while IFS= read -r line; do
+            echo "::add-mask::$(echo "$line" | cut -d= -f2-)"
+            echo "$line" >> $GITHUB_ENV
+          done
+
+      - name: Build
+        run: npm ci && npm run build
+
+      - name: Deploy
+        run: ./scripts/deploy.sh`} />
+        <p style={{ ...stepDesc, marginTop: 16 }}><strong>GitLab CI</strong></p>
+        <CodeBlock code={`# .gitlab-ci.yml
+stages:
+  - deploy
+
+deploy:
+  stage: deploy
+  image: alpine/curl
+  before_script:
+    - apk add --no-cache jq
+  script:
+    - |
+      SECRETS=$(curl -sf -H "X-API-Key: $KEEPSAVE_API_KEY" \\
+        "$KEEPSAVE_URL/api/v1/agent/secrets?env=prod")
+      eval $(echo "$SECRETS" | jq -r 'to_entries[] | "export \\(.key)=\\(.value|@sh)"')
+    - ./scripts/deploy.sh
+  only:
+    - main`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Terraform Integration</h3>
+        <p style={stepDesc}>Use KeepSave secrets as Terraform input variables via an external data source.</p>
+        <CodeBlock code={`# fetch_secrets.sh — called by Terraform external data source
+#!/bin/bash
+set -e
+SECRETS=$(curl -sf -H "X-API-Key: $KEEPSAVE_API_KEY" \\
+  "$KEEPSAVE_URL/api/v1/agent/secrets?env=prod")
+echo "$SECRETS"`} />
+        <CodeBlock code={`# main.tf
+data "external" "keepsave" {
+  program = ["\${path.module}/fetch_secrets.sh"]
+}
+
+resource "aws_db_instance" "main" {
+  engine   = "postgres"
+  username = "app"
+  password = data.external.keepsave.result["DB_PASSWORD"]
+}
+
+resource "aws_ssm_parameter" "api_key" {
+  name  = "/myapp/stripe_key"
+  type  = "SecureString"
+  value = data.external.keepsave.result["STRIPE_KEY"]
+}`} />
+        <p style={stepDesc}>
+          Run with: <code style={inlineCode}>KEEPSAVE_API_KEY=ks_xxx KEEPSAVE_URL=https://keepsave.example.com terraform apply</code>
+        </p>
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Webhook Setup</h3>
+        <p style={stepDesc}>React to secret changes in real time. Register a webhook URL and KeepSave will POST events when secrets are created, updated, deleted, or promoted.</p>
+        <CodeBlock code={`# Register a webhook for your project
+curl -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/webhooks" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "url": "https://your-app.example.com/hooks/keepsave",
+    "events": ["secret.created", "secret.updated", "secret.deleted", "promotion.completed"],
+    "environment": "prod"
+  }'`} />
+        <p style={{ ...stepDesc, marginTop: 12 }}><strong>Webhook receiver (Express)</strong></p>
+        <CodeBlock code={`// hooks/keepsave.js
+import express from 'express';
+const router = express.Router();
+
+router.post('/hooks/keepsave', express.json(), (req, res) => {
+  const { event, project_id, environment, key, timestamp } = req.body;
+
+  switch (event) {
+    case 'secret.updated':
+      console.log(\`Secret "\${key}" updated in \${environment} at \${timestamp}\`);
+      // Trigger config reload, restart workers, invalidate cache, etc.
+      reloadConfig();
+      break;
+
+    case 'promotion.completed':
+      console.log(\`Promotion to \${environment} completed at \${timestamp}\`);
+      // Notify Slack, trigger deployment, etc.
+      notifyTeam(environment);
+      break;
+
+    default:
+      console.log(\`Unhandled event: \${event}\`);
+  }
+
+  res.status(200).json({ received: true });
+});
+
+export default router;`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Multi-Environment Workflow</h3>
+        <p style={stepDesc}>Walk through a complete secrets lifecycle: create in Alpha, test in UAT, promote to PROD with approval.</p>
+        <CodeBlock code={`# Assume $TOKEN and $PROJECT_ID are set (see Docker Compose Quick Start above)
+
+# ── Step 1: Add secrets to Alpha ──
+curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/secrets" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"DATABASE_URL","value":"postgres://dev:dev@localhost/myapp_dev","environment":"alpha"}'
+
+curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/secrets" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"key":"STRIPE_KEY","value":"sk_test_abc123","environment":"alpha"}'
+
+# ── Step 2: Preview what will be promoted to UAT ──
+curl -s "http://localhost:8080/api/v1/projects/$PROJECT_ID/promotions/diff?source=alpha&target=uat" \\
+  -H "Authorization: Bearer $TOKEN"
+
+# ── Step 3: Promote Alpha → UAT ──
+PROMO_ID=$(curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/promotions" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"source_environment":"alpha","target_environment":"uat","override_policy":"overwrite","notes":"Ready for QA"}' \\
+  | jq -r '.id')
+
+# ── Step 4: Verify secrets in UAT ──
+curl -s "http://localhost:8080/api/v1/projects/$PROJECT_ID/secrets?env=uat" \\
+  -H "Authorization: Bearer $TOKEN"
+
+# ── Step 5: Promote UAT → PROD (requires approval) ──
+PROD_PROMO=$(curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/promotions" \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"source_environment":"uat","target_environment":"prod","override_policy":"skip","notes":"QA passed, shipping to prod"}' \\
+  | jq -r '.id')
+
+# ── Step 6: Another team member approves the PROD promotion ──
+curl -s -X POST "http://localhost:8080/api/v1/projects/$PROJECT_ID/promotions/$PROD_PROMO/approve" \\
+  -H "Authorization: Bearer $APPROVER_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"notes":"LGTM"}'
+
+# ── Step 7: Verify PROD secrets ──
+curl -s "http://localhost:8080/api/v1/projects/$PROJECT_ID/secrets?env=prod" \\
+  -H "Authorization: Bearer $TOKEN"`} />
+      </div>
+
+      <div style={docCard}>
+        <h3 style={docTitle}>Embed Widget in React App</h3>
+        <p style={stepDesc}>Integrate the KeepSave widget into an existing React application using a wrapper component.</p>
+        <CodeBlock code={`// KeepSaveWidget.tsx
+import { useEffect, useRef } from 'react';
+
+interface KeepSaveWidgetProps {
+  apiUrl: string;
+  projectId: string;
+  token: string;
+  theme?: 'light' | 'dark';
+  environment?: 'alpha' | 'uat' | 'prod';
+}
+
+export function KeepSaveWidget({ apiUrl, projectId, token, theme = 'dark', environment }: KeepSaveWidgetProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scriptId = 'keepsave-widget-script';
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = \`\${apiUrl.replace(':8080', ':3002')}/keepsave-widget.js\`;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
+    const el = containerRef.current?.querySelector('keepsave-widget');
+    if (el) {
+      el.setAttribute('api-url', apiUrl);
+      el.setAttribute('project-id', projectId);
+      el.setAttribute('token', token);
+      el.setAttribute('theme', theme);
+      if (environment) el.setAttribute('environment', environment);
+    }
+  }, [apiUrl, projectId, token, theme, environment]);
+
+  return (
+    <div ref={containerRef}>
+      <keepsave-widget
+        api-url={apiUrl}
+        project-id={projectId}
+        token={token}
+        theme={theme}
+        {...(environment ? { environment } : {})}
+      />
+    </div>
+  );
+}`} />
+        <p style={{ ...stepDesc, marginTop: 12 }}><strong>Usage in your app:</strong></p>
+        <CodeBlock code={`// AdminPanel.tsx
+import { KeepSaveWidget } from './KeepSaveWidget';
+
+export function AdminPanel() {
+  return (
+    <div>
+      <h1>Secret Management</h1>
+      <KeepSaveWidget
+        apiUrl="https://keepsave.example.com"
+        projectId="your-project-uuid"
+        token={localStorage.getItem('jwt') || ''}
+        theme="dark"
+        environment="alpha"
+      />
+    </div>
+  );
+}`} />
+        <p style={{ ...stepDesc, marginTop: 12 }}>For TypeScript, add a type declaration so JSX recognizes the custom element:</p>
+        <CodeBlock code={`// global.d.ts
+declare namespace JSX {
+  interface IntrinsicElements {
+    'keepsave-widget': React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement> & {
+        'api-url'?: string;
+        'project-id'?: string;
+        token?: string;
+        theme?: string;
+        environment?: string;
+      },
+      HTMLElement
+    >;
+  }
+}`} />
       </div>
     </div>
   );
