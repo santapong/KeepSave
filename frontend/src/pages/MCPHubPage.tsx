@@ -1,6 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { MCPServer, MCPInstallation } from '../types/mcp';
 import * as api from '../api/client';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, Trash2, RefreshCw, Download, CheckCircle2 } from 'lucide-react';
+
+const statusVariantMap: Record<string, string> = {
+  ready: 'bg-green-500/20 text-green-500',
+  building: 'bg-amber-500/20 text-amber-500',
+  pending: 'bg-gray-500/20 text-gray-500',
+  error: 'bg-red-500/20 text-red-500',
+};
 
 export function MCPHubPage() {
   const [tab, setTab] = useState<'marketplace' | 'installed' | 'my-servers'>('marketplace');
@@ -9,6 +28,7 @@ export function MCPHubPage() {
   const [installations, setInstallations] = useState<MCPInstallation[]>([]);
   const [showRegister, setShowRegister] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -22,69 +42,91 @@ export function MCPHubPage() {
       setMyServers(mine);
       setInstallations(installs);
     } catch {
-      // ignore
+      toast({ title: 'Error', description: 'Failed to load MCP data', variant: 'destructive' });
     }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>MCP Server Hub</h1>
-        <button onClick={() => setShowRegister(true)} style={primaryBtn}>
-          + Add MCP Server
-        </button>
+      <div className="flex justify-between items-center mb-5">
+        <h1 className="text-2xl font-bold">MCP Server Hub</h1>
+        <Button onClick={() => setShowRegister(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Add MCP Server
+        </Button>
       </div>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-        {(['marketplace', 'installed', 'my-servers'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              ...tabBtn,
-              background: tab === t ? 'var(--color-primary)' : 'transparent',
-              color: tab === t ? '#fff' : 'var(--color-text-secondary)',
-            }}
-          >
-            {t === 'marketplace' ? 'Marketplace' : t === 'installed' ? 'Installed' : 'My Servers'}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-5">
+        <TabsList>
+          <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
+          <TabsTrigger value="installed">Installed</TabsTrigger>
+          <TabsTrigger value="my-servers">My Servers</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {loading ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48 w-full rounded-lg" />
+          ))}
+        </div>
       ) : (
         <>
           {tab === 'marketplace' && (
             <ServerGrid servers={publicServers} installations={installations} onInstall={async (id) => {
-              await api.installMCPServer(id);
-              load();
+              try {
+                await api.installMCPServer(id);
+                toast({ title: 'Installed', description: 'MCP server installed successfully' });
+                load();
+              } catch {
+                toast({ title: 'Error', description: 'Failed to install server', variant: 'destructive' });
+              }
             }} />
           )}
           {tab === 'installed' && (
             <InstalledList installations={installations} servers={[...publicServers, ...myServers]} onUninstall={async (id) => {
-              await api.uninstallMCPServer(id);
-              load();
+              try {
+                await api.uninstallMCPServer(id);
+                toast({ title: 'Uninstalled', description: 'MCP server uninstalled' });
+                load();
+              } catch {
+                toast({ title: 'Error', description: 'Failed to uninstall server', variant: 'destructive' });
+              }
             }} />
           )}
           {tab === 'my-servers' && (
             <MyServersList servers={myServers} onDelete={async (id) => {
-              await api.deleteMCPServer(id);
-              load();
+              try {
+                await api.deleteMCPServer(id);
+                toast({ title: 'Deleted', description: 'MCP server deleted' });
+                load();
+              } catch {
+                toast({ title: 'Error', description: 'Failed to delete server', variant: 'destructive' });
+              }
             }} onRebuild={async (id) => {
-              await api.rebuildMCPServer(id);
-              load();
+              try {
+                await api.rebuildMCPServer(id);
+                toast({ title: 'Rebuilding', description: 'MCP server rebuild started' });
+                load();
+              } catch {
+                toast({ title: 'Error', description: 'Failed to rebuild server', variant: 'destructive' });
+              }
             }} />
           )}
         </>
       )}
 
-      {showRegister && (
-        <RegisterServerModal onClose={() => setShowRegister(false)} onCreated={() => { setShowRegister(false); load(); }} />
-      )}
+      <RegisterServerModal
+        open={showRegister}
+        onClose={() => setShowRegister(false)}
+        onCreated={() => {
+          setShowRegister(false);
+          toast({ title: 'Registered', description: 'MCP server registered successfully' });
+          load();
+        }}
+      />
     </div>
   );
 }
@@ -97,32 +139,44 @@ function ServerGrid({ servers, installations, onInstall }: {
   const installedIds = new Set(installations.map(i => i.mcp_server_id));
 
   if (servers.length === 0) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>No public MCP servers available yet.</p>;
+    return (
+      <Card className="text-center py-16 px-6">
+        <CardContent className="p-0">
+          <p className="text-sm text-muted-foreground">No public MCP servers available yet.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {servers.map(server => (
-        <div key={server.id} style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{server.name}</h3>
-              <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-text-secondary)' }}>{server.description}</p>
+        <Card key={server.id}>
+          <CardContent className="p-4 flex flex-col">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-[15px] font-semibold mb-1">{server.name}</h3>
+                <p className="text-xs text-muted-foreground mb-2">{server.description}</p>
+              </div>
+              <StatusBadge status={server.status} />
             </div>
-            <StatusBadge status={server.status} />
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-            v{server.version} &middot; {server.install_count} installs &middot; {server.transport}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 12, wordBreak: 'break-all' }}>
-            {server.github_url}
-          </div>
-          {installedIds.has(server.id) ? (
-            <span style={{ fontSize: 12, color: 'var(--color-success)', fontWeight: 600 }}>Installed</span>
-          ) : (
-            <button onClick={() => onInstall(server.id)} style={smallBtn}>Install</button>
-          )}
-        </div>
+            <div className="text-[11px] text-muted-foreground mb-2">
+              v{server.version} &middot; {server.install_count} installs &middot; {server.transport}
+            </div>
+            <div className="text-[11px] text-muted-foreground mb-3 break-all">
+              {server.github_url}
+            </div>
+            {installedIds.has(server.id) ? (
+              <span className="text-xs font-semibold text-green-500 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Installed
+              </span>
+            ) : (
+              <Button onClick={() => onInstall(server.id)} size="sm">
+                <Download className="mr-1 h-3 w-3" /> Install
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       ))}
     </div>
   );
@@ -136,25 +190,35 @@ function InstalledList({ installations, servers, onUninstall }: {
   const serverMap = new Map(servers.map(s => [s.id, s]));
 
   if (installations.length === 0) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>No MCP servers installed. Browse the marketplace to get started.</p>;
+    return (
+      <Card className="text-center py-16 px-6">
+        <CardContent className="p-0">
+          <p className="text-sm text-muted-foreground">No MCP servers installed. Browse the marketplace to get started.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="flex flex-col gap-2">
       {installations.map(inst => {
         const server = serverMap.get(inst.mcp_server_id);
         return (
-          <div key={inst.id} style={listItemStyle}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>
-                {server?.name || inst.mcp_server_id}
+          <Card key={inst.id}>
+            <CardContent className="p-3 px-4 flex items-center">
+              <div className="flex-1">
+                <div className="font-semibold text-sm">
+                  {server?.name || inst.mcp_server_id}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {server?.description || ''} &middot; {inst.enabled ? 'Enabled' : 'Disabled'}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                {server?.description || ''} &middot; {inst.enabled ? 'Enabled' : 'Disabled'}
-              </div>
-            </div>
-            <button onClick={() => onUninstall(inst.id)} style={dangerSmallBtn}>Uninstall</button>
-          </div>
+              <Button onClick={() => onUninstall(inst.id)} variant="destructive" size="sm">
+                <Trash2 className="mr-1 h-3 w-3" /> Uninstall
+              </Button>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -167,56 +231,64 @@ function MyServersList({ servers, onDelete, onRebuild }: {
   onRebuild: (id: string) => Promise<void>;
 }) {
   if (servers.length === 0) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>You haven't registered any MCP servers yet.</p>;
+    return (
+      <Card className="text-center py-16 px-6">
+        <CardContent className="p-0">
+          <p className="text-sm text-muted-foreground">You haven't registered any MCP servers yet.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="flex flex-col gap-2">
       {servers.map(server => (
-        <div key={server.id} style={listItemStyle}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>{server.name}</span>
-              <StatusBadge status={server.status} />
-              {server.is_public && <span style={publicBadge}>Public</span>}
+        <Card key={server.id}>
+          <CardContent className="p-3 px-4 flex items-center">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{server.name}</span>
+                <StatusBadge status={server.status} />
+                {server.is_public && (
+                  <Badge variant="secondary" className="text-[10px] bg-indigo-500/10 text-indigo-500">
+                    Public
+                  </Badge>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {server.github_url} &middot; {server.github_branch} &middot; v{server.version}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-              {server.github_url} &middot; {server.github_branch} &middot; v{server.version}
+            <div className="flex gap-1.5">
+              <Button onClick={() => onRebuild(server.id)} variant="outline" size="sm">
+                <RefreshCw className="mr-1 h-3 w-3" /> Rebuild
+              </Button>
+              <Button onClick={() => onDelete(server.id)} variant="destructive" size="sm">
+                <Trash2 className="mr-1 h-3 w-3" /> Delete
+              </Button>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => onRebuild(server.id)} style={smallBtn}>Rebuild</button>
-            <button onClick={() => onDelete(server.id)} style={dangerSmallBtn}>Delete</button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    ready: '#22c55e',
-    building: '#f59e0b',
-    pending: '#6b7280',
-    error: '#ef4444',
-  };
   return (
-    <span style={{
-      fontSize: 10,
-      fontWeight: 600,
-      padding: '2px 8px',
-      borderRadius: 10,
-      background: (colors[status] || '#6b7280') + '20',
-      color: colors[status] || '#6b7280',
-      textTransform: 'uppercase',
-    }}>
+    <Badge
+      variant="secondary"
+      className={cn(
+        'text-[10px] font-semibold uppercase',
+        statusVariantMap[status] || 'bg-gray-500/20 text-gray-500'
+      )}
+    >
       {status}
-    </span>
+    </Badge>
   );
 }
 
-function RegisterServerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function RegisterServerModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
@@ -244,173 +316,69 @@ function RegisterServerModal({ onClose, onCreated }: { onClose: () => void; onCr
   };
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>Register MCP Server</h2>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Register MCP Server</DialogTitle>
+          <DialogDescription>Add a new MCP server from a GitHub repository.</DialogDescription>
+        </DialogHeader>
 
-        <label style={labelStyle}>Name *</label>
-        <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="my-mcp-server" />
-
-        <label style={labelStyle}>GitHub URL *</label>
-        <input value={githubUrl} onChange={e => setGithubUrl(e.target.value)} style={inputStyle} placeholder="https://github.com/user/mcp-server" />
-
-        <label style={labelStyle}>Description</label>
-        <input value={description} onChange={e => setDescription(e.target.value)} style={inputStyle} placeholder="What does this server do?" />
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="space-y-4">
           <div>
-            <label style={labelStyle}>Branch</label>
-            <input value={branch} onChange={e => setBranch(e.target.value)} style={inputStyle} />
+            <Label>Name *</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="my-mcp-server" className="mt-1" />
           </div>
+
           <div>
-            <label style={labelStyle}>Transport</label>
-            <select value={transport} onChange={e => setTransport(e.target.value)} style={inputStyle}>
-              <option value="stdio">stdio</option>
-              <option value="sse">SSE</option>
-              <option value="streamable-http">Streamable HTTP</option>
-            </select>
+            <Label>GitHub URL *</Label>
+            <Input value={githubUrl} onChange={e => setGithubUrl(e.target.value)} placeholder="https://github.com/user/mcp-server" className="mt-1" />
           </div>
+
+          <div>
+            <Label>Description</Label>
+            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What does this server do?" className="mt-1" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Branch</Label>
+              <Input value={branch} onChange={e => setBranch(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>Transport</Label>
+              <Select value={transport} onValueChange={setTransport}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stdio">stdio</SelectItem>
+                  <SelectItem value="sse">SSE</SelectItem>
+                  <SelectItem value="streamable-http">Streamable HTTP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label>Entry Command (auto-detected if empty)</Label>
+            <Input value={entryCommand} onChange={e => setEntryCommand(e.target.value)} placeholder="node dist/index.js" className="mt-1" />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="rounded" />
+            Make this server public in the marketplace
+          </label>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
-        <label style={labelStyle}>Entry Command (auto-detected if empty)</label>
-        <input value={entryCommand} onChange={e => setEntryCommand(e.target.value)} style={inputStyle} placeholder="node dist/index.js" />
-
-        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-          Make this server public in the marketplace
-        </label>
-
-        {error && <p style={{ color: '#ef4444', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={cancelBtn}>Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} style={primaryBtn}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? 'Registering...' : 'Register Server'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
-
-// Styles
-const primaryBtn: React.CSSProperties = {
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  padding: '8px 16px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const cancelBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  padding: '8px 16px',
-  borderRadius: 8,
-  fontSize: 13,
-  cursor: 'pointer',
-};
-
-const tabBtn: React.CSSProperties = {
-  border: 'none',
-  padding: '6px 14px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'background 0.15s',
-};
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-card)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 12,
-  padding: 16,
-};
-
-const listItemStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  background: 'var(--color-card)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 10,
-  padding: '12px 16px',
-};
-
-const smallBtn: React.CSSProperties = {
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  padding: '4px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const dangerSmallBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: '#ef4444',
-  border: '1px solid #ef4444',
-  padding: '4px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-
-const publicBadge: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  padding: '2px 8px',
-  borderRadius: 10,
-  background: '#6366f120',
-  color: '#6366f1',
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 100,
-};
-
-const modalStyle: React.CSSProperties = {
-  background: 'var(--color-card)',
-  borderRadius: 16,
-  padding: 24,
-  width: '100%',
-  maxWidth: 520,
-  maxHeight: '90vh',
-  overflow: 'auto',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  marginBottom: 4,
-  marginTop: 12,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 8,
-  background: 'var(--color-bg)',
-  color: 'var(--color-text)',
-  fontSize: 13,
-  boxSizing: 'border-box',
-};

@@ -151,3 +151,97 @@ export interface DashboardApplication {
   created_at: string;
   updated_at: string;
 }
+
+// Phase 14: Dashboard types
+
+export interface SystemHealth {
+  status: string;
+  version?: string;
+  uptime?: string;
+  health_url?: string;
+  ready_url?: string;
+  metrics_url?: string;
+  total_projects?: number;
+  total_users?: number;
+  total_secrets?: number;
+  total_api_keys?: number;
+  database?: { status: string; connections?: number };
+  encryption?: { status: string };
+}
+
+export interface TraceSpan {
+  trace_id: string;
+  span_id: string;
+  operation: string;
+  status: string;
+  duration: string;
+  start_time?: string;
+  attributes?: Record<string, string>;
+}
+
+export interface PlatformEvent {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  aggregate_type: string;
+  payload: Record<string, unknown>;
+  published: boolean;
+  created_at: string;
+}
+
+export interface Plugin {
+  id: string;
+  name: string;
+  plugin_type: string;
+  version: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SecurityEvent {
+  id: string;
+  event_type: string;
+  severity: 'info' | 'warning' | 'critical';
+  ip_address: string;
+  user_id?: string;
+  user_agent?: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentActivity {
+  api_key_id: string;
+  api_key_name: string;
+  project_id: string;
+  action: string;
+  secret_key?: string;
+  environment?: string;
+  ip_address: string;
+  created_at: string;
+}
+
+export interface HeatmapEntry {
+  hour: number;
+  day: number;
+  count: number;
+}
+
+export interface AccessPolicy {
+  id: string;
+  project_id: string;
+  policy_type: string;
+  config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_url: string;
+  event_type: string;
+  status: 'success' | 'failed' | 'pending';
+  status_code?: number;
+  response_body?: string;
+  attempts: number;
+  created_at: string;
+}

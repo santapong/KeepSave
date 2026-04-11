@@ -787,3 +787,35 @@ export async function toggleApplicationFavorite(id: string): Promise<boolean> {
   });
   return data.is_favorite;
 }
+
+// Phase 14: Additional Dashboard endpoints
+
+export async function getGlobalAgentActivity(): Promise<Record<string, unknown>[]> {
+  const data = await request<{ activities: Record<string, unknown>[] }>('/agent/activity');
+  return data.activities || [];
+}
+
+export async function getWebhookDeliveries(): Promise<Record<string, unknown>[]> {
+  const data = await request<{ deliveries: Record<string, unknown>[] }>('/webhook-deliveries');
+  return data.deliveries || [];
+}
+
+export async function getPrometheusMetrics(): Promise<string> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const response = await fetch('/metrics', { headers });
+  return response.text();
+}
+
+export async function togglePlugin(pluginId: string, enabled: boolean): Promise<Record<string, unknown>> {
+  const data = await request<{ plugin: Record<string, unknown> }>(`/platform/plugins/${pluginId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  });
+  return data.plugin;
+}
+
+export async function deleteAccessPolicy(projectId: string, policyId: string): Promise<void> {
+  await request(`/projects/${projectId}/access-policies/${policyId}`, { method: 'DELETE' });
+}

@@ -1,6 +1,30 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { listAPIKeys, createAPIKey, deleteAPIKey } from '../api/client';
 import type { APIKey } from '../types';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
+import { Plus, Trash2, Copy, Check, Key } from 'lucide-react';
 
 interface ProjectAPIKeysPanelProps {
   projectId: string;
@@ -26,6 +50,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
   const [newRawKey, setNewRawKey] = useState('');
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     listAPIKeys()
@@ -58,6 +83,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
       setName('');
       setSelectedScopes(new Set(['read']));
       setEnvironment('');
+      toast({ title: 'Created', description: 'API key created successfully' });
       const all = await listAPIKeys();
       setKeys(all.filter((k) => k.project_id === projectId));
     } catch (err) {
@@ -73,6 +99,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
     try {
       await deleteAPIKey(id);
       setKeys((prev) => prev.filter((k) => k.id !== id));
+      toast({ title: 'Deleted', description: 'API key deleted' });
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete API key');
     }
@@ -87,305 +114,210 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
   async function handleCopy() {
     await navigator.clipboard.writeText(newRawKey);
     setCopied(true);
+    toast({ title: 'Copied', description: 'API key copied to clipboard' });
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>API Keys</h2>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4, margin: '4px 0 0' }}>
+          <h2 className="text-lg font-semibold">API Keys</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Scoped keys for AI agents, CI/CD pipelines, and services to access this project's secrets.
           </p>
         </div>
-        <button onClick={handleToggleCreate} style={btnPrimary}>
-          {showCreate ? 'Cancel' : 'Create API Key'}
-        </button>
+        <Button onClick={handleToggleCreate} variant={showCreate ? 'outline' : 'default'}>
+          {showCreate ? 'Cancel' : <><Plus className="mr-2 h-4 w-4" /> Create API Key</>}
+        </Button>
       </div>
 
       {/* Errors */}
-      {error && <div style={errorStyle}>{error}</div>}
-      {deleteError && <div style={errorStyle}>{deleteError}</div>}
+      {error && (
+        <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm mb-4">
+          {error}
+        </div>
+      )}
+      {deleteError && (
+        <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm mb-4">
+          {deleteError}
+        </div>
+      )}
 
       {/* One-time raw key success box */}
       {newRawKey && (
-        <div style={successBox}>
-          <p style={{ fontWeight: 600, marginBottom: 4, margin: '0 0 4px' }}>API Key Created</p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 10, margin: '0 0 10px' }}>
-            Copy this key now — it will not be shown again.
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <code style={rawKeyCode}>{newRawKey}</code>
-            <button onClick={handleCopy} style={btnSmallOutline}>
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        </div>
+        <Card className="mb-4 border-green-500/25 bg-green-500/10">
+          <CardContent className="p-4">
+            <p className="font-semibold text-sm mb-1">API Key Created</p>
+            <p className="text-sm text-muted-foreground mb-2.5">
+              Copy this key now — it will not be shown again.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-sm break-all bg-muted px-2 py-1 rounded border border-border flex-1 font-mono">
+                {newRawKey}
+              </code>
+              <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
+                {copied ? (
+                  <><Check className="mr-1 h-3 w-3 text-green-500" /> Copied!</>
+                ) : (
+                  <><Copy className="mr-1 h-3 w-3" /> Copy</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Create form */}
       {showCreate && (
-        <form onSubmit={handleCreate} style={formCard}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {/* Key Name */}
-            <label style={labelStyle}>
-              Key Name
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                placeholder="my-agent-key"
-                style={inputStyle}
-              />
-            </label>
+        <Card className="mb-6">
+          <CardContent className="p-5">
+            <form onSubmit={handleCreate}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm font-medium">Key Name</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="my-agent-key"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Environment</Label>
+                  <Select value={environment} onValueChange={setEnvironment}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="All environments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All environments</SelectItem>
+                      <SelectItem value="alpha">Alpha</SelectItem>
+                      <SelectItem value="uat">UAT</SelectItem>
+                      <SelectItem value="prod">PROD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Environment */}
-            <label style={labelStyle}>
-              Environment
-              <select value={environment} onChange={(e) => setEnvironment(e.target.value)} style={inputStyle}>
-                <option value="">All environments</option>
-                <option value="alpha">Alpha</option>
-                <option value="uat">UAT</option>
-                <option value="prod">PROD</option>
-              </select>
-            </label>
-
-            {/* Scopes — full-width checkbox group */}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <span style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>Scopes</span>
-              <div style={{ display: 'flex', gap: 0, flexDirection: 'column' as const }}>
-                {SCOPES.map((scope) => (
-                  <label
-                    key={scope}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 8,
-                      padding: '8px 10px',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      background: selectedScopes.has(scope) ? 'rgba(99,102,241,0.07)' : 'transparent',
-                      border: `1px solid ${selectedScopes.has(scope) ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                      marginBottom: 6,
-                      transition: 'background 0.1s, border-color 0.1s',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedScopes.has(scope)}
-                      onChange={() => toggleScope(scope)}
-                      style={{ marginTop: 2, flexShrink: 0 }}
-                    />
-                    <div>
-                      <code style={{ fontSize: 12, fontWeight: 600 }}>{scope}</code>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginLeft: 8 }}>
-                        {SCOPE_DESCRIPTIONS[scope]}
-                      </span>
-                    </div>
-                  </label>
-                ))}
+                {/* Scopes */}
+                <div className="col-span-2">
+                  <Label className="text-sm font-medium block mb-2">Scopes</Label>
+                  <div className="flex flex-col gap-1.5">
+                    {SCOPES.map((scope) => (
+                      <label
+                        key={scope}
+                        className={cn(
+                          'flex items-start gap-2 p-2 px-2.5 rounded cursor-pointer border transition-colors',
+                          selectedScopes.has(scope)
+                            ? 'bg-primary/5 border-primary'
+                            : 'bg-transparent border-border'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedScopes.has(scope)}
+                          onChange={() => toggleScope(scope)}
+                          className="mt-0.5 shrink-0 rounded"
+                        />
+                        <div>
+                          <code className="text-xs font-semibold">{scope}</code>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {SCOPE_DESCRIPTIONS[scope]}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={creating || selectedScopes.size === 0}
-            style={{
-              ...btnPrimary,
-              marginTop: 16,
-              opacity: creating || selectedScopes.size === 0 ? 0.6 : 1,
-              cursor: creating || selectedScopes.size === 0 ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {creating ? 'Creating...' : 'Create Key'}
-          </button>
-        </form>
+              <Button
+                type="submit"
+                disabled={creating || selectedScopes.size === 0}
+                className="mt-4"
+              >
+                {creating ? 'Creating...' : 'Create Key'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Content */}
       {loading ? (
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Loading API keys...</p>
-      ) : keys.length === 0 ? (
-        <div style={emptyState}>
-          <p style={{ fontWeight: 600, marginBottom: 6, margin: '0 0 6px' }}>No API keys for this project</p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
-            Create a key above to allow agents, scripts, or CI/CD pipelines to access this project's secrets.
-          </p>
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+          ))}
         </div>
+      ) : keys.length === 0 ? (
+        <Card className="text-center py-8 px-6">
+          <CardContent className="p-0 flex flex-col items-center">
+            <Key className="h-8 w-8 text-muted-foreground opacity-50 mb-3" />
+            <p className="font-semibold text-sm mb-1">No API keys for this project</p>
+            <p className="text-sm text-muted-foreground">
+              Create a key above to allow agents, scripts, or CI/CD pipelines to access this project's secrets.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Scopes</th>
-              <th style={thStyle}>Environment</th>
-              <th style={thStyle}>Created</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k.id}>
-                <td style={tdStyle}>
-                  <strong style={{ fontSize: 13 }}>{k.name}</strong>
-                </td>
-                <td style={tdStyle}>
-                  {k.scopes?.map((s) => (
-                    <span key={s} style={scopeBadge}>{s}</span>
-                  ))}
-                </td>
-                <td style={tdStyle}>
-                  {k.environment ? (
-                    <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' as const }}>
-                      {k.environment}
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Scopes</TableHead>
+                <TableHead>Environment</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys.map((k) => (
+                <TableRow key={k.id}>
+                  <TableCell>
+                    <strong className="text-sm">{k.name}</strong>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {k.scopes?.map((s) => (
+                        <Badge key={s} variant="outline" className="text-[11px] font-normal">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {k.environment ? (
+                      <span className="text-xs font-semibold uppercase">
+                        {k.environment}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">All</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(k.created_at).toLocaleDateString()}
                     </span>
-                  ) : (
-                    <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>All</span>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                    {new Date(k.created_at).toLocaleDateString()}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <button onClick={() => handleDelete(k.id)} style={btnSmallDanger}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive hover:bg-destructive/10 h-7 text-xs"
+                      onClick={() => handleDelete(k.id)}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" /> Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
 }
-
-/* Styles */
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  flexShrink: 0,
-};
-
-const btnSmallOutline: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap' as const,
-  flexShrink: 0,
-};
-
-const btnSmallDanger: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid var(--color-danger)',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const formCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  padding: 20,
-  marginBottom: 24,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  fontSize: 13,
-  fontWeight: 500,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 13,
-  background: 'var(--color-input-bg)',
-};
-
-const rawKeyCode: React.CSSProperties = {
-  fontSize: 13,
-  wordBreak: 'break-all' as const,
-  background: 'var(--color-input-bg)',
-  padding: '4px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--color-border)',
-  flex: 1,
-};
-
-const successBox: React.CSSProperties = {
-  background: 'rgba(34, 197, 94, 0.1)',
-  border: '1px solid rgba(34, 197, 94, 0.25)',
-  borderRadius: 'var(--radius)',
-  padding: 16,
-  marginBottom: 16,
-};
-
-const emptyState: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  border: '1px solid var(--color-border)',
-  padding: '32px 24px',
-  textAlign: 'center' as const,
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse' as const,
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left' as const,
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  borderBottom: '1px solid var(--color-border)',
-  textTransform: 'uppercase' as const,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const scopeBadge: React.CSSProperties = {
-  padding: '1px 6px',
-  borderRadius: 3,
-  fontSize: 11,
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  marginRight: 4,
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-};

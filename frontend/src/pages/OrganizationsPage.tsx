@@ -1,6 +1,22 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import type { Organization, OrgMember, Project } from '../types';
 import * as api from '../api/client';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/useToast';
+import { Plus, Users, FolderOpen, X, AlertCircle } from 'lucide-react';
+
+const roleBadgeVariants: Record<string, string> = {
+  admin: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400',
+  promoter: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400',
+  editor: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400',
+  viewer: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400',
+};
 
 export function OrganizationsPage() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -17,9 +33,9 @@ export function OrganizationsPage() {
   const [memberError, setMemberError] = useState('');
   const [loading, setLoading] = useState(true);
   const [addingMember, setAddingMember] = useState(false);
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
+  const { toast } = useToast();
 
   const loadOrgs = useCallback(async () => {
     try {
@@ -64,10 +80,13 @@ export function OrganizationsPage() {
       const org = await api.createOrganization(newOrgName.trim());
       setNewOrgName('');
       setShowCreate(false);
+      toast({ title: 'Organization created', description: `"${org.name}" has been created.` });
       await loadOrgs();
       selectOrg(org);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create organization');
+      const msg = err instanceof Error ? err.message : 'Failed to create organization';
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
 
@@ -80,9 +99,12 @@ export function OrganizationsPage() {
         setMembers([]);
         setOrgProjects([]);
       }
+      toast({ title: 'Organization deleted', description: 'The organization has been removed.' });
       loadOrgs();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete organization');
+      const msg = err instanceof Error ? err.message : 'Failed to delete organization';
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
 
@@ -116,6 +138,7 @@ export function OrganizationsPage() {
       const data = await api.listOrgMembers(selectedOrg.id);
       setMembers(data);
       setMemberCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
+      toast({ title: 'Member added', description: 'The user has been added to the organization.' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to add member';
       if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('no user')) {
@@ -123,6 +146,7 @@ export function OrganizationsPage() {
       } else {
         setMemberError(message);
       }
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setAddingMember(false);
     }
@@ -134,8 +158,11 @@ export function OrganizationsPage() {
       await api.updateOrgMemberRole(selectedOrg.id, userId, role);
       const data = await api.listOrgMembers(selectedOrg.id);
       setMembers(data);
+      toast({ title: 'Role updated', description: `Member role changed to ${role}.` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update role');
+      const msg = err instanceof Error ? err.message : 'Failed to update role';
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
 
@@ -147,8 +174,11 @@ export function OrganizationsPage() {
       const data = await api.listOrgMembers(selectedOrg.id);
       setMembers(data);
       setMemberCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
+      toast({ title: 'Member removed', description: 'The member has been removed from the organization.' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove member');
+      const msg = err instanceof Error ? err.message : 'Failed to remove member';
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
 
@@ -160,8 +190,11 @@ export function OrganizationsPage() {
       const data = await api.listOrgProjects(selectedOrg.id);
       setOrgProjects(data);
       setProjectCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
+      toast({ title: 'Project assigned', description: 'The project has been assigned to the organization.' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to assign project');
+      const msg = err instanceof Error ? err.message : 'Failed to assign project';
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
 
@@ -181,11 +214,9 @@ export function OrganizationsPage() {
 
   if (loading) {
     return (
-      <div style={loadingContainer}>
-        <div style={loadingSpinner} />
-        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 16 }}>
-          Loading organizations...
-        </p>
+      <div className="flex flex-col items-center justify-center py-20 px-10">
+        <Skeleton className="h-8 w-8 rounded-full mb-4" />
+        <Skeleton className="h-4 w-48" />
       </div>
     );
   }
@@ -193,283 +224,245 @@ export function OrganizationsPage() {
   return (
     <div>
       {/* Header */}
-      <div style={headerRow}>
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
+          <h1 className="text-2xl font-bold text-foreground">
             Organizations
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+          <p className="text-sm text-muted-foreground mt-1">
             {orgs.length} organization{orgs.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} style={btnPrimary}>
-          {showCreate ? 'Cancel' : '+ New Organization'}
-        </button>
+        <Button onClick={() => setShowCreate(!showCreate)}>
+          {showCreate ? 'Cancel' : <><Plus className="h-3.5 w-3.5 mr-1" /> New Organization</>}
+        </Button>
       </div>
 
       {/* Error alert */}
       {error && (
-        <div style={errorBanner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-              <circle cx="8" cy="8" r="7" stroke="var(--color-danger)" strokeWidth="1.5" />
-              <path d="M8 4.5v4M8 10.5v.5" stroke="var(--color-danger)" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+        <div className="flex justify-between items-center bg-destructive/5 text-destructive p-2.5 px-3.5 rounded-lg text-sm mb-5 border border-destructive/15">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
-          <button onClick={() => setError('')} style={dismissBtn}>
+          <Button variant="ghost" size="sm" className="text-destructive text-xs h-auto p-1 px-2" onClick={() => setError('')}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Create form (collapsible card) */}
       {showCreate && (
-        <form onSubmit={handleCreateOrg} style={createFormCard}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: 'var(--color-text)' }}>
-            Create Organization
-          </h3>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <input
-              placeholder="Organization name"
-              value={newOrgName}
-              onChange={(e) => setNewOrgName(e.target.value)}
-              required
-              autoFocus
-              style={inputStyle}
-            />
-            <button type="submit" style={btnPrimary}>
-              Create
-            </button>
-          </div>
-        </form>
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <form onSubmit={handleCreateOrg}>
+              <h3 className="text-sm font-semibold mb-4 text-foreground">Create Organization</h3>
+              <div className="flex gap-3 items-center">
+                <Input
+                  placeholder="Organization name"
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                  required
+                  autoFocus
+                  className="flex-1"
+                />
+                <Button type="submit">Create</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Empty state */}
       {orgs.length === 0 && !showCreate ? (
-        <div style={emptyStateCard}>
-          <div style={emptyIconCircle}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </div>
-          <p style={{ fontSize: 17, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
-            No organizations yet
-          </p>
-          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', maxWidth: 340, lineHeight: 1.5 }}>
-            Create your first organization to manage teams and projects together.
-          </p>
-        </div>
+        <Card className="text-center py-16 px-10">
+          <CardContent className="flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full bg-muted border flex items-center justify-center mb-5">
+              <Users className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-semibold text-foreground mb-1.5">
+              No organizations yet
+            </p>
+            <p className="text-sm text-muted-foreground max-w-[340px] leading-relaxed">
+              Create your first organization to manage teams and projects together.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <>
           {/* Org grid */}
-          <div style={orgGrid}>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4">
             {orgs.map((org) => {
               const isSelected = selectedOrg?.id === org.id;
-              const isHovered = hoveredCard === org.id;
               return (
-                <div
+                <Card
                   key={org.id}
-                  onMouseEnter={() => setHoveredCard(org.id)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  style={{
-                    ...orgCard,
-                    border: isSelected
-                      ? '1.5px solid var(--color-primary)'
-                      : '1px solid var(--color-border)',
-                    boxShadow: isSelected
-                      ? '0 0 0 3px var(--color-primary-glow), var(--shadow)'
-                      : isHovered
-                        ? 'var(--shadow-lg)'
-                        : 'var(--shadow)',
-                    transform: isHovered && !isSelected ? 'translateY(-1px)' : 'none',
-                    borderColor: isSelected
-                      ? 'var(--color-primary)'
-                      : isHovered
-                        ? '#cbd5e1'
-                        : 'var(--color-border)',
-                  }}
+                  className={cn(
+                    'transition-all cursor-default',
+                    isSelected
+                      ? 'border-primary ring-2 ring-primary/20 shadow-lg'
+                      : 'hover:shadow-md hover:-translate-y-px'
+                  )}
                 >
-                  {/* Card top: icon + name + slug */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={orgIconCircle}>
-                      {org.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {org.name}
+                  <CardContent className="p-5">
+                    {/* Card top: icon + name + slug */}
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shrink-0">
+                        {org.name.charAt(0).toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                        /{org.slug}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-bold text-foreground truncate">
+                          {org.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          /{org.slug}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Card middle: badges */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                    <span style={badgePill}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                      </svg>
-                      {memberCounts[org.id] ?? 0} member{(memberCounts[org.id] ?? 0) !== 1 ? 's' : ''}
-                    </span>
-                    <span style={badgePill}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                      {projectCounts[org.id] ?? 0} project{(projectCounts[org.id] ?? 0) !== 1 ? 's' : ''}
-                    </span>
-                  </div>
+                    {/* Card middle: badges */}
+                    <div className="flex gap-2 mt-4">
+                      <Badge variant="outline" className="gap-1.5 font-medium">
+                        <Users className="h-3 w-3" />
+                        {memberCounts[org.id] ?? 0} member{(memberCounts[org.id] ?? 0) !== 1 ? 's' : ''}
+                      </Badge>
+                      <Badge variant="outline" className="gap-1.5 font-medium">
+                        <FolderOpen className="h-3 w-3" />
+                        {projectCounts[org.id] ?? 0} project{(projectCounts[org.id] ?? 0) !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
 
-                  {/* Card bottom: actions */}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
-                    <button
-                      onClick={(e) => handleManageClick(org, e)}
-                      style={{
-                        ...btnOutlinePrimary,
-                        background: isSelected ? 'var(--color-primary-glow)' : 'transparent',
-                      }}
-                    >
-                      {isSelected ? 'Close' : 'Manage'}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteOrg(org.id); }}
-                      style={btnOutlineDanger}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
+                    {/* Card bottom: actions */}
+                    <div className="flex gap-2.5 mt-4 pt-4 border-t">
+                      <Button
+                        variant={isSelected ? 'default' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={(e) => handleManageClick(org, e)}
+                      >
+                        {isSelected ? 'Close' : 'Manage'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/25 hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteOrg(org.id); }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
 
           {/* Management panel (below grid, full width) */}
           {selectedOrg && (
-            <div style={managementPanel}>
-              <div style={managementPanelHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={managePanelIcon}>
+            <Card className="mt-6 shadow-lg overflow-hidden">
+              {/* Panel header */}
+              <div className="flex justify-between items-center px-6 py-5 border-b bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shrink-0">
                     {selectedOrg.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
+                    <h2 className="text-lg font-bold text-foreground">
                       {selectedOrg.name}
                     </h2>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       /{selectedOrg.slug}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div style={twoColumnPanel}>
+              <div className="grid grid-cols-1 lg:grid-cols-2">
                 {/* Left column: Members */}
-                <div style={{ ...panelSection, borderRight: '1px solid var(--color-border)' }}>
-                  <div style={panelSectionHeader}>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
-                      Members
-                    </h3>
+                <div className="p-6 lg:border-r">
+                  <div className="flex items-center gap-2 mb-4">
+                    <h3 className="text-[15px] font-bold text-foreground">Members</h3>
                     {members.length > 0 && (
-                      <span style={countBadge}>{members.length}</span>
+                      <Badge variant="secondary" className="text-xs font-bold">
+                        {members.length}
+                      </Badge>
                     )}
                   </div>
 
                   {/* Add member form */}
-                  <form onSubmit={handleAddMember} style={addMemberRow}>
-                    <input
+                  <form onSubmit={handleAddMember} className="flex gap-2 mb-4 flex-wrap">
+                    <Input
                       type="email"
                       placeholder="Email address"
                       value={newMemberEmail}
                       onChange={(e) => { setNewMemberEmail(e.target.value); setMemberError(''); }}
                       required
-                      style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                      className="flex-1 min-w-[160px]"
                     />
-                    <select
-                      value={newMemberRole}
-                      onChange={(e) => setNewMemberRole(e.target.value)}
-                      style={selectStyle}
-                    >
-                      <option value="viewer">Viewer</option>
-                      <option value="editor">Editor</option>
-                      <option value="promoter">Promoter</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <button type="submit" disabled={addingMember} style={{
-                      ...btnPrimary,
-                      opacity: addingMember ? 0.6 : 1,
-                      cursor: addingMember ? 'not-allowed' : 'pointer',
-                    }}>
+                    <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="promoter">Promoter</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button type="submit" disabled={addingMember}>
                       {addingMember ? 'Adding...' : 'Add'}
-                    </button>
+                    </Button>
                   </form>
 
                   {memberError && (
-                    <div style={memberErrorBox}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                        <circle cx="8" cy="8" r="7" stroke="var(--color-danger)" strokeWidth="1.5" />
-                        <path d="M8 4.5v4M8 10.5v.5" stroke="var(--color-danger)" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
+                    <div className="flex items-center gap-2 bg-destructive/5 text-destructive p-2 px-3 rounded-lg text-sm mb-4 border border-destructive/15">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                       {memberError}
                     </div>
                   )}
 
-                  {/* Member list as cards */}
+                  {/* Member list */}
                   {members.length === 0 ? (
-                    <div style={emptyStateSmall}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <line x1="23" y1="11" x2="17" y2="11" />
-                      </svg>
-                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 8 }}>
+                    <div className="text-center p-7 border border-dashed rounded-lg bg-muted/30">
+                      <Users className="h-5 w-5 mx-auto text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground mt-2">
                         No members yet. Add team members by email above.
                       </p>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="flex flex-col gap-2">
                       {members.map((m) => (
-                        <div key={m.id} style={memberCard}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                            <div style={memberAvatar}>
+                        <div key={m.id} className="flex items-center justify-between p-2.5 px-3.5 bg-muted border rounded-lg gap-3">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-border text-muted-foreground flex items-center justify-center font-semibold text-xs shrink-0">
                               {m.user_id.charAt(0).toUpperCase()}
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <code style={userIdCode} title={m.user_id}>
-                                {m.user_id.slice(0, 8)}...
-                              </code>
-                            </div>
+                            <code className="text-xs font-mono text-muted-foreground truncate" title={m.user_id}>
+                              {m.user_id.slice(0, 8)}...
+                            </code>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <select
-                              value={m.role}
-                              onChange={(e) => handleUpdateRole(m.user_id, e.target.value)}
-                              style={{
-                                ...roleSelectStyle,
-                                color: roleColors[m.role] || 'var(--color-text)',
-                                borderColor: roleColors[m.role] ? `${roleColors[m.role]}33` : 'var(--color-border)',
-                                background: roleColors[m.role] ? `${roleColors[m.role]}0d` : 'var(--color-input-bg)',
-                              }}
-                            >
-                              <option value="viewer">Viewer</option>
-                              <option value="editor">Editor</option>
-                              <option value="promoter">Promoter</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                            <button
+                          <div className="flex items-center gap-2">
+                            <Select value={m.role} onValueChange={(val) => handleUpdateRole(m.user_id, val)}>
+                              <SelectTrigger className={cn('w-[110px] h-7 text-xs font-semibold rounded-full', roleBadgeVariants[m.role] || '')}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="viewer">Viewer</SelectItem>
+                                <SelectItem value="editor">Editor</SelectItem>
+                                <SelectItem value="promoter">Promoter</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 text-destructive border-destructive/20 hover:bg-destructive/10 shrink-0"
                               onClick={() => handleRemoveMember(m.user_id)}
-                              style={btnRemove}
                               title="Remove member"
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18" />
-                                <line x1="6" y1="6" x2="18" y2="18" />
-                              </svg>
-                            </button>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -478,67 +471,57 @@ export function OrganizationsPage() {
                 </div>
 
                 {/* Right column: Projects */}
-                <div style={panelSection}>
-                  <div style={panelSectionHeader}>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
-                      Projects
-                    </h3>
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <h3 className="text-[15px] font-bold text-foreground">Projects</h3>
                     {orgProjects.length > 0 && (
-                      <span style={countBadge}>{orgProjects.length}</span>
+                      <Badge variant="secondary" className="text-xs font-bold">
+                        {orgProjects.length}
+                      </Badge>
                     )}
                   </div>
 
                   {/* Assign project */}
                   {unassignedProjects.length > 0 && (
-                    <div style={assignProjectRow}>
-                      <select
-                        value={assignProjectId}
-                        onChange={(e) => setAssignProjectId(e.target.value)}
-                        style={{ ...selectStyle, flex: 1 }}
-                      >
-                        <option value="">Select a project to assign...</option>
-                        {unassignedProjects.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={handleAssignProject}
-                        disabled={!assignProjectId}
-                        style={{
-                          ...btnPrimary,
-                          opacity: assignProjectId ? 1 : 0.5,
-                          cursor: assignProjectId ? 'pointer' : 'not-allowed',
-                        }}
-                      >
+                    <div className="flex gap-2 mb-4">
+                      <Select value={assignProjectId} onValueChange={setAssignProjectId}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select a project to assign..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unassignedProjects.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={handleAssignProject} disabled={!assignProjectId}>
                         Assign
-                      </button>
+                      </Button>
                     </div>
                   )}
 
-                  {/* Project list as cards */}
+                  {/* Project list */}
                   {orgProjects.length === 0 ? (
-                    <div style={emptyStateSmall}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 8 }}>
+                    <div className="text-center p-7 border border-dashed rounded-lg bg-muted/30">
+                      <FolderOpen className="h-5 w-5 mx-auto text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground mt-2">
                         No projects assigned yet.
                       </p>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="flex flex-col gap-2">
                       {orgProjects.map((p) => (
-                        <div key={p.id} style={projectCard}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={projectIconCircle}>
+                        <div key={p.id} className="p-3 px-3.5 bg-muted border rounded-lg transition-colors hover:border-primary/30">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-400 text-white flex items-center justify-center font-bold text-sm shrink-0">
                               {p.name.charAt(0).toUpperCase()}
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-foreground">
                                 {p.name}
                               </div>
                               {p.description && (
-                                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <div className="text-xs text-muted-foreground mt-0.5 truncate">
                                   {p.description}
                                 </div>
                               )}
@@ -550,385 +533,10 @@ export function OrganizationsPage() {
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           )}
         </>
       )}
     </div>
   );
 }
-
-/* -- Role color map --------------------------------------------------- */
-
-const roleColors: Record<string, string> = {
-  admin: '#dc2626',
-  promoter: '#d97706',
-  editor: '#3b82f6',
-  viewer: '#64748b',
-};
-
-/* -- Style constants -------------------------------------------------- */
-
-const headerRow: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  marginBottom: 24,
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '9px 18px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'background 0.15s ease',
-  whiteSpace: 'nowrap',
-};
-
-const btnOutlinePrimary: React.CSSProperties = {
-  padding: '7px 16px',
-  background: 'transparent',
-  color: 'var(--color-primary)',
-  border: '1px solid var(--color-primary)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-  flex: 1,
-};
-
-const btnOutlineDanger: React.CSSProperties = {
-  padding: '7px 16px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid rgba(220, 38, 38, 0.25)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-};
-
-const btnRemove: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 30,
-  height: 30,
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid rgba(220, 38, 38, 0.2)',
-  borderRadius: 'var(--radius)',
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-  flexShrink: 0,
-};
-
-const dismissBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: 'var(--color-danger)',
-  cursor: 'pointer',
-  fontWeight: 600,
-  fontSize: 12,
-  padding: '2px 8px',
-  flexShrink: 0,
-};
-
-const errorBanner: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  background: 'rgba(220, 38, 38, 0.05)',
-  color: 'var(--color-danger)',
-  padding: '10px 14px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 20,
-  border: '1px solid rgba(220, 38, 38, 0.15)',
-};
-
-const createFormCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: 24,
-  marginBottom: 24,
-  boxShadow: 'var(--shadow)',
-};
-
-const orgGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-  gap: 16,
-};
-
-const orgCard: React.CSSProperties = {
-  padding: 20,
-  borderRadius: 'var(--radius)',
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  boxShadow: 'var(--shadow)',
-  transition: 'all 0.2s ease',
-  cursor: 'default',
-};
-
-const orgIconCircle: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: '50%',
-  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-  color: '#ffffff',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 700,
-  fontSize: 18,
-  flexShrink: 0,
-  letterSpacing: '-0.02em',
-};
-
-const badgePill: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 5,
-  padding: '4px 10px',
-  fontSize: 12,
-  fontWeight: 500,
-  color: 'var(--color-text-secondary)',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 20,
-};
-
-const managementPanel: React.CSSProperties = {
-  marginTop: 24,
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow-lg)',
-  overflow: 'hidden',
-};
-
-const managementPanelHeader: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '20px 24px',
-  borderBottom: '1px solid var(--color-border)',
-  background: 'var(--color-input-bg)',
-};
-
-const managePanelIcon: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-  color: '#ffffff',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 700,
-  fontSize: 15,
-  flexShrink: 0,
-};
-
-const twoColumnPanel: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 0,
-};
-
-const panelSection: React.CSSProperties = {
-  padding: 24,
-};
-
-const panelSectionHeader: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 16,
-};
-
-const countBadge: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 22,
-  height: 22,
-  padding: '0 7px',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--color-primary)',
-  background: 'var(--color-primary-glow)',
-  borderRadius: 20,
-};
-
-const addMemberRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  marginBottom: 16,
-  flexWrap: 'wrap',
-};
-
-const assignProjectRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  marginBottom: 16,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '9px 12px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 14,
-  color: 'var(--color-text)',
-  outline: 'none',
-  transition: 'border-color 0.15s ease',
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: '9px 12px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  color: 'var(--color-text)',
-  cursor: 'pointer',
-};
-
-const roleSelectStyle: React.CSSProperties = {
-  padding: '5px 10px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 20,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-  outline: 'none',
-  appearance: 'none' as const,
-  WebkitAppearance: 'none' as const,
-  paddingRight: 10,
-};
-
-const memberCard: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '10px 14px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  gap: 12,
-};
-
-const memberAvatar: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: '50%',
-  background: 'var(--color-border)',
-  color: 'var(--color-text-secondary)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 600,
-  fontSize: 12,
-  flexShrink: 0,
-};
-
-const userIdCode: React.CSSProperties = {
-  fontSize: 12,
-  fontFamily: "'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace",
-  color: 'var(--color-text-secondary)',
-  letterSpacing: '0.01em',
-};
-
-const projectCard: React.CSSProperties = {
-  padding: '12px 14px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  transition: 'border-color 0.15s ease',
-};
-
-const projectIconCircle: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 8,
-  background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
-  color: '#ffffff',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 700,
-  fontSize: 14,
-  flexShrink: 0,
-};
-
-const emptyStateCard: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  textAlign: 'center',
-  padding: '64px 40px',
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-};
-
-const emptyIconCircle: React.CSSProperties = {
-  width: 64,
-  height: 64,
-  borderRadius: '50%',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  margin: '0 auto 20px',
-};
-
-const emptyStateSmall: React.CSSProperties = {
-  textAlign: 'center',
-  padding: 28,
-  border: '1px dashed var(--color-border)',
-  borderRadius: 'var(--radius)',
-  background: 'rgba(248, 250, 252, 0.5)',
-};
-
-const memberErrorBox: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  background: 'rgba(220, 38, 38, 0.05)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-  border: '1px solid rgba(220, 38, 38, 0.15)',
-};
-
-const loadingContainer: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '80px 40px',
-};
-
-const loadingSpinner: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  border: '3px solid var(--color-border)',
-  borderTopColor: 'var(--color-primary)',
-  borderRadius: '50%',
-  animation: 'spin 0.8s linear infinite',
-};

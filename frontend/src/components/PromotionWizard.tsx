@@ -1,6 +1,29 @@
 import { useState } from 'react';
 import { promoteDiff, promote } from '../api/client';
 import type { DiffEntry } from '../types';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface PromotionWizardProps {
   projectId: string;
@@ -33,6 +56,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<string>('');
+  const { toast } = useToast();
 
   const path = PATHS[pathIdx];
   const currentStepIdx = stepIndex(step);
@@ -74,12 +98,13 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
         keys,
         notes || undefined
       );
-      setResult(
+      const msg =
         promotion.status === 'pending'
           ? 'Promotion request created. PROD promotions require approval.'
-          : 'Promotion completed successfully!'
-      );
+          : 'Promotion completed successfully!';
+      setResult(msg);
       setStep('done');
+      toast({ title: 'Promotion', description: msg });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Promotion failed');
     } finally {
@@ -96,57 +121,40 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
     });
   }
 
-  function rowBackground(action: string): string | undefined {
-    if (action === 'add') return 'rgba(34, 197, 94, 0.06)';
-    if (action === 'update') return 'rgba(245, 158, 11, 0.06)';
-    return undefined;
-  }
-
   /* ---------- Step Indicator ---------- */
   function renderStepIndicator() {
     return (
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 28 }}>
+      <div className="flex items-start justify-center mb-7">
         {STEPS.map((s, idx) => {
           const isCompleted = idx < currentStepIdx;
           const isCurrent = idx === currentStepIdx;
-
-          const circleStyle: React.CSSProperties = {
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 700,
-            flexShrink: 0,
-            ...(isCompleted
-              ? { background: 'var(--color-primary)', color: '#fff' }
-              : isCurrent
-                ? { background: 'transparent', border: '2px solid var(--color-primary)', color: 'var(--color-primary)' }
-                : { background: 'var(--color-border)', color: 'var(--color-text-secondary)' }),
-          };
-
-          const labelColor = isCompleted || isCurrent ? 'var(--color-text)' : 'var(--color-text-secondary)';
-
           return (
-            <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
-              {/* Connector before (except first) */}
+            <div key={s.key} className="flex items-center">
               {idx > 0 && (
                 <div
-                  style={{
-                    width: 48,
-                    height: 2,
-                    background: idx <= currentStepIdx ? 'var(--color-primary)' : 'var(--color-border)',
-                    marginBottom: 18, // align with circle center
-                  }}
+                  className={cn(
+                    'w-12 h-0.5 mb-[18px]',
+                    idx <= currentStepIdx ? 'bg-primary' : 'bg-border'
+                  )}
                 />
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
-                <div style={circleStyle}>
+              <div className="flex flex-col items-center min-w-[64px]">
+                <div
+                  className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
+                    isCompleted && 'bg-primary text-white',
+                    isCurrent && 'bg-transparent border-2 border-primary text-primary',
+                    !isCompleted && !isCurrent && 'bg-border text-muted-foreground'
+                  )}
+                >
                   {isCompleted ? '\u2713' : idx + 1}
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 600, marginTop: 6, color: labelColor }}>
+                <span
+                  className={cn(
+                    'text-[11px] font-semibold mt-1.5',
+                    isCompleted || isCurrent ? 'text-foreground' : 'text-muted-foreground'
+                  )}
+                >
                   {s.label}
                 </span>
               </div>
@@ -160,306 +168,198 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
   /* ---------- Done Step ---------- */
   if (step === 'done') {
     return (
-      <div style={cardStyle}>
-        {renderStepIndicator()}
-        <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              background: 'rgba(34, 197, 94, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+      <Card>
+        <CardContent className="p-6">
+          {renderStepIndicator()}
+          <div className="text-center py-6">
+            <div className="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-6 w-6 text-green-500" />
+            </div>
+            <p className="text-sm font-semibold text-muted-foreground mb-1.5">
+              {path.source.toUpperCase()} &rarr; {path.target.toUpperCase()}
+            </p>
+            <h3 className="text-lg text-green-500 font-semibold mb-5">
+              {result}
+            </h3>
+            <Button onClick={resetWizard}>
+              Start New Promotion
+            </Button>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-            {path.source.toUpperCase()} &rarr; {path.target.toUpperCase()}
-          </p>
-          <h3 style={{ fontSize: 18, color: 'var(--color-success)', marginBottom: 20, fontWeight: 600 }}>
-            {result}
-          </h3>
-          <button onClick={resetWizard} style={btnPrimary}>
-            Start New Promotion
-          </button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   /* ---------- Configure & Review ---------- */
   return (
     <div>
-      {error && <div style={errorStyle}>{error}</div>}
-
-      {step === 'configure' && (
-        <div style={cardStyle}>
-          {renderStepIndicator()}
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Configure Promotion</h3>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Promotion Path</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {PATHS.map((p, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setPathIdx(idx)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius)',
-                    border: '1px solid',
-                    borderColor: pathIdx === idx ? 'var(--color-primary)' : 'var(--color-border)',
-                    background: pathIdx === idx ? 'var(--color-primary)' : 'var(--color-surface)',
-                    color: pathIdx === idx ? '#fff' : 'var(--color-text)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* PROD approval banner */}
-          {pathIdx === 1 && (
-            <div
-              style={{
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                borderRadius: 'var(--radius)',
-                padding: '10px 14px',
-                fontSize: 13,
-                color: '#f59e0b',
-                marginBottom: 16,
-              }}
-            >
-              PROD promotions require multi-party approval before secrets are applied.
-            </div>
-          )}
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Override Policy</label>
-            <select
-              value={overridePolicy}
-              onChange={(e) => setOverridePolicy(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="skip">Skip - Don&apos;t overwrite existing keys</option>
-              <option value="overwrite">Overwrite - Replace all values</option>
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Notes (optional)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Reason for promotion..."
-              style={{ ...selectStyle, minHeight: 60, resize: 'vertical' }}
-            />
-          </div>
-
-          <button onClick={handlePreview} disabled={loading} style={btnPrimary}>
-            {loading ? 'Loading diff...' : 'Preview Changes'}
-          </button>
+      {error && (
+        <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm mb-4">
+          {error}
         </div>
       )}
 
-      {step === 'review' && (
-        <div style={cardStyle}>
-          {renderStepIndicator()}
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-            Review Changes: {path.label}
-          </h3>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
-            Select which keys to promote. Override policy: <strong>{overridePolicy}</strong>
-          </p>
+      {step === 'configure' && (
+        <Card>
+          <CardContent className="p-6">
+            {renderStepIndicator()}
+            <h3 className="text-base font-semibold mb-4">Configure Promotion</h3>
 
-          {/* PROD approval banner in review step too */}
-          {pathIdx === 1 && (
-            <div
-              style={{
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                borderRadius: 'var(--radius)',
-                padding: '10px 14px',
-                fontSize: 13,
-                color: '#f59e0b',
-                marginBottom: 16,
-              }}
-            >
-              PROD promotions require multi-party approval before secrets are applied.
-            </div>
-          )}
-
-          {diff.length === 0 ? (
-            <p style={{ color: 'var(--color-text-secondary)' }}>No differences found.</p>
-          ) : (
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={{ ...thStyle, width: 40 }}></th>
-                  <th style={thStyle}>Key</th>
-                  <th style={thStyle}>Action</th>
-                  <th style={thStyle}>Source</th>
-                  <th style={thStyle}>Target</th>
-                </tr>
-              </thead>
-              <tbody>
-                {diff.map((entry) => (
-                  <tr
-                    key={entry.key}
-                    style={{
-                      opacity: entry.action === 'no_change' ? 0.5 : 1,
-                      background: rowBackground(entry.action),
-                    }}
+            <div className="mb-4">
+              <Label className="block mb-1.5">Promotion Path</Label>
+              <div className="flex gap-2">
+                {PATHS.map((p, idx) => (
+                  <Button
+                    key={idx}
+                    onClick={() => setPathIdx(idx)}
+                    variant={pathIdx === idx ? 'default' : 'outline'}
+                    size="sm"
+                    className="font-semibold"
                   >
-                    <td style={tdStyle}>
-                      <input
-                        type="checkbox"
-                        checked={selectedKeys.has(entry.key)}
-                        onChange={() => toggleKey(entry.key)}
-                        disabled={entry.action === 'no_change'}
-                      />
-                    </td>
-                    <td style={tdStyle}>
-                      <code style={{ fontSize: 13, fontWeight: 600 }}>{entry.key}</code>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        ...badgeBase,
-                        background: entry.action === 'add' ? 'rgba(34, 197, 94, 0.15)' : entry.action === 'update' ? 'rgba(245, 158, 11, 0.15)' : 'var(--color-input-bg)',
-                        color: entry.action === 'add' ? 'var(--color-success)' : entry.action === 'update' ? 'var(--color-warning)' : 'var(--color-text-secondary)',
-                      }}>
-                        {entry.action}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <code style={{ fontSize: 12 }}>{entry.source_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
-                    </td>
-                    <td style={tdStyle}>
-                      <code style={{ fontSize: 12 }}>{entry.target_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
-                    </td>
-                  </tr>
+                    {p.label}
+                  </Button>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </div>
+            </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setStep('configure')} style={btnOutline}>
-              Back
-            </button>
-            <button
-              onClick={handlePromote}
-              disabled={loading || selectedKeys.size === 0}
-              style={{
-                ...btnPrimary,
-                background: path.target === 'prod' ? 'var(--color-warning)' : 'var(--color-primary)',
-              }}
-            >
-              {loading
-                ? 'Promoting...'
-                : path.target === 'prod'
-                  ? 'Request PROD Promotion'
-                  : `Promote to ${path.target.toUpperCase()}`}
-            </button>
-          </div>
-        </div>
+            {pathIdx === 1 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-sm text-amber-500 mb-4 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                PROD promotions require multi-party approval before secrets are applied.
+              </div>
+            )}
+
+            <div className="mb-4">
+              <Label className="block mb-1.5">Override Policy</Label>
+              <Select value={overridePolicy} onValueChange={setOverridePolicy}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="skip">Skip - Don&apos;t overwrite existing keys</SelectItem>
+                  <SelectItem value="overwrite">Overwrite - Replace all values</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="mb-4">
+              <Label className="block mb-1.5">Notes (optional)</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Reason for promotion..."
+                className="min-h-[60px] resize-y"
+              />
+            </div>
+
+            <Button onClick={handlePreview} disabled={loading}>
+              {loading ? 'Loading diff...' : 'Preview Changes'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 'review' && (
+        <Card>
+          <CardContent className="p-6">
+            {renderStepIndicator()}
+            <h3 className="text-base font-semibold mb-1">
+              Review Changes: {path.label}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Select which keys to promote. Override policy: <strong>{overridePolicy}</strong>
+            </p>
+
+            {pathIdx === 1 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-sm text-amber-500 mb-4 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                PROD promotions require multi-party approval before secrets are applied.
+              </div>
+            )}
+
+            {diff.length === 0 ? (
+              <p className="text-muted-foreground">No differences found.</p>
+            ) : (
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Key</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead>Target</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {diff.map((entry) => (
+                      <TableRow
+                        key={entry.key}
+                        className={cn(
+                          entry.action === 'no_change' && 'opacity-50',
+                          entry.action === 'add' && 'bg-green-500/5',
+                          entry.action === 'update' && 'bg-amber-500/5'
+                        )}
+                      >
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedKeys.has(entry.key)}
+                            onChange={() => toggleKey(entry.key)}
+                            disabled={entry.action === 'no_change'}
+                            className="rounded"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-sm font-semibold">{entry.key}</code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              'text-[11px] uppercase font-semibold',
+                              entry.action === 'add' && 'bg-green-500/15 text-green-500',
+                              entry.action === 'update' && 'bg-amber-500/15 text-amber-500',
+                              entry.action === 'no_change' && 'bg-muted text-muted-foreground'
+                            )}
+                          >
+                            {entry.action}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs">{entry.source_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs">{entry.target_exists ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '-'}</code>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              <Button variant="outline" onClick={() => setStep('configure')}>
+                Back
+              </Button>
+              <Button
+                onClick={handlePromote}
+                disabled={loading || selectedKeys.size === 0}
+                className={cn(
+                  path.target === 'prod' && 'bg-amber-500 hover:bg-amber-600'
+                )}
+              >
+                {loading
+                  ? 'Promoting...'
+                  : path.target === 'prod'
+                    ? 'Request PROD Promotion'
+                    : `Promote to ${path.target.toUpperCase()}`}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
 }
-
-/* ---------- Styles ---------- */
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  padding: 24,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 600,
-  marginBottom: 6,
-};
-
-const selectStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 14,
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnOutline: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'transparent',
-  color: 'var(--color-text)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  cursor: 'pointer',
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  borderBottom: '1px solid var(--color-border)',
-  textTransform: 'uppercase',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const badgeBase: React.CSSProperties = {
-  padding: '2px 8px',
-  borderRadius: 4,
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-};

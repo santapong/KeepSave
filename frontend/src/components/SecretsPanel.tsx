@@ -2,14 +2,59 @@ import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { listSecrets, createSecret, updateSecret, deleteSecret } from '../api/client';
 import { formatDate } from '../utils/formatDate';
 import type { Secret } from '../types';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Plus,
+  X,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Pencil,
+  Trash2,
+  Search,
+  Lock,
+} from 'lucide-react';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Environment = (typeof ENVIRONMENTS)[number];
 
-const ENV_COLORS: Record<Environment, string> = {
-  alpha: '#22c55e',
-  uat: '#6366f1',
-  prod: '#f59e0b',
+const ENV_BADGE_CLASSES: Record<Environment, string> = {
+  alpha: 'bg-green-500 hover:bg-green-600 text-white',
+  uat: 'bg-indigo-500 hover:bg-indigo-600 text-white',
+  prod: 'bg-amber-500 hover:bg-amber-600 text-white',
+};
+
+const ENV_OUTLINE_CLASSES: Record<Environment, string> = {
+  alpha: 'border-green-500 text-green-500',
+  uat: 'border-indigo-500 text-indigo-500',
+  prod: 'border-amber-500 text-amber-500',
+};
+
+const ENV_TEXT_CLASSES: Record<Environment, string> = {
+  alpha: 'text-green-500',
+  uat: 'text-indigo-500',
+  prod: 'text-amber-500',
+};
+
+const ENV_BG_CLASSES: Record<Environment, string> = {
+  alpha: 'bg-green-500',
+  uat: 'bg-indigo-500',
+  prod: 'bg-amber-500',
 };
 
 interface SecretsPanelProps {
@@ -29,6 +74,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const [editValue, setEditValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const loadSecrets = useCallback(async () => {
     setLoading(true);
@@ -62,6 +108,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
       setNewKey('');
       setNewValue('');
       setShowAdd(false);
+      toast({ title: 'Created', description: `Secret ${newKey.toUpperCase()} added to ${env.toUpperCase()}` });
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create secret');
@@ -73,6 +120,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
       await updateSecret(projectId, secretId, editValue);
       setEditing(null);
       setEditValue('');
+      toast({ title: 'Updated', description: 'Secret value updated' });
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update secret');
@@ -83,6 +131,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
     if (!window.confirm('Delete this secret? This action cannot be undone.')) return;
     try {
       await deleteSecret(projectId, secretId);
+      toast({ title: 'Deleted', description: 'Secret deleted' });
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete secret');
@@ -111,9 +160,9 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
     try {
       await navigator.clipboard.writeText(value);
       setCopiedId(secretId);
+      toast({ title: 'Copied', description: 'Secret value copied to clipboard' });
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      // Fallback for environments without clipboard API
       const textarea = document.createElement('textarea');
       textarea.value = value;
       textarea.style.position = 'fixed';
@@ -132,193 +181,143 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   }
 
   const allRevealed = filteredSecrets.length > 0 && revealed.size === filteredSecrets.length;
-  const envColor = ENV_COLORS[env];
 
   return (
     <div>
       {/* Environment Tabs */}
-      <div style={envTabsRow}>
+      <div className="flex gap-2 mb-4 items-center">
         {ENVIRONMENTS.map((e) => {
-          const color = ENV_COLORS[e];
           const isActive = env === e;
           return (
-            <button
+            <Button
               key={e}
               onClick={() => setEnv(e)}
-              style={{
-                padding: '8px 20px',
-                borderRadius: 'var(--radius)',
-                border: '1px solid',
-                borderColor: isActive ? color : 'var(--color-border)',
-                background: isActive ? color : 'var(--color-surface)',
-                color: isActive ? '#fff' : 'var(--color-text-secondary)',
-                fontSize: 13,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                letterSpacing: '0.05em',
-              }}
+              variant="outline"
+              size="sm"
+              className={cn(
+                'uppercase tracking-wider font-semibold text-xs',
+                isActive
+                  ? ENV_BADGE_CLASSES[e]
+                  : ENV_OUTLINE_CLASSES[e]
+              )}
             >
               {e}
-            </button>
+            </Button>
           );
         })}
-        <div style={{ flex: 1 }} />
-        <button
+        <div className="flex-1" />
+        <Button
           onClick={() => setShowAdd(!showAdd)}
-          style={{
-            ...btnPrimary,
-            background: showAdd ? 'transparent' : 'var(--color-primary)',
-            color: showAdd ? 'var(--color-text-secondary)' : '#fff',
-            border: showAdd ? '1px solid var(--color-border)' : 'none',
-          }}
+          variant={showAdd ? 'outline' : 'default'}
+          size="sm"
         >
-          {showAdd ? 'Cancel' : '+ Add Secret'}
-        </button>
+          {showAdd ? (
+            <><X className="mr-1 h-3.5 w-3.5" /> Cancel</>
+          ) : (
+            <><Plus className="mr-1 h-3.5 w-3.5" /> Add Secret</>
+          )}
+        </Button>
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div style={errorStyle}>
-          <span style={{ marginRight: 8 }}>!</span>
+        <div className="flex items-center bg-destructive/10 text-destructive border border-destructive rounded-md px-3.5 py-2.5 text-sm mb-4 font-medium">
+          <span className="mr-2">!</span>
           {error}
           <button
             onClick={() => setError('')}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: 'var(--color-danger)',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 700,
-              padding: '0 4px',
-            }}
+            className="ml-auto bg-transparent border-none text-destructive cursor-pointer text-sm font-bold px-1"
           >
-            x
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
       {/* Add Secret Form */}
       {showAdd && (
-        <form onSubmit={handleAdd} style={addFormCard}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-            Add new secret to <span style={{ color: envColor, textTransform: 'uppercase' }}>{env}</span>
-          </div>
-          <div style={addFormFieldsGrid}>
-            <div style={formField}>
-              <label style={labelStyle}>Key</label>
-              <input
-                placeholder="e.g. DATABASE_URL"
-                value={newKey}
-                onChange={(e) => setNewKey(e.target.value.toUpperCase())}
-                required
-                style={{
-                  ...inputStyle,
-                  fontFamily: 'monospace',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                }}
-              />
-            </div>
-            <div style={{ ...formField, flex: 2 }}>
-              <label style={labelStyle}>Value</label>
-              <input
-                placeholder="Enter the secret value"
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                required
-                type="password"
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-            <button type="button" onClick={() => setShowAdd(false)} style={btnSmallOutline}>
-              Cancel
-            </button>
-            <button type="submit" style={btnPrimary}>
-              Save Secret
-            </button>
-          </div>
-        </form>
+        <Card className="mb-4">
+          <CardContent className="p-5">
+            <form onSubmit={handleAdd}>
+              <div className="text-sm font-semibold mb-3">
+                Add new secret to <span className={cn('uppercase', ENV_TEXT_CLASSES[env])}>{env}</span>
+              </div>
+              <div className="flex gap-3 mb-3">
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Key</Label>
+                  <Input
+                    placeholder="e.g. DATABASE_URL"
+                    value={newKey}
+                    onChange={(e) => setNewKey(e.target.value.toUpperCase())}
+                    required
+                    className="font-mono font-semibold uppercase"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 flex-[2]">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Value</Label>
+                  <Input
+                    placeholder="Enter the secret value"
+                    value={newValue}
+                    onChange={(e) => setNewValue(e.target.value)}
+                    required
+                    type="password"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowAdd(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm">
+                  Save
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Summary Bar + Search */}
       {!loading && (
-        <div style={summaryBar}>
-          <div style={summaryLeft}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 24,
-              height: 24,
-              borderRadius: 12,
-              background: envColor,
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: 700,
-              marginRight: 8,
-            }}>
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <div className="flex items-center">
+            <span className={cn(
+              'inline-flex items-center justify-center min-w-[24px] h-6 rounded-full text-white text-xs font-bold mr-2 px-1.5',
+              ENV_BG_CLASSES[env]
+            )}>
               {secrets.length}
             </span>
-            <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <span className="text-sm text-muted-foreground">
               {secrets.length === 1 ? 'secret' : 'secrets'} in{' '}
-              <span style={{ color: envColor, fontWeight: 600, textTransform: 'uppercase' }}>
+              <span className={cn('font-semibold uppercase', ENV_TEXT_CLASSES[env])}>
                 {env}
               </span>
             </span>
           </div>
-          <div style={summaryRight}>
+          <div className="flex items-center gap-2">
             {secrets.length > 0 && (
               <>
-                <button onClick={toggleRevealAll} style={btnSmallOutline}>
-                  {allRevealed ? 'Hide All' : 'Reveal All'}
-                </button>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <svg
-                    style={{
-                      position: 'absolute',
-                      left: 10,
-                      width: 14,
-                      height: 14,
-                      pointerEvents: 'none',
-                    }}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--color-text-secondary)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.35-4.35" />
-                  </svg>
-                  <input
+                <Button variant="outline" size="sm" onClick={toggleRevealAll} className="text-xs">
+                  {allRevealed ? (
+                    <><EyeOff className="mr-1 h-3 w-3" /> Hide All</>
+                  ) : (
+                    <><Eye className="mr-1 h-3 w-3" /> Reveal All</>
+                  )}
+                </Button>
+                <div className="relative flex items-center">
+                  <Search className="absolute left-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
                     type="text"
                     placeholder="Filter by key name..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    style={searchInput}
+                    className="pl-8 h-8 text-sm w-[220px]"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      style={{
-                        position: 'absolute',
-                        right: 8,
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--color-text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        padding: '0 4px',
-                      }}
+                      className="absolute right-2 bg-transparent border-none text-muted-foreground cursor-pointer p-0"
                     >
-                      x
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -330,375 +329,153 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
 
       {/* Search results info */}
       {searchQuery && !loading && (
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+        <div className="text-xs text-muted-foreground mb-2">
           Showing {filteredSecrets.length} of {secrets.length} secrets matching &quot;{searchQuery}&quot;
         </div>
       )}
 
       {/* Content */}
       {loading ? (
-        <div style={loadingContainer}>
-          <div style={loadingSpinner} />
-          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            Loading secrets...
-          </span>
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <Skeleton className="h-6 w-6 rounded-full" />
+          <Skeleton className="h-4 w-32" />
         </div>
       ) : secrets.length === 0 ? (
-        <div style={emptyStateCard}>
-          <div style={emptyStateIcon}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={envColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px 0' }}>
-            No secrets in {env.toUpperCase()}
-          </h3>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 20px 0', maxWidth: 360, lineHeight: 1.6 }}>
-            Secrets are encrypted key-value pairs stored securely for this environment.
-            Add your first secret to get started with the{' '}
-            <span style={{ color: envColor, fontWeight: 600, textTransform: 'uppercase' }}>{env}</span>{' '}
-            environment.
-          </p>
-          <button
-            onClick={() => setShowAdd(true)}
-            style={{
-              ...btnPrimary,
-              padding: '10px 24px',
-              fontSize: 14,
-            }}
-          >
-            + Add Your First Secret
-          </button>
-        </div>
+        <Card className="text-center py-12 px-6">
+          <CardContent className="p-0 flex flex-col items-center">
+            <Lock className={cn('h-12 w-12 mb-4 opacity-70', ENV_TEXT_CLASSES[env])} />
+            <h3 className="text-base font-semibold mb-2">
+              No secrets in {env.toUpperCase()}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-[360px] leading-relaxed">
+              Secrets are encrypted key-value pairs stored securely for this environment.
+              Add your first secret to get started with the{' '}
+              <span className={cn('font-semibold uppercase', ENV_TEXT_CLASSES[env])}>{env}</span>{' '}
+              environment.
+            </p>
+            <Button onClick={() => setShowAdd(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Add Your First Secret
+            </Button>
+          </CardContent>
+        </Card>
       ) : filteredSecrets.length === 0 ? (
-        <div style={emptyStateCard}>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
-            No secrets matching &quot;{searchQuery}&quot; in {env.toUpperCase()}.
-          </p>
-        </div>
+        <Card className="text-center py-10 px-6">
+          <CardContent className="p-0">
+            <p className="text-sm text-muted-foreground">
+              No secrets matching &quot;{searchQuery}&quot; in {env.toUpperCase()}.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div style={tableWrapper}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Key</th>
-                <th style={thStyle}>Value</th>
-                <th style={{ ...thStyle, width: 160 }}>Updated</th>
-                <th style={{ ...thStyle, width: 220 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Key</TableHead>
+                <TableHead>Value</TableHead>
+                <TableHead className="w-[160px]">Updated</TableHead>
+                <TableHead className="w-[220px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredSecrets.map((s) => (
-                <tr
-                  key={s.id}
-                  style={{
-                    transition: 'background 0.1s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLTableRowElement).style.background = 'var(--color-surface-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLTableRowElement).style.background = 'transparent';
-                  }}
-                >
-                  <td style={tdStyle}>
-                    <code style={keyCodeStyle}>{s.key}</code>
-                  </td>
-                  <td style={tdStyle}>
+                <TableRow key={s.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <code className="text-sm font-semibold font-mono tracking-wide">{s.key}</code>
+                  </TableCell>
+                  <TableCell>
                     {editing === s.id ? (
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input
+                      <div className="flex gap-2 items-center">
+                        <Input
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          style={{ ...inputStyle, flex: 1 }}
+                          className="flex-1 h-8 text-sm"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleUpdate(s.id);
                             if (e.key === 'Escape') setEditing(null);
                           }}
                         />
-                        <button onClick={() => handleUpdate(s.id)} style={btnSmall}>
+                        <Button onClick={() => handleUpdate(s.id)} size="sm" className="h-8 text-xs">
                           Save
-                        </button>
-                        <button onClick={() => setEditing(null)} style={btnSmallOutline}>
+                        </Button>
+                        <Button onClick={() => setEditing(null)} variant="outline" size="sm" className="h-8 text-xs">
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     ) : (
-                      <code style={valueCodeStyle}>
+                      <code className="text-sm font-mono text-muted-foreground">
                         {revealed.has(s.id) ? s.value : maskValue()}
                       </code>
                     )}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">
                       {formatDate(s.updated_at)}
                     </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs px-2"
                         onClick={() => toggleReveal(s.id)}
-                        style={btnSmallOutline}
                         title={revealed.has(s.id) ? 'Hide value' : 'Reveal value'}
                       >
-                        {revealed.has(s.id) ? 'Hide' : 'Reveal'}
-                      </button>
+                        {revealed.has(s.id) ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
+                      </Button>
                       {revealed.has(s.id) && (
-                        <button
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            'h-7 text-xs px-2',
+                            copiedId === s.id && 'text-green-500 border-green-500'
+                          )}
                           onClick={() => copyToClipboard(s.id, s.value)}
-                          style={{
-                            ...btnSmallOutline,
-                            color: copiedId === s.id ? '#22c55e' : 'var(--color-text-secondary)',
-                            borderColor: copiedId === s.id ? '#22c55e' : 'var(--color-border)',
-                          }}
                           title="Copy to clipboard"
                         >
-                          {copiedId === s.id ? 'Copied!' : 'Copy'}
-                        </button>
+                          {copiedId === s.id ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
                       )}
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs px-2"
                         onClick={() => {
                           setEditing(s.id);
                           setEditValue(s.value || '');
                         }}
-                        style={btnSmallOutline}
                         title="Edit value"
                       >
-                        Edit
-                      </button>
-                      <button
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs px-2 text-destructive border-destructive hover:bg-destructive/10"
                         onClick={() => handleDelete(s.id)}
-                        style={btnSmallDanger}
                         title="Delete secret"
                       >
-                        Delete
-                      </button>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
 }
-
-/* --- Style Constants --- */
-
-const envTabsRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  marginBottom: 16,
-  alignItems: 'center',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'opacity 0.15s ease',
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-  fontWeight: 500,
-};
-
-const btnSmallOutline: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-  fontWeight: 500,
-  transition: 'all 0.1s ease',
-};
-
-const btnSmallDanger: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid var(--color-danger)',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-  fontWeight: 500,
-};
-
-const addFormCard: React.CSSProperties = {
-  marginBottom: 16,
-  background: 'var(--color-surface)',
-  padding: 20,
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  border: '1px solid var(--color-border)',
-};
-
-const addFormFieldsGrid: React.CSSProperties = {
-  display: 'flex',
-  gap: 12,
-  marginBottom: 12,
-};
-
-const formField: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  flex: 1,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  background: 'var(--color-input-bg)',
-  color: 'inherit',
-  outline: 'none',
-};
-
-const summaryBar: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 12,
-  gap: 12,
-};
-
-const summaryLeft: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-};
-
-const summaryRight: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-};
-
-const searchInput: React.CSSProperties = {
-  padding: '6px 12px 6px 32px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  background: 'var(--color-input-bg)',
-  color: 'inherit',
-  outline: 'none',
-  width: 220,
-};
-
-const loadingContainer: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 48,
-  gap: 16,
-};
-
-const loadingSpinner: React.CSSProperties = {
-  width: 24,
-  height: 24,
-  border: '3px solid var(--color-border)',
-  borderTopColor: 'var(--color-primary)',
-  borderRadius: '50%',
-  animation: 'spin 0.8s linear infinite',
-};
-
-const emptyStateCard: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '48px 24px',
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  border: '1px solid var(--color-border)',
-  textAlign: 'center',
-};
-
-const emptyStateIcon: React.CSSProperties = {
-  marginBottom: 16,
-  opacity: 0.7,
-};
-
-const tableWrapper: React.CSSProperties = {
-  borderRadius: 'var(--radius)',
-  overflow: 'hidden',
-  boxShadow: 'var(--shadow)',
-  border: '1px solid var(--color-border)',
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  background: 'var(--color-surface)',
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 16px',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  borderBottom: '1px solid var(--color-border)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const keyCodeStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  fontFamily: 'monospace',
-  letterSpacing: '0.02em',
-};
-
-const valueCodeStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontFamily: 'monospace',
-  color: 'var(--color-text-secondary)',
-};
-
-const errorStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '10px 14px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-  border: '1px solid var(--color-danger)',
-  fontWeight: 500,
-};
