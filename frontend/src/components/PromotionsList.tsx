@@ -7,6 +7,13 @@ import {
 } from '../api/client';
 import { formatDate } from '../utils/formatDate';
 import type { PromotionRequest } from '../types';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Layers, RotateCcw, CheckCircle2, XCircle } from 'lucide-react';
 
 interface PromotionsListProps {
   projectId: string;
@@ -21,9 +28,16 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'rejected', label: 'Rejected' },
 ];
 
-function getLeftBorderColor(source: string, target: string): string {
-  if (source === 'uat' && target === 'prod') return 'var(--color-warning)';
-  return 'var(--color-primary)';
+const statusBadgeClasses: Record<string, string> = {
+  pending: 'bg-amber-500/15 text-amber-500',
+  approved: 'bg-indigo-500/15 text-indigo-400',
+  completed: 'bg-green-500/15 text-green-500',
+  rejected: 'bg-red-500/15 text-red-500',
+};
+
+function getLeftBorderClass(source: string, target: string): string {
+  if (source === 'uat' && target === 'prod') return 'border-l-amber-500';
+  return 'border-l-primary';
 }
 
 export function PromotionsList({ projectId }: PromotionsListProps) {
@@ -31,6 +45,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const { toast } = useToast();
 
   useEffect(() => {
     loadPromotions();
@@ -51,6 +66,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
   async function handleApprove(id: string) {
     try {
       await approvePromotion(projectId, id);
+      toast({ title: 'Approved', description: 'Promotion approved successfully' });
       loadPromotions();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve');
@@ -60,6 +76,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
   async function handleReject(id: string) {
     try {
       await rejectPromotion(projectId, id);
+      toast({ title: 'Rejected', description: 'Promotion rejected' });
       loadPromotions();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject');
@@ -70,13 +87,13 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
     if (!window.confirm('Rollback this promotion? Target environment secrets will be restored.')) return;
     try {
       await rollbackPromotion(projectId, id);
+      toast({ title: 'Rolled back', description: 'Promotion rolled back successfully' });
       loadPromotions();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rollback');
     }
   }
 
-  /* ---------- Counts & Filtered List ---------- */
   const counts = useMemo(() => {
     const map: Record<StatusFilter, number> = { all: promotions.length, pending: 0, completed: 0, rejected: 0 };
     for (const p of promotions) {
@@ -92,215 +109,133 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
     return promotions.filter((p) => p.status === filter);
   }, [promotions, filter]);
 
-  if (loading) return <p>Loading promotion history...</p>;
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
-      {error && <div style={errorStyle}>{error}</div>}
+      {error && (
+        <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm mb-4">
+          {error}
+        </div>
+      )}
 
       {/* Status filter bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className="flex gap-2 mb-4 flex-wrap">
         {FILTERS.map((f) => {
           const active = filter === f.key;
           return (
-            <button
+            <Button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 999,
-                border: active ? 'none' : '1px solid var(--color-border)',
-                background: active ? 'var(--color-primary)' : 'transparent',
-                color: active ? '#fff' : 'var(--color-text-secondary)',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
+              variant={active ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-full font-semibold"
             >
               {f.label}
-              <span
-                style={{
-                  background: active ? 'rgba(255,255,255,0.25)' : 'var(--color-border)',
-                  color: active ? '#fff' : 'var(--color-text-secondary)',
-                  padding: '1px 7px',
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  lineHeight: '16px',
-                }}
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'ml-1.5 text-[11px] font-bold px-1.5 min-w-[20px] h-4',
+                  active ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground'
+                )}
               >
                 {counts[f.key]}
-              </span>
-            </button>
+              </Badge>
+            </Button>
           );
         })}
       </div>
 
       {/* Result count */}
       {filter !== 'all' && (
-        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+        <p className="text-xs text-muted-foreground mb-3">
           Showing {filtered.length} of {promotions.length} promotions
         </p>
       )}
 
       {filtered.length === 0 ? (
-        <div style={emptyCardStyle}>
-          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--color-text-secondary)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ marginBottom: 12, opacity: 0.5 }}
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-            <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+        <Card className="text-center py-8 px-4">
+          <CardContent className="p-0 flex flex-col items-center">
+            <Layers className="h-10 w-10 text-muted-foreground opacity-50 mb-3" />
+            <p className="text-sm font-semibold mb-1">
               {filter === 'all' ? 'No promotions yet' : `No ${filter} promotions`}
             </p>
-            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <p className="text-sm text-muted-foreground">
               {filter === 'all'
                 ? 'Promote secrets between environments to see them here.'
                 : 'Try a different filter to see more results.'}
             </p>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="grid gap-3">
           {filtered.map((p) => (
-            <div
+            <Card
               key={p.id}
-              style={{
-                ...cardStyle,
-                borderLeft: `3px solid ${getLeftBorderColor(p.source_environment, p.target_environment)}`,
-              }}
+              className={cn('border-l-[3px]', getLeftBorderClass(p.source_environment, p.target_environment))}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>
-                      {p.source_environment.toUpperCase()} &rarr; {p.target_environment.toUpperCase()}
-                    </span>
-                    <span style={{
-                      ...statusBadge,
-                      background: statusColors[p.status]?.bg || '#f3f4f6',
-                      color: statusColors[p.status]?.text || '#6b7280',
-                    }}>
-                      {p.status}
-                    </span>
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {p.source_environment.toUpperCase()} &rarr; {p.target_environment.toUpperCase()}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'text-[11px] uppercase font-semibold',
+                          statusBadgeClasses[p.status] || 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {p.status}
+                      </Badge>
+                    </div>
+                    {p.notes && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {p.notes}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Policy: {p.override_policy} | {formatDate(p.created_at)}
+                    </p>
+                    {p.keys_filter && p.keys_filter.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Keys: {p.keys_filter.join(', ')}
+                      </p>
+                    )}
                   </div>
-                  {p.notes && (
-                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                      {p.notes}
-                    </p>
-                  )}
-                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                    Policy: {p.override_policy} | {formatDate(p.created_at)}
-                  </p>
-                  {p.keys_filter && p.keys_filter.length > 0 && (
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                      Keys: {p.keys_filter.join(', ')}
-                    </p>
-                  )}
+                  <div className="flex gap-1.5">
+                    {p.status === 'pending' && (
+                      <>
+                        <Button onClick={() => handleApprove(p.id)} size="sm" className="bg-green-500 hover:bg-green-600 text-white">
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> Approve
+                        </Button>
+                        <Button onClick={() => handleReject(p.id)} size="sm" variant="destructive">
+                          <XCircle className="mr-1 h-3 w-3" /> Reject
+                        </Button>
+                      </>
+                    )}
+                    {p.status === 'completed' && (
+                      <Button onClick={() => handleRollback(p.id)} size="sm" variant="outline">
+                        <RotateCcw className="mr-1 h-3 w-3" /> Rollback
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {p.status === 'pending' && (
-                    <>
-                      <button onClick={() => handleApprove(p.id)} style={btnSuccess}>Approve</button>
-                      <button onClick={() => handleReject(p.id)} style={btnDanger}>Reject</button>
-                    </>
-                  )}
-                  {p.status === 'completed' && (
-                    <button onClick={() => handleRollback(p.id)} style={btnOutline}>Rollback</button>
-                  )}
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
     </div>
   );
 }
-
-/* ---------- Styles ---------- */
-
-const statusColors: Record<string, { bg: string; text: string }> = {
-  pending: { bg: 'rgba(245, 158, 11, 0.15)', text: '#f59e0b' },
-  approved: { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8' },
-  completed: { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e' },
-  rejected: { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444' },
-};
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  padding: 16,
-};
-
-const emptyCardStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-};
-
-const statusBadge: React.CSSProperties = {
-  padding: '2px 8px',
-  borderRadius: 4,
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-};
-
-const btnSuccess: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'var(--color-success)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'var(--color-danger)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnOutline: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-};

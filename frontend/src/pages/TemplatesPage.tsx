@@ -1,6 +1,26 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import type { SecretTemplate, Project } from '../types';
 import * as api from '../api/client';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Plus, Trash2, Play, X } from 'lucide-react';
+
+const stackColorMap: Record<string, string> = {
+  nodejs: 'bg-green-600',
+  python: 'bg-blue-600',
+  go: 'bg-cyan-500',
+  aws: 'bg-orange-500',
+  custom: 'bg-gray-500',
+};
 
 export function TemplatesPage() {
   const [templates, setTemplates] = useState<SecretTemplate[]>([]);
@@ -14,9 +34,8 @@ export function TemplatesPage() {
   const [applyProjectId, setApplyProjectId] = useState('');
   const [applyEnv, setApplyEnv] = useState('alpha');
   const [applyingId, setApplyingId] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     loadData();
@@ -34,7 +53,7 @@ export function TemplatesPage() {
       setBuiltinTemplates(builtin);
       setProjects(projectList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load templates');
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to load templates', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -73,10 +92,10 @@ export function TemplatesPage() {
       setDescription('');
       setStack('custom');
       setKeysText('');
-      setSuccess('Template created successfully');
+      toast({ title: 'Success', description: 'Template created successfully' });
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create template');
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create template', variant: 'destructive' });
     }
   }
 
@@ -84,26 +103,26 @@ export function TemplatesPage() {
     if (!window.confirm('Delete this template? This cannot be undone.')) return;
     try {
       await api.deleteTemplate(templateId);
-      setSuccess('Template deleted');
+      toast({ title: 'Deleted', description: 'Template deleted' });
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete template');
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to delete template', variant: 'destructive' });
     }
   }
 
   async function handleApply(templateId: string) {
     if (!applyProjectId) {
-      setError('Please select a project');
+      toast({ title: 'Error', description: 'Please select a project', variant: 'destructive' });
       return;
     }
     try {
       const secrets = await api.applyTemplate(templateId, applyProjectId, applyEnv);
-      setSuccess(`Applied template: ${secrets.length} secret${secrets.length !== 1 ? 's' : ''} created`);
+      toast({ title: 'Applied', description: `Applied template: ${secrets.length} secret${secrets.length !== 1 ? 's' : ''} created` });
       setApplyingId(null);
       setApplyProjectId('');
       setApplyEnv('alpha');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply template');
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to apply template', variant: 'destructive' });
     }
   }
 
@@ -114,103 +133,104 @@ export function TemplatesPage() {
   const totalCount = builtinTemplates.length + templates.length;
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading templates...</div>;
+    return (
+      <div className="space-y-4 p-10">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div>
       {/* Header */}
-      <div style={headerRow}>
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Secret Templates</h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+          <h1 className="text-2xl font-bold">Secret Templates</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {totalCount} template{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} style={btnPrimary}>
-          {showCreate ? 'Cancel' : '+ New Template'}
-        </button>
+        <Button onClick={() => setShowCreate(!showCreate)} variant={showCreate ? 'outline' : 'default'}>
+          {showCreate ? <><X className="mr-2 h-4 w-4" /> Cancel</> : <><Plus className="mr-2 h-4 w-4" /> New Template</>}
+        </Button>
       </div>
 
-      {/* Error alert */}
-      {error && (
-        <div style={errorStyle}>
-          {error}
-          <button
-            onClick={() => setError('')}
-            style={{ float: 'right', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
-          >
-            x
-          </button>
-        </div>
-      )}
-
-      {/* Success alert */}
-      {success && (
-        <div style={successStyle}>
-          {success}
-          <button
-            onClick={() => setSuccess('')}
-            style={{ float: 'right', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
-          >
-            x
-          </button>
-        </div>
-      )}
-
-      {/* Create form */}
-      {showCreate && (
-        <form onSubmit={handleCreate} style={createForm}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Create Template</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Template name"
-                required
-                style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-              />
-              <select
-                value={stack}
-                onChange={(e) => setStack(e.target.value)}
-                style={{ ...inputStyle, flex: 0, minWidth: 140 }}
-              >
-                <option value="custom">Custom</option>
-                <option value="nodejs">Node.js</option>
-                <option value="python">Python</option>
-                <option value="go">Go</option>
-                <option value="aws">AWS</option>
-              </select>
+      {/* Create form dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Template</DialogTitle>
+            <DialogDescription>Define a reusable set of secret keys for quick project setup.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="flex gap-3 flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <Label htmlFor="tmpl-name">Template name</Label>
+                <Input
+                  id="tmpl-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Template name"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div className="min-w-[140px]">
+                <Label>Stack</Label>
+                <Select value={stack} onValueChange={setStack}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="nodejs">Node.js</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
+                    <SelectItem value="go">Go</SelectItem>
+                    <SelectItem value="aws">AWS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-              style={inputStyle}
-            />
-            <textarea
-              value={keysText}
-              onChange={(e) => setKeysText(e.target.value)}
-              placeholder={"Keys (one per line, KEY=default_value):\nDATABASE_URL=\nPORT=3000\nLOG_LEVEL=info"}
-              rows={5}
-              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 13, resize: 'vertical' }}
-            />
-            <button type="submit" style={{ ...btnPrimary, alignSelf: 'flex-start' }}>
-              Create Template
-            </button>
-          </div>
-        </form>
-      )}
+            <div>
+              <Label htmlFor="tmpl-desc">Description (optional)</Label>
+              <Input
+                id="tmpl-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tmpl-keys">Keys (one per line, KEY=default_value)</Label>
+              <Textarea
+                id="tmpl-keys"
+                value={keysText}
+                onChange={(e) => setKeysText(e.target.value)}
+                placeholder={"DATABASE_URL=\nPORT=3000\nLOG_LEVEL=info"}
+                rows={5}
+                className="mt-1 font-mono text-sm resize-y"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="submit">Create Template</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Builtin Templates */}
-      <h2 style={sectionTitle}>Builtin Templates</h2>
+      <h2 className="text-base font-semibold mb-3">Builtin Templates</h2>
       {builtinTemplates.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 13, marginBottom: 24 }}>No builtin templates available.</p>
+        <p className="text-muted-foreground text-sm mb-6">No builtin templates available.</p>
       ) : (
-        <div style={cardGrid}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {builtinTemplates.map((tmpl, idx) => {
             const cardId = `builtin-${idx}`;
             return (
@@ -219,7 +239,6 @@ export function TemplatesPage() {
                 template={tmpl}
                 cardId={cardId}
                 keys={getTemplateKeyNames(tmpl)}
-                stackColor={stackColors[tmpl.stack] || stackColors.custom}
                 applyingId={applyingId}
                 applyProjectId={applyProjectId}
                 applyEnv={applyEnv}
@@ -237,23 +256,24 @@ export function TemplatesPage() {
       )}
 
       {/* Custom Templates */}
-      <h2 style={sectionTitle}>Custom Templates</h2>
+      <h2 className="text-base font-semibold mb-3">Custom Templates</h2>
       {templates.length === 0 ? (
-        <div style={emptyState}>
-          <p style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>No custom templates yet</p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            Create a template to quickly apply a set of secret keys to any project.
-          </p>
-        </div>
+        <Card className="text-center py-16 px-6">
+          <CardContent className="p-0">
+            <p className="text-base font-medium mb-1">No custom templates yet</p>
+            <p className="text-sm text-muted-foreground">
+              Create a template to quickly apply a set of secret keys to any project.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div style={cardGrid}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {templates.map((tmpl) => (
             <TemplateCard
               key={tmpl.id}
               template={tmpl}
               cardId={tmpl.id}
               keys={getTemplateKeyNames(tmpl)}
-              stackColor={stackColors[tmpl.stack] || stackColors.custom}
               applyingId={applyingId}
               applyProjectId={applyProjectId}
               applyEnv={applyEnv}
@@ -278,7 +298,6 @@ function TemplateCard({
   template,
   cardId,
   keys,
-  stackColor,
   applyingId,
   applyProjectId,
   applyEnv,
@@ -294,7 +313,6 @@ function TemplateCard({
   template: SecretTemplate;
   cardId: string;
   keys: string[];
-  stackColor: string;
   applyingId: string | null;
   applyProjectId: string;
   applyEnv: string;
@@ -310,264 +328,93 @@ function TemplateCard({
   const isApplying = applyingId === cardId;
 
   return (
-    <div style={templateCard}>
-      {/* Header: name + stack badge */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: 15 }}>{template.name}</strong>
-          <span style={{ ...stackBadge, background: stackColor }}>{template.stack}</span>
-          {isBuiltin && <span style={builtinBadge}>builtin</span>}
+    <Card className="flex flex-col">
+      <CardContent className="p-5 flex flex-col flex-1">
+        {/* Header: name + stack badge */}
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <strong className="text-[15px]">{template.name}</strong>
+            <Badge className={cn('text-white text-[11px]', stackColorMap[template.stack] || stackColorMap.custom)}>
+              {template.stack}
+            </Badge>
+            {isBuiltin && <Badge variant="outline" className="text-[10px]">builtin</Badge>}
+          </div>
         </div>
-      </div>
 
-      {/* Description */}
-      {template.description && (
-        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
-          {template.description}
-        </p>
-      )}
-
-      {/* Keys list */}
-      <div style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-        {keys.length === 0 ? (
-          <span style={{ fontStyle: 'italic', fontFamily: 'inherit' }}>No keys defined</span>
-        ) : (
-          <>
-            {keys.slice(0, 5).map((k) => (
-              <div key={k} style={keyTag}>{k}</div>
-            ))}
-            {keys.length > 5 && (
-              <div style={{ marginTop: 4, fontSize: 11, fontFamily: 'inherit' }}>
-                +{keys.length - 5} more key{keys.length - 5 !== 1 ? 's' : ''}
-              </div>
-            )}
-          </>
+        {/* Description */}
+        {template.description && (
+          <p className="text-sm text-muted-foreground mb-3 leading-snug">
+            {template.description}
+          </p>
         )}
-      </div>
 
-      {/* Actions */}
-      <div style={{ marginTop: 'auto' }}>
-        {isApplying ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <select
-              value={applyProjectId}
-              onChange={(e) => onProjectIdChange(e.target.value)}
-              style={selectSmall}
-            >
-              <option value="">-- Select project --</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+        {/* Keys list */}
+        <div className="text-xs font-mono text-muted-foreground mb-3">
+          {keys.length === 0 ? (
+            <span className="italic font-sans">No keys defined</span>
+          ) : (
+            <>
+              {keys.slice(0, 5).map((k) => (
+                <span key={k} className="inline-block px-1.5 py-0.5 m-0.5 bg-muted border border-border rounded text-[11px]">
+                  {k}
+                </span>
               ))}
-            </select>
-            <select
-              value={applyEnv}
-              onChange={(e) => onEnvChange(e.target.value)}
-              style={selectSmall}
-            >
-              <option value="alpha">Alpha</option>
-              <option value="uat">UAT</option>
-              <option value="prod">Prod</option>
-            </select>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={onApply} style={btnConfirm}>
-                Confirm
-              </button>
-              <button onClick={onApplyCancel} style={btnCancel}>
-                Cancel
-              </button>
+              {keys.length > 5 && (
+                <div className="mt-1 text-[11px] font-sans">
+                  +{keys.length - 5} more key{keys.length - 5 !== 1 ? 's' : ''}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="mt-auto">
+          {isApplying ? (
+            <div className="flex flex-col gap-2">
+              <Select value={applyProjectId} onValueChange={onProjectIdChange}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="-- Select project --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={applyEnv} onValueChange={onEnvChange}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alpha">Alpha</SelectItem>
+                  <SelectItem value="uat">UAT</SelectItem>
+                  <SelectItem value="prod">Prod</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Button onClick={onApply} size="sm" className="flex-1">
+                  Confirm
+                </Button>
+                <Button onClick={onApplyCancel} variant="outline" size="sm" className="flex-1">
+                  Cancel
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onApplyStart} style={btnApply}>
-              Apply
-            </button>
-            {onDelete && (
-              <button onClick={onDelete} style={btnDanger}>
-                Delete
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button onClick={onApplyStart} size="sm">
+                <Play className="mr-1 h-3 w-3" /> Apply
+              </Button>
+              {onDelete && (
+                <Button onClick={onDelete} variant="destructive" size="sm">
+                  <Trash2 className="mr-1 h-3 w-3" /> Delete
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
-
-/* ───────────────────── Style Constants ───────────────────── */
-
-const stackColors: Record<string, string> = {
-  nodejs: '#68a063',
-  python: '#3776ab',
-  go: '#00add8',
-  aws: '#ff9900',
-  custom: '#6b7280',
-};
-
-const headerRow: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  marginBottom: 24,
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnApply: React.CSSProperties = {
-  padding: '6px 14px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid rgba(239, 68, 68, 0.3)',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const btnConfirm: React.CSSProperties = {
-  flex: 1,
-  padding: '6px 10px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnCancel: React.CSSProperties = {
-  flex: 1,
-  padding: '6px 10px',
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const templateCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: 20,
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: 'var(--shadow)',
-};
-
-const cardGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-  gap: 16,
-  marginBottom: 32,
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 600,
-  marginBottom: 12,
-};
-
-const stackBadge: React.CSSProperties = {
-  padding: '2px 10px',
-  color: '#fff',
-  borderRadius: 12,
-  fontSize: 11,
-  fontWeight: 600,
-  whiteSpace: 'nowrap',
-};
-
-const builtinBadge: React.CSSProperties = {
-  padding: '2px 8px',
-  background: 'var(--color-input-bg)',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 12,
-  fontSize: 10,
-  fontWeight: 500,
-};
-
-const keyTag: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '1px 6px',
-  margin: '2px 4px 2px 0',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 11,
-};
-
-const selectSmall: React.CSSProperties = {
-  padding: '6px 10px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  color: 'var(--color-text)',
-};
-
-const createForm: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: 20,
-  marginBottom: 24,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 14,
-  color: 'var(--color-text)',
-};
-
-const emptyState: React.CSSProperties = {
-  textAlign: 'center',
-  padding: 60,
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '10px 14px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-  border: '1px solid rgba(239, 68, 68, 0.2)',
-};
-
-const successStyle: React.CSSProperties = {
-  background: 'rgba(34, 197, 94, 0.1)',
-  color: '#22c55e',
-  padding: '10px 14px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-  border: '1px solid rgba(34, 197, 94, 0.2)',
-};

@@ -1,92 +1,146 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { OAuthClient } from '../types/mcp';
 import * as api from '../api/client';
+import { useToast } from '@/hooks/useToast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Plus, Trash2, Copy, AlertTriangle } from 'lucide-react';
 
 export function OAuthClientsPage() {
   const [clients, setClients] = useState<OAuthClient[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setClients(await api.listOAuthClients());
     } catch {
-      // ignore
+      toast({ title: 'Error', description: 'Failed to load OAuth clients', variant: 'destructive' });
     }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="flex justify-between items-center mb-5">
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>OAuth Clients</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <h1 className="text-2xl font-bold">OAuth Clients</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage OAuth 2.0 client applications that authenticate via KeepSave
           </p>
         </div>
-        <button onClick={() => { setShowCreate(true); setNewSecret(null); }} style={primaryBtn}>
-          + Register Client
-        </button>
+        <Button onClick={() => { setShowCreate(true); setNewSecret(null); }}>
+          <Plus className="mr-2 h-4 w-4" /> Register Client
+        </Button>
       </div>
 
       {newSecret && (
-        <div style={secretBanner}>
-          <strong>Client Secret (copy now, shown only once):</strong>
-          <code style={secretCode}>{newSecret}</code>
-          <button onClick={() => { navigator.clipboard.writeText(newSecret); }} style={copyBtn}>Copy</button>
-        </div>
+        <Card className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <strong className="text-sm text-amber-800 dark:text-amber-200">Client Secret (copy now, shown only once):</strong>
+            </div>
+            <code className="block mt-2 p-2 bg-white dark:bg-black/20 border border-border rounded text-xs font-mono break-all">
+              {newSecret}
+            </code>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                navigator.clipboard.writeText(newSecret);
+                toast({ title: 'Copied', description: 'Client secret copied to clipboard' });
+              }}
+            >
+              <Copy className="mr-1 h-3 w-3" /> Copy
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {loading ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p>
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-lg" />
+          ))}
+        </div>
       ) : clients.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>No OAuth clients registered yet.</p>
+        <Card className="text-center py-16 px-6">
+          <CardContent className="p-0">
+            <p className="text-sm text-muted-foreground">No OAuth clients registered yet.</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {clients.map(client => (
-            <div key={client.id} style={clientCard}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>{client.name}</span>
-                  {client.is_public && <span style={publicBadge}>Public</span>}
+            <Card key={client.id}>
+              <CardContent className="p-4 flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm">{client.name}</span>
+                    {client.is_public && (
+                      <Badge variant="secondary" className="text-[10px] bg-indigo-500/10 text-indigo-500">
+                        Public
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    {client.description}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    <strong>Client ID:</strong> <code className="text-[11px]">{client.client_id}</code>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    <strong>Scopes:</strong> {client.scopes.join(', ')} &middot; <strong>Grants:</strong> {client.grant_types.join(', ')}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    <strong>Redirect URIs:</strong> {client.redirect_uris.join(', ') || 'none'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-                  {client.description}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                  <strong>Client ID:</strong> <code>{client.client_id}</code>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                  <strong>Scopes:</strong> {client.scopes.join(', ')} &middot; <strong>Grants:</strong> {client.grant_types.join(', ')}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                  <strong>Redirect URIs:</strong> {client.redirect_uris.join(', ') || 'none'}
-                </div>
-              </div>
-              <button onClick={async () => { await api.deleteOAuthClient(client.id); load(); }} style={dangerBtn}>
-                Delete
-              </button>
-            </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    await api.deleteOAuthClient(client.id);
+                    toast({ title: 'Deleted', description: 'OAuth client deleted' });
+                    load();
+                  }}
+                >
+                  <Trash2 className="mr-1 h-3 w-3" /> Delete
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
-      {showCreate && (
-        <CreateClientModal
-          onClose={() => setShowCreate(false)}
-          onCreated={(secret) => { setShowCreate(false); setNewSecret(secret); load(); }}
-        />
-      )}
+      <CreateClientModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={(secret) => {
+          setShowCreate(false);
+          setNewSecret(secret);
+          toast({ title: 'Registered', description: 'OAuth client registered successfully' });
+          load();
+        }}
+      />
     </div>
   );
 }
 
-function CreateClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (secret: string) => void }) {
+function CreateClientModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (secret: string) => void }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [redirectURIs, setRedirectURIs] = useState('');
@@ -120,171 +174,60 @@ function CreateClientModal({ onClose, onCreated }: { onClose: () => void; onCrea
   };
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>Register OAuth Client</h2>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Register OAuth Client</DialogTitle>
+          <DialogDescription>Register a new OAuth 2.0 client application.</DialogDescription>
+        </DialogHeader>
 
-        <label style={labelStyle}>Application Name *</label>
-        <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="My Application" />
-
-        <label style={labelStyle}>Description</label>
-        <input value={description} onChange={e => setDescription(e.target.value)} style={inputStyle} placeholder="What does this app do?" />
-
-        <label style={labelStyle}>Redirect URIs (one per line)</label>
-        <textarea value={redirectURIs} onChange={e => setRedirectURIs(e.target.value)} style={{ ...inputStyle, minHeight: 60 }} placeholder="https://myapp.com/callback" />
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="space-y-4">
           <div>
-            <label style={labelStyle}>Scopes (comma-separated)</label>
-            <input value={scopes} onChange={e => setScopes(e.target.value)} style={inputStyle} placeholder="read,write" />
+            <Label>Application Name *</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="My Application" className="mt-1" />
           </div>
+
           <div>
-            <label style={labelStyle}>Grant Types (comma-separated)</label>
-            <input value={grantTypes} onChange={e => setGrantTypes(e.target.value)} style={inputStyle} placeholder="authorization_code,client_credentials" />
+            <Label>Description</Label>
+            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What does this app do?" className="mt-1" />
           </div>
+
+          <div>
+            <Label>Redirect URIs (one per line)</Label>
+            <Textarea
+              value={redirectURIs}
+              onChange={e => setRedirectURIs(e.target.value)}
+              placeholder="https://myapp.com/callback"
+              className="mt-1 min-h-[60px]"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Scopes (comma-separated)</Label>
+              <Input value={scopes} onChange={e => setScopes(e.target.value)} placeholder="read,write" className="mt-1" />
+            </div>
+            <div>
+              <Label>Grant Types (comma-separated)</Label>
+              <Input value={grantTypes} onChange={e => setGrantTypes(e.target.value)} placeholder="authorization_code,client_credentials" className="mt-1" />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer mt-4">
+            <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="rounded" />
+            Public client (no client_secret required for token exchange)
+          </label>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
-        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
-          <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-          Public client (no client_secret required for token exchange)
-        </label>
-
-        {error && <p style={{ color: '#ef4444', fontSize: 13, margin: '8px 0' }}>{error}</p>}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={cancelBtn}>Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} style={primaryBtn}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? 'Registering...' : 'Register Client'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
-
-const primaryBtn: React.CSSProperties = {
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  padding: '8px 16px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const cancelBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: 'var(--color-text-secondary)',
-  border: '1px solid var(--color-border)',
-  padding: '8px 16px',
-  borderRadius: 8,
-  fontSize: 13,
-  cursor: 'pointer',
-};
-
-const dangerBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: '#ef4444',
-  border: '1px solid #ef4444',
-  padding: '4px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
-
-const clientCard: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  background: 'var(--color-card)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 10,
-  padding: '14px 16px',
-};
-
-const publicBadge: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  padding: '2px 8px',
-  borderRadius: 10,
-  background: '#6366f120',
-  color: '#6366f1',
-};
-
-const secretBanner: React.CSSProperties = {
-  background: '#fef3c7',
-  border: '1px solid #f59e0b',
-  borderRadius: 10,
-  padding: '12px 16px',
-  marginBottom: 16,
-  fontSize: 13,
-  color: '#92400e',
-};
-
-const secretCode: React.CSSProperties = {
-  display: 'block',
-  marginTop: 6,
-  padding: '6px 10px',
-  background: '#fff',
-  border: '1px solid #e5e7eb',
-  borderRadius: 6,
-  fontFamily: 'monospace',
-  fontSize: 12,
-  wordBreak: 'break-all',
-};
-
-const copyBtn: React.CSSProperties = {
-  marginTop: 8,
-  background: '#f59e0b',
-  color: '#fff',
-  border: 'none',
-  padding: '4px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: 'rgba(0,0,0,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 100,
-};
-
-const modalStyle: React.CSSProperties = {
-  background: 'var(--color-card)',
-  borderRadius: 16,
-  padding: 24,
-  width: '100%',
-  maxWidth: 520,
-  maxHeight: '90vh',
-  overflow: 'auto',
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  marginBottom: 4,
-  marginTop: 12,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 8,
-  background: 'var(--color-bg)',
-  color: 'var(--color-text)',
-  fontSize: 13,
-  boxSizing: 'border-box',
-};

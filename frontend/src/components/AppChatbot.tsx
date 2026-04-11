@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { MessageCircle, X, Send } from 'lucide-react';
 import type { DashboardApplication } from '../types';
 
 interface Message {
@@ -30,7 +34,6 @@ export function AppChatbot({ applications }: AppChatbotProps) {
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
-    // Simple local AI-like response based on application data
     const response = generateResponse(userMessage, applications);
     setTimeout(() => {
       setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
@@ -43,82 +46,60 @@ export function AppChatbot({ applications }: AppChatbotProps) {
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          left: 24,
-          zIndex: 200,
-          width: 48,
-          height: 48,
-          borderRadius: '50%',
-          background: 'var(--color-primary)',
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
-          fontSize: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        }}
+        className="fixed bottom-6 left-6 z-[200] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer text-xl flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
         title="App Assistant"
       >
-        {isOpen ? '\u2715' : '\u{1F4AC}'}
+        {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
       </button>
 
       {/* Chat Panel */}
       {isOpen && (
-        <div style={panelStyle}>
-          <div style={headerStyle}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text)' }}>App Assistant</span>
-            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+        <div className="fixed bottom-20 left-6 w-[360px] max-h-[480px] z-[200] bg-card border border-border rounded-2xl flex flex-col shadow-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex justify-between items-center">
+            <span className="font-bold text-sm text-foreground">App Assistant</span>
+            <span className="text-xs text-muted-foreground">
               Ask about your {applications.length} apps
             </span>
           </div>
 
-          <div style={messagesContainer}>
+          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-[200px] max-h-[320px]">
             {messages.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--color-text-secondary)', fontSize: 13 }}>
-                <p style={{ margin: 0 }}>Ask me about your applications!</p>
-                <p style={{ margin: '8px 0 0', fontSize: 12 }}>Try: "What apps do I have?" or "Find dev tools"</p>
+              <div className="text-center py-10 px-4 text-muted-foreground text-sm">
+                <p>Ask me about your applications!</p>
+                <p className="mt-2 text-xs">Try: &quot;What apps do I have?&quot; or &quot;Find dev tools&quot;</p>
               </div>
             )}
             {messages.map((msg, i) => (
               <div
                 key={i}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  maxWidth: '85%',
-                  alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  background: msg.role === 'user' ? 'var(--color-primary)' : 'var(--color-bg)',
-                  color: msg.role === 'user' ? '#fff' : 'var(--color-text)',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap',
-                }}
+                className={cn(
+                  'px-3 py-2 rounded-xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap',
+                  msg.role === 'user'
+                    ? 'self-end bg-primary text-primary-foreground'
+                    : 'self-start bg-muted text-foreground'
+                )}
               >
                 {msg.content}
               </div>
             ))}
             {loading && (
-              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--color-bg)', color: 'var(--color-text-secondary)', fontSize: 13, alignSelf: 'flex-start' }}>
+              <div className="self-start px-3 py-2 rounded-xl bg-muted text-muted-foreground text-sm">
                 Thinking...
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSubmit} style={inputContainer}>
-            <input
+          <form onSubmit={handleSubmit} className="p-3 border-t border-border flex gap-2">
+            <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about your apps..."
-              style={chatInput}
+              className="flex-1 text-sm"
             />
-            <button type="submit" disabled={loading || !input.trim()} style={sendBtn}>
-              Send
-            </button>
+            <Button type="submit" size="sm" disabled={loading || !input.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
           </form>
         </div>
       )}
@@ -129,14 +110,12 @@ export function AppChatbot({ applications }: AppChatbotProps) {
 function generateResponse(query: string, apps: DashboardApplication[]): string {
   const q = query.toLowerCase();
 
-  // List all apps
   if (q.includes('what app') || q.includes('list') || q.includes('all app') || q.includes('show me')) {
     if (apps.length === 0) return 'You don\'t have any applications registered yet. Click "+ Register Service" to add one!';
     const list = apps.map((a) => `\u2022 ${a.icon} ${a.name} - ${a.category} (${a.url})`).join('\n');
     return `You have ${apps.length} application(s):\n\n${list}`;
   }
 
-  // Search by category
   const categories = [...new Set(apps.map((a) => a.category))];
   for (const cat of categories) {
     if (q.includes(cat.toLowerCase())) {
@@ -147,7 +126,6 @@ function generateResponse(query: string, apps: DashboardApplication[]): string {
     }
   }
 
-  // Search by name/description
   const matched = apps.filter(
     (a) => a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q)
   );
@@ -156,7 +134,6 @@ function generateResponse(query: string, apps: DashboardApplication[]): string {
     return `Found ${matched.length} matching app(s):\n\n${list}`;
   }
 
-  // Favorites
   if (q.includes('favorite') || q.includes('fav')) {
     const favs = apps.filter((a) => a.is_favorite);
     if (favs.length === 0) return 'You haven\'t favorited any applications yet. Click the star icon on any app card to favorite it.';
@@ -164,82 +141,14 @@ function generateResponse(query: string, apps: DashboardApplication[]): string {
     return `Your favorite apps:\n\n${list}`;
   }
 
-  // Stats
   if (q.includes('stat') || q.includes('how many') || q.includes('count')) {
     const catCounts = categories.map((c) => `${c}: ${apps.filter((a) => a.category === c).length}`).join(', ');
     return `You have ${apps.length} total applications.\nBy category: ${catCounts || 'none'}`;
   }
 
-  // Help
   if (q.includes('help') || q.includes('what can')) {
     return 'I can help you with:\n\n\u2022 "List all apps" - see all your applications\n\u2022 "Find dev tools" - search by category\n\u2022 "Search MedQCNN" - find apps by name\n\u2022 "Show favorites" - see your favorites\n\u2022 "Stats" - get application counts';
   }
 
   return `I couldn't find apps matching "${query}". Try asking "list all apps" or "help" to see what I can do.`;
 }
-
-// --- Styles ---
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 80,
-  left: 24,
-  width: 360,
-  maxHeight: 480,
-  zIndex: 200,
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 16,
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-  overflow: 'hidden',
-};
-
-const headerStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  borderBottom: '1px solid var(--color-border)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-};
-
-const messagesContainer: React.CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: 12,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  minHeight: 200,
-  maxHeight: 320,
-};
-
-const inputContainer: React.CSSProperties = {
-  padding: 12,
-  borderTop: '1px solid var(--color-border)',
-  display: 'flex',
-  gap: 8,
-};
-
-const chatInput: React.CSSProperties = {
-  flex: 1,
-  padding: '8px 12px',
-  borderRadius: 8,
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-bg)',
-  color: 'var(--color-text)',
-  fontSize: 13,
-  outline: 'none',
-};
-
-const sendBtn: React.CSSProperties = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

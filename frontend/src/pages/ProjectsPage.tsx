@@ -2,6 +2,14 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listProjects, createProject, deleteProject } from '../api/client';
 import type { Project } from '../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/useToast';
+import { Plus, Trash2, FolderOpen } from 'lucide-react';
+
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -11,6 +19,7 @@ export function ProjectsPage() {
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadProjects();
@@ -35,6 +44,7 @@ export function ProjectsPage() {
       setDescription('');
       setShowCreate(false);
       loadProjects();
+      toast({ title: 'Project created', description: `"${name}" has been created successfully.` });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create project');
     }
@@ -45,191 +55,134 @@ export function ProjectsPage() {
     try {
       await deleteProject(id);
       loadProjects();
+      toast({ title: 'Project deleted', description: 'The project has been removed.', variant: 'destructive' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete project');
     }
   }
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading projects...</div>;
+    return (
+      <div className="space-y-3 p-10">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <div className="grid gap-3 mt-6">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div style={headerRow}>
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700 }}>Projects</h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+          <h1 className="text-2xl font-bold">Projects</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {projects.length} project{projects.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} style={btnPrimary}>
-          {showCreate ? 'Cancel' : '+ New Project'}
-        </button>
+        <Button onClick={() => setShowCreate(!showCreate)} variant={showCreate ? 'outline' : 'default'}>
+          {showCreate ? (
+            'Cancel'
+          ) : (
+            <>
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </>
+          )}
+        </Button>
       </div>
 
-      {error && <div style={errorStyle}>{error}</div>}
-
-      {showCreate && (
-        <form onSubmit={handleCreate} style={createForm}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Create Project</h3>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <input
-              placeholder="Project name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              style={inputStyle}
-            />
-            <input
-              placeholder="Description (optional)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              style={{ ...inputStyle, flex: 2 }}
-            />
-            <button type="submit" style={btnPrimary}>Create</button>
-          </div>
-        </form>
+      {/* Error */}
+      {error && (
+        <div className="bg-destructive/10 text-destructive px-3.5 py-2.5 rounded-md text-sm border border-destructive/20 mb-4">
+          {error}
+        </div>
       )}
 
+      {/* Create form */}
+      {showCreate && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[15px] font-semibold">Create Project</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreate} className="flex gap-3 flex-wrap">
+              <Input
+                placeholder="Project name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="flex-1 min-w-[200px]"
+              />
+              <Input
+                placeholder="Description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="flex-[2] min-w-[200px]"
+              />
+              <Button type="submit">Create</Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Project list */}
       {projects.length === 0 ? (
-        <div style={emptyState}>
-          <p style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>No projects yet</p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Create your first project to start managing secrets securely.</p>
-        </div>
+        <Card className="text-center py-16">
+          <CardContent>
+            <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+            <p className="text-base font-medium mb-1">No projects yet</p>
+            <p className="text-sm text-muted-foreground">Create your first project to start managing secrets securely.</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="grid gap-3">
           {projects.map((p) => (
-            <div key={p.id} style={projectCard}>
+            <Card key={p.id} className="flex items-start gap-4 p-5">
               <div
-                style={{ flex: 1, cursor: 'pointer' }}
+                className="flex-1 cursor-pointer"
                 onClick={() => navigate(`/projects/${p.id}`)}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={projectIcon}>{p.name.charAt(0).toUpperCase()}</div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/15 text-primary flex items-center justify-center font-bold text-base shrink-0">
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
                   <div>
-                    <h3 style={{ fontSize: 15, fontWeight: 600 }}>{p.name}</h3>
+                    <h3 className="text-[15px] font-semibold">{p.name}</h3>
                     {p.description && (
-                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                      <p className="text-sm text-muted-foreground mt-0.5">
                         {p.description}
                       </p>
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-                  <span style={metaTag}>
+                <div className="flex gap-4 mt-3">
+                  <Badge variant="outline" className="text-[11px] font-normal">
                     Created {new Date(p.created_at).toLocaleDateString()}
-                  </span>
-                  <span style={metaTag}>3 environments</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-[11px] font-normal">
+                    3 environments
+                  </Badge>
                 </div>
               </div>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive shrink-0"
                 onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
-                style={btnDanger}
               >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Delete
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
         </div>
       )}
     </div>
   );
 }
-
-const headerRow: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  marginBottom: 24,
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid rgba(239, 68, 68, 0.3)',
-  borderRadius: 'var(--radius)',
-  fontSize: 12,
-  alignSelf: 'flex-start',
-};
-
-const projectCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: 20,
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: 16,
-};
-
-const projectIcon: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 8,
-  background: 'rgba(99, 102, 241, 0.15)',
-  color: 'var(--color-primary)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontWeight: 700,
-  fontSize: 16,
-  flexShrink: 0,
-};
-
-const metaTag: React.CSSProperties = {
-  fontSize: 11,
-  color: 'var(--color-text-secondary)',
-  padding: '2px 8px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-};
-
-const createForm: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  padding: 20,
-  marginBottom: 24,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  fontSize: 14,
-  color: 'var(--color-text)',
-  flex: 1,
-  minWidth: 200,
-};
-
-const emptyState: React.CSSProperties = {
-  textAlign: 'center',
-  padding: 60,
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '10px 14px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-  border: '1px solid rgba(239, 68, 68, 0.2)',
-};

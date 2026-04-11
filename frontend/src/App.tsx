@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from './components/ui/toaster';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -26,6 +28,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage onLogin={auth.login} />} />
           <Route path="*" element={<LoginPage onLogin={auth.login} />} />
         </Routes>
+        <Toaster />
       </BrowserRouter>
     );
   }
@@ -33,20 +36,23 @@ export default function App() {
   return (
     <BrowserRouter>
       <Layout user={auth.user} onLogout={auth.logout}>
-        <Routes>
-          <Route path="/" element={<ProjectsPage />} />
-          <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
-          <Route path="/organizations" element={<OrganizationsPage />} />
-          <Route path="/templates" element={<TemplatesPage />} />
-          <Route path="/mcp-hub" element={<MCPHubPage />} />
-          <Route path="/oauth-clients" element={<OAuthClientsPage />} />
-          <Route path="/applications" element={<ApplicationDashboardPage />} />
-          <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
-          <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/help" element={<HelpPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<ProjectsPage />} />
+            <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
+            <Route path="/organizations" element={<OrganizationsPage />} />
+            <Route path="/templates" element={<TemplatesPage />} />
+            <Route path="/mcp-hub" element={<MCPHubPage />} />
+            <Route path="/oauth-clients" element={<OAuthClientsPage />} />
+            <Route path="/applications" element={<ApplicationDashboardPage />} />
+            <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
+            <Route path="/admin/*" element={<AdminDashboardPage />} />
+            <Route path="/help" element={<HelpPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </Layout>
+      <Toaster />
     </BrowserRouter>
   );
 }

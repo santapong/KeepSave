@@ -7,6 +7,10 @@ import { PromotionsList } from '../components/PromotionsList';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 import { ProjectAPIKeysPanel } from '../components/ProjectAPIKeysPanel';
 import type { Project } from '../types';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+
+import { ArrowLeft } from 'lucide-react';
 
 type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys';
 
@@ -33,8 +37,25 @@ export function ProjectDetailPage() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load project'));
   }, [id]);
 
-  if (error) return <div style={errorStyle}>{error}</div>;
-  if (!project) return <p>Loading...</p>;
+  if (error) {
+    return (
+      <div className="bg-destructive/10 text-destructive px-3.5 py-2.5 rounded-md text-sm border border-destructive/20">
+        {error}
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="space-y-3 p-10">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-10 w-full mt-6 rounded-md" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    );
+  }
 
   const tabs: { key: Tab; label: string; path: string }[] = [
     { key: 'secrets', label: 'Secrets', path: `/projects/${id}` },
@@ -46,32 +67,29 @@ export function ProjectDetailPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Link to="/" style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          &larr; Projects
+      <div className="mb-6">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Projects
         </Link>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 8 }}>{project.name}</h1>
+        <h1 className="text-2xl font-bold mt-2">{project.name}</h1>
         {project.description && (
-          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>{project.description}</p>
+          <p className="text-sm text-muted-foreground">{project.description}</p>
         )}
       </div>
 
-      <div style={tabBar}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => navigate(tab.path)}
-            style={{
-              ...tabBtn,
-              borderBottomColor: currentTab === tab.key ? 'var(--color-primary)' : 'transparent',
-              color: currentTab === tab.key ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              fontWeight: currentTab === tab.key ? 600 : 400,
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={currentTab} onValueChange={(value) => {
+        const tab = tabs.find((t) => t.key === value);
+        if (tab) navigate(tab.path);
+      }}>
+        <TabsList className="mb-6">
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.key} value={tab.key}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       <Routes>
         <Route index element={<SecretsPanel projectId={id!} />} />
@@ -83,27 +101,3 @@ export function ProjectDetailPage() {
     </div>
   );
 }
-
-const tabBar: React.CSSProperties = {
-  display: 'flex',
-  gap: 0,
-  borderBottom: '1px solid var(--color-border)',
-  marginBottom: 24,
-};
-
-const tabBtn: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  borderBottom: '2px solid transparent',
-  padding: '8px 16px',
-  fontSize: 14,
-  cursor: 'pointer',
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-};

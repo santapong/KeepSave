@@ -84,12 +84,12 @@ describe('SecretsPanel', () => {
       expect(screen.getByText('DATABASE_URL')).toBeInTheDocument();
     });
 
-    const revealButtons = screen.getAllByText('Reveal');
+    const revealButtons = screen.getAllByTitle('Reveal value');
     await user.click(revealButtons[0]);
 
     expect(screen.getByText('postgres://localhost/db')).toBeInTheDocument();
 
-    await user.click(screen.getByText('Hide'));
+    await user.click(screen.getByTitle('Hide value'));
     expect(screen.queryByText('postgres://localhost/db')).not.toBeInTheDocument();
   });
 
@@ -103,8 +103,8 @@ describe('SecretsPanel', () => {
 
     await user.click(screen.getByText('Add Secret'));
 
-    const keyInput = screen.getByPlaceholderText('KEY_NAME');
-    const valueInput = screen.getByPlaceholderText('Secret value');
+    const keyInput = screen.getByPlaceholderText('e.g. DATABASE_URL');
+    const valueInput = screen.getByPlaceholderText('Enter the secret value');
 
     await user.type(keyInput, 'NEW_KEY');
     await user.type(valueInput, 'new-value');
@@ -118,7 +118,7 @@ describe('SecretsPanel', () => {
     render(<SecretsPanel projectId="p1" />);
 
     await waitFor(() => {
-      expect(screen.getByText(/No secrets in ALPHA environment/)).toBeInTheDocument();
+      expect(screen.getByText(/No secrets in ALPHA/)).toBeInTheDocument();
     });
   });
 

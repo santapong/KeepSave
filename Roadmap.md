@@ -169,6 +169,9 @@ A secure, self-hosted vault for environment variables with a controlled promotio
 | 10    | Security Hardening    | CSRF, security headers, token hardening  |
 | 11    | AI Agent Experience   | JIT access, sandboxing, activity dashboard |
 | 12    | Platform Ecosystem    | Event bus, plugin system, GraphQL        |
+| 13    | OAuth 2.0 + MCP Hub   | Identity provider, MCP server marketplace |
+| 14    | Application Dashboard | Professional UI, 8-tab admin dashboard   |
+| 15    | AI Intelligence       | Drift detection, anomaly prediction, NLP |
 
 ---
 
@@ -566,3 +569,105 @@ helm install keepsave ./helm/keepsave \
 ```
 
 See `helm/keepsave/values.yaml` for all configurable options.
+
+---
+
+## Phase 13 - OAuth 2.0 Provider + MCP Server Hub
+
+**Goal:** Transform KeepSave into an identity provider and centralized MCP server management platform.
+
+- [x] Full OAuth 2.0 identity provider (authorization code flow, client credentials, PKCE, refresh tokens)
+- [x] OIDC Discovery endpoint (`.well-known/openid-configuration`)
+- [x] Central MCP Server Hub with GitHub integration for registering and managing MCP servers
+- [x] MCP Gateway/Proxy for routing tool calls to MCP servers with automatic secret injection
+- [x] JSON-RPC 2.0 protocol support for tool execution
+- [x] MCP server marketplace for discovering and installing community servers
+- [x] Tool catalog with unified endpoint for listing all available tools
+- [x] MCP configuration export for Claude Desktop/Code integration
+
+### Deliverables
+- OAuth 2.0 identity provider enabling third-party integrations
+- Central MCP Server Hub marketplace for AI agent tooling
+- MCP Gateway that securely injects secrets as environment variables
+
+---
+
+## Phase 14 - Application Dashboard
+
+**Goal:** Professional frontend overhaul and comprehensive operational dashboard.
+
+### Frontend Overhaul
+- [x] Migrate from pure CSS inline styles to Tailwind CSS + Shadcn/UI component library
+- [x] 17 Shadcn/UI base components (Button, Card, Dialog, Table, Tabs, Select, Toast, etc.)
+- [x] Collapsible sidebar navigation (240px/64px) with grouped sections replacing top navbar
+- [x] Route-derived breadcrumbs in header bar
+- [x] Toast notification system for all user actions
+- [x] Skeleton loading states replacing "Loading..." text
+- [x] Error boundary with graceful fallback UI
+- [x] Dark/light theme support throughout
+- [x] Mobile responsive sidebar drawer
+
+### 8-Tab Admin Dashboard
+- [x] **Overview** — System health, stat cards, endpoint status, uptime
+- [x] **Metrics** — Request rate, error rate, latency charts (Recharts AreaChart + BarChart), Prometheus metrics parsing
+- [x] **Agent Activity** — Heatmap grid (7x24 day/hour), activity timeline, project-filtered agent logs
+- [x] **Security** — Security events table, severity PieChart, failed auth tracking, rate limit violations
+- [x] **Traces** — Distributed trace viewer, trace waterfall visualization, duration distribution
+- [x] **MCP Hub** — Server status cards, gateway stats BarChart, tool catalog
+- [x] **Events** — Event bus table with replay, webhook delivery log
+- [x] **Plugins** — Plugin management with enable/disable, access policy CRUD per project
+
+### Application Registry
+- [x] Application CRUD with grid cards, search, category filtering, favorites
+- [x] API key management with scope selection
+- [x] AI chatbot assistant for application queries
+- [x] API reference documentation page
+
+### Deliverables
+- Professional, developer-friendly UI with Shadcn/UI design system
+- Comprehensive operational dashboard with 8 tabs covering all platform aspects
+- Real-time visualizations with Recharts (charts, heatmaps, waterfall traces)
+
+---
+
+## Phase 15 - AI Intelligence & Smart Operations (Planned)
+
+**Goal:** Add AI-powered intelligence features for proactive secret management and security.
+
+### Intelligent Drift Detection
+- [ ] Automated detection of secret differences between environments
+- [ ] Scheduled drift checks (configurable cron intervals)
+- [ ] Drift reports with remediation suggestions
+- [ ] Alert when alpha/uat/prod environments diverge unexpectedly
+- [ ] Drift API: `GET /api/v1/projects/:id/drift`
+
+### Predictive Anomaly Detection
+- [ ] Time-series storage for access patterns
+- [ ] Statistical anomaly detection: rolling averages, Z-score, EWMA
+- [ ] Anomaly types: unusual access times, frequency spikes, new IPs, unusual key access
+- [ ] Configurable alert rules per project/API key
+- [ ] Alert API: `GET /api/v1/alerts`, `PUT /api/v1/alerts/:id/acknowledge`
+
+### Natural Language Secret Query Enhancement
+- [ ] LLM-powered understanding via Claude API integration
+- [ ] Context-aware suggestions based on project history
+- [ ] Multi-turn conversation for secret setup guidance
+- [ ] Semantic search across secret keys and metadata
+
+### Usage Analytics & Forecasting
+- [ ] Time-series analytics: daily/weekly/monthly usage trends
+- [ ] Linear regression for usage growth prediction
+- [ ] Quota management per organization
+- [ ] Export analytics as CSV/JSON
+
+### Smart Secret Recommendations
+- [ ] Analyze project stack to suggest missing secrets
+- [ ] Detect duplicate/redundant secrets across projects
+- [ ] Auto-classify secrets by type (database URL, API key, feature flag)
+- [ ] AI-powered security recommendations and rotation scheduling
+
+### Deliverables
+- Intelligent drift detection reducing environment inconsistency
+- Predictive security alerts before incidents occur
+- Natural language interface for non-technical stakeholders
+- Data-driven capacity planning and cost optimization
