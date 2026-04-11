@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
 import { ArrowLeft, Plus, Copy, Check, Trash2 } from 'lucide-react';
 
@@ -42,7 +43,7 @@ export function ApplicationSettingsPage() {
       setNewKeyName('');
       setNewKeyScopes(['read']);
       setShowCreate(false);
-      toast({ title: 'API key created', description: 'Copy it now — it won\'t be shown again.' });
+      toast({ title: 'API key created', description: 'Copy it now -- it will not be shown again.' });
       load();
     } catch {
       toast({ title: 'Error', description: 'Failed to create API key.', variant: 'destructive' });
@@ -53,7 +54,7 @@ export function ApplicationSettingsPage() {
     if (!confirm('Revoke this API key? This cannot be undone.')) return;
     try {
       await api.deleteAPIKey(id);
-      toast({ title: 'API key revoked', description: 'The key has been permanently deleted.' });
+      toast({ title: 'API key revoked', description: 'The key has been permanently revoked.' });
       load();
     } catch {
       toast({ title: 'Error', description: 'Failed to revoke API key.', variant: 'destructive' });
@@ -63,7 +64,7 @@ export function ApplicationSettingsPage() {
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast({ title: 'Copied!', description: 'API key copied to clipboard.' });
+    toast({ title: 'Copied to clipboard' });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -77,7 +78,7 @@ export function ApplicationSettingsPage() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <Button variant="link" asChild className="p-0 h-auto text-sm mb-2">
+        <Button variant="link" asChild className="p-0 h-auto mb-2 text-sm">
           <Link to="/applications">
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
             Back to Applications
@@ -93,17 +94,18 @@ export function ApplicationSettingsPage() {
 
       {/* Created Key Banner */}
       {createdKey && (
-        <Card className="mb-6 border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+        <Card className="mb-6 border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800">
           <CardContent className="p-4">
-            <p className="text-sm font-semibold text-green-800 dark:text-green-300 mb-2">
-              API Key Created! Copy it now — it won't be shown again.
+            <p className="mb-2 text-sm font-semibold text-green-800 dark:text-green-300">
+              API Key Created! Copy it now -- it won't be shown again.
             </p>
             <div className="flex gap-2 items-center">
-              <code className="flex-1 px-3 py-2 bg-white dark:bg-background rounded-lg text-xs font-mono break-all text-green-800 dark:text-green-300 border">
+              <code className="flex-1 px-3 py-2 bg-white dark:bg-black/20 rounded-lg text-xs font-mono break-all text-green-800 dark:text-green-300">
                 {createdKey}
               </code>
               <Button size="sm" onClick={() => handleCopy(createdKey)}>
-                {copied ? <><Check className="h-3.5 w-3.5 mr-1" /> Copied!</> : <><Copy className="h-3.5 w-3.5 mr-1" /> Copy</>}
+                {copied ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                {copied ? 'Copied!' : 'Copy'}
               </Button>
             </div>
           </CardContent>
@@ -124,16 +126,16 @@ export function ApplicationSettingsPage() {
             <CardContent>
               {showCreate && (
                 <form onSubmit={handleCreate} className="p-4 bg-muted rounded-lg mb-4 border space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Key Name</Label>
+                  <div className="space-y-2">
+                    <Label>Key Name</Label>
                     <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} required placeholder="e.g. ci-pipeline" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Scopes</Label>
+                  <div className="space-y-2">
+                    <Label>Scopes</Label>
                     <div className="flex gap-3 flex-wrap">
                       {['read', 'write', 'delete'].map((scope) => (
                         <label key={scope} className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer">
-                          <input type="checkbox" checked={newKeyScopes.includes(scope)} onChange={() => toggleScope(scope)} />
+                          <input type="checkbox" checked={newKeyScopes.includes(scope)} onChange={() => toggleScope(scope)} className="rounded" />
                           {scope}
                         </label>
                       ))}
@@ -145,41 +147,52 @@ export function ApplicationSettingsPage() {
 
               {loading ? (
                 <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
                       <div className="space-y-2">
                         <Skeleton className="h-4 w-32" />
                         <Skeleton className="h-3 w-48" />
                       </div>
-                      <Skeleton className="h-7 w-16 rounded-md" />
+                      <Skeleton className="h-8 w-16 rounded" />
                     </div>
                   ))}
                 </div>
               ) : apiKeys.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No API keys yet. Create one to get started.</p>
               ) : (
-                <div className="flex flex-col gap-2">
-                  {apiKeys.map((key) => (
-                    <div key={key.id} className="flex items-center justify-between p-3 bg-muted rounded-lg border">
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">{key.name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                          <span>Scopes:</span>
-                          {(key.scopes || ['read']).map((s) => (
-                            <Badge key={s} variant="secondary" className="text-[10px] px-1.5 py-0">
-                              {s}
-                            </Badge>
-                          ))}
-                          <span>&middot; Created {new Date(key.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleDelete(key.id)}>
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Revoke
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Scopes</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apiKeys.map((key) => (
+                      <TableRow key={key.id}>
+                        <TableCell className="font-semibold">{key.name}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {(key.scopes || ['read']).map((s) => (
+                              <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(key.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(key.id)}>
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Revoke
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
@@ -201,7 +214,7 @@ export function ApplicationSettingsPage() {
             <EndpointDoc method="DELETE" path="/api/v1/applications/:id" description="Delete an application" />
             <EndpointDoc method="POST" path="/api/v1/applications/:id/favorite" description="Toggle favorite status" />
 
-            <h3 className="text-sm font-bold text-foreground pt-4">Example Usage</h3>
+            <h3 className="text-sm font-bold text-foreground mt-6 mb-2">Example Usage</h3>
             <pre className="p-3.5 bg-muted rounded-lg border text-xs font-mono text-foreground overflow-auto whitespace-pre-wrap leading-relaxed">{`curl -X GET \\
   http://localhost:8080/api/v1/applications \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -229,7 +242,7 @@ function EndpointDoc({ method, path, description, params, body }: { method: stri
   return (
     <div className="p-2.5 bg-muted rounded-lg border">
       <div className="flex items-center gap-2 mb-1">
-        <Badge className={`${methodColors[method] || ''} text-white text-[11px] font-bold font-mono px-2 py-0`}>
+        <Badge className={`${methodColors[method] || 'bg-gray-500'} text-white text-[11px] font-bold font-mono px-2 py-0`}>
           {method}
         </Badge>
         <code className="text-xs text-foreground font-mono">{path}{params || ''}</code>

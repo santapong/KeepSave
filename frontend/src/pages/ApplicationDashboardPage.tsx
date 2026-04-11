@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
-import { Settings, Plus, Pencil, Trash2, Star, StarOff } from 'lucide-react';
+import { Settings, Plus, Pencil, Trash2, Star, Rocket } from 'lucide-react';
 
 export function ApplicationDashboardPage() {
   const [apps, setApps] = useState<DashboardApplication[]>([]);
@@ -80,7 +80,7 @@ export function ApplicationDashboardPage() {
           <Button variant="outline" asChild>
             <Link to="/applications/settings" className="flex items-center gap-1.5">
               <Settings className="h-3.5 w-3.5" />
-              Settings & API
+              Settings &amp; API
             </Link>
           </Button>
           <Button onClick={() => { setEditingApp(null); setShowAddForm(true); }}>
@@ -107,8 +107,8 @@ export function ApplicationDashboardPage() {
               className={cn(
                 'cursor-pointer transition-all px-3 py-1',
                 activeCategory === cat
-                  ? ''
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-accent'
               )}
               onClick={() => setActiveCategory(cat)}
             >
@@ -122,24 +122,24 @@ export function ApplicationDashboardPage() {
       {loading ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {[...Array(6)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-5">
-                <div className="flex gap-3 mb-3">
-                  <Skeleton className="h-12 w-12 rounded-xl" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
+            <Card key={i} className="p-5">
+              <div className="flex justify-between items-start mb-3">
+                <Skeleton className="h-12 w-12 rounded-xl" />
+                <div className="flex gap-1">
+                  <Skeleton className="h-6 w-6 rounded" />
+                  <Skeleton className="h-6 w-6 rounded" />
                 </div>
-                <Skeleton className="h-3 w-full mb-2" />
-                <Skeleton className="h-3 w-2/3" />
-              </CardContent>
+              </div>
+              <Skeleton className="h-5 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/3 mb-3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3 mt-1" />
             </Card>
           ))}
         </div>
       ) : apps.length === 0 ? (
         <div className="text-center py-16 px-5">
-          <div className="text-5xl mb-3">🚀</div>
+          <Rocket className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
           <h3 className="text-base font-bold text-foreground">No Applications Registered</h3>
           <p className="mt-2 text-sm text-muted-foreground">
             Register your first service to get started
@@ -186,7 +186,7 @@ export function ApplicationDashboardPage() {
 
       {/* Add/Edit Form Modal */}
       <Dialog open={showAddForm} onOpenChange={(open) => { if (!open) { setShowAddForm(false); setEditingApp(null); } }}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
           <AddEditForm
             app={editingApp}
             onClose={() => { setShowAddForm(false); setEditingApp(null); }}
@@ -217,14 +217,14 @@ function AppCard({
   const isImage = app.icon?.startsWith('data:image');
 
   return (
-    <Card className="flex flex-col transition-shadow hover:shadow-md">
+    <Card className="flex flex-col transition-shadow duration-200 hover:shadow-md">
       <CardContent className="p-5 flex flex-col flex-1">
         <div className="flex justify-between items-start mb-3">
           <div className="w-12 h-12 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden shrink-0">
             {isImage ? (
               <img src={app.icon} alt={app.name} className="w-full h-full object-cover rounded-xl" />
             ) : (
-              <span className="text-[28px]">{app.icon || '🌐'}</span>
+              <span className="text-[28px]">{app.icon || '\uD83C\uDF10'}</span>
             )}
           </div>
           <div className="flex gap-1">
@@ -235,7 +235,7 @@ function AppCard({
               onClick={onToggleFavorite}
               title="Favorite"
             >
-              {app.is_favorite ? <Star className="h-3.5 w-3.5 fill-current" /> : <StarOff className="h-3.5 w-3.5" />}
+              <Star className={cn('h-3.5 w-3.5', app.is_favorite && 'fill-current')} />
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onEdit} title="Edit">
               <Pencil className="h-3.5 w-3.5" />
@@ -286,7 +286,7 @@ function AddEditForm({
   const [name, setName] = useState(app?.name || '');
   const [url, setUrl] = useState(app?.url || '');
   const [description, setDescription] = useState(app?.description || '');
-  const [icon, setIcon] = useState(app?.icon || '🚀');
+  const [icon, setIcon] = useState(app?.icon || '\uD83D\uDE80');
   const [category, setCategory] = useState(app?.category || 'General');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -313,7 +313,7 @@ function AddEditForm({
         toast({ title: 'Application updated', description: `"${name}" has been updated.` });
       } else {
         await api.createApplication(name, url, description, icon, category);
-        toast({ title: 'Application created', description: `"${name}" has been registered.` });
+        toast({ title: 'Application registered', description: `"${name}" has been created.` });
       }
       onSaved();
       onClose();
@@ -341,8 +341,8 @@ function AddEditForm({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label>URL</Label>
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://..." />
+          <Label htmlFor="app-url">URL</Label>
+          <Input id="app-url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://..." />
         </div>
 
         <div className="flex items-center gap-4 p-4 bg-muted rounded-xl border border-border">
@@ -356,25 +356,25 @@ function AddEditForm({
           </div>
           <div className="flex-1 space-y-1">
             <Label>Icon (emoji or upload image)</Label>
-            <Input value={icon} onChange={(e) => setIcon(e.target.value || '🚀')} maxLength={2} placeholder="Emoji" />
+            <Input value={icon} onChange={(e) => setIcon(e.target.value || '\uD83D\uDE80')} maxLength={2} placeholder="Emoji" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label>Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Service name" />
+          <Label htmlFor="app-name">Name</Label>
+          <Input id="app-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Service name" />
         </div>
 
         <div className="space-y-2">
-          <Label>Description</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this service do?" rows={3} />
+          <Label htmlFor="app-description">Description</Label>
+          <Textarea id="app-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this service do?" rows={3} />
         </div>
 
         <div className="space-y-2">
           <Label>Category</Label>
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="General">General</SelectItem>
@@ -382,7 +382,7 @@ function AddEditForm({
               <SelectItem value="Dev Tools">Dev Tools</SelectItem>
               <SelectItem value="Infrastructure">Infrastructure</SelectItem>
               <SelectItem value="Personal">Personal</SelectItem>
-              <SelectItem value="AI & ML">AI & ML</SelectItem>
+              <SelectItem value="AI & ML">AI &amp; ML</SelectItem>
               <SelectItem value="Monitoring">Monitoring</SelectItem>
               <SelectItem value="Security">Security</SelectItem>
             </SelectContent>
