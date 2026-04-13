@@ -35,8 +35,22 @@ export function clearToken(): void {
   localStorage.removeItem('keepsave_token');
 }
 
+function parseJWTExpiry(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function isAuthenticated(): boolean {
-  return !!getToken();
+  const token = getToken();
+  if (!token) return false;
+  const exp = parseJWTExpiry(token);
+  if (exp === null) return false;
+  // Consider expired if less than 60 seconds remaining
+  return exp > Date.now() / 1000 + 60;
 }
 
 async function request<T>(
@@ -63,6 +77,13 @@ async function request<T>(
   }
 
   const data = await response.json();
+
+  if (response.status === 401) {
+    clearToken();
+    localStorage.removeItem('keepsave_user');
+    window.dispatchEvent(new CustomEvent('keepsave:session-expired'));
+    throw new Error('Session expired. Please log in again.');
+  }
 
   if (!response.ok) {
     const errorMessage =

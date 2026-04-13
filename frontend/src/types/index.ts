@@ -174,7 +174,7 @@ export interface TraceSpan {
   span_id: string;
   operation: string;
   status: string;
-  duration: string;
+  duration: string | number;
   start_time?: string;
   attributes?: Record<string, string>;
 }

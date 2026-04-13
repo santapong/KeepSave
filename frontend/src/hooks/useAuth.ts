@@ -15,6 +15,32 @@ export function useAuth() {
     setAuthenticated(isAuthenticated());
   }, [user]);
 
+  // Listen for session-expired events dispatched by the API client on 401
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setAuthenticated(false);
+    };
+
+    window.addEventListener('keepsave:session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('keepsave:session-expired', handleSessionExpired);
+    };
+  }, []);
+
+  // Periodically check if the token is still valid
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isAuthenticated()) {
+        clearToken();
+        localStorage.removeItem(USER_KEY);
+        setUser(null);
+        setAuthenticated(false);
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleLogin = useCallback((userData: User, token: string) => {
     setToken(token);
     localStorage.setItem(USER_KEY, JSON.stringify(userData));

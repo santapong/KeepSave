@@ -31,9 +31,13 @@ import { ChartCard } from '@/components/dashboard/ChartCard';
 import { TraceWaterfall } from '@/components/dashboard/TraceWaterfall';
 import type { TraceSpan } from '@/types';
 
-/** Parse a human-readable duration string into milliseconds. */
-function parseDurationMs(duration: string): number {
-  const t = duration.trim().toLowerCase();
+/** Parse a duration value into milliseconds.
+ *  Go's time.Duration JSON-serializes as a number (nanoseconds). */
+function parseDurationMs(duration: string | number): number {
+  if (typeof duration === 'number') {
+    return duration / 1_000_000; // nanoseconds -> ms
+  }
+  const t = String(duration).trim().toLowerCase();
   if (t.endsWith('ms')) return parseFloat(t.slice(0, -2));
   if (t.endsWith('us') || t.endsWith('\u00b5s')) return parseFloat(t.slice(0, -2)) / 1000;
   if (t.endsWith('ns')) return parseFloat(t.slice(0, -2)) / 1_000_000;
@@ -215,7 +219,9 @@ export function TracesTab() {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
-                      {trace.duration}
+                      {typeof trace.duration === 'number'
+                        ? `${(trace.duration / 1_000_000).toFixed(2)}ms`
+                        : trace.duration}
                     </TableCell>
                     <TableCell
                       className="max-w-[160px] truncate font-mono text-xs text-muted-foreground"

@@ -5,7 +5,7 @@ interface Span {
   span_id: string;
   operation: string;
   status: string;
-  duration: string;
+  duration: string | number;
   start_time?: string;
 }
 
@@ -14,10 +14,14 @@ interface TraceWaterfallProps {
 }
 
 /**
- * Parse a duration string like "12.5ms", "1.2s", "350us" into milliseconds.
+ * Parse a duration value into milliseconds.
+ * Go's time.Duration JSON-serializes as a number (nanoseconds).
  */
-function parseDurationMs(duration: string): number {
-  const trimmed = duration.trim().toLowerCase();
+function parseDurationMs(duration: string | number): number {
+  if (typeof duration === 'number') {
+    return duration / 1_000_000; // nanoseconds -> ms
+  }
+  const trimmed = String(duration).trim().toLowerCase();
 
   if (trimmed.endsWith('ms')) {
     return parseFloat(trimmed.slice(0, -2));
@@ -114,7 +118,9 @@ export function TraceWaterfall({ spans }: TraceWaterfallProps) {
 
             {/* Duration label */}
             <div className="w-20 shrink-0 text-right font-mono text-xs text-muted-foreground">
-              {span.duration}
+              {typeof span.duration === 'number'
+                ? `${(span.duration / 1_000_000).toFixed(2)}ms`
+                : span.duration}
             </div>
           </div>
         );
