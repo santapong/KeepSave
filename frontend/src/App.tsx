@@ -9,6 +9,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { OrganizationsPage } from './pages/OrganizationsPage';
+import { OrganizationManagePage } from './pages/OrganizationManagePage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { HelpPage } from './pages/HelpPage';
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/" element={<ProjectsPage />} />
             <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
             <Route path="/organizations" element={<OrganizationsPage />} />
+            <Route path="/organizations/:id" element={<OrganizationManagePage />} />
             <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/mcp-hub" element={<MCPHubPage />} />
             <Route path="/oauth-clients" element={<OAuthClientsPage />} />

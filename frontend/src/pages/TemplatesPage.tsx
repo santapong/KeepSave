@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Plus, Trash2, Play, X } from 'lucide-react';
 
 const stackColorMap: Record<string, string> = {
@@ -35,6 +36,7 @@ export function TemplatesPage() {
   const [applyEnv, setApplyEnv] = useState('alpha');
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -100,7 +102,6 @@ export function TemplatesPage() {
   }
 
   async function handleDelete(templateId: string) {
-    if (!window.confirm('Delete this template? This cannot be undone.')) return;
     try {
       await api.deleteTemplate(templateId);
       toast({ title: 'Deleted', description: 'Template deleted' });
@@ -283,11 +284,23 @@ export function TemplatesPage() {
               onProjectIdChange={setApplyProjectId}
               onEnvChange={setApplyEnv}
               onApply={() => handleApply(tmpl.id)}
-              onDelete={() => handleDelete(tmpl.id)}
+              onDelete={() => setDeleteTarget(tmpl.id)}
             />
           ))}
         </div>
       )}
+      {/* Confirm delete dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Template"
+        description="Are you sure you want to delete this template? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) handleDelete(deleteTarget);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

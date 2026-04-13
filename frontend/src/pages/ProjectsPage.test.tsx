@@ -70,7 +70,7 @@ describe('ProjectsPage', () => {
     await user.click(screen.getByText('New Project'));
     await user.type(screen.getByPlaceholderText('Project name'), 'New Project');
     await user.type(screen.getByPlaceholderText('Description (optional)'), 'desc');
-    await user.click(screen.getByText('Create'));
+    await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
     expect(createProject).toHaveBeenCalledWith('New Project', 'desc');
   });

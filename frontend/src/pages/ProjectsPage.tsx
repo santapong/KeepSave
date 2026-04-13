@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { listProjects, createProject, deleteProject } from '../api/client';
 import type { Project } from '../types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/useToast';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Plus, Trash2, FolderOpen } from 'lucide-react';
 
 
@@ -18,6 +21,7 @@ export function ProjectsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -51,7 +55,6 @@ export function ProjectsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this project? This cannot be undone.')) return;
     try {
       await deleteProject(id);
       loadProjects();
@@ -85,15 +88,9 @@ export function ProjectsPage() {
             {projects.length} project{projects.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)} variant={showCreate ? 'outline' : 'default'}>
-          {showCreate ? (
-            'Cancel'
-          ) : (
-            <>
-              <Plus className="mr-2 h-4 w-4" />
-              New Project
-            </>
-          )}
+        <Button onClick={() => setShowCreate(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Project
         </Button>
       </div>
 
@@ -104,32 +101,43 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {/* Create form */}
-      {showCreate && (
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-[15px] font-semibold">Create Project</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreate} className="flex gap-3 flex-wrap">
+      {/* Create project dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Project</DialogTitle>
+            <DialogDescription>Create a new project to start managing secrets securely.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <Label htmlFor="proj-name">Project name</Label>
               <Input
+                id="proj-name"
                 placeholder="Project name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="flex-1 min-w-[200px]"
+                autoFocus
+                className="mt-1"
               />
+            </div>
+            <div>
+              <Label htmlFor="proj-desc">Description (optional)</Label>
               <Input
+                id="proj-desc"
                 placeholder="Description (optional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="flex-[2] min-w-[200px]"
+                className="mt-1"
               />
-              <Button type="submit">Create</Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="submit">Create Project</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Project list */}
       {projects.length === 0 ? (
@@ -174,7 +182,7 @@ export function ProjectsPage() {
                 variant="outline"
                 size="sm"
                 className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive shrink-0"
-                onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Delete
@@ -183,6 +191,19 @@ export function ProjectsPage() {
           ))}
         </div>
       )}
+
+      {/* Confirm delete dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Project"
+        description={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) handleDelete(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
