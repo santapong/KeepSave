@@ -1,34 +1,28 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
-import type { Organization, OrgMember, Project } from '../types';
+import { useNavigate } from 'react-router-dom';
+import type { Organization } from '../types';
 import * as api from '../api/client';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/useToast';
-import { Plus, Users, FolderOpen, X, AlertCircle, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Plus, Users, FolderOpen, AlertCircle, Trash2 } from 'lucide-react';
 
 export function OrganizationsPage() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [orgProjects, setOrgProjects] = useState<Project[]>([]);
-  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('viewer');
-  const [assignProjectId, setAssignProjectId] = useState('');
   const [error, setError] = useState('');
-  const [memberError, setMemberError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [addingMember, setAddingMember] = useState(false);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
+  const [deleteTarget, setDeleteTarget] = useState<Organization | null>(null);
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const loadOrgs = useCallback(async () => {
@@ -36,7 +30,6 @@ export function OrganizationsPage() {
       setLoading(true);
       const data = await api.listOrganizations();
       setOrgs(data);
-      // Load counts for each org
       const mCounts: Record<string, number> = {};
       const pCounts: Record<string, number> = {};
       await Promise.all(
@@ -71,12 +64,11 @@ export function OrganizationsPage() {
     e.preventDefault();
     if (!newOrgName.trim()) return;
     try {
-      const org = await api.createOrganization(newOrgName.trim());
+      await api.createOrganization(newOrgName.trim());
+      toast({ title: 'Organization created', description: `"${newOrgName.trim()}" has been created.` });
       setNewOrgName('');
       setShowCreate(false);
-      toast({ title: 'Organization created', description: `"${newOrgName.trim()}" has been created.` });
       await loadOrgs();
-      selectOrg(org);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create organization';
       setError(msg);
@@ -85,14 +77,8 @@ export function OrganizationsPage() {
   }
 
   async function handleDeleteOrg(orgId: string) {
-    if (!window.confirm('Delete this organization? This cannot be undone.')) return;
     try {
       await api.deleteOrganization(orgId);
-      if (selectedOrg?.id === orgId) {
-        setSelectedOrg(null);
-        setMembers([]);
-        setOrgProjects([]);
-      }
       toast({ title: 'Organization deleted', description: 'The organization has been removed.' });
       loadOrgs();
     } catch (err) {
@@ -101,110 +87,6 @@ export function OrganizationsPage() {
       toast({ title: 'Error', description: msg, variant: 'destructive' });
     }
   }
-
-  async function selectOrg(org: Organization) {
-    setSelectedOrg(org);
-    setMemberError('');
-    try {
-      const [memberData, orgProjectData, allProjectData] = await Promise.all([
-        api.listOrgMembers(org.id),
-        api.listOrgProjects(org.id),
-        api.listProjects(),
-      ]);
-      setMembers(memberData);
-      setOrgProjects(orgProjectData);
-      setAllProjects(allProjectData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load organization details');
-    }
-  }
-
-  async function handleAddMember(e: FormEvent) {
-    e.preventDefault();
-    if (!selectedOrg || !newMemberEmail.trim()) return;
-    setMemberError('');
-    setAddingMember(true);
-    try {
-      const user = await api.lookupUserByEmail(newMemberEmail.trim());
-      await api.addOrgMember(selectedOrg.id, user.id, newMemberRole);
-      setNewMemberEmail('');
-      setNewMemberRole('viewer');
-      const data = await api.listOrgMembers(selectedOrg.id);
-      setMembers(data);
-      setMemberCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
-      toast({ title: 'Member added', description: `Added member to ${selectedOrg.name}.` });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add member';
-      if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('no user')) {
-        setMemberError('No user found with this email');
-      } else {
-        setMemberError(message);
-      }
-      toast({ title: 'Error', description: message, variant: 'destructive' });
-    } finally {
-      setAddingMember(false);
-    }
-  }
-
-  async function handleUpdateRole(userId: string, role: string) {
-    if (!selectedOrg) return;
-    try {
-      await api.updateOrgMemberRole(selectedOrg.id, userId, role);
-      const data = await api.listOrgMembers(selectedOrg.id);
-      setMembers(data);
-      toast({ title: 'Role updated', description: `Member role changed to ${role}.` });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update role';
-      setError(msg);
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
-    }
-  }
-
-  async function handleRemoveMember(userId: string) {
-    if (!selectedOrg) return;
-    if (!window.confirm('Remove this member?')) return;
-    try {
-      await api.removeOrgMember(selectedOrg.id, userId);
-      const data = await api.listOrgMembers(selectedOrg.id);
-      setMembers(data);
-      setMemberCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
-      toast({ title: 'Member removed', description: 'The member has been removed from the organization.' });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to remove member';
-      setError(msg);
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
-    }
-  }
-
-  async function handleAssignProject() {
-    if (!selectedOrg || !assignProjectId) return;
-    try {
-      await api.assignProjectToOrg(selectedOrg.id, assignProjectId);
-      setAssignProjectId('');
-      const data = await api.listOrgProjects(selectedOrg.id);
-      setOrgProjects(data);
-      setProjectCounts((prev) => ({ ...prev, [selectedOrg.id]: data.length }));
-      toast({ title: 'Project assigned', description: 'Project has been assigned to the organization.' });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to assign project';
-      setError(msg);
-      toast({ title: 'Error', description: msg, variant: 'destructive' });
-    }
-  }
-
-  function handleManageClick(org: Organization, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (selectedOrg?.id === org.id) {
-      setSelectedOrg(null);
-      setMembers([]);
-      setOrgProjects([]);
-    } else {
-      selectOrg(org);
-    }
-  }
-
-  const assignedIds = new Set(orgProjects.map((p) => p.id));
-  const unassignedProjects = allProjects.filter((p) => !assignedIds.has(p.id));
 
   if (loading) {
     return (
@@ -247,8 +129,8 @@ export function OrganizationsPage() {
             {orgs.length} organization{orgs.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          {showCreate ? 'Cancel' : <><Plus className="h-3.5 w-3.5 mr-1.5" /> New Organization</>}
+        <Button onClick={() => setShowCreate(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1.5" /> New Organization
         </Button>
       </div>
 
@@ -265,30 +147,36 @@ export function OrganizationsPage() {
         </div>
       )}
 
-      {/* Create form (collapsible card) */}
-      {showCreate && (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <form onSubmit={handleCreateOrg}>
-              <h3 className="text-sm font-semibold mb-4 text-foreground">Create Organization</h3>
-              <div className="flex gap-3 items-center">
-                <Input
-                  placeholder="Organization name"
-                  value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
-                  required
-                  autoFocus
-                  className="flex-1"
-                />
-                <Button type="submit">Create</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      {/* Create organization dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Organization</DialogTitle>
+            <DialogDescription>Create a new organization to manage teams and projects together.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateOrg} className="space-y-4">
+            <div>
+              <Label htmlFor="org-name">Organization name</Label>
+              <Input
+                id="org-name"
+                placeholder="Organization name"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                required
+                autoFocus
+                className="mt-1"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="submit">Create</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Empty state */}
-      {orgs.length === 0 && !showCreate ? (
+      {orgs.length === 0 ? (
         <Card className="flex flex-col items-center justify-center text-center py-16 px-10">
           <CardContent>
             <div className="w-16 h-16 rounded-full bg-muted border border-border flex items-center justify-center mx-auto mb-5">
@@ -303,261 +191,79 @@ export function OrganizationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <>
-          {/* Org grid */}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4">
-            {orgs.map((org) => {
-              const isSelected = selectedOrg?.id === org.id;
-              return (
-                <Card
-                  key={org.id}
-                  className={cn(
-                    'transition-all duration-200 hover:shadow-md',
-                    isSelected && 'ring-2 ring-primary border-primary shadow-lg'
-                  )}
-                >
-                  <CardContent className="p-5">
-                    {/* Card top: icon + name + slug */}
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shrink-0">
-                        {org.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base font-bold text-foreground truncate">
-                          {org.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          /{org.slug}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card middle: badges */}
-                    <div className="flex gap-2 mt-4">
-                      <Badge variant="outline" className="gap-1">
-                        <Users className="h-3 w-3" />
-                        {memberCounts[org.id] ?? 0} member{(memberCounts[org.id] ?? 0) !== 1 ? 's' : ''}
-                      </Badge>
-                      <Badge variant="outline" className="gap-1">
-                        <FolderOpen className="h-3 w-3" />
-                        {projectCounts[org.id] ?? 0} project{(projectCounts[org.id] ?? 0) !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-
-                    {/* Card bottom: actions */}
-                    <div className="flex gap-2.5 mt-4 pt-4 border-t border-border">
-                      <Button
-                        variant={isSelected ? 'default' : 'outline'}
-                        size="sm"
-                        className="flex-1"
-                        onClick={(e) => handleManageClick(org, e)}
-                      >
-                        {isSelected ? 'Close' : 'Manage'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive border-destructive/25 hover:bg-destructive/10"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteOrg(org.id); }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Management panel (below grid, full width) */}
-          {selectedOrg && (
-            <Card className="mt-6 overflow-hidden shadow-lg">
-              <CardHeader className="bg-muted/50 border-b border-border py-5 px-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                    {selectedOrg.name.charAt(0).toUpperCase()}
+        /* Org grid */
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4">
+          {orgs.map((org) => (
+            <Card
+              key={org.id}
+              className="transition-all duration-200 hover:shadow-md"
+            >
+              <CardContent className="p-5">
+                {/* Card top: icon + name + slug */}
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shrink-0">
+                    {org.name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <CardTitle className="text-lg">{selectedOrg.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">/{selectedOrg.slug}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base font-bold text-foreground truncate">
+                      {org.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      /{org.slug}
+                    </div>
                   </div>
                 </div>
-              </CardHeader>
 
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                {/* Left column: Members */}
-                <div className="p-6 md:border-r border-border">
-                  <div className="flex items-center gap-2 mb-4">
-                    <h3 className="text-sm font-bold text-foreground">Members</h3>
-                    {members.length > 0 && (
-                      <Badge variant="secondary" className="text-xs">{members.length}</Badge>
-                    )}
-                  </div>
-
-                  {/* Add member form */}
-                  <form onSubmit={handleAddMember} className="flex gap-2 mb-4 flex-wrap">
-                    <Input
-                      type="email"
-                      placeholder="Email address"
-                      value={newMemberEmail}
-                      onChange={(e) => { setNewMemberEmail(e.target.value); setMemberError(''); }}
-                      required
-                      className="flex-1 min-w-[160px]"
-                    />
-                    <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="promoter">Promoter</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button type="submit" disabled={addingMember} size="sm">
-                      {addingMember ? 'Adding...' : 'Add'}
-                    </Button>
-                  </form>
-
-                  {memberError && (
-                    <div className="flex items-center gap-2 bg-destructive/5 text-destructive p-2 px-3 rounded-lg text-sm mb-4 border border-destructive/15">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      {memberError}
-                    </div>
-                  )}
-
-                  {/* Member list */}
-                  {members.length === 0 ? (
-                    <div className="text-center py-7 border border-dashed border-border rounded-lg bg-muted/30">
-                      <Users className="h-5 w-5 mx-auto text-muted-foreground opacity-50" />
-                      <p className="text-sm text-muted-foreground mt-2">
-                        No members yet. Add team members by email above.
-                      </p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {members.map((m) => (
-                          <TableRow key={m.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-border text-muted-foreground flex items-center justify-center font-semibold text-xs shrink-0">
-                                  {m.user_id.charAt(0).toUpperCase()}
-                                </div>
-                                <code className="text-xs font-mono text-muted-foreground" title={m.user_id}>
-                                  {m.user_id.slice(0, 8)}...
-                                </code>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Select value={m.role} onValueChange={(val) => handleUpdateRole(m.user_id, val)}>
-                                <SelectTrigger className="w-[110px] h-7 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="viewer">Viewer</SelectItem>
-                                  <SelectItem value="editor">Editor</SelectItem>
-                                  <SelectItem value="promoter">Promoter</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                onClick={() => handleRemoveMember(m.user_id)}
-                                title="Remove member"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
+                {/* Card middle: badges */}
+                <div className="flex gap-2 mt-4">
+                  <Badge variant="outline" className="gap-1">
+                    <Users className="h-3 w-3" />
+                    {memberCounts[org.id] ?? 0} member{(memberCounts[org.id] ?? 0) !== 1 ? 's' : ''}
+                  </Badge>
+                  <Badge variant="outline" className="gap-1">
+                    <FolderOpen className="h-3 w-3" />
+                    {projectCounts[org.id] ?? 0} project{(projectCounts[org.id] ?? 0) !== 1 ? 's' : ''}
+                  </Badge>
                 </div>
 
-                {/* Right column: Projects */}
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <h3 className="text-sm font-bold text-foreground">Projects</h3>
-                    {orgProjects.length > 0 && (
-                      <Badge variant="secondary" className="text-xs">{orgProjects.length}</Badge>
-                    )}
-                  </div>
-
-                  {/* Assign project */}
-                  {unassignedProjects.length > 0 && (
-                    <div className="flex gap-2 mb-4">
-                      <Select value={assignProjectId} onValueChange={setAssignProjectId}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select a project to assign..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {unassignedProjects.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={handleAssignProject}
-                        disabled={!assignProjectId}
-                        size="sm"
-                      >
-                        Assign
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Project list */}
-                  {orgProjects.length === 0 ? (
-                    <div className="text-center py-7 border border-dashed border-border rounded-lg bg-muted/30">
-                      <FolderOpen className="h-5 w-5 mx-auto text-muted-foreground opacity-50" />
-                      <p className="text-sm text-muted-foreground mt-2">
-                        No projects assigned yet.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {orgProjects.map((p) => (
-                        <Card key={p.id} className="shadow-none">
-                          <CardContent className="p-3 flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-400 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                              {p.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-foreground">
-                                {p.name}
-                              </div>
-                              {p.description && (
-                                <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                                  {p.description}
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
+                {/* Card bottom: actions */}
+                <div className="flex gap-2.5 mt-4 pt-4 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => navigate(`/organizations/${org.id}`)}
+                  >
+                    Manage
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/25 hover:bg-destructive/10"
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(org); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Delete
+                  </Button>
                 </div>
-              </div>
+              </CardContent>
             </Card>
-          )}
-        </>
+          ))}
+        </div>
       )}
+
+      {/* Confirm delete dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Organization"
+        description={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) handleDeleteOrg(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
