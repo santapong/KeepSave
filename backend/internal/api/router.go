@@ -13,36 +13,16 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string,
-	jwtService *auth.JWTService,
-	apikeyRepo *repository.APIKeyRepository,
-	authHandler *AuthHandler,
-	projectHandler *ProjectHandler,
-	secretHandler *SecretHandler,
-	apikeyHandler *APIKeyHandler,
-	promotionHandler *PromotionHandler,
-	keyRotationHandler *KeyRotationHandler,
-	webhookHandler *WebhookHandler,
-	versionHandler *VersionHandler,
-	healthHandler *HealthHandler,
-	orgHandler *OrganizationHandler,
-	templateHandler *TemplateHandler,
-	envFileHandler *EnvFileHandler,
-	depHandler *DependencyHandler,
-	metricsHandler *MetricsHandler,
-	enterpriseHandler *EnterpriseHandler,
-	agentHandler *AgentHandler,
-	platformHandler *PlatformHandler,
-	openAPIHandler *OpenAPIHandler,
-	oauthHandler *OAuthHandler,
-	mcpHubHandler *MCPHubHandler,
-	mcpGatewayHandler *MCPGatewayHandler,
-	applicationHandler *ApplicationHandler,
-	intelligenceHandler *IntelligenceHandler,
-	appMetrics *metrics.AppMetrics,
-	tracer *tracing.Tracer,
-	db *sql.DB,
-	logger *logging.Logger,
+	corsOrigins string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
+	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
+	webhookHandler *WebhookHandler, versionHandler *VersionHandler, healthHandler *HealthHandler,
+	orgHandler *OrganizationHandler, templateHandler *TemplateHandler, envFileHandler *EnvFileHandler,
+	depHandler *DependencyHandler, metricsHandler *MetricsHandler, enterpriseHandler *EnterpriseHandler,
+	agentHandler *AgentHandler, platformHandler *PlatformHandler, openAPIHandler *OpenAPIHandler,
+	oauthHandler *OAuthHandler, mcpHubHandler *MCPHubHandler, mcpGatewayHandler *MCPGatewayHandler,
+	applicationHandler *ApplicationHandler, intelligenceHandler *IntelligenceHandler,
+	appMetrics *metrics.AppMetrics, tracer *tracing.Tracer, db *sql.DB, logger *logging.Logger,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -50,18 +30,11 @@ func SetupRouter(
 	r.Use(TrustedProxyMiddleware())
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(RequestSizeLimitMiddleware(1 << 20))
-	if logger != nil {
-		r.Use(logging.GinMiddleware(logger))
-	}
+	if logger != nil { r.Use(logging.GinMiddleware(logger)) }
 	r.Use(CORSMiddleware(corsOrigins))
-	limiter := NewRateLimiter(100, time.Second, 200)
-	r.Use(RateLimitMiddleware(limiter))
-	if appMetrics != nil {
-		r.Use(metrics.GinMiddleware(appMetrics))
-	}
-	if tracer != nil {
-		r.Use(tracing.GinMiddleware(tracer))
-	}
+	r.Use(RateLimitMiddleware(NewRateLimiter(100, time.Second, 200)))
+	if appMetrics != nil { r.Use(metrics.GinMiddleware(appMetrics)) }
+	if tracer != nil { r.Use(tracing.GinMiddleware(tracer)) }
 
 	r.GET("/healthz", healthHandler.Liveness)
 	r.GET("/readyz", healthHandler.Readiness)
@@ -71,227 +44,110 @@ func SetupRouter(
 
 	v1 := r.Group("/api/v1")
 	{
-		authGroup := v1.Group("/auth")
+		auth := v1.Group("/auth")
+		{ auth.POST("/register", authHandler.Register); auth.POST("/login", authHandler.Login) }
+
+		users := v1.Group("/users"); users.Use(JWTAuthMiddleware(jwtService))
+		{ users.GET("/lookup", authHandler.LookupUser) }
+
+		proj := v1.Group("/projects"); proj.Use(JWTAuthMiddleware(jwtService))
+		{ proj.POST("", projectHandler.Create); proj.GET("", projectHandler.List); proj.GET("/:id", projectHandler.Get); proj.PUT("/:id", projectHandler.Update); proj.DELETE("/:id", projectHandler.Delete) }
+
+		sec := v1.Group("/projects/:id/secrets"); sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{ sec.POST("", secretHandler.Create); sec.GET("", secretHandler.List); sec.GET("/:secretId", secretHandler.Get); sec.PUT("/:secretId", secretHandler.Update); sec.DELETE("/:secretId", secretHandler.Delete); sec.GET("/:secretId/versions", versionHandler.ListVersions); sec.GET("/:secretId/versions/:version", versionHandler.GetVersion) }
+
+		pm := v1.Group("/projects/:id"); pm.Use(JWTAuthMiddleware(jwtService))
 		{
-			authGroup.POST("/register", authHandler.Register)
-			authGroup.POST("/login", authHandler.Login)
+			pm.POST("/promote", promotionHandler.Promote); pm.POST("/promote/diff", promotionHandler.Diff)
+			pm.GET("/promotions", promotionHandler.ListPromotions); pm.GET("/promotions/:promotionId", promotionHandler.GetPromotion)
+			pm.POST("/promotions/:promotionId/approve", promotionHandler.ApprovePromotion); pm.POST("/promotions/:promotionId/reject", promotionHandler.RejectPromotion)
+			pm.POST("/promotions/:promotionId/rollback", promotionHandler.Rollback); pm.GET("/audit-log", promotionHandler.AuditLog)
+			pm.POST("/rotate-keys", keyRotationHandler.RotateProjectKey); pm.GET("/verify-encryption", keyRotationHandler.VerifyEncryption)
+			pm.POST("/webhooks", webhookHandler.Register); pm.GET("/webhooks", webhookHandler.List); pm.DELETE("/webhooks", webhookHandler.Remove)
+			pm.GET("/env-export", envFileHandler.Export); pm.POST("/env-import", envFileHandler.Import)
+			pm.POST("/dependencies/analyze", depHandler.Analyze); pm.GET("/dependencies/graph", depHandler.Graph)
+			pm.POST("/backups", enterpriseHandler.CreateBackup); pm.GET("/backups", enterpriseHandler.ListBackups)
+			pm.GET("/policy", enterpriseHandler.GetSecretPolicy); pm.PUT("/policy", enterpriseHandler.SetSecretPolicy)
+			pm.GET("/agent-activity", agentHandler.GetRecentActivity); pm.GET("/agent-heatmap", agentHandler.GetAccessHeatmap)
+			pm.GET("/access-policies", platformHandler.ListAccessPolicies); pm.POST("/access-policies", platformHandler.CreateAccessPolicy); pm.DELETE("/access-policies/:policyId", platformHandler.DeleteAccessPolicy)
+
+			// Phase 15: AI Intelligence - per-project
+			pm.POST("/drift", intelligenceHandler.DetectDrift); pm.GET("/drift", intelligenceHandler.ListDriftChecks)
+			pm.POST("/drift/schedules", intelligenceHandler.CreateDriftSchedule); pm.GET("/drift/schedules", intelligenceHandler.ListDriftSchedules)
+			pm.PUT("/drift/schedules/:scheduleId", intelligenceHandler.UpdateDriftSchedule); pm.DELETE("/drift/schedules/:scheduleId", intelligenceHandler.DeleteDriftSchedule)
+			pm.POST("/anomalies/scan", intelligenceHandler.RunAnomalyDetection)
+			pm.GET("/analytics/trends", intelligenceHandler.GetUsageTrends); pm.GET("/analytics/forecast", intelligenceHandler.GetUsageForecast)
+			pm.GET("/analytics/export", intelligenceHandler.ExportAnalyticsCSV)
+			pm.POST("/recommendations/generate", intelligenceHandler.GenerateRecommendations); pm.GET("/recommendations", intelligenceHandler.ListRecommendations); pm.DELETE("/recommendations/:recId", intelligenceHandler.DismissRecommendation)
 		}
 
-		usersGroup := v1.Group("/users")
-		usersGroup.Use(JWTAuthMiddleware(jwtService))
+		ls := v1.Group("/projects/:id/leases"); ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{ ls.POST("", agentHandler.CreateLease); ls.GET("", agentHandler.ListLeases); ls.DELETE("/:leaseId", agentHandler.RevokeLease) }
+
+		rk := v1.Group("/rotate-keys"); rk.Use(JWTAuthMiddleware(jwtService))
+		{ rk.POST("", keyRotationHandler.RotateAllKeys) }
+
+		ak := v1.Group("/api-keys"); ak.Use(JWTAuthMiddleware(jwtService))
+		{ ak.POST("", apikeyHandler.Create); ak.GET("", apikeyHandler.List); ak.DELETE("/:id", apikeyHandler.Delete) }
+
+		wh := v1.Group("/webhook-deliveries"); wh.Use(JWTAuthMiddleware(jwtService))
+		{ wh.GET("", webhookHandler.Deliveries) }
+
+		og := v1.Group("/organizations"); og.Use(JWTAuthMiddleware(jwtService))
 		{
-			usersGroup.GET("/lookup", authHandler.LookupUser)
+			og.POST("", orgHandler.Create); og.GET("", orgHandler.List); og.GET("/:orgId", orgHandler.Get); og.PUT("/:orgId", orgHandler.Update); og.DELETE("/:orgId", orgHandler.Delete)
+			og.POST("/:orgId/members", orgHandler.AddMember); og.GET("/:orgId/members", orgHandler.ListMembers); og.PUT("/:orgId/members/:userId", orgHandler.UpdateMemberRole); og.DELETE("/:orgId/members/:userId", orgHandler.RemoveMember)
+			og.POST("/:orgId/projects", orgHandler.AssignProject); og.GET("/:orgId/projects", orgHandler.ListProjects)
+			og.POST("/:orgId/sso", enterpriseHandler.ConfigureSSO); og.GET("/:orgId/sso", enterpriseHandler.ListSSOConfigs); og.DELETE("/:orgId/sso/:provider", enterpriseHandler.DeleteSSOConfig)
+			og.POST("/:orgId/compliance", enterpriseHandler.GenerateComplianceReport); og.GET("/:orgId/compliance", enterpriseHandler.ListComplianceReports)
+			// Phase 15: Quota management per org
+			og.GET("/:orgId/quota", intelligenceHandler.GetQuota); og.PUT("/:orgId/quota", intelligenceHandler.SetQuota)
 		}
 
-		projectGroup := v1.Group("/projects")
-		projectGroup.Use(JWTAuthMiddleware(jwtService))
+		tpl := v1.Group("/templates"); tpl.Use(JWTAuthMiddleware(jwtService))
+		{ tpl.POST("", templateHandler.Create); tpl.GET("", templateHandler.List); tpl.GET("/builtin", templateHandler.ListBuiltin); tpl.GET("/:templateId", templateHandler.Get); tpl.PUT("/:templateId", templateHandler.Update); tpl.DELETE("/:templateId", templateHandler.Delete); tpl.POST("/:templateId/apply", templateHandler.Apply) }
+
+		adm := v1.Group("/admin"); adm.Use(JWTAuthMiddleware(jwtService))
+		{ adm.GET("/dashboard", metricsHandler.AdminDashboard); adm.GET("/traces", metricsHandler.Traces) }
+
+		ag := v1.Group("/agent"); ag.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{ ag.GET("/activity", agentHandler.GetActivitySummary) }
+
+		pl := v1.Group("/platform"); pl.Use(JWTAuthMiddleware(jwtService))
+		{ pl.GET("/events", platformHandler.ListEvents); pl.POST("/events/replay", platformHandler.ReplayEvents); pl.GET("/plugins", platformHandler.ListPlugins); pl.POST("/plugins", platformHandler.RegisterPlugin); pl.PUT("/plugins/:pluginId", platformHandler.TogglePlugin) }
+
+		// Phase 15: AI Intelligence - global
+		ai := v1.Group("/ai"); ai.Use(JWTAuthMiddleware(jwtService))
 		{
-			projectGroup.POST("", projectHandler.Create)
-			projectGroup.GET("", projectHandler.List)
-			projectGroup.GET("/:id", projectHandler.Get)
-			projectGroup.PUT("/:id", projectHandler.Update)
-			projectGroup.DELETE("/:id", projectHandler.Delete)
+			ai.GET("/providers", intelligenceHandler.ListProviders)
+			ai.POST("/query", intelligenceHandler.NLPQuery)
+			ai.POST("/converse", intelligenceHandler.NLPConverse)
+			ai.GET("/anomalies", intelligenceHandler.ListAnomalies)
+			ai.PUT("/anomalies/:anomalyId/acknowledge", intelligenceHandler.AcknowledgeAnomaly)
+			ai.PUT("/anomalies/:anomalyId/resolve", intelligenceHandler.ResolveAnomaly)
+			ai.POST("/rules", intelligenceHandler.CreateAlertRule); ai.GET("/rules", intelligenceHandler.ListAlertRules)
+			ai.PUT("/rules/:ruleId", intelligenceHandler.UpdateAlertRule); ai.DELETE("/rules/:ruleId", intelligenceHandler.DeleteAlertRule)
+			ai.POST("/drift/run-scheduled", intelligenceHandler.RunScheduledDriftChecks)
 		}
 
-		secretGroup := v1.Group("/projects/:id/secrets")
-		secretGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		oauthPub := v1.Group("/oauth")
+		{ oauthPub.POST("/token", oauthHandler.Token); oauthPub.GET("/userinfo", oauthHandler.UserInfo); oauthPub.POST("/revoke", oauthHandler.Revoke); oauthPub.GET("/.well-known/jwks.json", oauthHandler.JWKS) }
+
+		oauthAuth := v1.Group("/oauth"); oauthAuth.Use(JWTAuthMiddleware(jwtService))
+		{ oauthAuth.GET("/authorize", oauthHandler.Authorize); oauthAuth.POST("/clients", oauthHandler.RegisterClient); oauthAuth.GET("/clients", oauthHandler.ListClients); oauthAuth.DELETE("/clients/:clientId", oauthHandler.DeleteClient) }
+
+		mcpPub := v1.Group("/mcp")
+		{ mcpPub.GET("/servers/public", mcpHubHandler.ListPublicServers) }
+
+		mcp := v1.Group("/mcp"); mcp.Use(JWTAuthMiddleware(jwtService))
 		{
-			secretGroup.POST("", secretHandler.Create)
-			secretGroup.GET("", secretHandler.List)
-			secretGroup.GET("/:secretId", secretHandler.Get)
-			secretGroup.PUT("/:secretId", secretHandler.Update)
-			secretGroup.DELETE("/:secretId", secretHandler.Delete)
-			secretGroup.GET("/:secretId/versions", versionHandler.ListVersions)
-			secretGroup.GET("/:secretId/versions/:version", versionHandler.GetVersion)
+			mcp.POST("/servers", mcpHubHandler.RegisterServer); mcp.GET("/servers", mcpHubHandler.ListMyServers); mcp.GET("/servers/:serverId", mcpHubHandler.GetServer); mcp.PUT("/servers/:serverId", mcpHubHandler.UpdateServer); mcp.DELETE("/servers/:serverId", mcpHubHandler.DeleteServer); mcp.POST("/servers/:serverId/rebuild", mcpHubHandler.RebuildServer)
+			mcp.POST("/installations", mcpHubHandler.InstallServer); mcp.GET("/installations", mcpHubHandler.ListInstallations); mcp.PUT("/installations/:installId", mcpHubHandler.UpdateInstallation); mcp.DELETE("/installations/:installId", mcpHubHandler.UninstallServer)
+			mcp.POST("/gateway", mcpGatewayHandler.HandleToolCall); mcp.GET("/gateway/tools", mcpGatewayHandler.ListTools); mcp.GET("/gateway/stats", mcpHubHandler.GetGatewayStats); mcp.GET("/config", mcpGatewayHandler.MCPConfig)
 		}
 
-		promoteGroup := v1.Group("/projects/:id")
-		promoteGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			promoteGroup.POST("/promote", promotionHandler.Promote)
-			promoteGroup.POST("/promote/diff", promotionHandler.Diff)
-			promoteGroup.GET("/promotions", promotionHandler.ListPromotions)
-			promoteGroup.GET("/promotions/:promotionId", promotionHandler.GetPromotion)
-			promoteGroup.POST("/promotions/:promotionId/approve", promotionHandler.ApprovePromotion)
-			promoteGroup.POST("/promotions/:promotionId/reject", promotionHandler.RejectPromotion)
-			promoteGroup.POST("/promotions/:promotionId/rollback", promotionHandler.Rollback)
-			promoteGroup.GET("/audit-log", promotionHandler.AuditLog)
-			promoteGroup.POST("/rotate-keys", keyRotationHandler.RotateProjectKey)
-			promoteGroup.GET("/verify-encryption", keyRotationHandler.VerifyEncryption)
-			promoteGroup.POST("/webhooks", webhookHandler.Register)
-			promoteGroup.GET("/webhooks", webhookHandler.List)
-			promoteGroup.DELETE("/webhooks", webhookHandler.Remove)
-			promoteGroup.GET("/env-export", envFileHandler.Export)
-			promoteGroup.POST("/env-import", envFileHandler.Import)
-			promoteGroup.POST("/dependencies/analyze", depHandler.Analyze)
-			promoteGroup.GET("/dependencies/graph", depHandler.Graph)
-			promoteGroup.POST("/backups", enterpriseHandler.CreateBackup)
-			promoteGroup.GET("/backups", enterpriseHandler.ListBackups)
-			promoteGroup.GET("/policy", enterpriseHandler.GetSecretPolicy)
-			promoteGroup.PUT("/policy", enterpriseHandler.SetSecretPolicy)
-			promoteGroup.GET("/agent-activity", agentHandler.GetRecentActivity)
-			promoteGroup.GET("/agent-heatmap", agentHandler.GetAccessHeatmap)
-			promoteGroup.GET("/access-policies", platformHandler.ListAccessPolicies)
-			promoteGroup.POST("/access-policies", platformHandler.CreateAccessPolicy)
-			promoteGroup.DELETE("/access-policies/:policyId", platformHandler.DeleteAccessPolicy)
-
-			// Phase 15: AI Intelligence - per-project endpoints
-			promoteGroup.POST("/drift", intelligenceHandler.DetectDrift)
-			promoteGroup.GET("/drift", intelligenceHandler.ListDriftChecks)
-			promoteGroup.POST("/anomalies/scan", intelligenceHandler.RunAnomalyDetection)
-			promoteGroup.GET("/analytics/trends", intelligenceHandler.GetUsageTrends)
-			promoteGroup.GET("/analytics/forecast", intelligenceHandler.GetUsageForecast)
-			promoteGroup.POST("/recommendations/generate", intelligenceHandler.GenerateRecommendations)
-			promoteGroup.GET("/recommendations", intelligenceHandler.ListRecommendations)
-			promoteGroup.DELETE("/recommendations/:recId", intelligenceHandler.DismissRecommendation)
-		}
-
-		leaseGroup := v1.Group("/projects/:id/leases")
-		leaseGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
-		{
-			leaseGroup.POST("", agentHandler.CreateLease)
-			leaseGroup.GET("", agentHandler.ListLeases)
-			leaseGroup.DELETE("/:leaseId", agentHandler.RevokeLease)
-		}
-
-		rotateGroup := v1.Group("/rotate-keys")
-		rotateGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			rotateGroup.POST("", keyRotationHandler.RotateAllKeys)
-		}
-
-		apikeyGroup := v1.Group("/api-keys")
-		apikeyGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			apikeyGroup.POST("", apikeyHandler.Create)
-			apikeyGroup.GET("", apikeyHandler.List)
-			apikeyGroup.DELETE("/:id", apikeyHandler.Delete)
-		}
-
-		webhookGroup := v1.Group("/webhook-deliveries")
-		webhookGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			webhookGroup.GET("", webhookHandler.Deliveries)
-		}
-
-		orgGroup := v1.Group("/organizations")
-		orgGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			orgGroup.POST("", orgHandler.Create)
-			orgGroup.GET("", orgHandler.List)
-			orgGroup.GET("/:orgId", orgHandler.Get)
-			orgGroup.PUT("/:orgId", orgHandler.Update)
-			orgGroup.DELETE("/:orgId", orgHandler.Delete)
-			orgGroup.POST("/:orgId/members", orgHandler.AddMember)
-			orgGroup.GET("/:orgId/members", orgHandler.ListMembers)
-			orgGroup.PUT("/:orgId/members/:userId", orgHandler.UpdateMemberRole)
-			orgGroup.DELETE("/:orgId/members/:userId", orgHandler.RemoveMember)
-			orgGroup.POST("/:orgId/projects", orgHandler.AssignProject)
-			orgGroup.GET("/:orgId/projects", orgHandler.ListProjects)
-			orgGroup.POST("/:orgId/sso", enterpriseHandler.ConfigureSSO)
-			orgGroup.GET("/:orgId/sso", enterpriseHandler.ListSSOConfigs)
-			orgGroup.DELETE("/:orgId/sso/:provider", enterpriseHandler.DeleteSSOConfig)
-			orgGroup.POST("/:orgId/compliance", enterpriseHandler.GenerateComplianceReport)
-			orgGroup.GET("/:orgId/compliance", enterpriseHandler.ListComplianceReports)
-		}
-
-		templateGroup := v1.Group("/templates")
-		templateGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			templateGroup.POST("", templateHandler.Create)
-			templateGroup.GET("", templateHandler.List)
-			templateGroup.GET("/builtin", templateHandler.ListBuiltin)
-			templateGroup.GET("/:templateId", templateHandler.Get)
-			templateGroup.PUT("/:templateId", templateHandler.Update)
-			templateGroup.DELETE("/:templateId", templateHandler.Delete)
-			templateGroup.POST("/:templateId/apply", templateHandler.Apply)
-		}
-
-		adminGroup := v1.Group("/admin")
-		adminGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			adminGroup.GET("/dashboard", metricsHandler.AdminDashboard)
-			adminGroup.GET("/traces", metricsHandler.Traces)
-		}
-
-		agentGroup := v1.Group("/agent")
-		agentGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
-		{
-			agentGroup.GET("/activity", agentHandler.GetActivitySummary)
-		}
-
-		platformGroup := v1.Group("/platform")
-		platformGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			platformGroup.GET("/events", platformHandler.ListEvents)
-			platformGroup.POST("/events/replay", platformHandler.ReplayEvents)
-			platformGroup.GET("/plugins", platformHandler.ListPlugins)
-			platformGroup.POST("/plugins", platformHandler.RegisterPlugin)
-			platformGroup.PUT("/plugins/:pluginId", platformHandler.TogglePlugin)
-		}
-
-		// Phase 15: AI Intelligence - global endpoints
-		aiGroup := v1.Group("/ai")
-		aiGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			aiGroup.GET("/providers", intelligenceHandler.ListProviders)
-			aiGroup.POST("/query", intelligenceHandler.NLPQuery)
-			aiGroup.GET("/anomalies", intelligenceHandler.ListAnomalies)
-			aiGroup.PUT("/anomalies/:anomalyId/acknowledge", intelligenceHandler.AcknowledgeAnomaly)
-			aiGroup.PUT("/anomalies/:anomalyId/resolve", intelligenceHandler.ResolveAnomaly)
-		}
-
-		oauthPublicGroup := v1.Group("/oauth")
-		{
-			oauthPublicGroup.POST("/token", oauthHandler.Token)
-			oauthPublicGroup.GET("/userinfo", oauthHandler.UserInfo)
-			oauthPublicGroup.POST("/revoke", oauthHandler.Revoke)
-			oauthPublicGroup.GET("/.well-known/jwks.json", oauthHandler.JWKS)
-		}
-
-		oauthAuthGroup := v1.Group("/oauth")
-		oauthAuthGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			oauthAuthGroup.GET("/authorize", oauthHandler.Authorize)
-			oauthAuthGroup.POST("/clients", oauthHandler.RegisterClient)
-			oauthAuthGroup.GET("/clients", oauthHandler.ListClients)
-			oauthAuthGroup.DELETE("/clients/:clientId", oauthHandler.DeleteClient)
-		}
-
-		mcpPublicGroup := v1.Group("/mcp")
-		{
-			mcpPublicGroup.GET("/servers/public", mcpHubHandler.ListPublicServers)
-		}
-
-		mcpAuthGroup := v1.Group("/mcp")
-		mcpAuthGroup.Use(JWTAuthMiddleware(jwtService))
-		{
-			mcpAuthGroup.POST("/servers", mcpHubHandler.RegisterServer)
-			mcpAuthGroup.GET("/servers", mcpHubHandler.ListMyServers)
-			mcpAuthGroup.GET("/servers/:serverId", mcpHubHandler.GetServer)
-			mcpAuthGroup.PUT("/servers/:serverId", mcpHubHandler.UpdateServer)
-			mcpAuthGroup.DELETE("/servers/:serverId", mcpHubHandler.DeleteServer)
-			mcpAuthGroup.POST("/servers/:serverId/rebuild", mcpHubHandler.RebuildServer)
-			mcpAuthGroup.POST("/installations", mcpHubHandler.InstallServer)
-			mcpAuthGroup.GET("/installations", mcpHubHandler.ListInstallations)
-			mcpAuthGroup.PUT("/installations/:installId", mcpHubHandler.UpdateInstallation)
-			mcpAuthGroup.DELETE("/installations/:installId", mcpHubHandler.UninstallServer)
-			mcpAuthGroup.POST("/gateway", mcpGatewayHandler.HandleToolCall)
-			mcpAuthGroup.GET("/gateway/tools", mcpGatewayHandler.ListTools)
-			mcpAuthGroup.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
-			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
-		}
-
-		appGroup := v1.Group("/applications")
-		appGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
-		{
-			appGroup.POST("", applicationHandler.Create)
-			appGroup.GET("", applicationHandler.List)
-			appGroup.GET("/:appId", applicationHandler.Get)
-			appGroup.PUT("/:appId", applicationHandler.Update)
-			appGroup.DELETE("/:appId", applicationHandler.Delete)
-			appGroup.POST("/:appId/favorite", applicationHandler.ToggleFavorite)
-		}
+		app := v1.Group("/applications"); app.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		{ app.POST("", applicationHandler.Create); app.GET("", applicationHandler.List); app.GET("/:appId", applicationHandler.Get); app.PUT("/:appId", applicationHandler.Update); app.DELETE("/:appId", applicationHandler.Delete); app.POST("/:appId/favorite", applicationHandler.ToggleFavorite) }
 	}
 
 	return r
