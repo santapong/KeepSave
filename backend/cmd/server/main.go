@@ -64,7 +64,7 @@ func main() {
 	apikeyRepo := repository.NewAPIKeyRepository(db, dialect)
 	auditRepo := repository.NewAuditRepository(db, dialect)
 	promotionRepo := repository.NewPromotionRepository(db, dialect)
-	versionRepo := repository.NewSecretVersionRepository(db, dialect)
+	_ = repository.NewSecretVersionRepository(db, dialect)
 	orgRepo := repository.NewOrganizationRepository(db, dialect)
 	templateRepo := repository.NewTemplateRepository(db, dialect)
 	depRepo := repository.NewDependencyRepository(db, dialect)
@@ -105,7 +105,7 @@ func main() {
 
 	// Phase 11: Agent services
 	leaseService := service.NewLeaseService(db, dialect)
-	analyticsService := service.NewAgentAnalyticsService(db, dialect)
+	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
 	// Phase 13: OAuth & MCP services
 	oauthService := service.NewOAuthService(oauthRepo, userRepo)
@@ -115,6 +115,19 @@ func main() {
 	// Phase 14: Application Dashboard service
 	appService := service.NewApplicationService(appRepo)
 
+	// Phase 15: AI Intelligence services
+	aiMgr := service.NewAIProviderManager()
+	if aiMgr.HasProvider() {
+		logger.Info("AI providers initialized", map[string]interface{}{"count": len(aiMgr.ListProviders())})
+	} else {
+		logger.Info("no AI providers configured (Phase 15 features will use fallback mode)", nil)
+	}
+	driftService := service.NewDriftService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
+	anomalyService := service.NewAnomalyService(db, dialect, aiMgr)
+	usageAnalyticsSvc := service.NewUsageAnalyticsService(db, dialect)
+	recommService := service.NewRecommendationService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
+	nlpService := service.NewNLPQueryService(db, dialect, projectRepo, envRepo, secretRepo, aiMgr)
+
 	// Handlers
 	authHandler := api.NewAuthHandler(authService)
 	projectHandler := api.NewProjectHandler(projectService)
@@ -123,35 +136,25 @@ func main() {
 	promotionHandler := api.NewPromotionHandler(promotionService)
 	keyRotationHandler := api.NewKeyRotationHandler(keyRotationService)
 	webhookHandler := api.NewWebhookHandler(webhookService)
-	versionHandler := api.NewVersionHandler(versionRepo, secretRepo, projectRepo, cryptoSvc)
+	versionHandler := api.NewVersionHandler(repository.NewSecretVersionRepository(db, dialect), secretRepo, projectRepo, cryptoSvc)
 	healthHandler := api.NewHealthHandler(db)
 	orgHandler := api.NewOrganizationHandler(orgService)
 	templateHandler := api.NewTemplateHandler(templateService)
 	envFileHandler := api.NewEnvFileHandler(envFileService)
 	depHandler := api.NewDependencyHandler(depService)
 
-	// Phase 7: Metrics handler
 	metricsHandler := api.NewMetricsHandler(appMetrics, tracer)
-
-	// Phase 8: OpenAPI handler
 	openAPIHandler := api.NewOpenAPIHandler()
-
-	// Phase 9: Enterprise handler
 	enterpriseHandler := api.NewEnterpriseHandler(ssoService, complianceService, backupService, policyService)
-
-	// Phase 11: Agent handler
-	agentHandler := api.NewAgentHandler(leaseService, analyticsService)
-
-	// Phase 12: Platform handler
+	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc)
 	platformHandler := api.NewPlatformHandler(eventBus, pluginRegistry, accessPolicyRepo)
-
-	// Phase 13: OAuth & MCP handlers
 	oauthHandler := api.NewOAuthHandler(oauthService)
 	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
-
-	// Phase 14: Application Dashboard handler
 	applicationHandler := api.NewApplicationHandler(appService)
+
+	// Phase 15: Intelligence handler
+	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr)
 
 	// Router
 	router := api.SetupRouter(
@@ -180,6 +183,7 @@ func main() {
 		mcpHubHandler,
 		mcpGatewayHandler,
 		applicationHandler,
+		intelligenceHandler,
 		appMetrics,
 		tracer,
 		db,

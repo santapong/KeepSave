@@ -17,6 +17,7 @@ import { MCPHubPage } from './pages/MCPHubPage';
 import { OAuthClientsPage } from './pages/OAuthClientsPage';
 import { ApplicationDashboardPage } from './pages/ApplicationDashboardPage';
 import { ApplicationSettingsPage } from './pages/ApplicationSettingsPage';
+import { AIIntelligencePage } from './pages/AIIntelligencePage';
 
 export default function App() {
   useTheme();
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/oauth-clients" element={<OAuthClientsPage />} />
             <Route path="/applications" element={<ApplicationDashboardPage />} />
             <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
+            <Route path="/ai/*" element={<AIIntelligencePage />} />
             <Route path="/admin/*" element={<AdminDashboardPage />} />
             <Route path="/help" element={<HelpPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

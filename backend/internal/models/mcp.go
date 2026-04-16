@@ -8,25 +8,25 @@ import (
 
 // MCPServer represents a registered MCP server in the hub.
 type MCPServer struct {
-	ID              uuid.UUID `json:"id"`
-	Name            string    `json:"name"`
-	Description     string    `json:"description"`
-	OwnerID         uuid.UUID `json:"owner_id"`
-	GitHubURL       string    `json:"github_url"`
-	GitHubBranch    string    `json:"github_branch"`
-	EntryCommand    string    `json:"entry_command"`
-	Transport       string    `json:"transport"` // stdio, sse, streamable-http
-	IconURL         string    `json:"icon_url,omitempty"`
-	Version         string    `json:"version"`
-	Status          string    `json:"status"` // pending, building, ready, error
-	BuildLog        string    `json:"build_log,omitempty"`
-	EnvMappings     JSONMap   `json:"env_mappings"`
-	ToolDefinitions JSONMap   `json:"tool_definitions"`
+	ID              uuid.UUID  `json:"id"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	OwnerID         uuid.UUID  `json:"owner_id"`
+	GitHubURL       string     `json:"github_url"`
+	GitHubBranch    string     `json:"github_branch"`
+	EntryCommand    string     `json:"entry_command"`
+	Transport       string     `json:"transport"` // stdio, sse, streamable-http
+	IconURL         string     `json:"icon_url,omitempty"`
+	Version         string     `json:"version"`
+	Status          string     `json:"status"` // pending, building, ready, error
+	BuildLog        string     `json:"build_log,omitempty"`
+	EnvMappings     JSONMap    `json:"env_mappings"`
+	ToolDefinitions JSONMap    `json:"tool_definitions"`
 	LastSyncedAt    *time.Time `json:"last_synced_at,omitempty"`
-	InstallCount    int       `json:"install_count"`
-	IsPublic        bool      `json:"is_public"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	InstallCount    int        `json:"install_count"`
+	IsPublic        bool       `json:"is_public"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // MCPInstallation represents a user's installation of an MCP server.
@@ -48,9 +48,9 @@ type MCPGatewayLog struct {
 	MCPServerID    *uuid.UUID `json:"mcp_server_id,omitempty"`
 	ToolName       string     `json:"tool_name"`
 	RequestPayload JSONMap    `json:"request_payload"`
-	ResponseStatus string    `json:"response_status"`
-	DurationMs     int       `json:"duration_ms"`
-	CreatedAt      time.Time `json:"created_at"`
+	ResponseStatus string     `json:"response_status"`
+	DurationMs     int        `json:"duration_ms"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 // MCPToolDefinition represents a tool exposed by an MCP server.
