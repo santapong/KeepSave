@@ -38,6 +38,7 @@ func SetupRouter(
 	mcpHubHandler *MCPHubHandler,
 	mcpGatewayHandler *MCPGatewayHandler,
 	applicationHandler *ApplicationHandler,
+	intelligenceHandler *IntelligenceHandler,
 	appMetrics *metrics.AppMetrics,
 	tracer *tracing.Tracer,
 	db *sql.DB,
@@ -46,67 +47,42 @@ func SetupRouter(
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-
-	// Trusted proxy support (nginx, Traefik, Kong, etc.)
 	r.Use(TrustedProxyMiddleware())
-
-	// Phase 10: Security headers
 	r.Use(SecurityHeadersMiddleware())
-
-	// Phase 10: Request body size limit (1MB)
 	r.Use(RequestSizeLimitMiddleware(1 << 20))
-
-	// Structured JSON logging middleware
 	if logger != nil {
 		r.Use(logging.GinMiddleware(logger))
 	}
-
 	r.Use(CORSMiddleware(corsOrigins))
-
-	// Rate limiting: 100 requests per second, burst of 200
 	limiter := NewRateLimiter(100, time.Second, 200)
 	r.Use(RateLimitMiddleware(limiter))
-
-	// Phase 7: Metrics middleware
 	if appMetrics != nil {
 		r.Use(metrics.GinMiddleware(appMetrics))
 	}
-
-	// Phase 7: Tracing middleware
 	if tracer != nil {
 		r.Use(tracing.GinMiddleware(tracer))
 	}
 
-	// Health check endpoints (no auth required)
 	r.GET("/healthz", healthHandler.Liveness)
 	r.GET("/readyz", healthHandler.Readiness)
-
-	// Phase 7: Metrics endpoint (no auth required)
 	r.GET("/metrics", metricsHandler.Metrics)
-
-	// Phase 8: OpenAPI spec (no auth required)
 	r.GET("/api/docs", openAPIHandler.Spec)
-
-	// OIDC Discovery (no auth required)
 	r.GET("/.well-known/openid-configuration", oauthHandler.OpenIDConfiguration)
 
 	v1 := r.Group("/api/v1")
 	{
-		// Auth routes (no auth required)
 		authGroup := v1.Group("/auth")
 		{
 			authGroup.POST("/register", authHandler.Register)
 			authGroup.POST("/login", authHandler.Login)
 		}
 
-		// User lookup (JWT required)
 		usersGroup := v1.Group("/users")
 		usersGroup.Use(JWTAuthMiddleware(jwtService))
 		{
 			usersGroup.GET("/lookup", authHandler.LookupUser)
 		}
 
-		// Project routes (JWT required)
 		projectGroup := v1.Group("/projects")
 		projectGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -117,7 +93,6 @@ func SetupRouter(
 			projectGroup.DELETE("/:id", projectHandler.Delete)
 		}
 
-		// Secret routes (JWT or API key)
 		secretGroup := v1.Group("/projects/:id/secrets")
 		secretGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
 		{
@@ -126,13 +101,10 @@ func SetupRouter(
 			secretGroup.GET("/:secretId", secretHandler.Get)
 			secretGroup.PUT("/:secretId", secretHandler.Update)
 			secretGroup.DELETE("/:secretId", secretHandler.Delete)
-
-			// Secret version history
 			secretGroup.GET("/:secretId/versions", versionHandler.ListVersions)
 			secretGroup.GET("/:secretId/versions/:version", versionHandler.GetVersion)
 		}
 
-		// Promotion routes (JWT required)
 		promoteGroup := v1.Group("/projects/:id")
 		promoteGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -144,43 +116,36 @@ func SetupRouter(
 			promoteGroup.POST("/promotions/:promotionId/reject", promotionHandler.RejectPromotion)
 			promoteGroup.POST("/promotions/:promotionId/rollback", promotionHandler.Rollback)
 			promoteGroup.GET("/audit-log", promotionHandler.AuditLog)
-
-			// Key rotation
 			promoteGroup.POST("/rotate-keys", keyRotationHandler.RotateProjectKey)
 			promoteGroup.GET("/verify-encryption", keyRotationHandler.VerifyEncryption)
-
-			// Webhooks
 			promoteGroup.POST("/webhooks", webhookHandler.Register)
 			promoteGroup.GET("/webhooks", webhookHandler.List)
 			promoteGroup.DELETE("/webhooks", webhookHandler.Remove)
-
-			// Import/Export .env files
 			promoteGroup.GET("/env-export", envFileHandler.Export)
 			promoteGroup.POST("/env-import", envFileHandler.Import)
-
-			// Secret dependency graph
 			promoteGroup.POST("/dependencies/analyze", depHandler.Analyze)
 			promoteGroup.GET("/dependencies/graph", depHandler.Graph)
-
-			// Phase 9: Backups
 			promoteGroup.POST("/backups", enterpriseHandler.CreateBackup)
 			promoteGroup.GET("/backups", enterpriseHandler.ListBackups)
-
-			// Phase 9: Secret policies
 			promoteGroup.GET("/policy", enterpriseHandler.GetSecretPolicy)
 			promoteGroup.PUT("/policy", enterpriseHandler.SetSecretPolicy)
-
-			// Phase 11: Agent activity
 			promoteGroup.GET("/agent-activity", agentHandler.GetRecentActivity)
 			promoteGroup.GET("/agent-heatmap", agentHandler.GetAccessHeatmap)
-
-			// Phase 12: Access policies
 			promoteGroup.GET("/access-policies", platformHandler.ListAccessPolicies)
 			promoteGroup.POST("/access-policies", platformHandler.CreateAccessPolicy)
 			promoteGroup.DELETE("/access-policies/:policyId", platformHandler.DeleteAccessPolicy)
+
+			// Phase 15: AI Intelligence - per-project endpoints
+			promoteGroup.POST("/drift", intelligenceHandler.DetectDrift)
+			promoteGroup.GET("/drift", intelligenceHandler.ListDriftChecks)
+			promoteGroup.POST("/anomalies/scan", intelligenceHandler.RunAnomalyDetection)
+			promoteGroup.GET("/analytics/trends", intelligenceHandler.GetUsageTrends)
+			promoteGroup.GET("/analytics/forecast", intelligenceHandler.GetUsageForecast)
+			promoteGroup.POST("/recommendations/generate", intelligenceHandler.GenerateRecommendations)
+			promoteGroup.GET("/recommendations", intelligenceHandler.ListRecommendations)
+			promoteGroup.DELETE("/recommendations/:recId", intelligenceHandler.DismissRecommendation)
 		}
 
-		// Phase 11: Agent lease routes (JWT or API key)
 		leaseGroup := v1.Group("/projects/:id/leases")
 		leaseGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
 		{
@@ -189,14 +154,12 @@ func SetupRouter(
 			leaseGroup.DELETE("/:leaseId", agentHandler.RevokeLease)
 		}
 
-		// Key rotation for all projects (JWT required)
 		rotateGroup := v1.Group("/rotate-keys")
 		rotateGroup.Use(JWTAuthMiddleware(jwtService))
 		{
 			rotateGroup.POST("", keyRotationHandler.RotateAllKeys)
 		}
 
-		// API key routes (JWT required)
 		apikeyGroup := v1.Group("/api-keys")
 		apikeyGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -205,14 +168,12 @@ func SetupRouter(
 			apikeyGroup.DELETE("/:id", apikeyHandler.Delete)
 		}
 
-		// Webhook deliveries (JWT required)
 		webhookGroup := v1.Group("/webhook-deliveries")
 		webhookGroup.Use(JWTAuthMiddleware(jwtService))
 		{
 			webhookGroup.GET("", webhookHandler.Deliveries)
 		}
 
-		// Organization routes (JWT required)
 		orgGroup := v1.Group("/organizations")
 		orgGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -221,28 +182,19 @@ func SetupRouter(
 			orgGroup.GET("/:orgId", orgHandler.Get)
 			orgGroup.PUT("/:orgId", orgHandler.Update)
 			orgGroup.DELETE("/:orgId", orgHandler.Delete)
-
-			// Members
 			orgGroup.POST("/:orgId/members", orgHandler.AddMember)
 			orgGroup.GET("/:orgId/members", orgHandler.ListMembers)
 			orgGroup.PUT("/:orgId/members/:userId", orgHandler.UpdateMemberRole)
 			orgGroup.DELETE("/:orgId/members/:userId", orgHandler.RemoveMember)
-
-			// Project assignment
 			orgGroup.POST("/:orgId/projects", orgHandler.AssignProject)
 			orgGroup.GET("/:orgId/projects", orgHandler.ListProjects)
-
-			// Phase 9: SSO
 			orgGroup.POST("/:orgId/sso", enterpriseHandler.ConfigureSSO)
 			orgGroup.GET("/:orgId/sso", enterpriseHandler.ListSSOConfigs)
 			orgGroup.DELETE("/:orgId/sso/:provider", enterpriseHandler.DeleteSSOConfig)
-
-			// Phase 9: Compliance
 			orgGroup.POST("/:orgId/compliance", enterpriseHandler.GenerateComplianceReport)
 			orgGroup.GET("/:orgId/compliance", enterpriseHandler.ListComplianceReports)
 		}
 
-		// Template routes (JWT required)
 		templateGroup := v1.Group("/templates")
 		templateGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -255,7 +207,6 @@ func SetupRouter(
 			templateGroup.POST("/:templateId/apply", templateHandler.Apply)
 		}
 
-		// Phase 7: Admin routes (JWT required)
 		adminGroup := v1.Group("/admin")
 		adminGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -263,14 +214,12 @@ func SetupRouter(
 			adminGroup.GET("/traces", metricsHandler.Traces)
 		}
 
-		// Phase 11: Agent analytics routes (JWT or API key)
 		agentGroup := v1.Group("/agent")
 		agentGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
 		{
 			agentGroup.GET("/activity", agentHandler.GetActivitySummary)
 		}
 
-		// Phase 12: Platform routes (JWT required)
 		platformGroup := v1.Group("/platform")
 		platformGroup.Use(JWTAuthMiddleware(jwtService))
 		{
@@ -281,7 +230,17 @@ func SetupRouter(
 			platformGroup.PUT("/plugins/:pluginId", platformHandler.TogglePlugin)
 		}
 
-		// Phase 13: OAuth 2.0 Provider
+		// Phase 15: AI Intelligence - global endpoints
+		aiGroup := v1.Group("/ai")
+		aiGroup.Use(JWTAuthMiddleware(jwtService))
+		{
+			aiGroup.GET("/providers", intelligenceHandler.ListProviders)
+			aiGroup.POST("/query", intelligenceHandler.NLPQuery)
+			aiGroup.GET("/anomalies", intelligenceHandler.ListAnomalies)
+			aiGroup.PUT("/anomalies/:anomalyId/acknowledge", intelligenceHandler.AcknowledgeAnomaly)
+			aiGroup.PUT("/anomalies/:anomalyId/resolve", intelligenceHandler.ResolveAnomaly)
+		}
+
 		oauthPublicGroup := v1.Group("/oauth")
 		{
 			oauthPublicGroup.POST("/token", oauthHandler.Token)
@@ -299,7 +258,6 @@ func SetupRouter(
 			oauthAuthGroup.DELETE("/clients/:clientId", oauthHandler.DeleteClient)
 		}
 
-		// Phase 13: MCP Server Hub
 		mcpPublicGroup := v1.Group("/mcp")
 		{
 			mcpPublicGroup.GET("/servers/public", mcpHubHandler.ListPublicServers)
@@ -308,28 +266,22 @@ func SetupRouter(
 		mcpAuthGroup := v1.Group("/mcp")
 		mcpAuthGroup.Use(JWTAuthMiddleware(jwtService))
 		{
-			// Server management
 			mcpAuthGroup.POST("/servers", mcpHubHandler.RegisterServer)
 			mcpAuthGroup.GET("/servers", mcpHubHandler.ListMyServers)
 			mcpAuthGroup.GET("/servers/:serverId", mcpHubHandler.GetServer)
 			mcpAuthGroup.PUT("/servers/:serverId", mcpHubHandler.UpdateServer)
 			mcpAuthGroup.DELETE("/servers/:serverId", mcpHubHandler.DeleteServer)
 			mcpAuthGroup.POST("/servers/:serverId/rebuild", mcpHubHandler.RebuildServer)
-
-			// Installation management
 			mcpAuthGroup.POST("/installations", mcpHubHandler.InstallServer)
 			mcpAuthGroup.GET("/installations", mcpHubHandler.ListInstallations)
 			mcpAuthGroup.PUT("/installations/:installId", mcpHubHandler.UpdateInstallation)
 			mcpAuthGroup.DELETE("/installations/:installId", mcpHubHandler.UninstallServer)
-
-			// Gateway
 			mcpAuthGroup.POST("/gateway", mcpGatewayHandler.HandleToolCall)
 			mcpAuthGroup.GET("/gateway/tools", mcpGatewayHandler.ListTools)
 			mcpAuthGroup.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
 			mcpAuthGroup.GET("/config", mcpGatewayHandler.MCPConfig)
 		}
 
-		// Phase 14: Application Dashboard (JWT or API key)
 		appGroup := v1.Group("/applications")
 		appGroup.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
 		{
