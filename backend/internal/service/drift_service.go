@@ -163,3 +163,86 @@ func (s *DriftService) ListDriftChecks(projectID uuid.UUID) ([]models.DriftCheck
 	}
 	return checks, nil
 }
+
+// --- Scheduled Drift Checks ---
+
+func (s *DriftService) CreateSchedule(projectID uuid.UUID, sourceEnv, targetEnv, cronExpr string) (*models.DriftSchedule, error) {
+	now := time.Now()
+	sched := &models.DriftSchedule{
+		ID: uuid.New(), ProjectID: projectID,
+		SourceEnv: sourceEnv, TargetEnv: targetEnv,
+		CronExpr: cronExpr, Enabled: true,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	_, err := s.db.Exec(`INSERT INTO drift_schedules (id, project_id, source_env, target_env, cron_expr, enabled, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		sched.ID, sched.ProjectID, sched.SourceEnv, sched.TargetEnv, sched.CronExpr, sched.Enabled, sched.CreatedAt, sched.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return sched, nil
+}
+
+func (s *DriftService) ListSchedules(projectID uuid.UUID) ([]models.DriftSchedule, error) {
+	rows, err := s.db.Query(`SELECT id, project_id, source_env, target_env, cron_expr, enabled, last_run_at, next_run_at, created_at, updated_at FROM drift_schedules WHERE project_id = $1 ORDER BY created_at DESC`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schedules []models.DriftSchedule
+	for rows.Next() {
+		var sc models.DriftSchedule
+		var lastRun, nextRun sql.NullTime
+		if err := rows.Scan(&sc.ID, &sc.ProjectID, &sc.SourceEnv, &sc.TargetEnv, &sc.CronExpr, &sc.Enabled, &lastRun, &nextRun, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
+			continue
+		}
+		if lastRun.Valid {
+			sc.LastRunAt = &lastRun.Time
+		}
+		if nextRun.Valid {
+			sc.NextRunAt = &nextRun.Time
+		}
+		schedules = append(schedules, sc)
+	}
+	return schedules, nil
+}
+
+func (s *DriftService) UpdateSchedule(id uuid.UUID, enabled bool, cronExpr string) error {
+	_, err := s.db.Exec(`UPDATE drift_schedules SET enabled = $1, cron_expr = $2, updated_at = $3 WHERE id = $4`, enabled, cronExpr, time.Now(), id)
+	return err
+}
+
+func (s *DriftService) DeleteSchedule(id uuid.UUID) error {
+	_, err := s.db.Exec(`DELETE FROM drift_schedules WHERE id = $1`, id)
+	return err
+}
+
+// RunScheduledChecks finds due schedules and runs drift detection for each.
+func (s *DriftService) RunScheduledChecks() (int, error) {
+	rows, err := s.db.Query(`SELECT id, project_id, source_env, target_env FROM drift_schedules WHERE enabled = true AND (next_run_at IS NULL OR next_run_at <= $1)`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	ran := 0
+	for rows.Next() {
+		var schedID, projID uuid.UUID
+		var srcEnv, tgtEnv string
+		if err := rows.Scan(&schedID, &projID, &srcEnv, &tgtEnv); err != nil {
+			continue
+		}
+		// Look up the project owner
+		var ownerID uuid.UUID
+		s.db.QueryRow(`SELECT owner_id FROM projects WHERE id = $1`, projID).Scan(&ownerID)
+		if ownerID == uuid.Nil {
+			continue
+		}
+		s.DetectDrift(projID, ownerID, srcEnv, tgtEnv)
+		now := time.Now()
+		nextRun := now.Add(6 * time.Hour) // default 6h interval
+		s.db.Exec(`UPDATE drift_schedules SET last_run_at = $1, next_run_at = $2, updated_at = $3 WHERE id = $4`, now, nextRun, now, schedID)
+		ran++
+	}
+	return ran, nil
+}
