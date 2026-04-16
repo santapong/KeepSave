@@ -12,7 +12,6 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
-// NLPQueryService handles natural language secret queries via AI providers.
 type NLPQueryService struct {
 	db          *sql.DB
 	dialect     repository.Dialect
@@ -22,74 +21,36 @@ type NLPQueryService struct {
 	aiMgr       *AIProviderManager
 }
 
-func NewNLPQueryService(
-	db *sql.DB, dialect repository.Dialect,
-	projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository,
-	secretRepo *repository.SecretRepository, aiMgr *AIProviderManager,
-) *NLPQueryService {
+func NewNLPQueryService(db *sql.DB, dialect repository.Dialect, projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository, secretRepo *repository.SecretRepository, aiMgr *AIProviderManager) *NLPQueryService {
 	return &NLPQueryService{db: db, dialect: dialect, projectRepo: projectRepo, envRepo: envRepo, secretRepo: secretRepo, aiMgr: aiMgr}
 }
 
-// Query processes a natural language query about secrets.
-func (s *NLPQueryService) Query(userID uuid.UUID, query string) (*models.NLPQueryResult, error) {
-	if s.aiMgr == nil || !s.aiMgr.HasProvider() {
-		// Fallback to fuzzy matching without AI
-		return s.fuzzyQuery(userID, query)
-	}
-
-	// Gather context: list user's projects and their secret keys
+func (s *NLPQueryService) buildContext(userID uuid.UUID) string {
 	projects, err := s.projectRepo.ListByUser(userID)
 	if err != nil {
-		return nil, err
+		return ""
 	}
-
-	var context strings.Builder
-	context.WriteString("Available projects and their secret keys:\n")
+	var b strings.Builder
+	b.WriteString("Available projects and their secret keys:\n")
 	for _, p := range projects {
-		context.WriteString(fmt.Sprintf("\nProject: %s (ID: %s)\n", p.Name, p.ID))
-		envs, err := s.envRepo.ListByProject(p.ID)
-		if err != nil {
-			continue
-		}
+		b.WriteString(fmt.Sprintf("\nProject: %s (ID: %s)\n", p.Name, p.ID))
+		envs, _ := s.envRepo.ListByProject(p.ID)
 		for _, env := range envs {
-			secrets, err := s.secretRepo.ListByEnvironment(p.ID, env.ID)
-			if err != nil {
-				continue
-			}
+			secrets, _ := s.secretRepo.ListByEnvironment(p.ID, env.ID)
 			var keys []string
 			for _, sec := range secrets {
 				keys = append(keys, sec.Key)
 			}
 			if len(keys) > 0 {
-				context.WriteString(fmt.Sprintf("  Environment %s: %s\n", env.Name, strings.Join(keys, ", ")))
+				b.WriteString(fmt.Sprintf("  Environment %s: %s\n", env.Name, strings.Join(keys, ", ")))
 			}
 		}
 	}
+	return b.String()
+}
 
-	systemPrompt := `You are KeepSave's AI assistant for natural language secret queries. 
-Given the user's projects and secret keys, answer their query.
-Return ONLY a JSON object with these fields:
-- "intent": one of "find_secret", "describe_project", "list_env", "suggest"
-- "matched_secrets": array of {"project_name": "...", "project_id": "...", "environment": "...", "key": "...", "score": 0.0-1.0, "reason": "..."}
-- "explanation": brief human-readable answer
-- "suggestions": array of follow-up suggestion strings
-Never include actual secret values. Only match by key names.`
-
-	userPrompt := fmt.Sprintf("Context:\n%s\n\nUser query: %s", context.String(), query)
-
-	resp, provider, model, err := s.aiMgr.Chat(systemPrompt, userPrompt)
-	if err != nil {
-		// Fallback to fuzzy
-		return s.fuzzyQuery(userID, query)
-	}
-
-	// Parse AI response
-	result := &models.NLPQueryResult{
-		Query:    query,
-		Provider: provider,
-		Model:    model,
-	}
-
+func (s *NLPQueryService) parseAIResponse(resp, query, provider, model string) *models.NLPQueryResult {
+	result := &models.NLPQueryResult{Query: query, Provider: provider, Model: model}
 	clean := extractJSONObject(resp)
 	var parsed struct {
 		Intent         string `json:"intent"`
@@ -104,7 +65,6 @@ Never include actual secret values. Only match by key names.`
 		Explanation string   `json:"explanation"`
 		Suggestions []string `json:"suggestions"`
 	}
-
 	if json.Unmarshal([]byte(clean), &parsed) == nil {
 		result.Intent = parsed.Intent
 		result.Explanation = parsed.Explanation
@@ -112,36 +72,79 @@ Never include actual secret values. Only match by key names.`
 		for _, m := range parsed.MatchedSecrets {
 			pid, _ := uuid.Parse(m.ProjectID)
 			result.MatchedSecrets = append(result.MatchedSecrets, models.NLPSecretMatch{
-				ProjectID: pid, ProjectName: m.ProjectName,
-				Environment: m.Environment, Key: m.Key,
-				Score: m.Score, Reason: m.Reason,
+				ProjectID: pid, ProjectName: m.ProjectName, Environment: m.Environment,
+				Key: m.Key, Score: m.Score, Reason: m.Reason,
 			})
 		}
 	} else {
 		result.Intent = "suggest"
 		result.Explanation = resp
 	}
+	return result
+}
 
-	// Log query
+const nlpSystemPrompt = `You are KeepSave's AI assistant for natural language secret queries.
+Given the user's projects and secret keys, answer their query.
+Return ONLY a JSON object with these fields:
+- "intent": one of "find_secret", "describe_project", "list_env", "suggest"
+- "matched_secrets": array of {"project_name": "...", "project_id": "...", "environment": "...", "key": "...", "score": 0.0-1.0, "reason": "..."}
+- "explanation": brief human-readable answer
+- "suggestions": array of follow-up suggestion strings
+Never include actual secret values. Only match by key names.`
+
+func (s *NLPQueryService) Query(userID uuid.UUID, query string) (*models.NLPQueryResult, error) {
+	if s.aiMgr == nil || !s.aiMgr.HasProvider() {
+		return s.fuzzyQuery(userID, query)
+	}
+	ctx := s.buildContext(userID)
+	prompt := fmt.Sprintf("Context:\n%s\n\nUser query: %s", ctx, query)
+	resp, provider, model, err := s.aiMgr.Chat(nlpSystemPrompt, prompt)
+	if err != nil {
+		return s.fuzzyQuery(userID, query)
+	}
+	result := s.parseAIResponse(resp, query, provider, model)
 	s.db.Exec(`INSERT INTO nlp_query_log (id, user_id, query, intent, provider, model, matched_count, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		uuid.New(), userID, query, result.Intent, provider, model, len(result.MatchedSecrets), time.Now())
-
 	return result, nil
 }
 
-// fuzzyQuery does keyword-based matching without AI.
+// Converse handles multi-turn conversation for secret setup guidance.
+func (s *NLPQueryService) Converse(userID uuid.UUID, messages []models.ConversationMessage) (*models.NLPQueryResult, error) {
+	lastMsg := ""
+	if len(messages) > 0 {
+		lastMsg = messages[len(messages)-1].Content
+	}
+	if s.aiMgr == nil || !s.aiMgr.HasProvider() {
+		return s.fuzzyQuery(userID, lastMsg)
+	}
+	ctx := s.buildContext(userID)
+	var history strings.Builder
+	for _, msg := range messages {
+		if msg.Role == "user" {
+			history.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+		} else {
+			history.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+		}
+	}
+	sys := `You are KeepSave's AI assistant. Help users manage secrets through multi-turn conversation.
+You can help with: finding secrets, setting up new projects, suggesting configurations, explaining environment promotion.
+Return a JSON object with: "intent", "explanation", "matched_secrets" (array), "suggestions" (follow-up questions).
+Never include actual secret values.`
+	prompt := fmt.Sprintf("Context:\n%s\n\nConversation:\n%s", ctx, history.String())
+	resp, provider, model, err := s.aiMgr.Chat(sys, prompt)
+	if err != nil {
+		return s.fuzzyQuery(userID, lastMsg)
+	}
+	return s.parseAIResponse(resp, lastMsg, provider, model), nil
+}
+
 func (s *NLPQueryService) fuzzyQuery(userID uuid.UUID, query string) (*models.NLPQueryResult, error) {
 	projects, err := s.projectRepo.ListByUser(userID)
 	if err != nil {
 		return nil, err
 	}
-
 	terms := strings.Fields(strings.ToLower(query))
-	result := &models.NLPQueryResult{
-		Query:  query,
-		Intent: "find_secret",
-	}
-
+	result := &models.NLPQueryResult{Query: query, Intent: "find_secret"}
 	for _, p := range projects {
 		envs, _ := s.envRepo.ListByProject(p.ID)
 		for _, env := range envs {
@@ -151,8 +154,7 @@ func (s *NLPQueryService) fuzzyQuery(userID uuid.UUID, query string) (*models.NL
 				for _, term := range terms {
 					if strings.Contains(keyLower, term) || strings.Contains(strings.ToLower(p.Name), term) {
 						result.MatchedSecrets = append(result.MatchedSecrets, models.NLPSecretMatch{
-							ProjectID: p.ID, ProjectName: p.Name,
-							Environment: env.Name, Key: sec.Key,
+							ProjectID: p.ID, ProjectName: p.Name, Environment: env.Name, Key: sec.Key,
 							Score: 0.7, Reason: fmt.Sprintf("Matched term '%s'", term),
 						})
 						break
@@ -161,8 +163,7 @@ func (s *NLPQueryService) fuzzyQuery(userID uuid.UUID, query string) (*models.NL
 			}
 		}
 	}
-
-	result.Explanation = fmt.Sprintf("Found %d matching secrets using keyword search (no AI provider configured)", len(result.MatchedSecrets))
+	result.Explanation = fmt.Sprintf("Found %d matching secrets via keyword search (no AI provider configured)", len(result.MatchedSecrets))
 	result.Provider = "builtin"
 	result.Model = "keyword-fuzzy"
 	return result, nil
