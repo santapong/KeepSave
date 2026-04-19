@@ -28,34 +28,97 @@ spec:
           env:
             - name: PORT
               value: "{{ .Values.backend.port }}"
+            - name: KEEPSAVE_ENV
+              value: "{{ .Values.backend.env.KEEPSAVE_ENV }}"
             - name: CORS_ORIGINS
               value: "{{ .Values.backend.env.CORS_ORIGINS }}"
+            - name: KEEPSAVE_KEY_PROVIDER
+              value: "{{ .Values.backend.env.KEEPSAVE_KEY_PROVIDER }}"
+            - name: AUDIT_LOG_RETENTION_DAYS
+              value: "{{ .Values.backend.env.AUDIT_LOG_RETENTION_DAYS }}"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: database-url
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: master-key
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: jwt-secret
+            {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "env" }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: master-key
+            {{- end }}
+            {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "awskms" }}
+            - name: KEEPSAVE_KMS_KEY_ID
+              value: "{{ .Values.backend.awskms.keyId }}"
+            - name: KEEPSAVE_KMS_CIPHERTEXT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: kms-ciphertext
+            {{- end }}
+            {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "gcpkms" }}
+            - name: KEEPSAVE_KMS_KEY_ID
+              value: "{{ .Values.backend.gcpkms.keyName }}"
+            - name: KEEPSAVE_KMS_CIPHERTEXT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: kms-ciphertext
+            {{- end }}
+            {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "vault" }}
+            - name: VAULT_ADDR
+              value: "{{ .Values.backend.vault.addr }}"
+            - name: KEEPSAVE_VAULT_KEY_NAME
+              value: "{{ .Values.backend.vault.keyName }}"
+            - name: KEEPSAVE_VAULT_CIPHERTEXT
+              value: "{{ .Values.backend.vault.ciphertext }}"
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: vault-token
+            {{- end }}
+            {{- if .Values.backend.tls.enabled }}
+            - name: TLS_CERT_FILE
+              value: "/etc/keepsave/tls/{{ .Values.backend.tls.certFile }}"
+            - name: TLS_KEY_FILE
+              value: "/etc/keepsave/tls/{{ .Values.backend.tls.keyFile }}"
+            - name: TLS_REDIRECT
+              value: "{{ .Values.backend.tls.redirect }}"
+            - name: TLS_CIPHER_SUITES
+              value: "{{ .Values.backend.tls.cipherSuites }}"
+            {{- end }}
+          {{- if .Values.backend.tls.enabled }}
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/keepsave/tls
+              readOnly: true
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.backend.port }}
+              scheme: {{ if .Values.backend.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /readyz
               port: {{ .Values.backend.port }}
+              scheme: {{ if .Values.backend.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+      {{- if .Values.backend.tls.enabled }}
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: {{ .Values.backend.tls.secretName | default (printf "%s-tls" .Release.Name) }}
+      {{- end }}

@@ -3,7 +3,7 @@ replicaCount: 2
 backend:
   image:
     repository: keepsave-backend
-    tag: "0.5.0"
+    tag: "1.1.0"
     pullPolicy: IfNotPresent
   port: 8080
   resources:
@@ -13,14 +13,40 @@ backend:
     limits:
       cpu: 500m
       memory: 512Mi
+  # env block surfaced to the pod. See docs/THREAT_MODEL.md for guidance.
   env:
     PORT: "8080"
-    CORS_ORIGINS: "*"
+    KEEPSAVE_ENV: "production"
+    # Explicit comma-separated origins required in production.
+    CORS_ORIGINS: "https://keepsave.example.com"
+    # Master-key source. Options: env | awskms | gcpkms | vault.
+    # env is only appropriate for dev/docker-compose.
+    KEEPSAVE_KEY_PROVIDER: "awskms"
+    AUDIT_LOG_RETENTION_DAYS: "365"
+  # In-app TLS. Leave empty to terminate TLS at ingress instead.
+  tls:
+    enabled: false
+    certFile: ""
+    keyFile: ""
+    redirect: false
+    cipherSuites: ""
+    secretName: ""
+  # KMS parameters. Populate whichever KEEPSAVE_KEY_PROVIDER you chose.
+  awskms:
+    keyId: ""
+    ciphertextBlobBase64: ""
+  gcpkms:
+    keyName: ""
+    ciphertextBlobBase64: ""
+  vault:
+    addr: ""
+    keyName: "keepsave-master"
+    ciphertext: ""
 
 frontend:
   image:
     repository: keepsave-frontend
-    tag: "0.5.0"
+    tag: "1.1.0"
     pullPolicy: IfNotPresent
   port: 80
   resources:
@@ -42,16 +68,23 @@ postgresql:
       size: 10Gi
 
 secrets:
+  # Only set masterKey when backend.env.KEEPSAVE_KEY_PROVIDER=env.
+  # In all other modes the KMS/Vault path is used and this stays empty.
   masterKey: ""
   jwtSecret: ""
-  databaseUrl: ""
+  # Default DATABASE_URL template REQUIRES sslmode=require; KEEPSAVE_ENV=production
+  # will refuse to start with sslmode=disable.
+  databaseUrl: "postgres://keepsave:CHANGE_ME@keepsave-postgresql:5432/keepsave?sslmode=require"
+  # KMS ciphertext + Vault token are templated into secrets.yaml.
+  kmsCiphertext: ""
+  vaultToken: ""
 
 ingress:
   enabled: false
   className: nginx
   annotations: {}
   hosts:
-    - host: keepsave.local
+    - host: keepsave.example.com
       paths:
         - path: /api
           pathType: Prefix

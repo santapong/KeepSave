@@ -1,12 +1,19 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/santapong/KeepSave/backend/internal/api"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/config"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
+	"github.com/santapong/KeepSave/backend/internal/crypto/keyprovider"
 	"github.com/santapong/KeepSave/backend/internal/events"
 	"github.com/santapong/KeepSave/backend/internal/logging"
 	"github.com/santapong/KeepSave/backend/internal/metrics"
@@ -15,6 +22,9 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/service"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
 )
+
+// version is the semantic-version string surfaced in logs and health checks.
+const version = "1.1.0"
 
 func main() {
 	logger := logging.NewLogger(os.Stdout, logging.LevelInfo)
@@ -40,23 +50,28 @@ func main() {
 	}
 	logger.Info("migrations completed successfully", nil)
 
-	cryptoSvc, err := crypto.NewService(cfg.MasterKey)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	masterKey, err := resolveMasterKey(ctx, cfg)
+	cancel()
+	if err != nil {
+		logger.Error("failed to resolve master key", map[string]interface{}{"provider": cfg.KeyProvider, "error": err.Error()})
+		os.Exit(1)
+	}
+	cryptoSvc, err := crypto.NewService(masterKey)
 	if err != nil {
 		logger.Error("failed to create crypto service", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
+	logger.Info("master key resolved", map[string]interface{}{"provider": cfg.KeyProvider})
 
 	jwtService := auth.NewJWTService(cfg.JWTSecret)
 
-	// Phase 7: Observability
 	appMetrics := metrics.NewAppMetrics()
 	tracer := tracing.NewTracer("keepsave-api")
 
-	// Phase 12: Event bus and plugin registry
 	eventBus := events.NewBus(db, dialect)
 	pluginRegistry := plugins.NewRegistry(db, dialect)
 
-	// Repositories
 	userRepo := repository.NewUserRepository(db, dialect)
 	projectRepo := repository.NewProjectRepository(db, dialect)
 	envRepo := repository.NewEnvironmentRepository(db, dialect)
@@ -69,22 +84,14 @@ func main() {
 	templateRepo := repository.NewTemplateRepository(db, dialect)
 	depRepo := repository.NewDependencyRepository(db, dialect)
 
-	// Phase 9: Enterprise repositories
 	ssoRepo := repository.NewSSORepository(db, dialect)
 	complianceRepo := repository.NewComplianceRepository(db, dialect)
 	backupRepo := repository.NewBackupRepository(db, dialect)
-
-	// Phase 12: Platform repositories
 	accessPolicyRepo := repository.NewAccessPolicyRepository(db, dialect)
-
-	// Phase 13: OAuth & MCP repositories
 	oauthRepo := repository.NewOAuthRepository(db, dialect)
 	mcpRepo := repository.NewMCPRepository(db, dialect)
-
-	// Phase 14: Application Dashboard repository
 	appRepo := repository.NewApplicationRepository(db, dialect)
 
-	// Services
 	authService := service.NewAuthService(userRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, cryptoSvc)
@@ -97,25 +104,20 @@ func main() {
 	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, cryptoSvc)
 	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
-	// Phase 9: Enterprise services
 	ssoService := service.NewSSOService(ssoRepo, cryptoSvc)
 	complianceService := service.NewComplianceService(complianceRepo, auditRepo, orgRepo)
 	backupService := service.NewBackupService(backupRepo, secretRepo, cryptoSvc)
 	policyService := service.NewSecretPolicyService(db, dialect)
 
-	// Phase 11: Agent services
 	leaseService := service.NewLeaseService(db, dialect)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
-	// Phase 13: OAuth & MCP services
 	oauthService := service.NewOAuthService(oauthRepo, userRepo)
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
-	// Phase 14: Application Dashboard service
 	appService := service.NewApplicationService(appRepo)
 
-	// Phase 15: AI Intelligence services
 	aiMgr := service.NewAIProviderManager()
 	if aiMgr.HasProvider() {
 		logger.Info("AI providers initialized", map[string]interface{}{"count": len(aiMgr.ListProviders())})
@@ -128,7 +130,6 @@ func main() {
 	recommService := service.NewRecommendationService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
 	nlpService := service.NewNLPQueryService(db, dialect, projectRepo, envRepo, secretRepo, aiMgr)
 
-	// Handlers
 	authHandler := api.NewAuthHandler(authService)
 	projectHandler := api.NewProjectHandler(projectService)
 	secretHandler := api.NewSecretHandler(secretService)
@@ -153,10 +154,8 @@ func main() {
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 	applicationHandler := api.NewApplicationHandler(appService)
 
-	// Phase 15: Intelligence handler
 	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr)
 
-	// Router
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
 		jwtService,
@@ -190,9 +189,97 @@ func main() {
 		logger,
 	)
 
-	logger.Info("starting server", map[string]interface{}{"port": cfg.Port})
+	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
+	logger.Info("starting server", map[string]interface{}{
+		"version":  version,
+		"port":     cfg.Port,
+		"env":      cfg.Env,
+		"tls":      tlsEnabled,
+		"provider": cfg.KeyProvider,
+	})
+
+	if tlsEnabled {
+		if cfg.TLSRedirect {
+			go startHTTPRedirect(logger)
+		}
+		srv := &http.Server{
+			Addr:              ":" + cfg.Port,
+			Handler:           router,
+			TLSConfig:         buildTLSConfig(cfg.TLSCipherSuites),
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		if err := srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile); err != nil {
+			logger.Error("failed to start TLS server", map[string]interface{}{"error": err.Error()})
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := router.Run(":" + cfg.Port); err != nil {
 		logger.Error("failed to start server", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
+	}
+}
+
+// resolveMasterKey sources the 32-byte master key from the configured
+// provider. Env and Vault are wired inline because they require no extra
+// Go-module dependencies; AWS/GCP KMS return a clear error until a
+// follow-up commit wires the SDK adapters.
+func resolveMasterKey(ctx context.Context, cfg *config.Config) ([]byte, error) {
+	switch cfg.KeyProvider {
+	case "env", "":
+		if len(cfg.MasterKey) != 32 {
+			return nil, fmt.Errorf("env provider selected but MasterKey is empty (check MASTER_KEY)")
+		}
+		return cfg.MasterKey, nil
+	case "vault":
+		p, err := keyprovider.NewVaultProvider(nil, cfg.VaultAddr, cfg.VaultToken, cfg.VaultKeyName, cfg.VaultCiphertext)
+		if err != nil {
+			return nil, err
+		}
+		return p.GetMasterKey(ctx)
+	case "awskms", "gcpkms":
+		return nil, fmt.Errorf("KEEPSAVE_KEY_PROVIDER=%s requires the SDK adapter; see docs/RUNBOOK.md and helm/keepsave/values.yaml", cfg.KeyProvider)
+	default:
+		return nil, fmt.Errorf("unknown KEEPSAVE_KEY_PROVIDER=%q", cfg.KeyProvider)
+	}
+}
+
+// buildTLSConfig returns a TLS 1.2+ config. cipherList is a comma-separated
+// list of IANA cipher names; when empty the Go default is used.
+func buildTLSConfig(cipherList string) *tls.Config {
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if cipherList == "" {
+		return cfg
+	}
+	names := map[string]uint16{}
+	for _, s := range tls.CipherSuites() {
+		names[s.Name] = s.ID
+	}
+	var ids []uint16
+	for _, name := range strings.Split(cipherList, ",") {
+		if id, ok := names[strings.TrimSpace(name)]; ok {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) > 0 {
+		cfg.CipherSuites = ids
+	}
+	return cfg
+}
+
+// startHTTPRedirect serves a plain-HTTP listener on :80 that 301-redirects
+// every request to https://<host><path>.
+func startHTTPRedirect(logger *logging.Logger) {
+	srv := &http.Server{
+		Addr: ":80",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			target := "https://" + r.Host + r.URL.RequestURI()
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
+		}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		logger.Error("http redirect listener exited", map[string]interface{}{"error": err.Error()})
 	}
 }
