@@ -5,6 +5,10 @@ import (
 )
 
 // SecurityHeadersMiddleware sets security-related HTTP headers on all responses.
+// The CSP is intentionally strict: no 'unsafe-inline' anywhere. The dashboard
+// uses Tailwind-compiled stylesheets and Shadcn components that emit classes,
+// not inline <style> tags. The embed widget uses Shadow DOM which sets styles
+// via a <link> element shipped with the widget bundle.
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -13,8 +17,8 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		c.Header("Content-Security-Policy",
-			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'")
-		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
 
 		c.Next()
 	}
