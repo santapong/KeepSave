@@ -39,7 +39,7 @@ jobs:
         working-directory: ./backend
         run: go test -v -race -coverprofile=coverage.out ./...
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/coverage.out
@@ -143,7 +143,7 @@ jobs:
           govulncheck -show verbose ./... 2>&1 | tee reports/govulncheck-report.txt
       - name: Upload security report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-report
           path: backend/reports/govulncheck-report.txt
