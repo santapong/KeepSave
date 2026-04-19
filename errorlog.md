@@ -21,7 +21,7 @@ throw new Error(data.error || `Request failed with status ${response.status}`);
 Since `data.error` is an object `{ code, message }`, JavaScript's implicit string coercion converts it to `[object Object]`.
 
 **Affected Code Paths:**
-- `frontend/src/api/client.ts:60` → generic `request()` function used by ALL API calls
+- `frontend/src/api/client.ts:60` -> generic `request()` function used by ALL API calls
 - All error responses from the backend were affected, not just API key creation
 
 **Fix Applied:**
@@ -95,6 +95,13 @@ Go standard library vulnerabilities in `os` and `net/url` packages. CI resolved 
 
 ---
 
-### Additional: 3 non-called dependency vulnerabilities (NOTED)
+### Additional: 3 non-called dependency vulnerabilities (TRACKED)
 
-govulncheck also found 3 vulnerabilities in imported packages and 4 in required modules where the vulnerable code paths are **not called** by KeepSave. These do not affect the application but should be reviewed during the next dependency upgrade cycle. Run `govulncheck -show verbose ./...` for details.
+govulncheck also found 3 vulnerabilities in imported packages and 4 in required modules where the vulnerable code paths are **not called** by KeepSave. These do not affect the application.
+
+**Status as of v1.1.0 (2026-04-19):** These transitive vulns are now tracked
+by Dependabot (see `.github/dependabot.yml`). Dependabot will open upgrade
+PRs on its weekly schedule; review each one against `govulncheck -show verbose ./...`
+output to confirm the called-path status after merge.
+
+Run `govulncheck -show verbose ./...` for current details.
