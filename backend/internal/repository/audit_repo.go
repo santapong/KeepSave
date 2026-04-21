@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
@@ -56,4 +57,27 @@ func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]mod
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
+}
+
+// DeleteOlderThan removes audit_log rows whose created_at is older than
+// the retention window and returns the number of rows deleted. The cutoff
+// is computed in Go (UTC) so the WHERE clause is dialect-independent and
+// does not rely on database-side NOW()/DATE arithmetic.
+func (r *AuditRepository) DeleteOlderThan(days int) (int64, error) {
+	if days <= 0 {
+		return 0, fmt.Errorf("days must be a positive integer, got %d", days)
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -days)
+	res, err := r.db.Exec(
+		Q(r.dialect, `DELETE FROM audit_log WHERE created_at < $1`),
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("pruning audit entries: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("counting pruned rows: %w", err)
+	}
+	return rows, nil
 }
