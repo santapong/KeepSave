@@ -189,6 +189,12 @@ func main() {
 		logger,
 	)
 
+	// Audit-log retention: delete rows older than AUDIT_LOG_RETENTION_DAYS
+	// once on startup and every 24h thereafter. The goroutine exits silently
+	// when retention is disabled (days <= 0); logs every prune that removes
+	// rows so operators can see retention working.
+	go startAuditLogPruner(logger, auditRepo, cfg.AuditLogRetentionDays)
+
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
 		"version":  version,
@@ -281,5 +287,45 @@ func startHTTPRedirect(logger *logging.Logger) {
 	}
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("http redirect listener exited", map[string]interface{}{"error": err.Error()})
+	}
+}
+
+// startAuditLogPruner deletes audit_log rows older than retentionDays on
+// startup and once every 24 hours thereafter. Zero or negative retention
+// disables the pruner (useful for tests and for operators who prefer to
+// manage retention with an external cron). This closes the
+// AUDIT_LOG_RETENTION_DAYS consumer follow-up from v1.1.0.
+func startAuditLogPruner(logger *logging.Logger, repo *repository.AuditRepository, retentionDays int) {
+	if retentionDays <= 0 {
+		logger.Info("audit-log pruner disabled", map[string]interface{}{"retention_days": retentionDays})
+		return
+	}
+	logger.Info("audit-log pruner started", map[string]interface{}{
+		"retention_days": retentionDays,
+		"interval":       "24h",
+	})
+
+	prune := func() {
+		deleted, err := repo.DeleteOlderThan(retentionDays)
+		if err != nil {
+			logger.Error("audit-log prune failed", map[string]interface{}{"error": err.Error()})
+			return
+		}
+		if deleted > 0 {
+			logger.Info("audit-log pruner deleted rows", map[string]interface{}{
+				"deleted":        deleted,
+				"retention_days": retentionDays,
+			})
+		}
+	}
+
+	// Run once immediately so a freshly-started server applies retention
+	// without waiting 24 hours for the first tick.
+	prune()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		prune()
 	}
 }

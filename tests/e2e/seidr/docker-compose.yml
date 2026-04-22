@@ -1,0 +1,59 @@
+# KeepSave <-> Seidr-style end-to-end harness.
+#
+# See ./README.md for the contract this harness exercises. Run with:
+#   docker compose up --build --abort-on-container-exit --exit-code-from tester
+#
+# The tester exits 0 on success; compose propagates that as the top-level
+# exit code so CI can gate on it. An actual Seidr runtime is intentionally
+# NOT started here (see README.md "What this test does NOT prove").
+
+name: keepsave-seidr-e2e
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: keepsave
+      POSTGRES_PASSWORD: keepsave_e2e
+      POSTGRES_DB: keepsave
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keepsave -d keepsave"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  keepsave:
+    build:
+      context: ../../../backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://keepsave:keepsave_e2e@db:5432/keepsave?sslmode=disable
+      # Dev-mode master key (base64 of 32 zero bytes). NEVER use in prod.
+      MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      KEEPSAVE_KEY_PROVIDER: env
+      JWT_SECRET: e2e-jwt-secret-do-not-use-in-prod
+      CORS_ORIGINS: "*"
+      PORT: "8080"
+      KEEPSAVE_ENV: development
+      # Retention set deliberately short so a single 24h tick prunes nothing
+      # during the tester's sub-minute run; any value > 0 enables the pruner.
+      AUDIT_LOG_RETENTION_DAYS: "365"
+    ports:
+      - "18080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  tester:
+    build:
+      context: ./tester
+    depends_on:
+      keepsave:
+        condition: service_healthy
+    environment:
+      KEEPSAVE_URL: http://keepsave:8080
