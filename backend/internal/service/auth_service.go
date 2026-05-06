@@ -2,12 +2,17 @@ package service
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// ErrUserExists is re-exported so handlers can detect duplicate-email registration without
+// importing the repository package.
+var ErrUserExists = repository.ErrUserExists
 
 type AuthService struct {
 	userRepo   *repository.UserRepository
@@ -38,6 +43,9 @@ func (s *AuthService) Register(email, password string) (*AuthResponse, error) {
 
 	user, err := s.userRepo.Create(email, hash)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserExists) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("creating user: %w", err)
 	}
 

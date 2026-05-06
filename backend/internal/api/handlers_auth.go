@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	resp, err := h.authService.Register(req.Email, req.Password)
 	if err != nil {
+		if errors.Is(err, service.ErrUserExists) {
+			RespondError(c, http.StatusConflict, "email already registered")
+			return
+		}
 		RespondError(c, http.StatusBadRequest, err.Error())
 		return
 	}
