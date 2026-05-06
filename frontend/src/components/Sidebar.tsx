@@ -1,23 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import {
-  FolderOpen,
-  Building2,
-  FileText,
-  Server,
-  KeyRound,
-  LayoutGrid,
-  BarChart3,
-  HelpCircle,
-  Moon,
-  Sun,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Shield,
-  Brain,
-} from 'lucide-react';
 
 interface SidebarProps {
   user: { email: string } | null;
@@ -29,7 +12,7 @@ interface SidebarProps {
 interface NavItem {
   path: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  count?: string;
 }
 
 interface NavSection {
@@ -39,32 +22,32 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Core',
+    label: 'Vault',
     items: [
-      { path: '/', label: 'Projects', icon: FolderOpen },
-      { path: '/organizations', label: 'Organizations', icon: Building2 },
-      { path: '/templates', label: 'Templates', icon: FileText },
+      { path: '/', label: 'Projects' },
+      { path: '/organizations', label: 'Organizations' },
+      { path: '/templates', label: 'Templates' },
     ],
   },
   {
     label: 'Platform',
     items: [
-      { path: '/mcp-hub', label: 'MCP Hub', icon: Server },
-      { path: '/oauth-clients', label: 'OAuth', icon: KeyRound },
-      { path: '/applications', label: 'Applications', icon: LayoutGrid },
+      { path: '/mcp-hub', label: 'MCP Hub' },
+      { path: '/oauth-clients', label: 'OAuth Clients' },
+      { path: '/applications', label: 'Applications' },
     ],
   },
   {
     label: 'Intelligence',
     items: [
-      { path: '/ai', label: 'AI Intelligence', icon: Brain },
-      { path: '/admin', label: 'Dashboard', icon: BarChart3 },
+      { path: '/ai', label: 'AI Intelligence' },
+      { path: '/admin', label: 'Dashboard' },
     ],
   },
   {
     label: 'Help',
     items: [
-      { path: '/help', label: 'Docs', icon: HelpCircle },
+      { path: '/help', label: 'Docs' },
     ],
   },
 ];
@@ -74,83 +57,75 @@ function isActive(currentPath: string, itemPath: string): boolean {
   return currentPath.startsWith(itemPath);
 }
 
-export function Sidebar({ user, collapsed, onToggle, onLogout }: SidebarProps) {
+export function Sidebar({ user, onLogout }: SidebarProps) {
   const location = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
 
+  const initial = user?.email?.charAt(0).toUpperCase() ?? 's';
+
   return (
-    <aside
-      className={cn(
-        'flex flex-col h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-200 shrink-0',
-        collapsed ? 'w-16' : 'w-60'
-      )}
-    >
-      <div className="flex items-center h-14 px-4 border-b border-sidebar-border shrink-0">
-        <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <Shield className="h-6 w-6 text-primary shrink-0" />
-          {!collapsed && (
-            <span className="text-base font-bold tracking-tight text-sidebar-foreground">KeepSave</span>
-          )}
-        </Link>
+    <aside className="ks-rail" style={{ width: 220 }}>
+      <Link to="/" className="ks-wordmark">
+        <span className="ks-mk">Keep<em>save</em></span>
+        <span className="ks-sub">/ VAULT · v.13.42</span>
+      </Link>
+
+      <div style={{ padding: '14px 20px 0', fontSize: 10, color: 'var(--ks-ink-mute)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span className="ks-faint">Org</span>
+          <span className="ks-amber">acme-platform ▾</span>
+        </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      <nav className="ks-nav">
         {NAV_SECTIONS.map((section) => (
-          <div key={section.label} className="mb-4">
-            {!collapsed && (
-              <div className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                {section.label}
-              </div>
-            )}
-            <div className="flex flex-col gap-0.5">
-              {section.items.map((item) => {
-                const active = isActive(location.pathname, item.path);
-                const Icon = item.icon;
-                return (
-                  <Link key={item.path} to={item.path} title={collapsed ? item.label : undefined}
-                    className={cn(
-                      'flex items-center gap-3 rounded-md text-sm font-medium transition-colors relative no-underline',
-                      collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2',
-                      active ? 'bg-primary/10 text-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    )}>
-                    {active && <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-primary" />}
-                    <Icon className={cn('h-4.5 w-4.5 shrink-0', active && 'text-primary')} />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Link>
-                );
-              })}
-            </div>
+          <div key={section.label}>
+            <div className="ks-nav-section">{section.label}</div>
+            {section.items.map((item) => {
+              const active = isActive(location.pathname, item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn('ks-nav-item', active && 'active')}
+                >
+                  <span>{item.label}</span>
+                  {item.count && <span className="ks-count">{item.count}</span>}
+                </Link>
+              );
+            })}
           </div>
         ))}
       </nav>
 
-      <div className="border-t border-sidebar-border px-2 py-3 space-y-1.5 shrink-0">
-        {user && (
-          <div className={cn('flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground', collapsed && 'justify-center px-0')} title={user.email}>
-            <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-semibold shrink-0">
-              {user.email.charAt(0).toUpperCase()}
-            </div>
-            {!collapsed && <span className="truncate">{user.email}</span>}
-          </div>
-        )}
-        <div className={cn('flex gap-1', collapsed ? 'flex-col items-center' : 'items-center px-1')}>
-          <button onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            className={cn('flex items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-accent-foreground', collapsed ? 'h-9 w-9' : 'h-8 w-8')}>
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          </button>
-          <button onClick={onLogout} title="Logout"
-            className={cn('flex items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-accent-foreground', collapsed ? 'h-9 w-9' : 'h-8 w-8')}>
-            <LogOut className="h-4 w-4" />
-          </button>
-          {!collapsed && <span className="flex-1" />}
+      <div className="ks-rail-foot">
+        <div className="ks-row"><span>Region</span><span className="ks-amber">eu-west-1</span></div>
+        <div className="ks-row"><span>Master key</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="ks-dot ks-dot-go" /> HSM-ATT</span></div>
+        <div className="ks-row"><span>Uptime</span><span className="ks-num">99.997%</span></div>
+        <hr className="ks-hair-soft" style={{ margin: '6px 0' }} />
+        <div className="ks-row" style={{ alignItems: 'center' }}>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{
+              width: 20, height: 20, background: 'var(--ks-amber)', color: '#140d00',
+              fontFamily: 'var(--ks-serif)', fontStyle: 'italic',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 600,
+            }}>{initial}</span>
+            <span style={{ color: 'var(--ks-ink)' }}>{user?.email?.split('@')[0] ?? 'guest'}</span>
+          </span>
+          <span className="ks-amber" style={{ cursor: 'pointer' }} onClick={onLogout}>OUT ↗</span>
         </div>
-      </div>
-
-      <div className="border-t border-sidebar-border px-2 py-2 shrink-0">
-        <button onClick={onToggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={cn('flex items-center justify-center w-full rounded-md py-1.5 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-accent-foreground', collapsed ? 'px-0' : 'gap-2 px-3')}>
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /><span className="text-xs font-medium">Collapse</span></>}
-        </button>
+        <div className="ks-row" style={{ marginTop: 4 }}>
+          <span
+            className="ks-faint"
+            style={{ cursor: 'pointer' }}
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'}`}
+          >
+            {theme === 'dark' ? '☾ DARK' : '☀ LIGHT'}
+          </span>
+          <span className="ks-faint">build.13.42.7</span>
+        </div>
       </div>
     </aside>
   );

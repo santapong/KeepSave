@@ -14,7 +14,7 @@ import { listProjects, createProject } from '../api/client';
 
 const mockProjects = [
   {
-    id: 'p1',
+    id: 'p1abcdef',
     name: 'My App',
     description: 'A test project',
     owner_id: 'u1',
@@ -22,7 +22,7 @@ const mockProjects = [
     updated_at: '2026-01-01T00:00:00Z',
   },
   {
-    id: 'p2',
+    id: 'p2abcdef',
     name: 'Backend Service',
     description: '',
     owner_id: 'u1',
@@ -58,7 +58,7 @@ describe('ProjectsPage', () => {
     (listProjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText(/No projects yet/)).toBeInTheDocument();
+      expect(screen.getByText(/empty shelf/i)).toBeInTheDocument();
     });
   });
 
@@ -67,10 +67,10 @@ describe('ProjectsPage', () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('My App')).toBeInTheDocument());
 
-    await user.click(screen.getByText('New Project'));
-    await user.type(screen.getByPlaceholderText('Project name'), 'New Project');
-    await user.type(screen.getByPlaceholderText('Description (optional)'), 'desc');
-    await user.click(screen.getByRole('button', { name: 'Create Project' }));
+    await user.click(screen.getByRole('button', { name: /\+ new project/i }));
+    await user.type(screen.getByPlaceholderText(/nexus-platform/i), 'New Project');
+    await user.type(screen.getByPlaceholderText(/optional/i), 'desc');
+    await user.click(screen.getByRole('button', { name: /create →/i }));
 
     expect(createProject).toHaveBeenCalledWith('New Project', 'desc');
   });
