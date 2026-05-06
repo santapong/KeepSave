@@ -27,11 +27,11 @@ describe('LoginPage', () => {
 
   it('renders login form', () => {
     renderLogin();
-    expect(screen.getByText('KeepSave')).toBeInTheDocument();
-    expect(screen.getByText('Sign in to manage your secrets')).toBeInTheDocument();
-    expect(screen.getByText('Email')).toBeInTheDocument();
-    expect(screen.getByText('Password')).toBeInTheDocument();
-    expect(screen.getByText('Sign In')).toBeInTheDocument();
+    expect(screen.getByText(/the keeping-place/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enter the vault/i })).toBeInTheDocument();
   });
 
   it('calls onLogin on successful login', async () => {
@@ -46,7 +46,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
-    await user.click(screen.getByText('Sign In'));
+    await user.click(screen.getByRole('button', { name: /enter the vault/i }));
 
     await waitFor(() => {
       expect(mockOnLogin).toHaveBeenCalledWith(mockUser, 'jwt-token');
@@ -61,7 +61,7 @@ describe('LoginPage', () => {
 
     await user.type(screen.getByLabelText(/email/i), 'bad@test.com');
     await user.type(screen.getByLabelText(/password/i), 'wrongpass');
-    await user.click(screen.getByText('Sign In'));
+    await user.click(screen.getByRole('button', { name: /enter the vault/i }));
 
     await waitFor(() => {
       expect(screen.getByText('invalid credentials')).toBeInTheDocument();
@@ -70,6 +70,6 @@ describe('LoginPage', () => {
 
   it('has link to register page', () => {
     renderLogin();
-    expect(screen.getByText('Register')).toBeInTheDocument();
+    expect(screen.getByText(/open an account/i)).toBeInTheDocument();
   });
 });
