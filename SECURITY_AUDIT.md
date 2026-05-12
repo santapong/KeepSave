@@ -116,9 +116,12 @@ All items addressed in v1.1.0 (Phase 16 - Production Hardening).
        ->  `AUDIT_LOG_RETENTION_DAYS` (default 365) in `backend/internal/config/config.go`.
            Nightly pruner scheduled in a follow-up PR so main.go changes stay surgical.
 
-**Outstanding follow-ups** (tracked as separate issues, not blockers for v1.1.0):
+**Outstanding follow-ups** (now tracked in [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) with owner + due date; this list is historical):
 
-- Nightly audit-log pruner wiring in `main.go` (knob exists; consumer pending)
-- Backup tamper-detection test to formalize AEAD-auth guarantee
-- AWS KMS / GCP KMS SDK adapters (interface ready; SDK deps need `go mod tidy`)
-- Phase 15 service unit tests (feature-complete but untested)
+- ✅ Nightly audit-log pruner wiring in `main.go` — closed.
+- ✅ KeepSave ↔ Seidr regression harness — closed.
+- ⚠ Backup tamper-detection test to formalize AEAD-auth guarantee — Phase A.
+- ⚠ AWS KMS / GCP KMS SDK adapters wiring — Phase A.
+- ⚠ Phase 15 service unit tests — Phase A.
+
+The 30-day audit (see [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) v1.2.0 "Findings new") surfaced additional gaps that supersede this list — see [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) for the current set with owners and due dates.

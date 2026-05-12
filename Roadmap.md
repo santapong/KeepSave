@@ -4,6 +4,21 @@
 
 A secure, self-hosted vault for environment variables with a controlled promotion pipeline (Alpha -> UAT -> PROD) and an embeddable frontend widget that integrates into any website.
 
+## How this roadmap is governed
+
+The roadmap is the *yes* list. The *no* list lives in [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md) — both are equally binding.
+
+- **Phase exit criteria** are written and measurable; phases are not "done" by date, only by criteria. See [`docs/ROLES.md`](docs/ROLES.md) §2.7 and [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md).
+- **Type-1 (irreversible) work** requires an ADR before implementation. See [`docs/adr/`](docs/adr/).
+- **Open follow-ups** that block roadmap items are tracked in [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) with owner + due date.
+- **Decisions that cross security boundaries** (crypto / auth / promotion) require Security Engineer sign-off per the veto-list rules in [`docs/VETO_LIST_AUDIT.md`](docs/VETO_LIST_AUDIT.md).
+
+### Current phase
+
+**Phase A — MVP hardening** (in progress). Closes the gaps surfaced by the v1.2.0 threat model re-baseline: audit-log coverage on state-mutating endpoints, error-response sanitization, embed-widget origin policy, negative-auth tests, requester-cannot-self-approve invariant verification. Per-role action plan in [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md).
+
+**Phase B — Multi-tenant + approval workflows** (deferred). Schema preparation in Phase A is additive only; runtime isolation primitives land in Phase B.
+
 ---
 
 ## Phase 1 - Foundation (Core Backend + Storage)
