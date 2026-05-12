@@ -47,7 +47,7 @@ func TestHistogramObserve(t *testing.T) {
 	hist.Observe("api", 0.8)
 
 	output := c.Render()
-	if !strings.Contains(output, "test_hist_count 3") {
+	if !strings.Contains(output, `test_hist_count{label="api"} 3`) {
 		t.Errorf("expected count 3, got:\n%s", output)
 	}
 	if !strings.Contains(output, `le="0.100"`) {
@@ -63,7 +63,7 @@ func TestHistogramObserveDuration(t *testing.T) {
 	hist.ObserveDuration("test", 200*time.Millisecond)
 
 	output := c.Render()
-	if !strings.Contains(output, "duration_count 2") {
+	if !strings.Contains(output, `duration_count{label="test"} 2`) {
 		t.Errorf("expected count 2, got:\n%s", output)
 	}
 }

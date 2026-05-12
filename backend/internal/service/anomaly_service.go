@@ -58,7 +58,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 				AnomalyType: "frequency_spike", Severity: severity,
 				Description: fmt.Sprintf("Access frequency spike: %d accesses in last hour (avg %.1f, z-score %.2f)", cnt, avgCount, zScore),
 				Details:     models.JSONMap{"count": cnt, "average": avgCount, "z_score": zScore},
-				Status: "open", DetectedAt: time.Now(),
+				Status:      "open", DetectedAt: time.Now(),
 			}
 			s.storeAnomaly(&a)
 			detected = append(detected, a)
@@ -76,7 +76,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 				AnomalyType: "unusual_time", Severity: "medium",
 				Description: fmt.Sprintf("%d secret accesses during off-hours (hour %d)", offHourCount, hour),
 				Details:     models.JSONMap{"count": offHourCount, "hour": hour},
-				Status: "open", DetectedAt: time.Now(),
+				Status:      "open", DetectedAt: time.Now(),
 			}
 			s.storeAnomaly(&a)
 			detected = append(detected, a)
@@ -97,7 +97,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 				AnomalyType: "new_ip", Severity: "high",
 				Description: fmt.Sprintf("New IP address '%s' accessing secrets for the first time", ip),
 				Details:     models.JSONMap{"ip_address": ip},
-				Status: "open", DetectedAt: time.Now(),
+				Status:      "open", DetectedAt: time.Now(),
 			}
 			s.storeAnomaly(&a)
 			detected = append(detected, a)
@@ -118,7 +118,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 				AnomalyType: "unusual_key", Severity: "medium",
 				Description: fmt.Sprintf("Secret key '%s' accessed for the first time by an agent", key),
 				Details:     models.JSONMap{"secret_key": key},
-				Status: "open", DetectedAt: time.Now(),
+				Status:      "open", DetectedAt: time.Now(),
 			}
 			s.storeAnomaly(&a)
 			detected = append(detected, a)

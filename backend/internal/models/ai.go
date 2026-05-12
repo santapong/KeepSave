@@ -73,7 +73,7 @@ type Anomaly struct {
 	ProjectID      *uuid.UUID `json:"project_id,omitempty"`
 	APIKeyID       *uuid.UUID `json:"api_key_id,omitempty"`
 	AnomalyType    string     `json:"anomaly_type"` // unusual_time, frequency_spike, new_ip, unusual_key
-	Severity       string     `json:"severity"`      // low, medium, high, critical
+	Severity       string     `json:"severity"`     // low, medium, high, critical
 	Description    string     `json:"description"`
 	Details        JSONMap    `json:"details,omitempty"`
 	Status         string     `json:"status"` // open, acknowledged, resolved, false_positive

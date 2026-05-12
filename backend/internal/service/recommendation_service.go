@@ -29,16 +29,24 @@ func NewRecommendationService(db *sql.DB, dialect repository.Dialect, secretRepo
 
 func (s *RecommendationService) GenerateRecommendations(projectID, userID uuid.UUID) ([]models.SecretRecommendation, error) {
 	project, err := s.projectRepo.GetByID(projectID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	envs, err := s.envRepo.ListByProjectID(projectID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	envKeys := make(map[string][]string)
 	for _, env := range envs {
 		secrets, err := s.secretRepo.ListByProjectAndEnv(projectID, env.ID)
-		if err != nil { continue }
-		for _, sec := range secrets { envKeys[env.Name] = append(envKeys[env.Name], sec.Key) }
+		if err != nil {
+			continue
+		}
+		for _, sec := range secrets {
+			envKeys[env.Name] = append(envKeys[env.Name], sec.Key)
+		}
 	}
 
 	var recommendations []models.SecretRecommendation
@@ -47,18 +55,24 @@ func (s *RecommendationService) GenerateRecommendations(projectID, userID uuid.U
 	allKeys := make(map[string]map[string]bool)
 	for envName, keys := range envKeys {
 		for _, key := range keys {
-			if allKeys[key] == nil { allKeys[key] = make(map[string]bool) }
+			if allKeys[key] == nil {
+				allKeys[key] = make(map[string]bool)
+			}
 			allKeys[key][envName] = true
 		}
 	}
 	for key, presentEnvs := range allKeys {
 		if len(presentEnvs) < len(envKeys) {
 			var missing []string
-			for envName := range envKeys { if !presentEnvs[envName] { missing = append(missing, envName) } }
+			for envName := range envKeys {
+				if !presentEnvs[envName] {
+					missing = append(missing, envName)
+				}
+			}
 			recommendations = append(recommendations, models.SecretRecommendation{
 				ID: uuid.New(), ProjectID: projectID, RecommType: "missing_secret", Severity: "warning",
-				Title: fmt.Sprintf("Key '%s' missing in some environments", key),
-				Description: fmt.Sprintf("'%s' exists in %d of %d environments. Missing in: %s", key, len(presentEnvs), len(envKeys), strings.Join(missing, ", ")),
+				Title:        fmt.Sprintf("Key '%s' missing in some environments", key),
+				Description:  fmt.Sprintf("'%s' exists in %d of %d environments. Missing in: %s", key, len(presentEnvs), len(envKeys), strings.Join(missing, ", ")),
 				AffectedKeys: models.StringList{key}, SuggestedAction: "Promote or add the key to the missing environments.",
 				AutoFixable: true, Status: "pending", CreatedAt: time.Now(),
 			})
@@ -67,14 +81,16 @@ func (s *RecommendationService) GenerateRecommendations(projectID, userID uuid.U
 
 	// Rule: detect potential duplicates
 	allKeyList := make([]string, 0, len(allKeys))
-	for k := range allKeys { allKeyList = append(allKeyList, k) }
+	for k := range allKeys {
+		allKeyList = append(allKeyList, k)
+	}
 	for i := 0; i < len(allKeyList); i++ {
 		for j := i + 1; j < len(allKeyList); j++ {
 			if isSimilarKey(allKeyList[i], allKeyList[j]) {
 				recommendations = append(recommendations, models.SecretRecommendation{
 					ID: uuid.New(), ProjectID: projectID, RecommType: "duplicate", Severity: "info",
-					Title: fmt.Sprintf("Possible duplicate keys: '%s' and '%s'", allKeyList[i], allKeyList[j]),
-					Description: "These keys have very similar names and may be redundant.",
+					Title:        fmt.Sprintf("Possible duplicate keys: '%s' and '%s'", allKeyList[i], allKeyList[j]),
+					Description:  "These keys have very similar names and may be redundant.",
 					AffectedKeys: models.StringList{allKeyList[i], allKeyList[j]}, SuggestedAction: "Review and consolidate if they serve the same purpose.",
 					Status: "pending", CreatedAt: time.Now(),
 				})
@@ -89,8 +105,12 @@ func (s *RecommendationService) GenerateRecommendations(projectID, userID uuid.U
 			fmt.Sprintf("Analyze secret keys for project '%s'. Suggest missing secrets, security improvements, rotation needs. Return JSON array of {\"type\",\"severity\",\"title\",\"description\",\"affected_keys\",\"suggested_action\"}\n\nKeys per environment:\n%s", project.Name, string(keysJSON)))
 		if err == nil {
 			var aiRecs []struct {
-				Type string `json:"type"`; Severity string `json:"severity"`; Title string `json:"title"`
-				Description string `json:"description"`; AffectedKeys []string `json:"affected_keys"`; SuggestedAction string `json:"suggested_action"`
+				Type            string   `json:"type"`
+				Severity        string   `json:"severity"`
+				Title           string   `json:"title"`
+				Description     string   `json:"description"`
+				AffectedKeys    []string `json:"affected_keys"`
+				SuggestedAction string   `json:"suggested_action"`
 			}
 			if json.Unmarshal([]byte(extractJSON(resp)), &aiRecs) == nil {
 				for _, ar := range aiRecs {
@@ -115,16 +135,23 @@ func (s *RecommendationService) GenerateRecommendations(projectID, userID uuid.U
 func (s *RecommendationService) ListRecommendations(projectID uuid.UUID, status string) ([]models.SecretRecommendation, error) {
 	query := `SELECT id, project_id, recomm_type, severity, title, description, affected_keys, suggested_action, auto_fixable, status, created_at FROM secret_recommendations WHERE project_id = $1`
 	args := []interface{}{projectID}
-	if status != "" { query += " AND status = $2"; args = append(args, status) }
+	if status != "" {
+		query += " AND status = $2"
+		args = append(args, status)
+	}
 	query += " ORDER BY created_at DESC LIMIT 100"
 	rows, err := s.db.Query(query, args...)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	var recs []models.SecretRecommendation
 	for rows.Next() {
 		var r models.SecretRecommendation
 		var keysStr string
-		if err := rows.Scan(&r.ID, &r.ProjectID, &r.RecommType, &r.Severity, &r.Title, &r.Description, &keysStr, &r.SuggestedAction, &r.AutoFixable, &r.Status, &r.CreatedAt); err != nil { continue }
+		if err := rows.Scan(&r.ID, &r.ProjectID, &r.RecommType, &r.Severity, &r.Title, &r.Description, &keysStr, &r.SuggestedAction, &r.AutoFixable, &r.Status, &r.CreatedAt); err != nil {
+			continue
+		}
 		json.Unmarshal([]byte(keysStr), &r.AffectedKeys)
 		recs = append(recs, r)
 	}
@@ -139,14 +166,22 @@ func (s *RecommendationService) DismissRecommendation(id uuid.UUID) error {
 func isSimilarKey(a, b string) bool {
 	normA := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(a, "_", ""), "-", ""))
 	normB := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(b, "_", ""), "-", ""))
-	if normA == normB && a != b { return true }
-	if len(normA) > 4 && len(normB) > 4 { if strings.HasPrefix(normA, normB) || strings.HasPrefix(normB, normA) { return true } }
+	if normA == normB && a != b {
+		return true
+	}
+	if len(normA) > 4 && len(normB) > 4 {
+		if strings.HasPrefix(normA, normB) || strings.HasPrefix(normB, normA) {
+			return true
+		}
+	}
 	return false
 }
 
 func extractJSON(s string) string {
 	start := strings.Index(s, "[")
 	end := strings.LastIndex(s, "]")
-	if start >= 0 && end > start { return s[start : end+1] }
+	if start >= 0 && end > start {
+		return s[start : end+1]
+	}
 	return s
 }

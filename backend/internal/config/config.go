@@ -20,12 +20,12 @@ type Config struct {
 	MasterKey []byte
 
 	// KMS / Vault parameters. Empty when not in use.
-	KMSKeyID         string
-	KMSCiphertext    string
-	VaultAddr        string
-	VaultToken       string
-	VaultKeyName     string
-	VaultCiphertext  string
+	KMSKeyID        string
+	KMSCiphertext   string
+	VaultAddr       string
+	VaultToken      string
+	VaultKeyName    string
+	VaultCiphertext string
 
 	JWTSecret   string
 	Port        string

@@ -125,7 +125,7 @@ func NewClaudeProvider(apiKey, model string) *ClaudeProvider {
 	return &ClaudeProvider{apiKey: apiKey, model: model, client: &http.Client{Timeout: 60 * time.Second}}
 }
 
-func (p *ClaudeProvider) Name() string     { return "claude" }
+func (p *ClaudeProvider) Name() string      { return "claude" }
 func (p *ClaudeProvider) ModelName() string { return p.model }
 func (p *ClaudeProvider) Available() bool   { return p.apiKey != "" }
 
@@ -152,7 +152,9 @@ func (p *ClaudeProvider) Chat(systemPrompt, userPrompt string) (string, error) {
 		return "", fmt.Errorf("claude API error %d: %s", resp.StatusCode, string(data))
 	}
 	var result struct {
-		Content []struct{ Text string `json:"text"` } `json:"content"`
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return "", err
@@ -183,7 +185,7 @@ func NewOpenAICompatProvider(name, apiKey, model, customURL, defaultURL string) 
 	return &OpenAICompatProvider{name: name, apiKey: apiKey, model: model, baseURL: base, client: &http.Client{Timeout: 60 * time.Second}}
 }
 
-func (p *OpenAICompatProvider) Name() string     { return p.name }
+func (p *OpenAICompatProvider) Name() string      { return p.name }
 func (p *OpenAICompatProvider) ModelName() string { return p.model }
 func (p *OpenAICompatProvider) Available() bool   { return p.apiKey != "" }
 
@@ -213,7 +215,9 @@ func (p *OpenAICompatProvider) Chat(systemPrompt, userPrompt string) (string, er
 	}
 	var result struct {
 		Choices []struct {
-			Message struct{ Content string `json:"content"` } `json:"message"`
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
@@ -239,7 +243,7 @@ func NewGeminiProvider(apiKey, model string) *GeminiProvider {
 	return &GeminiProvider{apiKey: apiKey, model: model, client: &http.Client{Timeout: 60 * time.Second}}
 }
 
-func (p *GeminiProvider) Name() string     { return "gemini" }
+func (p *GeminiProvider) Name() string      { return "gemini" }
 func (p *GeminiProvider) ModelName() string { return p.model }
 func (p *GeminiProvider) Available() bool   { return p.apiKey != "" }
 
@@ -247,8 +251,8 @@ func (p *GeminiProvider) Chat(systemPrompt, userPrompt string) (string, error) {
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", p.model, p.apiKey)
 	body, _ := json.Marshal(map[string]interface{}{
 		"system_instruction": map[string]interface{}{"parts": []map[string]string{{"text": systemPrompt}}},
-		"contents":          []map[string]interface{}{{"parts": []map[string]string{{"text": userPrompt}}}},
-		"generationConfig":  map[string]interface{}{"maxOutputTokens": 4096},
+		"contents":           []map[string]interface{}{{"parts": []map[string]string{{"text": userPrompt}}}},
+		"generationConfig":   map[string]interface{}{"maxOutputTokens": 4096},
 	})
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -268,7 +272,9 @@ func (p *GeminiProvider) Chat(systemPrompt, userPrompt string) (string, error) {
 	var result struct {
 		Candidates []struct {
 			Content struct {
-				Parts []struct{ Text string `json:"text"` } `json:"parts"`
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
 	}
@@ -295,7 +301,7 @@ func NewOllamaProvider(baseURL, model string) *OllamaProvider {
 	return &OllamaProvider{baseURL: strings.TrimRight(baseURL, "/"), model: model, client: &http.Client{Timeout: 120 * time.Second}}
 }
 
-func (p *OllamaProvider) Name() string     { return "ollama" }
+func (p *OllamaProvider) Name() string      { return "ollama" }
 func (p *OllamaProvider) ModelName() string { return p.model }
 func (p *OllamaProvider) Available() bool {
 	resp, err := p.client.Get(p.baseURL + "/api/tags")
@@ -330,7 +336,9 @@ func (p *OllamaProvider) Chat(systemPrompt, userPrompt string) (string, error) {
 		return "", fmt.Errorf("ollama API error %d: %s", resp.StatusCode, string(data))
 	}
 	var result struct {
-		Message struct{ Content string `json:"content"` } `json:"message"`
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return "", err

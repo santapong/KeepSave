@@ -27,7 +27,9 @@ func NewNLPQueryService(db *sql.DB, dialect repository.Dialect, projectRepo *rep
 
 func (s *NLPQueryService) buildContext(userID uuid.UUID) string {
 	projects, err := s.projectRepo.ListByOwnerID(userID)
-	if err != nil { return "" }
+	if err != nil {
+		return ""
+	}
 	var b strings.Builder
 	b.WriteString("Available projects and their secret keys:\n")
 	for _, p := range projects {
@@ -36,8 +38,12 @@ func (s *NLPQueryService) buildContext(userID uuid.UUID) string {
 		for _, env := range envs {
 			secrets, _ := s.secretRepo.ListByProjectAndEnv(p.ID, env.ID)
 			var keys []string
-			for _, sec := range secrets { keys = append(keys, sec.Key) }
-			if len(keys) > 0 { b.WriteString(fmt.Sprintf("  Environment %s: %s\n", env.Name, strings.Join(keys, ", "))) }
+			for _, sec := range secrets {
+				keys = append(keys, sec.Key)
+			}
+			if len(keys) > 0 {
+				b.WriteString(fmt.Sprintf("  Environment %s: %s\n", env.Name, strings.Join(keys, ", ")))
+			}
 		}
 	}
 	return b.String()
@@ -79,10 +85,14 @@ Return ONLY a JSON object with: "intent" (find_secret|describe_project|list_env|
 Never include actual secret values.`
 
 func (s *NLPQueryService) Query(userID uuid.UUID, query string) (*models.NLPQueryResult, error) {
-	if s.aiMgr == nil || !s.aiMgr.HasProvider() { return s.fuzzyQuery(userID, query) }
+	if s.aiMgr == nil || !s.aiMgr.HasProvider() {
+		return s.fuzzyQuery(userID, query)
+	}
 	ctx := s.buildContext(userID)
 	resp, provider, model, err := s.aiMgr.Chat(nlpSystemPrompt, fmt.Sprintf("Context:\n%s\n\nUser query: %s", ctx, query))
-	if err != nil { return s.fuzzyQuery(userID, query) }
+	if err != nil {
+		return s.fuzzyQuery(userID, query)
+	}
 	result := s.parseAIResponse(resp, query, provider, model)
 	s.db.Exec(`INSERT INTO nlp_query_log (id, user_id, query, intent, provider, model, matched_count, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, uuid.New(), userID, query, result.Intent, provider, model, len(result.MatchedSecrets), time.Now())
 	return result, nil
@@ -90,21 +100,33 @@ func (s *NLPQueryService) Query(userID uuid.UUID, query string) (*models.NLPQuer
 
 func (s *NLPQueryService) Converse(userID uuid.UUID, messages []models.ConversationMessage) (*models.NLPQueryResult, error) {
 	lastMsg := ""
-	if len(messages) > 0 { lastMsg = messages[len(messages)-1].Content }
-	if s.aiMgr == nil || !s.aiMgr.HasProvider() { return s.fuzzyQuery(userID, lastMsg) }
+	if len(messages) > 0 {
+		lastMsg = messages[len(messages)-1].Content
+	}
+	if s.aiMgr == nil || !s.aiMgr.HasProvider() {
+		return s.fuzzyQuery(userID, lastMsg)
+	}
 	ctx := s.buildContext(userID)
 	var history strings.Builder
 	for _, msg := range messages {
-		if msg.Role == "user" { history.WriteString(fmt.Sprintf("User: %s\n", msg.Content)) } else { history.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content)) }
+		if msg.Role == "user" {
+			history.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+		} else {
+			history.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+		}
 	}
 	resp, provider, model, err := s.aiMgr.Chat("You are KeepSave's AI assistant for multi-turn secret management conversations. Return JSON with: intent, explanation, matched_secrets, suggestions. Never include secret values.", fmt.Sprintf("Context:\n%s\n\nConversation:\n%s", ctx, history.String()))
-	if err != nil { return s.fuzzyQuery(userID, lastMsg) }
+	if err != nil {
+		return s.fuzzyQuery(userID, lastMsg)
+	}
 	return s.parseAIResponse(resp, lastMsg, provider, model), nil
 }
 
 func (s *NLPQueryService) fuzzyQuery(userID uuid.UUID, query string) (*models.NLPQueryResult, error) {
 	projects, err := s.projectRepo.ListByOwnerID(userID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	terms := strings.Fields(strings.ToLower(query))
 	result := &models.NLPQueryResult{Query: query, Intent: "find_secret"}
 	for _, p := range projects {
@@ -130,6 +152,8 @@ func (s *NLPQueryService) fuzzyQuery(userID uuid.UUID, query string) (*models.NL
 func extractJSONObject(s string) string {
 	start := strings.Index(s, "{")
 	end := strings.LastIndex(s, "}")
-	if start >= 0 && end > start { return s[start : end+1] }
+	if start >= 0 && end > start {
+		return s[start : end+1]
+	}
 	return s
 }

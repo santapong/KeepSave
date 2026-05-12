@@ -248,19 +248,25 @@ func (c *Collector) Render() string {
 		out += fmt.Sprintf("# HELP %s %s\n# TYPE %s histogram\n", h.name, h.help, h.name)
 		h.mu.RLock()
 		for labelKey, e := range h.entries {
-			prefix := h.name
+			bucketLabels := func(le string) string {
+				if labelKey == "" {
+					return fmt.Sprintf("{le=%q}", le)
+				}
+				return fmt.Sprintf("{label=%q,le=%q}", labelKey, le)
+			}
+			suffixLabels := ""
 			if labelKey != "" {
-				prefix = fmt.Sprintf("%s{label=\"%s\"}", h.name, labelKey)
+				suffixLabels = fmt.Sprintf("{label=%q}", labelKey)
 			}
 			var cumulative int64
 			for i, b := range h.buckets {
 				cumulative += e.bucketCounts[i].Load()
-				out += fmt.Sprintf("%s_bucket{le=\"%.3f\"} %d\n", prefix, b, cumulative)
+				out += fmt.Sprintf("%s_bucket%s %d\n", h.name, bucketLabels(fmt.Sprintf("%.3f", b)), cumulative)
 			}
 			cumulative += e.bucketCounts[len(h.buckets)].Load()
-			out += fmt.Sprintf("%s_bucket{le=\"+Inf\"} %d\n", prefix, cumulative)
-			out += fmt.Sprintf("%s_sum %.6f\n", prefix, float64(e.sum.Load())/1e6)
-			out += fmt.Sprintf("%s_count %d\n", prefix, e.count.Load())
+			out += fmt.Sprintf("%s_bucket%s %d\n", h.name, bucketLabels("+Inf"), cumulative)
+			out += fmt.Sprintf("%s_sum%s %.6f\n", h.name, suffixLabels, float64(e.sum.Load())/1e6)
+			out += fmt.Sprintf("%s_count%s %d\n", h.name, suffixLabels, e.count.Load())
 		}
 		h.mu.RUnlock()
 	}
