@@ -17,6 +17,69 @@ This is the single source of truth for tracked technical debt and deferred work.
 
 Top-of-list = highest leverage. Order matters — anything blocking a 30-day action in `docs/ROLES_30_60_90.md` goes first.
 
+### 0. Audit logging missing for Secret / Project / API key mutations *(P0)*
+- **Status:** **OPEN — discovered during 30-day audit.** `secret_service.go`, `project_service.go`, `apikey_service.go` have no `auditRepo` and emit zero audit events on Create/Update/Delete. Handlers do not write audit rows either.
+- **Why it matters:** "Repudiation" mitigation is currently absent for the most important state-mutating endpoints. A compromised account leaves no in-product trail. This is a hole in the feature, not a "future enhancement".
+- **Owner:** Backend Engineer + Security Engineer (review).
+- **Due:** 30 days (Phase A) — non-negotiable.
+- **Related:** `docs/AUDIT_LOG_COVERAGE.md` (the spec), `docs/THREAT_MODEL.md` v1.2.0 "Findings new" §1.
+
+### 0a. Error responses leak DB / crypto internals
+- **Status:** **OPEN — discovered during 30-day audit.** Multiple handlers return `err.Error()` directly; `pgx`, `pq`, and `crypto/cipher` errors reach clients.
+- **Why it matters:** Information-disclosure. Attacker enumeration is easier when internal error text is echoed.
+- **Owner:** Backend Engineer.
+- **Due:** 30 days (Phase A).
+- **Related:** `docs/ERROR_HANDLING_STANDARD.md`.
+
+### 0b. Embed widget accepts auth from any origin
+- **Status:** **OPEN — discovered during 30-day audit.** `frontend/src/embed/auth.ts:21-26` has no `ev.origin` check; outbound `postMessage` uses target origin `'*'`.
+- **Why it matters:** A malicious host page can inject a fake auth token — confused-deputy on widget requests.
+- **Owner:** Frontend Engineer (allow-list endpoint requires Backend support).
+- **Due:** 30 days (Phase A).
+- **Related:** `docs/EMBED_ORIGIN_POLICY.md`.
+
+### 0c. No handler-level negative-auth tests anywhere
+- **Status:** **OPEN — discovered during 30-day audit.** Auth middleware exists but is not regression-tested. A middleware regression would land green.
+- **Why it matters:** "Spoofing / Elevation" mitigations are unverified.
+- **Owner:** QA + Backend Engineer.
+- **Due:** 30 days (matrix fills); 60 days (CI presence-check gate).
+- **Related:** `tests/NEGATIVE_AUTH_PLAN.md`.
+
+### 0d. Approver-cannot-be-requester invariant unverified
+- **Status:** ADR-0003 §Open Questions calls it out. Not yet verified whether enforced at DB or only service code.
+- **Why it matters:** The multi-party-control linchpin for PROD promotions.
+- **Owner:** Backend Engineer + Security Engineer.
+- **Due:** 30 days.
+
+### 0e. Promotion feature flag / kill switch
+- **Status:** No runtime flag exists to disable `/promote` and `/approve` without redeploy.
+- **Why it matters:** ADR-0003 names this as step 1 of the rollback plan.
+- **Owner:** Backend Engineer.
+- **Due:** 30 days.
+
+### 0f. CI workflow lacked an explicit `permissions:` block
+- **Status:** **CLOSED THIS PR.** Top-level `permissions: contents: read` now set in `.github/workflows/ci.yml`. Per-job overrides documented in `docs/CI_PERMISSIONS.md`.
+
+### 0g. CODEOWNERS and commit-message convention for security-critical paths
+- **Status:** OPEN. The veto-list audit (`docs/VETO_LIST_AUDIT.md`) identifies the convention; CODEOWNERS file not yet added.
+- **Owner:** Tech Lead.
+- **Due:** 30 days.
+
+### 0h. Dashboard storage of JWT — key name inconsistency
+- **Status:** `frontend/src/pages/HelpPage.tsx` reads `localStorage('jwt')` while the rest of the app uses `localStorage('keepsave_token')`. Likely a bug; HelpPage's auth-bearing call probably returns null in production.
+- **Owner:** Frontend Engineer.
+- **Due:** 30 days (low-effort fix).
+
+### 0i. Auto-hide timer on revealed secrets
+- **Status:** OPEN in both widget and dashboard. No timer; secrets remain revealed indefinitely.
+- **Owner:** Frontend Engineer + UX (interim Tech Lead).
+- **Due:** 30 days.
+
+### 0j. Destructive actions use `window.confirm` instead of typed confirmation
+- **Status:** OPEN. `SecretsPanel.tsx:131`, `PromotionsList.tsx:87`, `ProjectAPIKeysPanel.tsx:97` use the browser native dialog.
+- **Owner:** Frontend Engineer + UX (interim).
+- **Due:** 30 days.
+
 ### 1. AWS / GCP KMS adapters wired into `main.go`
 - **Status:** Code exists (`kms_aws.go`, `kms_gcp.go` in `backend/internal/crypto/keyprovider/`); blocked on `go mod tidy` to add `aws-sdk-go-v2/service/kms` and `cloud.google.com/go/kms/apiv1` to `go.sum`.
 - **Why it matters:** ADR-0004 calls `EnvProvider` development-only; production deployments need KMS. Without this, the runbook tells customers "use a KMS" but the binary doesn't support one yet.
