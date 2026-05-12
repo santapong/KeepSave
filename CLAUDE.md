@@ -102,3 +102,43 @@ docker-compose up --build                  # Run everything
 - **Tests**: Table-driven tests in Go. React Testing Library for frontend.
 - **Commits**: Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).
 - **Branches**: Feature branches off `main`. PRs required for `main`.
+- **Error responses**: handlers must never return `err.Error()` directly to clients — use the `httperror` package described in [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md). Lint enforced.
+- **Audit log**: every state-mutating handler (secret/project/api-key/promotion) MUST emit an audit event from the canonical taxonomy in [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md), and the test MUST assert the audit row was written. PRs failing either are rejected.
+
+## Project Governance (read before non-trivial changes)
+
+This project has explicit operating rules. Before opening a PR that touches crypto, auth, or the promotion engine, read:
+
+- [`docs/ROLES.md`](docs/ROLES.md) — who reviews what; Security Engineer has veto power on `internal/crypto`, `internal/auth`, and the promotion engine.
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records. ADRs 0001-0004 backfill existing decisions; new Type-1 work needs a new ADR before implementation.
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with file:line refs. Update in the same PR if the change widens any trust boundary.
+- [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — known tracked work; pick from here before inventing new tasks.
+- [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — current phase action plan per role.
+
+### Decision classes (`docs/ROLES.md` §3.1)
+
+| Class      | Examples                                                   | Required process                                              |
+|------------|------------------------------------------------------------|---------------------------------------------------------------|
+| **Type-1** | Crypto scheme, key hierarchy, schema breaking change, audit-field removal, PROD key rotation | ADR + Security sign-off + Tech Lead sign-off                  |
+| **Type-2** | New endpoint, new UI component, dependency upgrade          | RFC if non-trivial; standard PR review otherwise              |
+| **Type-3** | Refactor within a package, doc edit                        | Standard PR review                                            |
+
+When in doubt, treat as the next class up. Misclassification is itself a bug.
+
+## Where to look for what
+
+| Need                                       | Doc                                                       |
+|--------------------------------------------|-----------------------------------------------------------|
+| Architecture overview                      | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)            |
+| Why a decision was made                    | [`docs/adr/`](docs/adr/)                                  |
+| What's open / tracked                      | [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md)                  |
+| What we're NOT building                    | [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md)              |
+| Incident procedures                        | [`docs/RUNBOOK.md`](docs/RUNBOOK.md)                      |
+| Where secrets live (KeepSave's own)        | [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md)        |
+| Test strategy and coverage gates           | [`tests/PYRAMID.md`](tests/PYRAMID.md)                    |
+| Negative-auth test matrix                  | [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) |
+| Flaky-test policy                          | [`tests/FLAKY.md`](tests/FLAKY.md)                        |
+| Embed widget state machine                 | [`docs/EMBED_STATE.md`](docs/EMBED_STATE.md)              |
+| Embed origin / postMessage policy          | [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) |
+| UX state per screen                        | [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) |
+| CI runner permissions                      | [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md)        |

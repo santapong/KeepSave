@@ -6,6 +6,126 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+**Project governance and 30-day plan execution.** Docs-only work plus
+one CI hardening change; no API or behavior changes. Establishes the
+roles, decision-making process, and artifacts the team needs to keep
+shipping KeepSave with the rigor a secrets product demands.
+
+### Added — governance artifacts
+
+- **`docs/ROLES.md`** - 9-role operating model (Tech Lead, Security
+  Engineer with veto on crypto/auth/promotion, Backend, Frontend,
+  DevOps, QA, PM, UX, Tech Writer). Each role mandate is anchored to
+  owned artifacts already in the repo, not abstract titles. Includes
+  Type-1/2/3 decision classification, phased team composition, hiring
+  filters, and an anti-pattern list.
+- **`docs/ROLES_30_60_90.md`** - per-role 30/60/90 action plan for
+  Phase A (MVP hardening). Interim owners named for the un-staffed
+  roles. Critical-chain dependencies + explicit "not building" list.
+
+### Added — ADRs (Architecture Decision Records)
+
+- **`docs/adr/`** - directory with README (lifecycle + numbering),
+  `0000-template.md`, and four backfilled ADRs documenting decisions
+  already in the codebase:
+  - `0001-envelope-encryption.md` - AES-256-GCM with two-level envelope;
+    rejects CBC+HMAC and XChaCha20-Poly1305 with reasons.
+  - `0002-auth-model.md` - JWT for humans, API keys for agents;
+    rejects JWT-everywhere and API-keys-everywhere.
+  - `0003-promotion-engine.md` - decrypt-and-rewrap with PROD approval
+    gate; explicitly rejects verbatim-ciphertext copy on nonce-reuse
+    grounds.
+  - `0004-key-hierarchy.md` - two-level hierarchy (master KEK +
+    per-project DEK); rejects three-level and per-secret-DEK.
+- Each ADR includes file:line references to the actual code, alternative
+  options with explicit rejection rationale, consequences, and rollback
+  plan.
+
+### Added — 30-day execution artifacts
+
+- **Architecture and security**
+  - `docs/ARCHITECTURE.md` - one-page dependency map with three trust
+    boundaries (network, identity, key custody); "no upward edges" rule.
+  - `docs/THREAT_MODEL.md` re-baselined to v1.2.0 with file:line refs
+    and a "Findings new" block surfacing five critical/high gaps the
+    v1.1.0 model missed.
+  - `docs/VETO_LIST_AUDIT.md` - 90-day commit triage in protected paths
+    + proposed CODEOWNERS + commit-message convention.
+- **Backend specs**
+  - `docs/AUDIT_LOG_COVERAGE.md` - canonical event taxonomy, service
+    pattern, test obligations, read-path deferral note.
+  - `docs/ERROR_HANDLING_STANDARD.md` - `httperror` package design,
+    handler/service pattern, migration plan, lint rule to forbid
+    `err.Error()` in `c.JSON`.
+- **Frontend specs**
+  - `docs/EMBED_STATE.md` - widget state machine, audit-log requirement
+    per transition, auto-clear policy.
+  - `docs/EMBED_ORIGIN_POLICY.md` - per-project origin allow-list spec;
+    forbids wildcard `'*'` postMessage; framing guard; integrator CSP.
+- **DevOps**
+  - `docs/SECRET_SOURCES.md` - dev/staging/prod source map per secret;
+    rotation cadence; break-glass principles.
+  - `docs/CI_PERMISSIONS.md` - job-by-job permission map + branch
+    protection requirements.
+  - `docs/RUNBOOK.md` extended with §6 deploy-rollback drill and §7
+    break-glass production secret read procedure.
+- **QA**
+  - `tests/PYRAMID.md` - package-by-package census; flags the
+    "inverted pyramid" shape.
+  - `tests/NEGATIVE_AUTH_PLAN.md` - 12-endpoint × 11-attacker-case
+    matrix; every cell missing today.
+  - `tests/FLAKY.md` - triage SLA + fix patterns + quarantine etiquette.
+- **PM / UX / Tech Writer (interim Tech Lead)**
+  - `docs/ROADMAP_NOT.md` - explicit non-goals + exception process.
+  - `docs/UX_STATE_INVENTORY.md` - per-screen state inventory; rule
+    that destructive actions must use typed confirmation, not
+    `window.confirm`.
+  - `docs/DOCS_SANITIZATION_AUDIT.md` - example-value rules + detector
+    script spec.
+
+### Added — code / tooling
+
+- `.github/workflows/ci.yml` - top-level
+  `permissions: contents: read` (least-privilege CI default).
+
+### Changed — `docs/FOLLOWUPS.md`
+
+Re-shaped from the v1.1.0 audit delta into a persistent tracker with
+owner + due date per item. Top 10 Phase A items are ordered by leverage;
+Phase B items captured but explicitly deferred. New P0 / P1 items
+discovered during the 30-day audit are slotted ahead of the original
+list:
+- Secret/Project/API-key mutations are not audit-logged today.
+- Multiple handlers return `err.Error()` directly, leaking
+  `pgx`/`pq`/`crypto/cipher` text to clients.
+- The embed widget accepts auth from any origin
+  (no `ev.origin` check, outbound target origin `'*'`).
+- No handler-level negative-auth tests exist anywhere.
+- Approver-cannot-be-requester invariant is unverified at the DB layer.
+
+### Fixed — in this branch's earlier commits
+
+- Backend: `gofmt` clean (13 files reformatted); fixed a password-policy
+  test typo (`wantErr: false` on a too-short password); fixed the
+  Prometheus histogram renderer which was emitting invalid format
+  (`name{label="x"}_count` instead of `name_count{label="x"}`).
+- Frontend: cleared every `npm audit` finding (high `picomatch` ReDoS
+  advisory and follow-on `esbuild`/`vitest` chain); bumped `vitest` 2 → 4.1.6.
+- Backend deps: bumped `x/net`, `x/crypto`, `x/text`, `x/sys`,
+  `protobuf`, `gin`, `validator`, `lib/pq`, `mysql`, `sqlite3`.
+
+### Notes
+
+- All changes are docs and one workflow line; no API or runtime
+  behavior changes.
+- CI was blocked on a GitHub Actions quota during development; the
+  changes have been verified locally (`go vet`, `gofmt`, `go test`,
+  `npm test`, `npm audit`, `tsc --noEmit`, `npm run build`).
+
+---
+
 ## [1.1.0] - 2026-04-19
 
 **Phase 16 - Production Hardening.** Closes every open item in

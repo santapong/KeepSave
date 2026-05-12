@@ -57,22 +57,22 @@ func TestLoad_ProdLockdown(t *testing.T) {
 		{
 			name: "cors wildcard rejected",
 			env: map[string]string{
-				"DATABASE_URL":  "postgres://u:p@db/k?sslmode=require",
-				"MASTER_KEY":    goodKey(),
-				"JWT_SECRET":    "s",
-				"KEEPSAVE_ENV":  "production",
-				"CORS_ORIGINS":  "*",
+				"DATABASE_URL": "postgres://u:p@db/k?sslmode=require",
+				"MASTER_KEY":   goodKey(),
+				"JWT_SECRET":   "s",
+				"KEEPSAVE_ENV": "production",
+				"CORS_ORIGINS": "*",
 			},
 			want: "CORS_ORIGINS=*",
 		},
 		{
 			name: "sslmode disable rejected",
 			env: map[string]string{
-				"DATABASE_URL":  "postgres://u:p@db/k?sslmode=disable",
-				"MASTER_KEY":    goodKey(),
-				"JWT_SECRET":    "s",
-				"KEEPSAVE_ENV":  "production",
-				"CORS_ORIGINS":  "https://app.example.com",
+				"DATABASE_URL": "postgres://u:p@db/k?sslmode=disable",
+				"MASTER_KEY":   goodKey(),
+				"JWT_SECRET":   "s",
+				"KEEPSAVE_ENV": "production",
+				"CORS_ORIGINS": "https://app.example.com",
 			},
 			want: "sslmode=disable",
 		},
@@ -90,9 +90,9 @@ func TestLoad_ProdLockdown(t *testing.T) {
 
 func TestLoad_KMSProviderSkipsEnvKey(t *testing.T) {
 	setenv(t, map[string]string{
-		"DATABASE_URL":             "postgres://u:p@db/k?sslmode=require",
-		"JWT_SECRET":               "s",
-		"KEEPSAVE_KEY_PROVIDER":    "awskms",
+		"DATABASE_URL":            "postgres://u:p@db/k?sslmode=require",
+		"JWT_SECRET":              "s",
+		"KEEPSAVE_KEY_PROVIDER":   "awskms",
 		"KEEPSAVE_KMS_KEY_ID":     "alias/keepsave",
 		"KEEPSAVE_KMS_CIPHERTEXT": "AAA",
 	})

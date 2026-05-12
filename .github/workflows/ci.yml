@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege default. Jobs override only what they need.
+# See docs/SECRET_SOURCES.md and docs/CI_PERMISSIONS.md.
+permissions:
+  contents: read
+
 jobs:
   backend-lint:
     name: Backend Lint

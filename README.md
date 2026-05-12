@@ -691,6 +691,58 @@ services:
 
 For full MedQCNN documentation, see [MedQCNN README](https://github.com/santapong/MedQCNN).
 
+## Documentation & Project Governance
+
+KeepSave handles other people's secrets, so the project is run with explicit decision records, role mandates, and operating rituals. The docs below are the substrate.
+
+### Decisions and architecture
+
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records. Start with [the README](docs/adr/README.md) for when to write an ADR, the lifecycle, and the index.
+  - [`0001`](docs/adr/0001-envelope-encryption.md) Envelope encryption with AES-256-GCM
+  - [`0002`](docs/adr/0002-auth-model.md) JWT for humans, API keys for agents
+  - [`0003`](docs/adr/0003-promotion-engine.md) Promotion engine: decrypt-and-rewrap
+  - [`0004`](docs/adr/0004-key-hierarchy.md) Two-level key hierarchy
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — one-page dependency map and trust boundaries.
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with file:line references (currently v1.2.0).
+
+### Roles and execution plan
+
+- [`docs/ROLES.md`](docs/ROLES.md) — operating model: 9 roles with owned artifacts, decision-making process, phased team composition, hiring filters.
+- [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — per-role 30/60/90 action plan for Phase A. Reviewed monthly.
+- [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — tracked technical debt with owner + due date per item.
+- [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md) — explicit non-goals so scope stays honest.
+
+### Operations and security
+
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — incident runbook (lost master key, compromised API key, DB failover, rotation drill, deploy rollback drill, break-glass secret read).
+- [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md) — where KeepSave's own secrets live in dev / staging / production.
+- [`docs/PENTEST_CHECKLIST.md`](docs/PENTEST_CHECKLIST.md) — pre-release security checklist.
+- [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md) — least-privilege CI runner permissions.
+- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — security audit posture per release.
+
+### Engineering specs (30-day deliverables)
+
+- [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md) — canonical event taxonomy + test obligations.
+- [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md) — `httperror` package + sanitization pattern.
+- [`docs/EMBED_STATE.md`](docs/EMBED_STATE.md) — embed widget state machine and audit-log requirements.
+- [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) — postMessage / cross-origin policy.
+- [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) — per-screen UX state spec.
+- [`tests/PYRAMID.md`](tests/PYRAMID.md) — test coverage census.
+- [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) — endpoint × attacker-case matrix.
+- [`tests/FLAKY.md`](tests/FLAKY.md) — flaky-test tracker and triage SLA.
+
+### Integration guides
+
+- [`docs/SEIDR_INTEGRATION.md`](docs/SEIDR_INTEGRATION.md)
+- [`docs/medqcnn_integration.md`](docs/medqcnn_integration.md)
+- [`docs/nexus_integration.md`](docs/nexus_integration.md)
+
+### Roadmap and changelogs
+
+- [`Roadmap.md`](Roadmap.md) — vision, phases, completed milestones.
+- [`CHANGELOG.md`](CHANGELOG.md) — release-by-release notes.
+- [`PHASE15_CHANGELOG.md`](PHASE15_CHANGELOG.md), [`PHASE16_CHANGELOG.md`](PHASE16_CHANGELOG.md) — phase-scoped summaries.
+
 ## License
 
 MIT

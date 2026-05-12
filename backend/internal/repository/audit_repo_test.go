@@ -98,7 +98,7 @@ func TestAuditRepository_DeleteOlderThan_BoundaryExact(t *testing.T) {
 	// A row whose age equals the retention window should be kept (strict <).
 	// Insert slightly inside and slightly outside the boundary.
 	now := time.Now().UTC()
-	insertAuditRow(t, db, now.AddDate(0, 0, -30).Add(1*time.Minute)) // inside
+	insertAuditRow(t, db, now.AddDate(0, 0, -30).Add(1*time.Minute))  // inside
 	insertAuditRow(t, db, now.AddDate(0, 0, -30).Add(-1*time.Minute)) // outside
 
 	deleted, err := repo.DeleteOlderThan(30)

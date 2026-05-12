@@ -55,8 +55,8 @@ type MCPGatewayLog struct {
 
 // MCPToolDefinition represents a tool exposed by an MCP server.
 type MCPToolDefinition struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
 	InputSchema JSONMap `json:"inputSchema"`
 }
 

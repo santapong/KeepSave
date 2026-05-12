@@ -13,7 +13,7 @@ func TestPasswordPolicyValidate(t *testing.T) {
 		wantErr  bool
 	}{
 		{"valid password", "SecureP@ss1", false},
-		{"too short", "Ab1!", false},
+		{"too short", "Ab1!", true},
 		{"no uppercase", "securepass1!", true},
 		{"no lowercase", "SECUREPASS1!", true},
 		{"no digit", "SecurePass!", true},

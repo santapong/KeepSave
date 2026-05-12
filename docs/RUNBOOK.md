@@ -11,6 +11,8 @@ P2 = degraded service.
 3. Database failover (P0)
 4. Rotate-everything drill (P2)
 5. govulncheck regression (P2)
+6. Deploy rollback drill (P2 — drill, not incident)
+7. Break-glass production secret read (procedure)
 
 ---
 
@@ -85,6 +87,48 @@ Quarterly exercise to prove rotation plumbing works.
 2. If the vuln is **called**: pin or upgrade the dependency in the same PR.
 3. If **not called**: annotate `errorlog.md` and open a Dependabot PR to
    upgrade on the next cycle. Do not merge unless the team agrees.
+
+## 6. Deploy rollback drill
+
+**Purpose:** prove that rolling back a bad deploy in staging takes < 5 minutes and leaves no orphaned state. Run quarterly.
+
+**Procedure**
+
+1. **Capture baseline.** Note the current deployed image digest:
+   ```
+   kubectl -n keepsave get deploy keepsave-api -o jsonpath='{.spec.template.spec.containers[0].image}'
+   ```
+   Save to `/tmp/rollback-drill-<date>.txt`.
+2. **Deploy a known-broken image.** Push a tag with a deliberate `panic("rollback drill")` in `cmd/server/main.go` to the staging registry. Helm upgrade with the new tag.
+3. **Confirm failure mode.** `/readyz` should return 503 within 30 seconds; pod restart loop visible.
+4. **Roll back.** `helm rollback keepsave <previous-revision>` (or `kubectl rollout undo deploy/keepsave-api`).
+5. **Verify recovery.** `/healthz` and `/readyz` green; spot-check one secret read and one promotion (against pre-prepared test fixtures).
+6. **Verify clean state.** No stuck migrations, no half-written audit rows, no abandoned promotion records with status `pending` from the broken deploy.
+7. **Time the whole thing.** Record start-to-recovery time in `docs/INCIDENTS.md` (drill section). Anything over 5 minutes is itself a follow-up.
+
+**Pass criteria:** recovery in < 5 minutes; no orphaned state; rollback procedure is the same one written in this runbook (not a special drill version).
+
+**Failure modes worth specifically testing:**
+- Migration mid-flight: deploy a broken image during an active migration. Rollback must not corrupt schema state.
+- DEK key cache cold: rollback to a pod that has never seen the current master key. Must boot.
+
+## 7. Break-glass production secret read
+
+**When to use:** recovering from a P0 where on-call operator needs to read a production Kubernetes Secret to diagnose (e.g., DB password mismatch). Never for routine operation.
+
+**Procedure**
+
+1. **Page Tech Lead and Security Engineer.** Break-glass is a two-person operation. The second person witnesses and confirms.
+2. **Open an incident issue** with the break-glass label *before* the read. Include reason, expected reads, and predicted duration.
+3. **Read via the audited path.** `kubectl -n keepsave get secret <name> -o yaml` from a CI-audited bastion (NOT a personal machine).
+4. **Cloud-provider audit log records the read.** That log is the audit log for this action — KeepSave's own audit log is not used (we may be in the middle of fixing KeepSave).
+5. **Close the incident issue** with the actual reads and outcome. Attach the cloud-provider audit-log timestamp.
+6. **Rotate the secret afterward.** Default assumption: anything read via break-glass is now in human heads / terminal scrollback. Rotate within 24 hours.
+
+**Anti-patterns (block at review):**
+- Copying a production secret to a Slack message, ticket, or doc.
+- Reading "just to compare" without an incident issue.
+- Skipping the post-read rotation.
 
 ## Contact paths
 

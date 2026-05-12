@@ -195,7 +195,9 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 func (h *OAuthHandler) Revoke(c *gin.Context) {
 	token := c.PostForm("token")
 	if token == "" {
-		var req struct{ Token string `json:"token"` }
+		var req struct {
+			Token string `json:"token"`
+		}
 		if err := c.ShouldBindJSON(&req); err == nil {
 			token = req.Token
 		}
