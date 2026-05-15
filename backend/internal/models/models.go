@@ -19,14 +19,16 @@ type User struct {
 }
 
 type Project struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	OwnerID      uuid.UUID `json:"owner_id"`
-	EncryptedDEK []byte    `json:"-"`
-	DEKNonce     []byte    `json:"-"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                 uuid.UUID  `json:"id"`
+	Name               string     `json:"name"`
+	Description        string     `json:"description"`
+	OwnerID            uuid.UUID  `json:"owner_id"`
+	EncryptedDEK       []byte     `json:"-"`
+	DEKNonce           []byte     `json:"-"`
+	AllowedOrigins     StringList `json:"allowed_origins"`
+	EmbedPolicyEnabled bool       `json:"embed_policy_enabled"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type Environment struct {
