@@ -1340,7 +1340,7 @@ export function AdminPanel() {
       <KeepSaveWidget
         apiUrl="https://keepsave.example.com"
         projectId="your-project-uuid"
-        token={localStorage.getItem('jwt') || ''}
+        token={localStorage.getItem('keepsave_token') || ''}
         theme="dark"
         environment="alpha"
       />

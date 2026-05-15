@@ -25,6 +25,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { Plus, Trash2, Copy, Check, Key } from 'lucide-react';
+import { TypedConfirmModal } from './TypedConfirmModal';
 
 interface ProjectAPIKeysPanelProps {
   projectId: string;
@@ -50,6 +51,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
   const [newRawKey, setNewRawKey] = useState('');
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -93,8 +95,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!window.confirm('Delete this API key? This cannot be undone.')) return;
+  async function performDelete(id: string) {
     setDeleteError('');
     try {
       await deleteAPIKey(id);
@@ -307,7 +308,7 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
                       variant="outline"
                       size="sm"
                       className="text-destructive border-destructive hover:bg-destructive/10 h-7 text-xs"
-                      onClick={() => handleDelete(k.id)}
+                      onClick={() => setDeleteTarget(k)}
                     >
                       <Trash2 className="mr-1 h-3 w-3" /> Delete
                     </Button>
@@ -318,6 +319,24 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
           </Table>
         </Card>
       )}
+
+      <TypedConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete API key"
+        description={
+          deleteTarget
+            ? `Permanently delete "${deleteTarget.name}". Agents and services using this key will lose access immediately. This cannot be undone.`
+            : ''
+        }
+        confirmPhrase={deleteTarget?.name ?? ''}
+        confirmLabel="Delete key"
+        onConfirm={() => {
+          if (deleteTarget) performDelete(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

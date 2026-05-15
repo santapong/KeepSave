@@ -23,16 +23,54 @@ import type {
 
 const BASE_URL = '/api/v1';
 
+/**
+ * The canonical localStorage key for the auth JWT.
+ *
+ * FU 0h (docs/FOLLOWUPS.md): historical inconsistency — HelpPage's embed-widget
+ * code example previously suggested `localStorage('jwt')`, while the dashboard
+ * has always used `keepsave_token`. `keepsave_token` is the standard. The
+ * migration below copies any legacy `jwt` value into the canonical key on boot.
+ */
+export const JWT_STORAGE_KEY = 'keepsave_token';
+
+/** Legacy keys that may have been used by older builds. Kept narrow on purpose. */
+const LEGACY_JWT_KEYS = ['jwt', 'auth_token'] as const;
+
+/**
+ * One-time migration: copy any legacy JWT value into the canonical key and
+ * delete the legacy entries. Idempotent. Call once at app boot.
+ */
+export function migrateLegacyJWTKey(): void {
+  if (typeof localStorage === 'undefined') return;
+  if (localStorage.getItem(JWT_STORAGE_KEY)) {
+    // Canonical key already populated — just clean up any stragglers.
+    for (const legacy of LEGACY_JWT_KEYS) {
+      if (localStorage.getItem(legacy) !== null) {
+        localStorage.removeItem(legacy);
+      }
+    }
+    return;
+  }
+  for (const legacy of LEGACY_JWT_KEYS) {
+    const value = localStorage.getItem(legacy);
+    if (value) {
+      localStorage.setItem(JWT_STORAGE_KEY, value);
+      localStorage.removeItem(legacy);
+      return;
+    }
+  }
+}
+
 function getToken(): string | null {
-  return localStorage.getItem('keepsave_token');
+  return localStorage.getItem(JWT_STORAGE_KEY);
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem('keepsave_token', token);
+  localStorage.setItem(JWT_STORAGE_KEY, token);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem('keepsave_token');
+  localStorage.removeItem(JWT_STORAGE_KEY);
 }
 
 function parseJWTExpiry(token: string): number | null {
@@ -827,6 +865,29 @@ export async function getPrometheusMetrics(): Promise<string> {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const response = await fetch('/metrics', { headers });
   return response.text();
+}
+
+// Project key rotation (FU: wires the "Rotate all" dead button on ProjectDetailPage).
+// NOTE: The /rotate-keys endpoint has a known IDOR finding (audit A01-F5); the
+// architectural fix lives behind RequireProjectAccess middleware (ADR-0005).
+// Wiring the button does NOT introduce new exploitability — an attacker can
+// already trigger the endpoint via direct API call.
+export interface KeyRotationResult {
+  message: string;
+  result?: Record<string, unknown>;
+}
+
+export async function rotateProjectKeys(projectId: string): Promise<KeyRotationResult> {
+  return request<KeyRotationResult>(`/projects/${projectId}/rotate-keys`, {
+    method: 'POST',
+  });
+}
+
+// .env export — returns the raw .env content for the given environment.
+// (See A01-F3 IDOR caveat in `exportEnv` above.)
+export async function exportEnvAsBlob(projectId: string, environment: string): Promise<Blob> {
+  const content = await exportEnv(projectId, environment);
+  return new Blob([content], { type: 'text/plain;charset=utf-8' });
 }
 
 export async function togglePlugin(pluginId: string, enabled: boolean): Promise<Record<string, unknown>> {

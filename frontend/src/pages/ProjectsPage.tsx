@@ -1,9 +1,12 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listProjects, createProject, deleteProject } from '../api/client';
+import { listProjects, createProject, deleteProject, importEnv } from '../api/client';
 import type { Project } from '../types';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+
+const IMPORT_ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
+type ImportEnv = (typeof IMPORT_ENVIRONMENTS)[number];
 
 type Health = 'go' | 'warn' | 'stop';
 
@@ -109,6 +112,12 @@ export function ProjectsPage() {
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'SEALED' | 'DRIFT' | 'ATTN'>('ALL');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importProjectId, setImportProjectId] = useState('');
+  const [importEnvironment, setImportEnvironment] = useState<ImportEnv>('alpha');
+  const [importOverwrite, setImportOverwrite] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -151,6 +160,67 @@ export function ProjectsPage() {
     }
   }
 
+  // Task A.3: Import .env. Opens a dialog to pick target project + environment,
+  // then a file picker. Parses key=value lines (ignoring comments and blanks)
+  // and POSTs to the existing /env-import endpoint, which the backend handles
+  // server-side (one round-trip per import, not per-key).
+  //
+  // We deliberately use the existing /env-import endpoint instead of the embed
+  // `secrets/batch` endpoint mentioned in audit F-C-001 — that one is not
+  // implemented on the backend.
+  function openImport() {
+    if (projects.length === 0) {
+      toast({
+        title: 'No projects yet',
+        description: 'Create a project before importing secrets.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setImportProjectId(projects[0]?.id ?? '');
+    setImportEnvironment('alpha');
+    setImportOverwrite(false);
+    setImportOpen(true);
+  }
+
+  async function handleImportFile(file: File) {
+    if (!importProjectId) return;
+    setImporting(true);
+    try {
+      const content = await file.text();
+      // Quick client-side validation: ensure the file has at least one
+      // key=value pair after stripping comments/blank lines.
+      const meaningfulLines = content
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith('#'));
+      if (meaningfulLines.length === 0) {
+        throw new Error('The selected file has no key=value entries.');
+      }
+      if (!meaningfulLines.some((l) => l.includes('='))) {
+        throw new Error('No KEY=VALUE pairs found. Make sure the file is a valid .env.');
+      }
+      const result = await importEnv(importProjectId, importEnvironment, content, importOverwrite);
+      const projectName = projects.find((p) => p.id === importProjectId)?.name ?? 'project';
+      toast({
+        title: 'Import complete',
+        description: `Imported ${meaningfulLines.filter((l) => l.includes('=')).length} entries into ${projectName} / ${importEnvironment.toUpperCase()}.` +
+          (result ? ` (${JSON.stringify(result)})` : ''),
+      });
+      setImportOpen(false);
+      loadProjects();
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Could not import the .env file.',
+        variant: 'destructive',
+      });
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
+  }
+
   const filtered = projects.filter((p) => {
     if (filter === 'ALL') return true;
     const h = projectHealth(p);
@@ -171,7 +241,9 @@ export function ProjectsPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="ks-btn">Import .env</button>
+          <button className="ks-btn" onClick={openImport} disabled={importing}>
+            {importing ? 'Importing…' : 'Import .env'}
+          </button>
           <button className="ks-btn ks-btn-primary" onClick={() => setShowCreate(true)}>
             + New project
           </button>
@@ -402,6 +474,109 @@ export function ProjectsPage() {
           setDeleteTarget(null);
         }}
       />
+
+      {importOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'oklch(0.12 0.008 60 / 0.75)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 300,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            paddingTop: '14vh',
+          }}
+          onClick={() => !importing && setImportOpen(false)}
+        >
+          <div
+            style={{
+              width: 'min(520px, 92vw)',
+              background: 'var(--ks-bg)',
+              border: '1px solid var(--ks-amber-dim)',
+              boxShadow: '0 40px 80px oklch(0 0 0 / 0.6)',
+              padding: 28,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ks-eyebrow ks-amber">— Import .env —</div>
+            <h2
+              className="ks-serif-display"
+              style={{ fontSize: 28, marginTop: 8, marginBottom: 18 }}
+            >
+              Restore <em style={{ fontStyle: 'italic', color: 'var(--ks-amber)' }}>secrets</em>.
+            </h2>
+            <div className="ks-tweak-row">
+              <label>Project</label>
+              <select
+                className="ks-input"
+                value={importProjectId}
+                onChange={(e) => setImportProjectId(e.target.value)}
+                disabled={importing}
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ks-tweak-row">
+              <label>Environment</label>
+              <select
+                className="ks-input"
+                value={importEnvironment}
+                onChange={(e) => setImportEnvironment(e.target.value as ImportEnv)}
+                disabled={importing}
+              >
+                {IMPORT_ENVIRONMENTS.map((e) => (
+                  <option key={e} value={e}>{e.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ks-tweak-row">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={importOverwrite}
+                  onChange={(e) => setImportOverwrite(e.target.checked)}
+                  disabled={importing}
+                />
+                Overwrite existing keys
+              </label>
+            </div>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".env,text/plain,application/octet-stream"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImportFile(file);
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+              <button
+                type="button"
+                className="ks-btn"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => setImportOpen(false)}
+                disabled={importing}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ks-btn ks-btn-primary"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => importFileRef.current?.click()}
+                disabled={importing || !importProjectId}
+              >
+                {importing ? 'Importing…' : 'Select file →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

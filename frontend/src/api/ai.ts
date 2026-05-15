@@ -8,11 +8,12 @@ import type {
   SecretRecommendation,
   NLPQueryResult,
 } from '../types/ai';
+import { JWT_STORAGE_KEY } from './client';
 
 const BASE_URL = '/api/v1';
 
 function getToken(): string | null {
-  return localStorage.getItem('keepsave_token');
+  return localStorage.getItem(JWT_STORAGE_KEY);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
