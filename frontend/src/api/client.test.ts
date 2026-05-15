@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { setToken, clearToken, isAuthenticated } from './client';
+import { setToken, clearToken, isAuthenticated, migrateLegacyJWTKey, JWT_STORAGE_KEY } from './client';
 
 // Helper: create a fake JWT with a future exp claim
 function makeFakeJWT(expSeconds: number): string {
@@ -35,6 +35,33 @@ describe('API Client Auth', () => {
     setToken(token);
     clearToken();
     expect(isAuthenticated()).toBe(false);
+    expect(localStorage.getItem('keepsave_token')).toBeNull();
+  });
+
+  it('JWT_STORAGE_KEY is the canonical key', () => {
+    expect(JWT_STORAGE_KEY).toBe('keepsave_token');
+  });
+
+  it('migrateLegacyJWTKey copies legacy `jwt` value into canonical key', () => {
+    const token = makeFakeJWT(3600);
+    localStorage.setItem('jwt', token);
+    migrateLegacyJWTKey();
+    expect(localStorage.getItem('keepsave_token')).toBe(token);
+    expect(localStorage.getItem('jwt')).toBeNull();
+  });
+
+  it('migrateLegacyJWTKey is a no-op when canonical key already exists', () => {
+    const token = makeFakeJWT(3600);
+    setToken(token);
+    localStorage.setItem('jwt', 'leftover');
+    migrateLegacyJWTKey();
+    expect(localStorage.getItem('keepsave_token')).toBe(token);
+    // legacy key is still cleaned up to prevent confusion
+    expect(localStorage.getItem('jwt')).toBeNull();
+  });
+
+  it('migrateLegacyJWTKey does nothing when no keys are set', () => {
+    migrateLegacyJWTKey();
     expect(localStorage.getItem('keepsave_token')).toBeNull();
   });
 });
