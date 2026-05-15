@@ -7,8 +7,8 @@
 - **License:** Apache 2.0 (OSS core); commercial Pomerium Enterprise / Pomerium Zero
 - **Last updated:** 2026-05-15
 - **Analyst:** Edge Auth Analyst
-- **Reviewer:** Security Reviewer (pending)
-- **Status:** draft
+- **Reviewer:** Security Reviewer (accepted 2026-05-15)
+- **Status:** accepted
 - **Priority:** P0 (tied directly to FU 0b embed widget origin)
 
 ## 2. One-paragraph overview
@@ -49,10 +49,17 @@ CVE history (last 24 months, NVD + GitHub Security Advisories):
 | Outbound message bound to a specific recipient origin | Outbound `postMessage` uses wildcard `'*'` | `frontend/src/embed/auth.ts:33` |
 | JWKS endpoint (`/.well-known/...`) for upstream verification | Backend exposes JWKS handler but empty (Phase B blocker, separate dossier) | `backend/internal/api/handlers_oauth.go` (per `docs/research/README.md:11`) |
 | Per-route policy (Rego) | Promotion / API-key scoping is code-resident; no declarative origin policy | `backend/internal/auth/apikey.go`; no embed-policy file yet |
-| `databroker` gRPC store | Not applicable (KeepSave uses Postgres directly) | — |
 | Session-cookie sign-on | Dashboard uses JWT in `localStorage`; embed widget uses postMessage handshake | `frontend/src/pages/LoginPage.tsx:32-33`; `frontend/src/embed/keepsave-widget.ts:101-117` |
-| Envoy data plane | Not applicable (KeepSave is Gin-only) | — |
 | Identity-aware authz at every request | KeepSave middleware re-validates JWT/API key per request | `backend/internal/api/middleware.go:59-120` (per threat-model §2) |
+
+**Concepts deliberately not adopted** (per refined template — Pomerium has substantial surface area we ignore because we are adopting patterns, not deploying their product):
+
+| Their concept | Reason we don't adopt |
+|---|---|
+| `databroker` gRPC store | Not applicable — KeepSave uses Postgres directly; no need for a separate session/policy store. Also the locus of CVE-2024-47616, which informs §7 cons but isn't itself something we'd transplant. |
+| Envoy data plane | Not applicable — KeepSave is Gin-only; we are not putting a proxy in front of the API. Pomerium-specific Envoy CVEs (e.g. CVE-2021-39204) therefore don't transfer. |
+| IdP / OIDC integration (the `authenticate` service) | Out of scope per `docs/ROADMAP_NOT.md` — SSO/SAML/OIDC for dashboard end-user auth is blocked until two customers ask. |
+| Session-cookie issuance scoped to a Pomerium domain | KeepSave doesn't terminate sessions at a proxy; JWT lives directly in `localStorage` for the dashboard. |
 
 ## 6. Adapt candidates
 
@@ -60,7 +67,7 @@ These are **pattern adoptions only**. KeepSave does not deploy Pomerium; we tran
 
 1. **Origin allow-list as per-project server-side configuration.** Mirror Pomerium's per-route `allowed_origins` as a per-project column (`projects.allowed_embed_origins TEXT[]`). The widget bootstrap fetches this list before installing the message listener. Already drafted in `docs/EMBED_ORIGIN_POLICY.md:42-60`; Pomerium's pattern validates the shape (declarative, per-resource, fetched by the client before policy enforcement begins).
 2. **Strict `ev.origin` check + non-wildcard `targetOrigin`.** Both directions of the postMessage flow get an exact-equality check against the allow-list. Pomerium's contribution here is the *invariant*: a wildcard is forbidden by code review, not just discouraged. Implementation is local to `frontend/src/embed/auth.ts:21-33`.
-3. **Signed message envelope for embed→host and host→embed traffic (Phase B).** Pomerium's `X-Pomerium-Jwt-Assertion` pattern transposed: the host page mints a short-lived ES256-signed assertion (kid + `aud` = widget instance ID + `exp` ≤ 60s) and the widget verifies it via a KeepSave-served JWKS before accepting any `keepsave-auth` payload. This is **defence-in-depth** beyond the origin allow-list — it survives an attacker who somehow gets a script onto an allow-listed origin but cannot reach the host's signing key. `docs/EMBED_ORIGIN_POLICY.md:103-105` defers per-message MAC to Phase B; Pomerium's pattern is the concrete shape we'd adopt when that trigger fires.
+3. **Signed message envelope for embed→host and host→embed traffic (Phase B).** Pomerium's `X-Pomerium-Jwt-Assertion` pattern transposed: the host page mints a short-lived ES256-signed assertion (kid + `aud` = widget instance ID + `exp` ≤ 60s) and the widget verifies it via a KeepSave-served JWKS before accepting any `keepsave-auth` payload. This is **defence-in-depth** beyond the origin allow-list — it survives an attacker who somehow gets a script onto an allow-listed origin but cannot reach the host's signing key. `docs/EMBED_ORIGIN_POLICY.md:104-105` defers per-message MAC to Phase B; Pomerium's pattern is the concrete shape we'd adopt when that trigger fires.
 
 Candidates 1 and 2 are sized for a single ADR (frontend-only + one additive schema migration). Candidate 3 is a separate, later ADR.
 
@@ -118,7 +125,7 @@ Against the template's four options:
 
 `adopt-now` carries the requirement of a Type-1 ADR (auth-adjacent) per `CLAUDE.md` Decision-classes table. Security Engineer veto applies per `docs/ROLES.md`. ADR Drafter picks this up on day 45.
 
-**Candidate 3** (signed envelope): **`adopt-when-trigger-fires`**. Trigger quoted verbatim from `docs/EMBED_ORIGIN_POLICY.md:103-105`:
+**Candidate 3** (signed envelope): **`adopt-when-trigger-fires`**. Trigger quoted verbatim from `docs/EMBED_ORIGIN_POLICY.md:104-105`:
 
 > *"Per-message MAC / replay protection. Considered but not needed at the current scope; `postMessage` semantics + origin checks are enough. Revisit if a customer with a high-threat model asks."*
 
@@ -163,3 +170,39 @@ Security Reviewer veto applies. Suggested reviewer checks: (a) the `["*"]` senti
 - Cure53 audit of Pomerium (March 2021): `https://www.pomerium.com/blog/pomerium-completes-independent-security-audit-by-cure53` — retrieved 2026-05-15 (vendor blog; cited as a pointer to the public audit, which is the load-bearing source).
 - Pomerium source repository: `https://github.com/pomerium/pomerium` — retrieved 2026-05-15.
 - RFC 7519 (JSON Web Token): `https://www.rfc-editor.org/rfc/rfc7519` — retrieved 2026-05-15.
+
+## Security Reviewer notes
+
+**Verdict:** accepted-with-changes (retrofitted inline). Veto **not** exercised on §9, §10, or §12.
+
+**Verified by spot-checking code (Read tool, 2026-05-15):**
+
+- `frontend/src/embed/auth.ts:21-26` — confirmed: listener has no `ev.origin` check; matches §5 row 1 and §9 quote.
+- `frontend/src/embed/auth.ts:33` — confirmed: `window.parent.postMessage(request, '*')`. Wildcard target origin is real.
+- `frontend/src/embed/keepsave-widget.ts:78-87` — confirmed: `directToken` / `directApiKey` branch returns before `setupPostMessageAuth` is called. **§12 Invariant 1 verified independently.**
+- `frontend/src/embed/keepsave-widget.ts:101-117` — confirmed: `setupPostMessageAuth` body matches dossier's framing.
+- `frontend/src/embed/keepsave-widget.ts:7-9` — confirmed: `observedAttributes` is `['project-id', 'api-url', 'theme', 'mode', 'api-key', 'token']`. Neither candidate alters this list. **§12 contract preservation verified.**
+- `frontend/src/embed/auth.test.ts` — confirmed: six tests as claimed; "ignores unrelated messages" at lines 70-92 dispatches `MessageEvent` with default origin (test env origin). An origin allow-list that includes the test origin keeps these green. **§12 Invariant 2 verified.**
+- `frontend/src/pages/LoginPage.tsx:32-33` — confirmed: `apiLogin(email, password)` then `onLogin(resp.user, resp.token)`. No embed widget involvement. **§12 Invariant 5 verified.**
+- `backend/internal/api/middleware.go:59-120` — confirmed: `JWTAuthMiddleware` at 59-86, `APIKeyAuthMiddleware` at 88-120. Re-validates per request as claimed.
+- `backend/internal/auth/apikey.go` — confirmed: SHA-256 hash, no per-origin scoping. The "no declarative origin policy" framing in §5 is accurate.
+- `backend/internal/api/handlers_oauth.go:216-218` — confirmed: JWKS handler returns empty `keys: []` with a note that RS256 is planned. The §5 "empty JWKS" claim is correct.
+
+**§9 STRIDE match:** `docs/THREAT_MODEL.md` §4 "Embed widget (browser trust domain)", row **S (Spoofing)** at line 106: *"Malicious host page injects fake `keepsave-auth` postMessage → Mitigation: **None today** — listener has no origin check → Residual: **High**"*. Dossier quote matches verbatim (modulo whitespace). Trust-boundary direction (**narrows** under adoption of Candidates 1+2) is correct: no new entity enters the boundary; the allow-list endpoint is unauthenticated by design but constrains rather than extends trust.
+
+**§10 trigger verification:** quoted text at `docs/EMBED_ORIGIN_POLICY.md:104-105` reads: *"Per-message MAC / replay protection. Considered but not needed at the current scope; `postMessage` semantics + origin checks are enough. Revisit if a customer with a high-threat model asks."* — matches dossier verbatim. (Dossier originally cited 103-105; line 103 is the section heading, not policy text. Corrected to 104-105 inline.)
+
+**Changes I made inline as part of this acceptance:**
+
+1. **§5 retrofitted to refined-template format.** Moved the two `—` analog rows (`databroker` gRPC store, Envoy data plane) out of the §5 mapping table and into the new **Concepts deliberately not adopted** sub-table per template `c6eeab8`. Added two further entries (IdP / OIDC integration, session-cookie sign-on at proxy) for completeness — both are concepts Pomerium has that KeepSave deliberately doesn't transplant, and naming them explicitly closes the "why didn't they consider X" question.
+2. **§10 trigger line range corrected** from `103-105` to `104-105`. Line 103 is the heading "What gets deferred to Phase B"; the policy text starts at 104.
+3. **§1 status flipped** to `accepted` with reviewer date.
+
+**Non-blocking observations (for ADR Drafter on day 45):**
+
+- §11 specifies a `["*"]` sentinel meaning "policy disabled" rather than "permit all". This is footgun-shaped; the ADR should require an explicit `null`/empty config sentinel (e.g. `policy_enabled: false` field) rather than re-using `*` for a different meaning. Flagged but not blocking — the dossier already names the risk.
+- The unauthenticated `GET /api/v1/projects/:id/embed-config` endpoint creates a project-ID enumeration oracle. Dossier mitigates with rate-limit + identical 404 for "unknown" vs "empty"; ADR must verify both are implemented and tested before merge.
+- CVE-2024-47616 framing is fair: it's a JWT-validation flaw in Pomerium's databroker, not in the signed-header pattern itself. The transposition to Candidate 3 (treat audience/expiry checks as a known CVE class) is sound.
+- Candidate 3 cons section correctly identifies that the customer-side signing key becomes a new asset. The "fail-quiet vs fail-loud" framing (a leaked signing key produces silent bypasses worse than today's obvious wildcard) is exactly the right tradeoff to surface to the Security Engineer at ADR time.
+
+No reference failed to check out. All file:line citations resolve.
