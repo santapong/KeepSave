@@ -7,34 +7,34 @@
 - **License:** proprietary / N/A — patterns only, not deployed product
 - **Last updated:** 2026-05-15
 - **Analyst:** Machine Identity Analyst + Approval Workflow Analyst
-- **Reviewer:** Security Reviewer (pending)
-- **Status:** draft
+- **Reviewer:** Security Reviewer (accepted-with-changes 2026-05-15)
+- **Status:** accepted
 - **Priority:** P0 (tied to FU 0d approver≠requester + Phase-B fine-grained API key scopes)
 
 ## 2. One-paragraph overview
 
-GitHub ships two pieces of platform infrastructure that map onto two open KeepSave gaps. Fine-grained Personal Access Tokens (GA October 2022) replaced legacy OAuth-scope strings with a `repository × permission × expiration` tuple — the shape KeepSave needs to make `ks_` keys honour least privilege. Deployment Environments add a protection-rule set (required reviewers, wait timer, deployment-branch allow-list) whose required-reviewers rule enforces `approver ∉ requester` at the platform layer — the invariant FU 0d says KeepSave does not enforce. We adopt **patterns**, not GitHub itself.
+GitHub ships two platform pieces mapping onto two open KeepSave gaps. Fine-grained PATs (GA October 2022) replaced OAuth scopes with a `repository × permission × expiration` tuple — the shape `ks_` keys need for least-privilege. Deployment Environments add protection rules (required reviewers, wait timer, branch allow-list); the required-reviewers rule enforces `approver ∉ requester` at the platform layer — the invariant FU 0d says KeepSave doesn't. We adopt **patterns**, not GitHub.
 
 ## 3. Architecture summary
 
-**Fine-grained PATs:** mint via UI selecting (a) resource owner, (b) repository selector (`all`/`public`/explicit list), (c) per-permission level (`read`/`write`/`admin`) across ~50 named permissions (`contents`, `actions`, `secrets`, `deployments`, …), (d) **mandatory** expiration (≤366d; default 30; no "never"). `github_pat_` prefix enables secret-scanning. Org admins can require fine-grained-only and pre-approve the permission set. Every API call is logged with the token ID.
+**Fine-grained PATs:** mint with (a) resource owner, (b) repo selector, (c) per-permission level (`read`/`write`/`admin`) across ~50 named permissions, (d) **mandatory** expiration (≤366d; default 30; no "never"). `github_pat_` prefix enables secret-scanning. Every API call logs the token ID.
 
-**Environments:** named Environments (`production`, `staging`, …) carry protection rules evaluated before a deployment job: required reviewers (1–6 users/teams, requester excluded), wait timer (0–43200 min), deployment-branch allow-list, environment-scoped secrets.
+**Environments:** named Environments carry protection rules evaluated before deployment: required reviewers (1–6 users/teams, requester excluded), wait timer, deployment-branch allow-list, environment-scoped secrets.
 
-KeepSave interacts with neither directly. We borrow the grammar (PATs → `ks_` keys) and the protection-rule shape (Environments → promotion engine).
+KeepSave borrows the grammar (PATs → `ks_`) and protection-rule shape (Environments → promotion engine), not the products.
 
 ## 4. Security model
 
 PAT primitives (vendor docs retrieved 2026-05-15 via search summary; direct `docs.github.com` returned 403):
 
-- **Token shape:** opaque random + `github_pat_` prefix; SHA hash at rest; raw shown once. Same posture KeepSave has (`auth/apikey.go:21-23`).
-- **Scope enforcement:** API gateway evaluates `(token, target_repo, required_permission)` per request → 403 on missing permission. Denylist-by-default — fresh PAT has zero permissions until granted.
-- **Expiration:** mandatory; default 30d; ceiling 366d. Org admins can lower the ceiling.
-- **Audit:** every authenticated call writes `{actor, token_id, action, repo, timestamp}` to org audit log.
+- **Token shape:** opaque random + `github_pat_` prefix; SHA hash at rest; raw shown once. Same posture as KeepSave (`auth/apikey.go:21-23`).
+- **Scope enforcement:** gateway evaluates `(token, target_repo, required_permission)` per request → 403 on miss. Denylist-by-default.
+- **Expiration:** mandatory; default 30d; ceiling 366d.
+- **Audit:** every call writes `{actor, token_id, action, repo, timestamp}` to org audit log.
 
-Environments: approver pool (users/teams, membership resolved at decision time); approver ≠ requester (triggering user removed from eligible set; API rejects self-approval `422 cannot approve own deployment`); every approval/rejection audited with `actor`, `environment`, `run_id`, requester.
+Environments: approver pool (membership resolved at decision time); approver ≠ requester (API rejects self-approval `422 cannot approve own deployment`); every approval/rejection audited.
 
-CVE / disclosure history (NVD + GHSA, last 24 months): **CVE-2024-4985** (GHES SAML signature bypass, 2024-05) and **CVE-2024-8770/8810** (GHES sensitive-data exposure, 2024-09) evidence a responsive program (closes the "CVE absence misread as safe" risk from `docs/research/README.md:111`). No CVE filed against fine-grained-PAT permission-evaluation logic itself in 24 months — **suggestive, not load-bearing**; §10 security claim rests on NIST SP 800-63B and OWASP ASVS V8/V14.
+CVE history (24 months): **CVE-2024-4985** (GHES SAML signature bypass) and **CVE-2024-8770/8810** (GHES sensitive-data exposure) evidence a responsive program. No CVE against fine-grained-PAT permission logic in 24 months — suggestive, not load-bearing; §10 security claim rests on NIST SP 800-63B and OWASP ASVS V8/V14.
 
 ## 5. KeepSave-comparable surface
 
@@ -70,33 +70,33 @@ CVE / disclosure history (NVD + GHSA, last 24 months): **CVE-2024-4985** (GHES S
 
 ### Candidate 1: Approver ≠ requester DB invariant
 
-- **Pros:** Closes FU 0d. Single migration + one service guard. Defence in depth (DB constraint catches future regression). Closes the named gap at `docs/THREAT_MODEL.md:100`.
-- **Cons (operational):** Existing rows where `requested_by == approved_by` (if any) must be migrated to `rejected` with `migration_reason`. Single-developer dev workflows (self-request + self-approve for convenience) break — correct behaviour, but breaks habits.
-- **Cons (security):** `none material — invariant narrows the trust boundary; sock-puppet accounts are an org-membership problem out of scope per docs/THREAT_MODEL.md:134.`
+- **Pros:** Closes FU 0d. Single migration + one service guard. DB constraint = defence in depth. Closes gap at `docs/THREAT_MODEL.md:100`.
+- **Cons (operational):** Existing `requested_by == approved_by` rows (if any) migrate to `rejected` with `migration_reason`. Self-request + self-approve dev habits break — correct behaviour.
+- **Cons (security):** `none material — invariant narrows boundary; sock-puppet is out of scope per docs/THREAT_MODEL.md:134.`
 
 ### Candidate 2: Fine-grained scope grammar
 
-- **Pros:** Addresses Phase-B deferred item (`docs/FOLLOWUPS.md:161`). Backward-compatible if parser treats bare `"read"`/`"write"` as `*:*:read`/`*:*:write`. No schema change; each scope decision becomes auditable structured data.
-- **Cons (operational):** Doubles authorization test surface (FU 0c matrix already incomplete). UI for picking permissions becomes non-trivial; per `ROADMAP_NOT.md` §4 no GUI policy editor — customers manage tuples as code/CLI strings.
-- **Cons (security):** A parser bug that silently coerces `prod:secrets:read` to `*:*:*` is a privilege-escalation primitive (CVE-2022-23529 class). Mitigation: deny-on-unparseable, fuzz, lint that the grammar set is closed. CVE-2024-8770/8810 confirms permission-evaluation code is a CVE class.
+- **Pros:** Addresses Phase-B deferred item (`docs/FOLLOWUPS.md:168`). Backward-compatible: bare `"read"`/`"write"` parses as `*:*:read`/`*:*:write`. No schema change; scope decisions become structured/auditable.
+- **Cons (operational):** Doubles authorization test surface (FU 0c matrix incomplete). No GUI policy editor per `ROADMAP_NOT.md` §4 — tuples managed as code/CLI strings.
+- **Cons (security):** Parser bug silently coercing `prod:secrets:read` → `*:*:*` is a privilege-escalation primitive (CVE-2022-23529 class). Mitigation: deny-on-unparseable, fuzz, lint grammar closed. CVE-2024-8770/8810 confirms permission-eval code is a CVE class.
 
 ### Candidate 3: Default expiration on `ks_` keys
 
-- **Pros:** Closes a silent gap: `Create` at `apikey_service.go:33-60` never sets `ExpiresAt`, so every `ks_` key in the system is **immortal** until manual rotation — materially worse than GitHub's mandatory ≤366d.
+- **Pros:** Closes a silent gap: `Create` at `apikey_service.go:33-60` never sets `ExpiresAt` — every `ks_` key is **immortal** until manual rotation. Materially worse than GitHub's mandatory ≤366d.
 - **Cons (operational):** Hard-coded customer integrations fail at 90 days. Mitigation: monitor-then-enforce (warn at 60d, enforce at 90d, runbook + release note).
-- **Cons (security):** `none material — moving from indefinite to bounded only narrows blast radius. Edge case (customer truly needs indefinite) is solved by an auditable sentinel ExpiresAt='9999-12-31' with indefinite_key_granted event, not by removing the bound.`
+- **Cons (security):** `none material — bounded < indefinite. Indefinite-required edge case solved by audited sentinel ExpiresAt='9999-12-31' with indefinite_key_granted event.`
 
 ### Candidate 4: Per-use API-key audit emission
 
-- **Pros:** Closes §5 row 4 — today **zero** in-product trail of which API key did what at the middleware layer. Sibling to FU 0 (which covers service-layer audit gaps).
-- **Cons (operational):** Audit-log volume. An agent polling every second produces 86,400 rows/day per key. Mitigation: per-key/per-day or per-key/per-distinct-action dedupe. Without dedupe, the audit-log pruner becomes load-bearing and any tuning bug is a DB-fill incident.
+- **Pros:** Closes §5 row 4 — today zero middleware-layer trail of API-key actions. Sibling to FU 0 (service-layer audit gaps).
+- **Cons (operational):** Audit-log volume. Agent polling 1/s → 86,400 rows/day per key. Mitigation: per-key/per-day dedupe. Without dedupe, pruner becomes load-bearing and any tuning bug is a DB-fill incident.
 - **Cons (security):** Under dedupe, none material. Without dedupe, audit volume is a minor covert channel for caller load profile — only relevant if audit log is exposed to lower-trust principals.
 
 ### Candidate 5: Declarative reviewer pool with `min_count`
 
-- **Pros:** Replaces the implicit-single-approver model with a declarative table the Security Engineer can review. `min_count=2` becomes a per-project knob, satisfying ADR-0003's "two-of-N if regulatory pressure" deferral without rewriting the engine.
-- **Cons (operational):** New table + admin UI (forbidden in Phase A per `ROADMAP_NOT.md` §4) or CLI surface. Reviewer-pool changes themselves must be audited and approved (recursive approval). Defer to Phase B.
-- **Cons (security):** A pool that includes the requester's role-peers (e.g. all `promoter` members of a 2-person org) collapses to single-approver in practice. Mitigation is process, not code; adoption requires org-size guidance.
+- **Pros:** Replaces implicit-single-approver with a declarative table the Security Engineer can review. `min_count=2` is the per-project knob ADR-0003's "two-of-N if regulatory pressure" defers.
+- **Cons (operational):** New table + admin UI (forbidden in Phase A per `ROADMAP_NOT.md` §4) or CLI surface. Reviewer-pool changes themselves require audit + approval (recursive). Defer to Phase B.
+- **Cons (security):** A pool including the requester's role-peers (e.g. all `promoter` members of a 2-person org) collapses to single-approver. Mitigation is process; needs org-size guidance.
 
 ## 8. Validation evidence
 
@@ -148,13 +148,13 @@ Security Reviewer veto applies (touches `internal/auth` + promotion).
 
 ## 11. Rollback if adopted
 
-**Candidate 1:** `DROP CONSTRAINT promotion_requests_no_self_approve` + revert service guard. Audit rejection rows do not survive re-approval (we don't rewrite history). Runbook: feature-flag `PROMOTION_REQUIRE_DISTINCT_APPROVER` defaults true; set false in incident.
+**Candidate 1:** `DROP CONSTRAINT promotion_requests_no_self_approve` + revert service guard. Runbook: feature-flag `PROMOTION_REQUIRE_DISTINCT_APPROVER` defaults true; set false in incident.
 
-**Candidate 3:** Forward-fix only. Once keys are minted with `ExpiresAt = NOW() + 90d`, they hit their expiry regardless of rollback. Rollback: change default to `NULL` for new keys; expired keys cannot be un-expired (raw value not recoverable — only SHA hash per `auth/apikey.go:21-23`). Customer must mint a new key.
+**Candidate 3:** Forward-fix only. Once keys are minted with `ExpiresAt = NOW() + 90d` they hit expiry regardless of rollback. Rollback changes default to `NULL` for new keys; expired keys cannot be un-expired (raw value not recoverable per `auth/apikey.go:21-23`). Customer mints new key.
 
-**Candidate 4:** Trivial — remove the `auditRepo.Create` call from `APIKeyAuthMiddleware`. Rows already written stay; pruner clears on schedule.
+**Candidate 4:** Trivial — remove `auditRepo.Create` from `APIKeyAuthMiddleware`. Existing rows stay; pruner clears on schedule.
 
-**Candidates 2 and 5:** Deferred — rollback plans drafted at ADR time when triggers fire.
+**Candidates 2 and 5:** Deferred — rollback drafted at ADR time when triggers fire.
 
 ## 12. Won't-break-our-system claim
 
@@ -183,4 +183,42 @@ All URLs retrieved 2026-05-15.
 - GitHub Engineering blog — PAT GA: `https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/` (direct fetch 403)
 - GitHub docs — PATs and environments (unreachable via tooling): `docs.github.com/en/authentication/...managing-your-personal-access-tokens`, `docs.github.com/en/actions/...managing-environments-for-deployment`
 - CircleCI 2023-01 incident: `https://circleci.com/blog/jan-4-2023-incident-report/`
-- KeepSave: `docs/THREAT_MODEL.md` §2 line 88, §3 line 100, Findings §1 lines 38-41; `docs/FOLLOWUPS.md` 0d lines 48-52, lines 161-162; `docs/adr/0003-promotion-engine.md` lines 74, 90; `docs/ROADMAP_NOT.md` §4
+- KeepSave: `docs/THREAT_MODEL.md` §2 line 88, §3 line 100, Findings §1 lines 38-41; `docs/FOLLOWUPS.md` 0d lines 48-52, 0k lines 83-88, Phase-B lines 161-162; `docs/adr/0003-promotion-engine.md` lines 74, 90; `docs/ROADMAP_NOT.md` §4; `docs/audits/SECURITY_AUDIT_2026-05-15.md` A04-F1, A07-F1, §6 row 6; `docs/audits/BACKEND_CRASH_RISKS.md` §3.4 (#10-#14 MustGet sites)
+
+## Security Reviewer notes
+
+**Verdict:** accepted-with-changes. Veto **not** exercised on §9/§10/§12.
+
+**Refs spot-checked (Read, 2026-05-15) — all resolve:**
+
+- `apikey_service.go:33-60` — `Create` has no `expiresAt` param; line 51 omits expiry → row stored `NULL`. §5 row 3 / Candidate 3 correct.
+- `promotion_service.go:215-240` — `ApprovePromotion` never reads `RequestedBy`; line 225 `UpdateStatus(approverID)` direct. Self-approval silent. §5 row 6 / Candidate 1 exact.
+- `models.go:51-61` — `APIKey.ExpiresAt *time.Time` nullable; `Scopes StringList` flat. Candidate 2 schema-free interpretation feasible.
+
+**§9 STRIDE rows quoted from `docs/THREAT_MODEL.md`:**
+
+- §3 row E (line 100): *"Requester self-approves … Invariant not currently enforced at DB layer (gap) … Residual: Medium"* — matches; Candidate 1 narrows.
+- §2 row E (line 88): *"API key scope escalation … Residual: Low"* — matches as stated. Audit A01-F2 shows actual residual is **High** because scope context is set but never consumed by handlers. Candidate 2 still tightens grammar; consumer-side enforcement is a prerequisite — note for Type-1 ADR.
+- §2 row T (line 84): *"… no denylist … Residual: Medium"* — Candidate 3 closes the API-key half.
+- v1.2.0 Findings §1 (lines 38-41): *"Secret/Project/APIKey mutations are not audited … Repudiation is currently not mitigated"* — Candidate 4 narrows.
+
+**§10 trigger verification:** FU 0d quote at `docs/FOLLOWUPS.md:48-52` matches verbatim. Phase-B fine-grained-scope bullet at line 168 (dossier cites 161, section header — minor drift, accepted). FU 0k added by matrix synthesis at lines 83-88 citing this dossier — loop closed.
+
+**Audit triangulation (load-bearing):** `docs/audits/SECURITY_AUDIT_2026-05-15.md` independently re-discovered all four adopt-now findings on the same day — rare predictive-value signal:
+
+- A04-F1 (P2 High) confirms Candidate 1; audit §6 row 6 prescribes "service-layer check + DB CHECK constraint" — exactly §12's canonical-fix shape.
+- A07-F1 (P3 standalone, **P2 chained with A01-F2**) confirms Candidate 3; cross-refs FU 0k.
+- A09-F2 (P2) confirms Candidate 4 mutation scope; dossier additively extends to API-key reads.
+- §5.2 new STRIDE row on JWT-scope absence — sibling of Candidate 2.
+- `BACKEND_CRASH_RISKS.md` §3.4 — `c.MustGet("user_id").(uuid.UUID)` × 58 sites; the proposed `getUserID(c)` helper is a **prerequisite** for Candidate 4's per-call middleware.
+
+**Inline changes:** §1 status `draft` → `accepted`; §13 cites both audit docs and FU 0k 83-88. §5-§12 unchanged.
+
+**Non-blocking observations (for ADR Drafter, day 45):**
+
+- Candidate 1: verify named CHECK constraint syntax across PG/SQLite migration framework.
+- Candidate 3: dossier's `default_legacy` flag + rotation grace window is right; ADR defines window and runbook step.
+- Candidate 4: dedupe key MUST be `(api_key_id, date_trunc('day', now()))`, not `(user_id, ...)` (§12 already prescribes); `BACKEND_CRASH_RISKS.md` MustGet refactor lands first.
+- Candidate 2: deferred correctly; A01-F2 consumer-side fix is the prerequisite — grammar is moot until handlers read scope.
+
+No reference failed. Veto remains available for Candidates 1/4 Type-1 ADRs.

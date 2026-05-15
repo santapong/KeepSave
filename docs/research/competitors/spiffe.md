@@ -7,8 +7,8 @@
 - **License:** Apache 2.0
 - **Last updated:** 2026-05-15
 - **Analyst:** Machine Identity Analyst
-- **Reviewer:** Security Reviewer (pending)
-- **Status:** draft
+- **Reviewer:** Security Reviewer (accepted 2026-05-15)
+- **Status:** accepted
 - **Priority:** P0 (primary input to `docs/research/BEYOND.md` §2.5)
 
 ## 2. One-paragraph overview
@@ -19,30 +19,30 @@ SPIFFE is a specification (workload-api, trust-domain, SVID-X509, SVID-JWT) for 
 
 SPIFFE/SPIRE has four logical pieces; only two map onto anything KeepSave could adopt.
 
-1. **SPIFFE ID** — URI like `spiffe://example.org/ns/prod/sa/billing-agent`. The path encodes whatever hierarchy the trust-domain operator wants. KeepSave analog: a structured agent identifier scoped to org + project + environment.
-2. **SVID (SPIFFE Verifiable Identity Document)** — two shapes: **X509-SVID** (short-lived cert with SPIFFE ID as URI SAN, used for mTLS) and **JWT-SVID** (short-lived JWT with `sub = spiffe-id` and `aud` bound to a target service).
+1. **SPIFFE ID** — URI like `spiffe://example.org/ns/prod/sa/billing-agent`. KeepSave analog: a structured agent identifier scoped to org + project + environment.
+2. **SVID (SPIFFE Verifiable Identity Document)** — **X509-SVID** (short-lived cert, URI SAN, mTLS) and **JWT-SVID** (short-lived JWT, `sub = spiffe-id`, `aud` bound to a target service).
 3. **SPIRE Server** — CA + registration store. *Out of scope — KeepSave is not running a workload CA.*
 4. **SPIRE Agent** — per-host workload attestation + Workload API socket. *Out of scope — customer-runtime dependency we cannot ship.*
 
-KeepSave can borrow the **JWT-SVID issuance shape**: server-side mint of a short-lived JWT bound to a workload identity, rotation pushed to the client library.
+KeepSave borrows the **JWT-SVID issuance shape**: server-side mint of a short-lived JWT bound to a workload identity, rotation pushed to the client library.
 
 ## 4. Security model
 
-Primitives SPIFFE publishes (specs retrieved 2026-05-15 via GitHub mirror):
+Primitives (specs retrieved 2026-05-15 via GitHub mirror):
 
-- **Signing:** RS256 / ES256 for JWT-SVID; PKIX X.509 for X509-SVID. Trust-domain root bundle published at the Workload API `/bundle` endpoint.
-- **TTL:** spec-recommended 5-15 min; SPIRE default 1h (X509) / 5min (JWT). Rotation is the **client library's** job — it watches the Workload API socket and refreshes at half-life.
-- **Audience binding:** JWT-SVID **MUST** carry an `aud` claim naming a single target service; verifiers reject mismatches. Prevents cross-service replay (SVID-JWT spec §3).
-- **Attestation chain:** workload → node → SPIRE server. Node attestors prove host identity (cloud IMDS, k8s PSAT); workload attestors prove process identity. Issuance fails closed.
-- **Private key custody:** server CA root in HSM / KMS in production; SVID private keys never persisted (held in agent memory).
+- **Signing:** RS256 / ES256 for JWT-SVID; PKIX X.509 for X509-SVID. Trust-domain bundle at Workload API `/bundle`.
+- **TTL:** spec-recommended 5-15 min; SPIRE default 1h (X509) / 5min (JWT). Client library watches the Workload API socket and refreshes at half-life.
+- **Audience binding:** JWT-SVID **MUST** carry `aud`; verifiers reject mismatches — prevents cross-service replay (SVID-JWT spec §3).
+- **Attestation chain:** workload → node → SPIRE server (cloud IMDS, k8s PSAT). Issuance fails closed.
+- **Private key custody:** server CA root in HSM/KMS; SVID private keys held in agent memory only.
 
-CVE posture (last 24 months, NVD + GHSA + 2023 ADA Logics audit of SPIRE):
+CVE posture (last 24 months):
 
-- **CNCF / ADA Logics audit (2023)** — no critical findings in attestation, JWT signing, X.509 issuance.
-- **CVE-2024-49037** — SPIRE plugin loader path traversal, fixed v1.10.3. Operational risk for SPIRE *operators*; does not affect adopters of the SVID pattern.
-- **CVE-2023-24044** — SPIRE OIDC discovery HTTP smuggling. Irrelevant — we wouldn't run that component.
+- **ADA Logics 2023 audit** — no critical findings in attestation, JWT signing, or X.509 issuance.
+- **CVE-2024-49037** — SPIRE plugin loader path traversal (fixed v1.10.3). Affects SPIRE *operators*, not SVID-pattern adopters.
+- **CVE-2023-24044** — SPIRE OIDC discovery HTTP smuggling. Irrelevant — component we wouldn't run.
 
-No CVEs in the SVID issuance/verification path — the pattern KeepSave would adopt is well-audited.
+No CVEs in the SVID issuance/verification path.
 
 ## 5. KeepSave-comparable surface
 
@@ -73,36 +73,36 @@ These are pattern adoptions only. KeepSave does not deploy SPIRE.
 
 1. **JWT-SVID-shaped short-lived agent tokens** — replace static `ks_` keys for AI-agent use cases with JWTs signed by KeepSave's existing key, TTL 15 minutes, `sub = ks-agent:<api-key-id>`, `aud = <project-id>:<env>`. Client library refreshes via the existing API-key endpoint before half-life. Static `ks_` keys remain for human / CI use; the SVID-shaped path is an additional auth method, not a replacement.
 2. **Audience-bound token issuance** — borrow SPIFFE's mandatory `aud` claim on JWT-SVID. Today a `ks_` key with `read` scope on project P can be replayed against *any* endpoint of project P. An `aud`-bound short-lived token narrows that to a single target (e.g., `aud = "secrets-read:projectP:prod"`), so a token intercepted at one call site cannot be replayed against another.
-3. **Workload attestation hook (interface only, no implementation)** — introduce an `Attestor` interface at issuance time. Default attestor passes everything through (today's behaviour, preserving backward compatibility). Future attestors (k8s PSAT, AWS instance identity) plug in without touching the issuance path. The point is to make today's "self-assertion" model an *explicit* attestor rather than the absence of one, so the future replacement is mechanical.
-4. **Trust-domain / federation pattern** — `reject` for now (see §10). Captured here for completeness.
+3. **Workload attestation hook (interface only, no implementation)** — introduce an `Attestor` interface at issuance time. Default attestor passes everything through (today's behaviour). Future attestors (k8s PSAT, AWS IID) plug in without touching the issuance path — making today's "self-assertion" model an *explicit* attestor rather than the absence of one.
+4. **Trust-domain / federation pattern** — `reject` (see §10).
 
-Candidates 1 and 2 are sized for a single ADR (additive new auth method + service-layer issuance). Candidate 3 is interface-only — a refactor that costs little and unblocks future work. Candidate 4 is deliberately deferred.
+Candidates 1+2 size to a single ADR. Candidate 3 is interface-only. Candidate 4 deferred.
 
 ## 7. Pros / cons of adapting
 
 ### Candidate 1: JWT-SVID-shaped short-lived agent tokens
 
-- **Pros:** Shrinks leakage window from forever to ≤15min. Reuses existing JWT signing infrastructure (`backend/internal/auth/auth.go`) — no new crypto primitive. Aligns with every well-audited machine-identity system (SPIFFE, AWS STS, GCP workload identity federation).
-- **Cons (operational):** Customer client libraries must implement refresh-before-expiry; mis-implemented refresh causes agent outages that look like KeepSave bugs. We must ship a reference client + retry contract *before* the auth method. Every agent refreshing every 15min adds a new rate-limit / DoS surface on the issuance endpoint.
-- **Cons (security):** Adds a new endpoint (`POST /api/v1/agent-tokens`) that the static `ks_` key can call to mint short-lived tokens — a leaked static key gains a token-minting oracle. Mitigation: minted token inherits source-key scopes (no escalation), `aud` is server-bound and immutable, and source-key revocation must invalidate outstanding tokens via a `kid` denylist — making the JWT-denylist follow-up (`docs/FOLLOWUPS.md:160`) a **prerequisite**, not a nice-to-have.
+- **Pros:** Shrinks leakage window from forever to ≤15min. Reuses existing JWT signing (`backend/internal/auth/auth.go`) — no new crypto. Aligns with SPIFFE / AWS STS / GCP workload identity federation.
+- **Cons (operational):** Customer client libraries must implement refresh-before-expiry; mis-implemented refresh causes agent outages that look like KeepSave bugs. Reference client + retry contract must ship *before* the auth method. Every agent refreshing every 15min adds a new rate-limit / DoS surface on issuance.
+- **Cons (security):** Adds `POST /api/v1/agent-tokens` that the static `ks_` key can call — a leaked static key gains a token-minting oracle. Mitigation: minted token inherits source-key scopes (no escalation), `aud` is server-bound, source-key revocation must invalidate outstanding tokens via `kid` denylist — making JWT-denylist FU (`docs/FOLLOWUPS.md:160`) a **prerequisite**.
 
 ### Candidate 2: Audience-bound token issuance
 
-- **Pros:** Narrows blast radius of a stolen token from "the whole project" to "one target operation." Mirrors SVID-JWT spec §3 and RFC 8693 token exchange. No new crypto.
-- **Cons (operational):** Customer client must request the right `aud` per call — couples the client to the auth shape. Worth it but not free.
-- **Cons (security):** `none material` — the pattern only narrows; the only failure mode is "client mints a too-broad audience," which is no worse than today's bearer.
+- **Pros:** Narrows blast radius of a stolen token from "the whole project" to "one target operation." Mirrors SVID-JWT spec §3 and RFC 8693. No new crypto.
+- **Cons (operational):** Customer client must request the right `aud` per call — couples client to auth shape.
+- **Cons (security):** `none material` — only narrows; "client mints too-broad audience" is no worse than today's bearer.
 
 ### Candidate 3: Attestor interface (no implementation yet)
 
-- **Pros:** Cheap. Makes today's implicit trust assumption ("holder == workload, unattested") explicit and pluggable. Future attestor plugins are strict subtractions from the trust model.
+- **Pros:** Cheap. Makes today's implicit trust assumption ("holder == workload, unattested") explicit and pluggable. Future attestor plugins are strict subtractions.
 - **Cons (operational):** `none material` — minor refactor; no runtime surface.
-- **Cons (security):** `none material` until an attestor ships. Future-buggy-attestor risk is gated on actual implementation, not the interface.
+- **Cons (security):** `none material` until an attestor ships.
 
-### Candidate 4: Trust-domain federation (rejected for now)
+### Candidate 4: Trust-domain federation (rejected)
 
 - **Pros:** Theoretical cross-org agent identity exchange.
-- **Cons (operational):** No customer demand; same problem class as the SSO block in `docs/ROADMAP_NOT.md` §2.
-- **Cons (security):** Federation widens trust (blast radius from "one trust domain" to "any peer"). Inappropriate without a customer who needs it.
+- **Cons (operational):** No customer demand; same problem class as ROADMAP_NOT §2 SSO block.
+- **Cons (security):** Widens trust (blast radius from "one trust domain" to "any peer"). Inappropriate without a customer who needs it.
 
 ## 8. Validation evidence
 
@@ -132,21 +132,21 @@ Trigger, quoted verbatim from `docs/research/BEYOND.md:50-56`:
 
 > *"### 2.5 SPIFFE-shaped workload identity for AI agents — Hypothesis: Replace long-lived API keys for AI agents with SVIDs (SPIFFE Verifiable Identity Documents) issued per workload, short-lived, attested. Eliminates 'agent rotates key' as a customer responsibility. … Phase: B if the MCP integration path (`docs/medqcnn_integration.md`, `docs/nexus_integration.md`) pulls this forward."*
 
-Because the BEYOND.md trigger is phrased softly ("if MCP pulls this forward") and BEYOND.md is itself marked "Skeleton; evidence pending," a sharper conditional trigger has been **promoted to `docs/FOLLOWUPS.md` Phase B** in the same PR as this dossier — see the new "Ephemeral attested workload identity for AI agents (SPIFFE-shaped SVIDs)" entry under "Open — Phase B." That entry names three concrete trigger conditions: (a) customer ask, (b) field CVE, (c) MCP integration reaches multi-tenant agent deployment. Any of the three fires this verdict into `adopt-now`.
+Because the BEYOND.md trigger is phrased softly ("if MCP pulls this forward"), a sharper trigger has been **promoted to `docs/FOLLOWUPS.md` Phase B** — the new "Ephemeral attested workload identity for AI agents" entry names three concrete conditions: (a) customer ask, (b) field CVE, (c) MCP multi-tenant agent deployment. Any of the three fires this verdict into `adopt-now`.
 
-**Candidate 4 (federation): `reject`.** Reason: no customer demand; widens trust boundary; same problem class as the SSO/SAML/OIDC dashboard block in `docs/ROADMAP_NOT.md` §2.
+**Candidate 4 (federation): `reject`.** No customer demand; widens trust boundary; same problem class as ROADMAP_NOT §2 SSO block.
 
-`adopt-when-trigger-fires` for an auth primitive is Type-1 per `CLAUDE.md` Decision-classes table. Security Engineer veto applies per `docs/ROLES.md`. ADR Drafter will not pick this up during the current 30/60/90 window — this is a Day-90+ artifact, prepped now so future implementation is mechanical.
+Type-1 per `CLAUDE.md` Decision-classes. Security Engineer veto applies. Day-90+ artifact — prepped now so future implementation is mechanical.
 
 ## 11. Rollback if adopted
 
-**Candidate 3 (attestor interface):** Pure refactor. `git revert` restores prior shape. No data, no migration.
+**Candidate 3 (attestor interface):** Pure refactor. `git revert`; no data, no migration.
 
-**Candidate 2 (audience-bound tokens):** Stop issuing `aud`-bound tokens; static `ks_` keys keep working in parallel (never removed). Outstanding `aud`-bound tokens expire ≤15min. Rollback is low-impact because adoption is purely additive.
+**Candidate 2 (audience-bound tokens):** Stop issuing `aud`-bound tokens; static `ks_` keys keep working in parallel. Outstanding tokens expire ≤15min. Adoption is purely additive.
 
-**Candidate 1 (short-lived agent tokens):** Disable `POST /api/v1/agent-tokens` via feature flag (`agent_tokens_enabled=false`); agents fall back to their `ks_` keys. Outstanding tokens expire within TTL and cannot refresh. Customer workflow continues without re-onboarding. Runbook step: flip the flag; monitor 4xx rate from migrated agents.
+**Candidate 1 (short-lived agent tokens):** Disable `POST /api/v1/agent-tokens` via feature flag; agents fall back to `ks_` keys. Outstanding tokens expire within TTL and cannot refresh. Runbook: flip flag; monitor 4xx rate from migrated agents.
 
-True rollback for a customer who *only* onboarded under the new method requires re-issuing a static `ks_` key and re-configuring. The ADR will therefore require shipping both methods concurrently for at least one phase boundary before any deprecation of static keys.
+True rollback for a customer who *only* onboarded under the new method requires re-issuing a static `ks_` key. ADR therefore requires shipping both methods concurrently for at least one phase boundary before any deprecation of static keys.
 
 ## 12. Won't-break-our-system claim
 
@@ -175,3 +175,33 @@ Security Reviewer veto applies. Suggested checks at ADR time: (a) agent-token en
 - HashiCorp Vault JWT / SPIFFE auth method docs: `https://developer.hashicorp.com/vault/docs/auth/jwt` — retrieved 2026-05-15 (vendor — supplementary, prior-art pointer).
 - Bloomberg CNCF case study on SPIFFE: `https://www.cncf.io/case-studies/bloomberg/` — retrieved 2026-05-15.
 - CNCF graduation announcement (SPIFFE / SPIRE, 2022): `https://www.cncf.io/announcements/2022/09/20/cloud-native-computing-foundation-announces-spiffe-and-spire-graduation/` — retrieved 2026-05-15.
+
+## Security Reviewer notes
+
+**Verdict:** accepted. Veto **not** exercised on §9, §10, §12. §3/§4/§6/§7/§10/§11 prose condensed for 2700-word cap; §1 status flipped. No load-bearing claim changed.
+
+**Three-site no-TTL evidence (Read tool, 2026-05-15) — all confirmed:**
+
+- `validation.go:33-38` — `CreateAPIKeyRequest` has `Name`/`ProjectID`/`Scopes`/`Environment` only; no `ExpiresAt`.
+- `apikey_service.go:33-60` — `Create(...)` no expiry param; line 51 calls repo without one.
+- `apikey_repo.go:33-36` — INSERT omits `expires_at`; NULL → `middleware.go:101-105` treats as no expiry.
+
+Three sites converge on "no TTL ever set." `SecretLease` at `models.go:366-377` matches as claimed; non-pointer `ExpiresAt` always set — §12 Invariant 4 holds.
+
+**§9 STRIDE:** `THREAT_MODEL.md` §2 row S at line **83**: *"Forged API key | Hashed at rest (SHA-256); compared via constant-time helper | `auth/apikey.go:11-26` | Low"*. Row T at line **84**: *"Token replay after revocation | API key revocation = row delete; JWT expires in 24h, no denylist | `auth/auth.go:25-26` | Medium"*. Dossier reading (1+2 narrow row T from Medium to Low; boundary narrows along time axis, no new entity) consistent. Candidate 4 correctly rejected.
+
+**§10 trigger:** `BEYOND.md:50-56` is a five-bullet block; quote uses heading (50) + Hypothesis (52) + Phase (56) joined by marked ellipsis; bracketed text word-for-word. Verbatim-with-elision acceptable per template §10. `FOLLOWUPS.md:171` Phase B entry clean — names three triggers, back-refs this dossier.
+
+**§11 rollback:** Pattern-only adoption (no SPIRE deploy) makes rollback concrete — feature flag + `ks_` fallback + ≤15min expiry. "Ship both methods one phase boundary before deprecation" sound.
+
+**§12 composition:** FU 0k (Phase A) and SPIFFE SVID (Phase B) compose cleanly — both rely on already-wired `middleware.go:101-105` `ExpiresAt` (Invariant 3). FU 0k populates `expires_at` on INSERT; SPIFFE adds a separate JWT-Bearer branch. Invariants 1+2 ensure additive layering.
+
+**Audit severity-escalation cross-reference (`docs/audits/SECURITY_AUDIT_2026-05-15.md`):**
+
+Audit §Appendix B item 4 / §3 A07-F1 (lines 264-268) **re-rates the `ks_` no-TTL gap as P2 High in combination** with A01-F2 (`api_key_project_id` set in context but consumed only by `handlers_agent.go:42-52`; every other API-key route ignores scope). A single leaked `ks_` key reads every project, forever. Standalone hygiene; combined, tenant-isolation breach.
+
+This **does not** invalidate `adopt-when-trigger-fires` — SPIFFE remains Day-90+ and BEYOND-framed — but sharpens the bridge: the **standalone FU 0k default-expiration fix** (audit remediation #8, Day-30 per `ROLES_30_60_90.md`) is the *Phase-A bridge* to SPIFFE. Phase A kills the "valid forever" half (≤90d default); Phase B compresses to ≤15min when triggers fire. A01-F2 (audit remediation #1, P1) is upstream of both, on a faster clock, not gated on this dossier.
+
+ADR-time implication: Candidate 1's "leaked source-key gains a token-minting oracle" (§7) is **strictly less severe than today's baseline** — same leaked key today already reads every project unbounded. Once A01-F2 is fixed, minted-token reach becomes strictly narrower than the source key's. Security Engineer to re-derive at ADR time against then-current A01-F2 state.
+
+**Non-blocking:** JWT-denylist FU (`FOLLOWUPS.md:160`) lands before Candidate 1 (audit A07-F4 confirms). Candidate 3 lands first. §8 evidence mix template-clean. No veto items.

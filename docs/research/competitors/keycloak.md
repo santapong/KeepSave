@@ -7,8 +7,8 @@
 - **License:** Apache 2.0
 - **Last updated:** 2026-05-15
 - **Analyst:** Identity Provider Analyst
-- **Reviewer:** Security Reviewer (pending)
-- **Status:** draft
+- **Reviewer:** Security Reviewer (accepted 2026-05-15)
+- **Status:** accepted
 - **Priority:** P0 (tied to dormant `SSOConfig` model and `ROADMAP_NOT.md` #2 trigger readiness)
 
 ## 2. One-paragraph overview
@@ -17,23 +17,20 @@ Keycloak is the canonical open-source OIDC + SAML identity provider: realms, cli
 
 ## 3. Architecture summary
 
-Keycloak is a JVM monolith + relational DB exposing: **realms** (isolation boundary; per-realm users / clients / signing keys), **clients** (OIDC RP or SAML SP, public-with-PKCE or confidential), **identity brokering** (delegate auth to upstream IdPs), **user federation** (LDAP/AD), **token mappers** (declarative claim transforms), and an **admin REST API**.
+Keycloak is a JVM monolith + relational DB exposing **realms** (isolation boundary; per-realm users / clients / signing keys), **clients** (OIDC RP or SAML SP), **identity brokering**, **user federation** (LDAP/AD), **token mappers**, and an **admin REST API**.
 
-Two flows matter:
+Two flows matter: (1) **Auth-code + PKCE** (RFC 7636) — browser → Keycloak → redirect to `LoginPage.tsx` with `code` → backend exchanges for `id_token` → verifies via JWKS at `/.well-known/openid-configuration` (RFC 8414); (2) **JIT user provisioning** — `sub`/`email` claims materialised into a `users` row + org membership.
 
-- **Authorization code + PKCE (RFC 7636)** — browser → Keycloak login → redirect to `LoginPage.tsx` with `code` → backend exchanges for `id_token` → backend verifies via JWKS at `/.well-known/openid-configuration` (RFC 8414).
-- **JIT user provisioning on first login** — `sub`/`email` claims materialised into a `users` row + org membership.
-
-We touch realms (as `Organization`), clients (we are the RP), and the auth-code flow. We ignore identity brokering, user federation, token mappers, and the admin UI — we integrate *to* an external Keycloak (or any RFC-conformant OP), we do not deploy one.
+We touch realms (as `Organization`), clients (we are the RP), and the auth-code flow. We ignore identity brokering, user federation, token mappers, and the admin UI — we integrate *to* an external OP, never deploy one.
 
 ## 4. Security model
 
-Keycloak publishes (docs retrieved 2026-05-15 via search; direct WebFetch returned 403 — §8 triangulation applied):
+Keycloak publishes (docs retrieved 2026-05-15 via search; direct WebFetch 403 — §8 triangulation applied):
 
-- **Token signing:** RS256 default; ES256/PS256 optional. Per-realm key rotation; JWKS advertises active + recently-retired `kid`s so verifiers stay green during rotation.
-- **Session management:** SSO cookie + refresh-token rotation; per-realm idle/absolute timeouts. Introspection (RFC 7662) available; we would not use it — we want stateless JWT verify.
-- **SAML assertion signing/encryption:** XML-DSig per-realm key. **XML signature wrapping** is a recurring CVE class across SAML implementations — load-bearing reason to land OIDC-only in the first wave even if SAML is asked for.
-- **Brute-force + password policy:** built-in account lockout, per-IP throttle, declarative password policy (length, history, HIBP plugin).
+- **Token signing:** RS256 default; ES256/PS256 optional. Per-realm key rotation; JWKS advertises active + recently-retired `kid`s.
+- **Session management:** SSO cookie + refresh-token rotation; introspection (RFC 7662) available but we want stateless JWT verify.
+- **SAML signing/encryption:** XML-DSig per-realm. **XML signature wrapping** is a recurring CVE class — load-bearing reason to land OIDC-only in the first wave.
+- **Brute-force + password policy:** built-in account lockout, per-IP throttle, declarative password policy.
 - **Trust-boundary stance:** integrating as an OIDC RP adds the customer's OP to our trust boundary (we trust its JWKS and `iss`). Compromise of the OP = compromise of all federated identities. See §9.
 
 ## 5. KeepSave-comparable surface
@@ -52,16 +49,16 @@ Only rows with a real analog (existing, missing, or stub). Required file:line ci
 | Direct password / API-key login | `apiLogin(email, password)` + HS256 JWT in `localStorage` | `LoginPage.tsx:32-33`; `auth/auth.go:29-45` |
 | Per-request token validation middleware | JWT validate (no denylist; FU #5) | `auth/auth.go:47-62`; `FOLLOWUPS.md:160` |
 
-**Concepts deliberately not adopted** (Keycloak has substantial surface area irrelevant to KeepSave; we are adopting patterns, not deploying Keycloak):
+**Concepts deliberately not adopted** (Keycloak has substantial surface area irrelevant to KeepSave; we are adopting patterns, not deploying it):
 
 | Their concept | Reason we don't adopt |
 |---|---|
-| Keycloak server deployment itself (JVM monolith + DB) | Out of scope. We do not host an IdP; when the trigger fires we integrate *to* a customer-hosted OP (theirs, not ours) as an OIDC client. |
-| User federation (LDAP/AD directory connectors) | KeepSave does not federate user directories. The OIDC flow surfaces `sub`/`email` claims; that is sufficient. |
-| Token mappers / claim transformation engine | Premature. Role assignment will be either a JIT default (`viewer`) or admin-set after first login; no engine needed in v1. |
-| SAML 2.0 protocol support | XML signature wrapping is a recurring CVE class. We would explicitly land OIDC-only in the first wave even if the asking customer wants SAML — and document that constraint in the ADR. |
-| Admin REST API for managing realms / clients / users | We integrate *as* an RP; we do not manage Keycloak's realms from KeepSave. |
-| Keycloak's own session-cookie issuance | KeepSave already issues its own session JWT after login; the OIDC `id_token` is consumed once, never persisted. |
+| Keycloak server deployment (JVM monolith + DB) | Out of scope; we integrate *to* a customer-hosted OP as an OIDC client. |
+| User federation (LDAP/AD connectors) | OIDC `sub`/`email` claims are sufficient. |
+| Token mappers / claim-transformation engine | Premature; JIT default `viewer` + admin-set role suffices in v1. |
+| SAML 2.0 | XML signature wrapping is a recurring CVE class; OIDC-only first wave per ADR. |
+| Admin REST API (managing realms / clients) | We are the RP, not the OP admin. |
+| Keycloak session-cookie issuance | KeepSave issues its own session JWT; the `id_token` is consumed once. |
 
 ## 6. Adapt candidates
 
@@ -102,17 +99,17 @@ Out of scope even on trigger fire: refresh-token rotation against the upstream O
 
 ## 8. Validation evidence
 
-Vendor docs (Keycloak): `https://www.keycloak.org/docs/latest/server_admin/` — direct WebFetch **403 (unreachable via tooling 2026-05-15)**; cited for traceability. Load-bearing claims rest on non-vendor sources.
+Vendor docs: `https://www.keycloak.org/docs/latest/server_admin/` — direct WebFetch **403 (unreachable 2026-05-15)**; cited for traceability. Load-bearing claims rest on non-vendor sources.
 
-- **RFC 6749 (OAuth 2.0)** + **OpenID Connect Core 1.0** — normative for Candidate 1's auth-code flow.
-- **RFC 7636 (PKCE)** + **RFC 8252 §8.1** — mandate PKCE for public clients.
-- **RFC 8414 (Authorization Server Metadata)** — the discovery doc shape used by Candidate 2.
-- **OWASP OIDC Cheat Sheet** — codifies `state`/`nonce`/`iss`/`aud` validation that Candidate 3 implements.
-- **Keycloak CVEs (last 24 months, relevance-picked):**
-  - **CVE-2024-1132** (CVSS 8.1) — path-traversal in admin endpoint, fixed 24.0.3. Tangential (we do not host Keycloak), but confirms a responsive disclosure program — closes the "CVE absence misread as safe" risk from `docs/research/README.md:111`.
-  - **CVE-2023-6927** (CVSS 6.1) — open redirect via wildcard `redirect_uri`. **Directly relevant:** Candidate 1's `/callback` redirect must be **fixed** to the dashboard origin, never user-supplied.
-  - **CVE-2023-0264** (CVSS 6.5) — incorrect authz in the Node.js adapter (JWT validation). Confirms `id_token`-validation is a CVE class; informs the §7 Candidate 1 negative-auth test list.
-- **Keycloak source repository:** `https://github.com/keycloak/keycloak` (reachable via API) — used to cross-check that CVE fixes landed in release tags.
+- **RFC 6749 + OpenID Connect Core 1.0** — normative for Candidate 1.
+- **RFC 7636 + RFC 8252 §8.1** — mandate PKCE for public clients.
+- **RFC 8414** — discovery doc shape for Candidate 2.
+- **OWASP OIDC Cheat Sheet** — codifies `state`/`nonce`/`iss`/`aud` validation for Candidate 3.
+- **Keycloak CVEs (last 24 months):**
+  - **CVE-2024-1132** (CVSS 8.1) — admin path traversal, fixed 24.0.3. Tangential, but confirms a responsive disclosure program.
+  - **CVE-2023-6927** (CVSS 6.1) — open redirect via wildcard `redirect_uri`. **Directly relevant:** Candidate 1's `/callback` redirect must be fixed to dashboard origin, never user-supplied.
+  - **CVE-2023-0264** (CVSS 6.5) — Node.js adapter authz/JWT bug. Confirms `id_token`-validation is a CVE class; informs §7 Candidate 1's negative-auth test list.
+- **Keycloak source:** `https://github.com/keycloak/keycloak` — used to cross-check CVE fixes landed in release tags.
 
 ## 9. Threat-model implications
 
@@ -137,7 +134,7 @@ Quoted verbatim from `docs/ROADMAP_NOT.md:19-22`:
 > *- **Why:** no customer has asked. Building it before the demand signal arrives means we'll build the wrong shape.*
 > *- **Trigger to revisit:** when two customers ask in the same quarter, or when one enterprise prospect makes it a deal-blocker."*
 
-**Finding on trigger precision:** the trigger is well-bounded on customer count ("two in the same quarter, or one deal-blocker") but **silent on protocol** — "SSO / SAML / OIDC" is one bucket. A SAML-asking customer and an OIDC-asking customer count together under the literal text, yet §6/§7 argue OIDC-first / SAML-deferred. **Recommendation:** when the trigger fires, the ADR clarifies "two customers asking for the **same** protocol" and lands OIDC-only unless both ask for SAML. Promote to `docs/FOLLOWUPS.md` in the same PR as the ADR, not now.
+**Finding on trigger precision:** trigger is bounded on customer count but silent on protocol ("SSO / SAML / OIDC" is one bucket). §6/§7 argue OIDC-first / SAML-deferred. **Recommendation:** the ADR clarifies "two customers asking for the same protocol" and lands OIDC-only unless both ask for SAML. Promote to `FOLLOWUPS.md` in the ADR's PR, not now.
 
 Nothing in this dossier is `adopt-now`: there is no path that lands code without contradicting `ROADMAP_NOT`. The existing `SSOConfig` CRUD scaffolding is already merged; we neither remove nor extend it until trigger.
 
@@ -145,24 +142,24 @@ Security Reviewer veto applies per `docs/ROLES.md` (touches `internal/auth`).
 
 ## 11. Rollback if adopted
 
-The trigger-fire implementation is additive: two new routes (`/start`, `/callback`), one runtime discovery cache, the JIT user-upsert path. No schema change (migration already exists).
+Trigger-fire implementation is additive: two new routes (`/start`, `/callback`), one runtime discovery cache, the JIT user-upsert path. No schema change (migration already exists).
 
-1. **Feature-flag the routes** from day one (env `KEEPSAVE_SSO_ENABLED`, default `false`). Rollback: set flag false, redeploy; the placeholder SSO buttons in `LoginPage.tsx` revert to disabled.
-2. **JIT-provisioned users persist** but cannot log in (no `password_hash`, SSO disabled). This is the data that does NOT survive a clean rollback — runbook step: either delete the orphaned users or run a recovery flow.
-3. **`SSOConfig` rows persist** (additive migration). Inert with the flag off.
-4. **Audit events already written** are not removed.
+1. **Feature-flag** the routes (env `KEEPSAVE_SSO_ENABLED`, default `false`). Rollback: flip flag false; `LoginPage.tsx` SSO buttons revert to disabled.
+2. **JIT-provisioned users persist** but cannot log in (no `password_hash`, SSO off). The data that does NOT survive clean rollback — runbook step: delete orphans or run a password-reset recovery flow.
+3. **`SSOConfig` rows persist** (additive migration). Inert with flag off.
+4. **Audit events** already written are not removed.
 
-True rollback to "no JIT users ever existed" is impossible without deleting user rows (which destroys audit attribution). The forward-fix (re-enable, or migrate JIT users to password-login via reset email) is cheaper.
+True rollback to "no JIT users ever existed" is impossible without destroying audit attribution. Forward-fix (re-enable, or password-reset migration) is cheaper.
 
 ## 12. Won't-break-our-system claim
 
-Integrator and dashboard-user contracts are unchanged until the trigger fires. Verified by code-reading at the file:lines cited.
+Integrator and dashboard-user contracts unchanged until trigger fires. Verified by code-reading.
 
-- **Invariant 1 — password login unaffected.** `apiLogin(email, password)` at `frontend/src/pages/LoginPage.tsx:32-33` hits the existing route; SSO candidates add new routes, never modify this one. The `mode === 'password'` form (`LoginPage.tsx:121-167`) submits unchanged. Verified by code-reading.
-- **Invariant 2 — API-key auth unaffected.** Machine identity uses `auth/apikey.go` (SHA-256, scope-bound per `models/models.go:51-60`). SSO candidates do not touch this path. Verified by reading `apikey.go` and middleware.
-- **Invariant 3 — existing `SSOConfig` CRUD still works (and remains inert).** Handlers at `handlers_enterprise.go:30-91` and routes at `router.go:175-177` accept writes today; the encrypted client secret is stored but never read by a protocol flow. Candidates 1–4 make those rows *load-bearing* but do not change their schema. Verified by reading `sso_service.go:25-60` and migration `005_phase7_12.sql:4-17`.
-- **Invariant 4 — JWT middleware contract unchanged.** Middleware (per threat-model §2) validates KeepSave-issued HS256 JWTs only. The upstream `id_token` is exchanged at `/callback` for a KeepSave JWT; middleware never sees the upstream token. Verified by tracing against `auth.go:47-62`.
-- **Invariant 5 — flag default-off means trigger readiness is zero-risk.** Until `KEEPSAVE_SSO_ENABLED=true` and a `SSOConfig` is present, `/start` and `/callback` return `404`. No code path exercised. Verified by §11 design.
+- **Invariant 1 — password login unaffected.** `apiLogin(email, password)` at `LoginPage.tsx:32-33` hits the existing route; SSO candidates add new routes, never modify this one. `mode === 'password'` form (`LoginPage.tsx:121-167`) unchanged.
+- **Invariant 2 — API-key auth unaffected.** `auth/apikey.go` (SHA-256, scope-bound per `models/models.go:51-60`) untouched.
+- **Invariant 3 — existing `SSOConfig` CRUD still works and remains inert.** Handlers at `handlers_enterprise.go:30-91`, routes at `router.go:175-177`, encrypted client secret stored but never read by a protocol flow. Candidates 1–4 make those rows load-bearing without schema change. Verified against `sso_service.go:25-60` + `005_phase7_12.sql:4-17`.
+- **Invariant 4 — JWT middleware contract unchanged.** Middleware validates KeepSave-issued HS256 only. The upstream `id_token` is exchanged at `/callback` for a KeepSave JWT; middleware never sees it. Verified against `auth.go:47-62`.
+- **Invariant 5 — flag default-off = zero-risk readiness.** Until `KEEPSAVE_SSO_ENABLED=true` + `SSOConfig` present, `/start` and `/callback` return 404.
 
 Security Reviewer veto applies. Suggested checks: (a) `iss` and `aud` compared with strict equality against `SSOConfig.issuer_url` / `SSOConfig.client_id`, not `Contains`; (b) `state` and `nonce` bound together and TTL'd; (c) dashboard `redirect_uri` is **fixed**, never user-supplied (CVE-2023-6927 mitigation); (d) every `/callback` path emits an audit event per `AUDIT_LOG_COVERAGE.md`, including failures.
 
@@ -182,3 +179,38 @@ All retrieved 2026-05-15.
 - CVE-2024-1132 (path traversal): `https://nvd.nist.gov/vuln/detail/CVE-2024-1132`
 - CVE-2023-6927 (open redirect / wildcard `redirect_uri`): `https://nvd.nist.gov/vuln/detail/CVE-2023-6927`
 - CVE-2023-0264 (Node.js adapter JWT validation): `https://nvd.nist.gov/vuln/detail/CVE-2023-0264`
+
+## Security Reviewer notes
+
+**Verdict:** accepted. Veto **not** exercised on §9, §10, or §12. Status flipped `draft` → `accepted`.
+
+**Refs spot-checked (Read tool, 2026-05-15) — all resolve:**
+
+- `models/models.go:277-290` — `SSOConfig` struct exactly as cited (ID, OrgID, Provider, IssuerURL, ClientID, ClientSecretEncrypted/Nonce, Metadata, Enabled, timestamps). §5 row 3 / §12 Invariant 3 confirmed.
+- `models/oauth.go:10-25` — `OAuthClient` struct as cited; clients are *downstream* of KeepSave-as-OP, distinct from the RP framing of §5 row 2.
+- `models/models.go:219-227` — `OrgMember` struct as cited; `Role string` at line 224 is a free-string with no claim-mapping layer, matching §6 Candidate 4's default-`viewer` plan.
+- `service/sso_service.go:25-60`, `migrations/005_phase7_12.sql:4-17` — full CRUD + migration confirmed; §2 + §6 Candidate 2 "no new schema" claim accurate.
+- `handlers_oauth.go:216-218` — JWKS returns empty `keys: []` with HS256-now/RS256-planned note; §5 row 5 accurate.
+- `auth/auth.go:29-45, 47-62` — HS256 issuance + validation; §12 Invariant 4 contract holds.
+- `LoginPage.tsx:32-33, 104-117, 192-207` — `apiLogin` path + three-mode tab + `disabled` SSO placeholder buttons; §5 row 7, §6 Candidate 1, §12 Invariant 1 confirmed.
+
+**ROADMAP_NOT trigger verbatim verification:** `docs/ROADMAP_NOT.md:19-22` matches §10 quote character-for-character. Dossier's flagged ambiguity (protocol-agnostic "SSO / SAML / OIDC" bucket) is correctly deferred to ADR-time per `CLAUDE.md` Type-1 process.
+
+**§9 STRIDE rows quoted (`docs/THREAT_MODEL.md`):**
+
+- Line 82 (S, Authentication): *"S | Forged JWT | HS256 with secret only on server; signature verified | `auth/auth.go:39`, `api/middleware.go:59-100` | Low"* — quoted accurately.
+- Line 85 (R, Authentication): *"R | Login attempts not audited | Auth events not in audit log (verify in 30d) | `auth_service.go` | Medium"* — dossier correctly notes adopting SSO without auditing would worsen this row.
+
+Trust-boundary direction: dossier correctly says **widens** (opposite of Pomerium); new entity correctly named ("customer-configured upstream OP identified by `SSOConfig.issuer_url`"). Bounding statement (`id_token` consumed once at `/callback`, never persisted) is sound.
+
+**Cross-reference with `docs/audits/SECURITY_AUDIT_2026-05-15.md`:** Audit **A10-F2 (P4 Low)** at lines 333-335 flags `sso_service.go:36`'s `IssuerURL` as a latent SSRF surface. Candidate 2's runtime discovery fetch is the same gap; the ADR must fold A10-F2's allowlist (reject RFC1918 / loopback / link-local / cloud-metadata) into the discovery client. **Non-blocking** for this review.
+
+**Non-blocking observations (for ADR Drafter, day 45):**
+
+1. **SSRF guard for upstream discovery** — see audit A10-F2 cross-reference above; org-admin-supplied `issuer_url: "http://169.254.169.254/..."` is an IMDS read from the API container without it.
+2. **Trigger precision** — ADR must explicitly state "OIDC-only first wave; SAML deferred even if asked" so the same-protocol-two-customers gate is binding, not advisory.
+3. **`(iss, sub)` keying warrant** (Candidate 4) — ADR must capture the warrant and the orphan-rows failure mode if `issuer_url` is later migrated on an in-use `SSOConfig`.
+4. **CVE-2023-6927 fixed-redirect-URI** (§12 check c) — dashboard `redirect_uri` at `/callback` must be server-pinned, never user-supplied, even via `state`-stashed value. Land in the negative-auth test list.
+5. **Audit-event taxonomy** — `auth.sso.start`, `auth.sso.callback.success/failure`, `auth.sso.user_provisioned` must be added to `docs/AUDIT_LOG_COVERAGE.md` in the same PR as the ADR per `CLAUDE.md`.
+
+No reference failed to check out.
