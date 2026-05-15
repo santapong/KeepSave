@@ -13,32 +13,32 @@
 
 ## 2. One-paragraph overview
 
-Pomerium is an open-source identity-aware reverse proxy that authenticates every request to internal applications and forwards a signed JWT assertion (`X-Pomerium-Jwt-Assertion`) so upstreams can cryptographically verify the request came from Pomerium, not a forged client. It is used by teams replacing VPNs with per-request, context-aware authz in front of HTTP services (Kubernetes dashboards, Grafana, internal admin tools). We care about Pomerium not as a deployment target — KeepSave is not putting a proxy in front of its API — but as a **reference implementation of two specific patterns** that map directly onto FU 0b: signed-message trusted-header injection, and per-route origin allow-listing. KeepSave's `frontend/src/embed/auth.ts` postMessage handshake has neither today.
+Pomerium is an open-source identity-aware reverse proxy that authenticates every request to internal applications and forwards a signed JWT assertion (`X-Pomerium-Jwt-Assertion`) so upstreams can cryptographically verify the request came from Pomerium. We care about Pomerium not as a deployment target — KeepSave is not putting a proxy in front of its API — but as a **reference implementation of two specific patterns** that map directly onto FU 0b: signed-message trusted-header injection, and per-route origin allow-listing. KeepSave's `frontend/src/embed/auth.ts` postMessage handshake has neither today.
 
 ## 3. Architecture summary
 
-Pomerium has four logical services (`proxy`, `authenticate`, `authorize`, `databroker`) which can run in a single binary or separately. For the patterns we care about, only two flows matter:
+Pomerium has four logical services (`proxy`, `authenticate`, `authorize`, `databroker`). Two flows matter for us:
 
-1. **Sign-on flow (one-time per session):** Browser hits `proxy` → redirected to `authenticate` → OIDC dance with upstream IdP → Pomerium-signed session cookie issued, scoped to the Pomerium domain.
-2. **Per-request flow (the part KeepSave borrows):** Each request to a protected route is evaluated by `authorize` (per-route policy: who, from where, with what claims). If allowed, `proxy` strips the session cookie, mints a short-lived JWT signed with Pomerium's private key, and injects it as `X-Pomerium-Jwt-Assertion`. The upstream fetches the JWKS at `/.well-known/pomerium/jwks.json`, verifies the signature using the `kid` header, and trusts the claims.
+1. **Sign-on (one-time per session):** Browser → `proxy` → `authenticate` (OIDC) → Pomerium-signed session cookie.
+2. **Per-request (the part KeepSave borrows):** `authorize` evaluates per-route policy; `proxy` mints a short-lived JWT signed with Pomerium's private key and injects it as `X-Pomerium-Jwt-Assertion`. Upstream fetches JWKS at `/.well-known/pomerium/jwks.json` and verifies via `kid`.
 
-KeepSave would interact with **only the per-request signed-assertion idea**, transposed onto a postMessage channel. We would ignore Pomerium's IdP integration, its proxy data plane (Envoy), and the `databroker` (the component implicated in CVE-2024-47616, see §8).
+KeepSave borrows **only the per-request signed-assertion idea**, transposed onto a postMessage channel. We ignore IdP integration, the Envoy data plane, and `databroker` (implicated in CVE-2024-47616).
 
 ## 4. Security model
 
 Auth primitives Pomerium publishes (docs retrieved 2026-05-15):
 
-- **Signing algorithm:** ES256 (ECDSA P-256). Pomerium's private key never leaves the `authenticate`/`authorize` service. The public key is published at a per-route JWKS endpoint. Source: `pomerium.com/docs/guides/verify-jwt` and `pomerium.com/docs/capabilities/getting-users-identity`.
-- **Header name:** `X-Pomerium-Jwt-Assertion` (RFC 7519 JWT).
-- **Claims forwarded to upstream:** `iss` (Pomerium issuer URL), `aud` (the route domain — prevents cross-route token replay), `exp`, `iat`, `sub`, plus identity claims (`email`, `groups`).
-- **Per-route policy:** `from`, `to`, `allowed_users`, `allowed_domains`, `allowed_idp_claims`, CORS allow-list, plus a Rego-compatible policy language. The CORS / origin enforcement is declarative per route, not a single global setting.
-- **Trust-boundary stance:** Pomerium publishes its threat model in passing in its mutual-auth docs and its Cure53 audit report (March 2021). The model assumes: (a) the JWKS endpoint is fetched over TLS; (b) upstream services treat any request *not* carrying a verified assertion as anonymous; (c) compromise of Pomerium's private key is total compromise — there is no defence-in-depth below the JWT.
+- **Signing:** ES256 (ECDSA P-256); private key never leaves `authenticate`/`authorize`; public key at per-route JWKS.
+- **Header:** `X-Pomerium-Jwt-Assertion` (RFC 7519).
+- **Claims:** `iss`, `aud` (route domain — prevents cross-route replay), `exp`, `iat`, `sub`, plus identity claims.
+- **Per-route policy:** declarative `from`/`to`/`allowed_users`/`allowed_domains`/`allowed_idp_claims`, CORS allow-list, Rego language. Origin enforcement is per-route, not global.
+- **Trust-boundary stance** (from mutual-auth docs + Cure53 audit, March 2021): JWKS over TLS; upstreams treat non-assertion requests as anonymous; private-key compromise is total compromise — no defence-in-depth below the JWT.
 
-CVE history (last 24 months, NVD + GitHub Security Advisories):
+CVE history (last 24 months, NVD + GHSA):
 
-- **CVE-2024-47616** (GHSA-r7rh-jww5-5fjr, 2024-10-02, CVSS 6.8) — incomplete JWT validation in the `databroker` API treated some service-account tokens as valid for authorization. Fixed in v0.27.1. **Directly relevant:** validation logic for the exact pattern we'd adopt is itself a CVE class. Tells us audience/expiry checks need test coverage.
-- **GHSA-rrqr-7w59-637v** (2024-07-02, moderate) — OAuth2 access/ID tokens exposed in user-info endpoint response. Not directly relevant to the signed-header pattern.
-- **CVE-2021-39204** (GHSA-5wjf-62hw-q78r) — Envoy HTTP/2 reset DoS. Not applicable to KeepSave (we are not deploying Envoy).
+- **CVE-2024-47616** (GHSA-r7rh-jww5-5fjr, 2024-10-02, CVSS 6.8) — incomplete JWT validation in `databroker`; fixed v0.27.1. **Directly relevant:** validation logic for the pattern we'd adopt is itself a CVE class; audience/expiry checks need test coverage.
+- **GHSA-rrqr-7w59-637v** (2024-07-02, moderate) — OAuth2 tokens exposed in user-info. Tangential.
+- **CVE-2021-39204** — Envoy HTTP/2 reset DoS. N/A (we don't deploy Envoy).
 
 ## 5. KeepSave-comparable surface
 
