@@ -155,6 +155,8 @@ func main() {
 	applicationHandler := api.NewApplicationHandler(appService)
 
 	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr)
+	// ADR-0006: embed widget origin allow-list.
+	embedHandler := api.NewEmbedHandler(projectService)
 
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
@@ -183,6 +185,7 @@ func main() {
 		mcpGatewayHandler,
 		applicationHandler,
 		intelligenceHandler,
+		embedHandler,
 		appMetrics,
 		tracer,
 		db,

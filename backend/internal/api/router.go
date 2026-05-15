@@ -22,6 +22,7 @@ func SetupRouter(
 	agentHandler *AgentHandler, platformHandler *PlatformHandler, openAPIHandler *OpenAPIHandler,
 	oauthHandler *OAuthHandler, mcpHubHandler *MCPHubHandler, mcpGatewayHandler *MCPGatewayHandler,
 	applicationHandler *ApplicationHandler, intelligenceHandler *IntelligenceHandler,
+	embedHandler *EmbedHandler,
 	appMetrics *metrics.AppMetrics, tracer *tracing.Tracer, db *sql.DB, logger *logging.Logger,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
@@ -50,6 +51,21 @@ func SetupRouter(
 
 	v1 := r.Group("/api/v1")
 	{
+		// ADR-0006: unauthenticated embed-config endpoint. The widget calls
+		// this BEFORE it has any credentials, so the route is mounted outside
+		// any auth middleware. Abuse is mitigated by a dedicated per-IP
+		// rate-limit (10 req/min, burst 10) — see ADR-0006 §Implementation.
+		//
+		// 10/min is the proposed default per ADR-0006 Open-Q (rate-limit
+		// threshold). Real-world widget bootstraps are 1 call per page-load;
+		// 10/min/IP is generous for legitimate use and tight enough to make
+		// enumeration of UUID project IDs computationally pointless.
+		embedLimiter := NewRateLimiter(10, time.Minute, 10)
+		v1.GET("/embed-config/:project_id",
+			RateLimitMiddleware(embedLimiter),
+			embedHandler.GetEmbedConfig,
+		)
+
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
@@ -70,6 +86,9 @@ func SetupRouter(
 			proj.GET("/:id", projectHandler.Get)
 			proj.PUT("/:id", projectHandler.Update)
 			proj.DELETE("/:id", projectHandler.Delete)
+			// ADR-0006: authenticated mutation of a project's embed allow-list.
+			// Returns 422 when caller attempts to register "*" as an origin.
+			proj.PUT("/:id/embed-config", embedHandler.UpdateEmbedConfig)
 		}
 
 		sec := v1.Group("/projects/:id/secrets")
