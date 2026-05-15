@@ -1,6 +1,8 @@
 # KeepSave Threat Model
 
-**Version:** 1.2.0 | **Last review:** 2026-05-12 (re-baseline during ROLES 30-day) | **Previous:** 1.1.0 (2026-04-19)
+**Version:** 1.2.1 | **Last review:** 2026-05-15 (audit team sweep delta) | **Previous:** 1.2.0 (2026-05-12)
+
+> **2026-05-15:** 5 new rows + 4 residual-risk updates from audit team sweep (`docs/audits/SECURITY_AUDIT_2026-05-15.md`).
 
 This document is the canonical threat model. Re-baseline cadence: after every Type-1 change and at minimum monthly (`docs/ROLES.md` §6). All STRIDE entries are anchored to file:line refs so they can be re-verified mechanically.
 
@@ -69,8 +71,10 @@ The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up f
 | S      | Attacker forges KMS decrypt request          | Provider interface uses IAM role + audited KMS logs         | `crypto/keyprovider/` (AWS/GCP files exist, not yet wired)       | Low      |
 | T      | DEK or ciphertext tampered in DB             | AES-GCM auth tag rejects tampered input                     | `crypto/crypto.go:64-90` (decrypt)                               | Low      |
 | R      | Key rotation without audit trail             | `keyrotation_service` writes audit entries                  | (verify in 30d) — service exists; check audit emit               | Medium   |
+| R      | Audit-log row tamper / taxonomy gaps         | `audit_log` is plain table (no hash-chain/MAC); `role.changed`, `settings.changed` missing from `AUDIT_LOG_COVERAGE.md:21-43`; `AuditEntry` lacks `actor_type` (user vs api-key vs service-account). 2026-05-15: new row — taxonomy + tamper-evidence ADR pending (ADR-0010-adjacent). | `migrations/001_initial_schema.sql:66-77`, `docs/AUDIT_LOG_COVERAGE.md:21-43` | Medium   |
 | I      | Master key exfiltrated via logs              | Master key never logged; only cached in RAM                 | manual review                                                    | Low      |
-| D      | KMS throttle stalls startup                  | MasterKeyProvider retries with backoff                      | `keyprovider/env.go` and KMS adapters                            | Medium   |
+| I      | Webhook SSRF reaches IMDS / RFC1918 hosts    | None today; webhook URL is user-controlled with no allow/deny list. ADR for webhook-SSRF guard pending (Infisical Cand. 1 blocked-pending-SSRF-guard). | `backend/internal/service/webhook_service.go:136,158`            | **High** |
+| D      | KMS throttle stalls startup                  | MasterKeyProvider retries with backoff. 2026-05-15: threat is moot today since KMS adapters unwired (`main.go:247-248` bails "not implemented"); restores to Medium when FU#1 lands (ADR-0008/0009-adjacent). | `keyprovider/env.go` and KMS adapters                            | Medium (moot) |
 | E      | Compromised process reads RAM                | Container isolation, minimal image                          | `backend/Dockerfile`                                             | Medium   |
 
 **Open follow-ups:** secure-zero master key in memory on shutdown; verify keyrotation audit emission (likely missing per Critical finding above); hardware attestation for nodes handling master key.
@@ -85,7 +89,8 @@ The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up f
 | R      | Login attempts not audited                   | Auth events not in audit log (verify in 30d)                                | `auth_service.go`                                         | Medium   |
 | I      | Auth error leaks user existence              | Login wraps `sql.ErrNoRows` as "invalid credentials" — verify             | `auth_service.go:70`                                      | Low      |
 | D      | Credential stuffing                          | Per-IP rate limit + exponential backoff                                     | `api/ratelimit*.go`                                       | Low      |
-| E      | API key scope escalation                     | Scope is row-bound; per-project / per-env enforced in handlers              | `auth/apikey.go`, `models/models.go:56-59`                | Low      |
+| E      | API key scope escalation                     | Scope set by middleware but ignored by all handlers except `handlers_agent.go:42-52` (A01-F2); ADR-0005 (RequireProjectAccess) fixes. | `auth/apikey.go`, `models/models.go:56-59`, `api/middleware.go:107-112` | **High** |
+| E      | JWT lacks project bind                       | JWT carries `user_id` but no `project_id` claim; any authenticated user can present their valid JWT to any `/projects/:id/*` endpoint and bypass tenant isolation. None today; ADR-0005 (RequireProjectAccess middleware) lands the fix. | `backend/internal/auth/auth.go:11-62`                     | **High** |
 
 ## 3. Promotion engine
 
@@ -93,8 +98,9 @@ The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up f
 |--------|----------------------------------------------|------------------------------------------------------------------|---------------------------------------------------------|----------|
 | T      | Secret modified between diff and apply       | Transactional apply; diff re-validated                            | `service/promotion_service.go:272-346`                  | Low      |
 | R      | Approver identity spoofed                    | Approver re-auths; audit captures `sub`                          | `service/promotion_service.go:215-240`                  | Low      |
-| R      | Approval decision merged with execution audit | No distinct `promotion_approved` event before execution (gap)    | `service/promotion_service.go:215-240`                  | Medium   |
+| R      | Approval decision merged with execution audit | No distinct `promotion_approved` event before execution (gap). 2026-05-15: A04-F1 approver=requester gap (separate row below) reinforces this; see ADR-0007 (approval audit split). | `service/promotion_service.go:215-240`                  | Medium   |
 | I      | Diff leaks plaintext                         | Diff redacts values; only keys + action shown                    | review needed                                           | Low      |
+| I      | Plaintext leak via `/promote/diff` response   | None today. Diff endpoint returns full plaintext `SourceValue` and `TargetValue`, contradicting the design intent that diffs are redacted; ADR for diff-redact pending. | `backend/internal/models/models.go:146-147`, `backend/internal/service/promotion_service.go:131,140` | **High** |
 | D      | Flapping promotions saturate DB              | Per-project rate limit                                            | `api/ratelimit*.go`                                     | Low      |
 | E      | Non-approver promotes to PROD                | PROD requires `promote` scope; pending record + separate approval | `service/promotion_service.go:186-195`                  | Low      |
 | E      | Requester self-approves                      | **Invariant not currently enforced at DB layer** (gap)            | open follow-up                                          | Medium   |
@@ -119,6 +125,21 @@ The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up f
 | D | Slow MCP server stalls gateway | Per-call 10s timeout + circuit breaker | Low |
 | E | Tool call bypasses auth | Gateway enforces JWT/API key before routing | Low |
 
+## 6. MCP tool execution (new, 2026-05-15)
+
+Covers the execution path that §5 does not: command spawning by the gateway and build/install jobs by the registry. §5 covers transport and routing; §6 covers what happens when the gateway *runs* a registered server.
+
+| STRIDE | Threat                                                                                                        | Mitigation                                                                                  | File:line                                                                | Residual |
+|--------|---------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|----------|
+| T      | Authenticated user registers MCP server with malicious `EntryCommand`; gateway then execs the stored command with decrypted secrets in env. | None today; ADR-0010 (MCP command-execution hardening) pending.                              | `backend/internal/api/handlers_mcp_gateway.go:327-339`                    | **High** (authenticated RCE primitive) |
+| D      | `RegisterServer` / `RebuildServer` spawn unbounded goroutines running `git clone` + `npm/pip install` + `go build` with no timeout. | None today.                                                                                  | `backend/internal/api/handlers_mcp.go:47, :163`                           | **High** (user-triggered DoS) |
+
+## 7. Secret-version retention (new, 2026-05-15)
+
+| STRIDE | Threat                                                                                              | Mitigation                                                                | File:line                                                                              | Residual |
+|--------|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|----------|
+| I      | Deleted secrets retain their value via `SecretVersion` history; if a version was leaked and the secret is later "deleted", the leaked value still grants access. | None today — separate ADR for shred-on-delete required.                    | `backend/migrations/003_secret_versions.sql:2-16`, `backend/internal/repository/version_repo.go` | Medium   |
+
 ---
 
 ## Assumptions (verify at each re-baseline)
@@ -137,5 +158,6 @@ The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up f
 
 ## Change log
 
+- **1.2.1 (2026-05-15):** Audit team sweep delta (`docs/audits/SECURITY_AUDIT_2026-05-15.md`). 5 new STRIDE rows (§2/E JWT-no-project-bind, §3/I Diff plaintext, §1/I webhook SSRF, §1/R audit-log tamper + taxonomy gaps, §6/T MCP entry-command RCE, §6/D MCP build DoS, §7/I secret-version retention) and 4 residual-risk updates (§2/E API key scope -> High; §3/R approval-merge cross-refs ADR-0007; §1/T KMS throttle noted moot pending FU#1; §1/R audit-log row added). New top-level sections §6 (MCP tool execution) and §7 (Secret-version retention).
 - **1.2.0 (2026-05-12):** Re-baselined during 30-day plan. Added Section 4 (embed widget). Added "Findings new in v1.2.0" block with four critical/high open gaps. Added file:line refs throughout. Added "Assumptions" verification cadence and "Out-of-scope" list.
 - **1.1.0 (2026-04-19):** STRIDE pass on vault, OAuth, MCP, promotion. Pre-30-day-plan baseline.

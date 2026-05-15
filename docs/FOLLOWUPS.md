@@ -80,6 +80,21 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Owner:** Frontend Engineer + UX (interim).
 - **Due:** 30 days.
 
+### 0k. Default expiration on `ks_` API keys (no immortal credentials)
+- **Status:** **OPEN — discovered during competitor synthesis (Vault / SPIFFE / GitHub dossiers converge).** `backend/internal/api/validation.go:33-38` (`CreateAPIKeyRequest` has no `expires_at` field); `backend/internal/service/apikey_service.go:33-60` (`Create` takes no expiry arg); `backend/internal/repository/apikey_repo.go:33-36` (INSERT omits `expires_at`). Result: every `ks_` key minted is valid indefinitely until manual deletion. Middleware at `backend/internal/api/middleware.go:101-105` already honours `ExpiresAt` when non-NULL — only issuance is broken.
+- **Why it matters:** A leaked agent / CI key has no time bound. GitHub mandates ≤366d on PATs; SPIFFE recommends ≤15min on JWT-SVID; CircleCI 2023 is the canonical incident shape. Indefinite credentials are below segment baseline.
+- **Owner:** Backend Engineer + Security Engineer (review).
+- **Due:** 30 days (Phase A). Pattern: GitHub fine-grained PAT mandatory expiration; default 90d, ceiling 365d, sentinel `9999-12-31` for opt-out audited per-key.
+- **Related:** `docs/research/competitors/github.md` Candidate 3; `docs/research/competitors/spiffe.md` §5 row JWT-SVID; `docs/research/competitors/vault.md` Candidate 2.
+
+### 0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor
+- **Status:** **OPEN — discovered during 2026-05-15 audit team sweep (`docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11).** Pattern `c.MustGet("user_id").(uuid.UUID)` is repeated verbatim **58 times** across `backend/internal/api/handlers_*.go`. Gin's `MustGet` panics on missing key; bare type-assertion panics on type mismatch. Gin's global `gin.Recovery()` at `backend/internal/api/router.go:29` catches handler-thread panics today, but the pattern is a forward-looking footgun — the moment a future PR mounts any handler outside the `JWTAuthMiddleware` group, the handler panics on every request.
+- **Why it matters:** Defense in depth. Also a prerequisite for ADR-0015 (per-use API-key audit emission) which needs the helper as its call point. The audit's BACKEND_CRASH_RISKS.md report names this as the single most valuable hardening pass alongside `defer recover()` on goroutines.
+- **Owner:** Backend Engineer (single PR; pure refactor).
+- **Due:** 60 days (Phase A → Phase B bridge).
+- **Pattern:** new `getUserID(c *gin.Context) (uuid.UUID, bool)` helper that does `c.Get` + comma-ok type assertion + 401 on miss. Replace all 58 sites. Also introduce `safego.Launch(ctx, fn)` wrapper for the 9 production goroutines per the crash audit (ADR-0010 part C draft codifies this).
+- **Related:** `docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11; ADR-0010 (proposed) part C; ADR-0015 (proposed) — this FU is its prerequisite.
+
 ### 1. AWS / GCP KMS adapters wired into `main.go`
 - **Status:** Code exists (`kms_aws.go`, `kms_gcp.go` in `backend/internal/crypto/keyprovider/`); blocked on `go mod tidy` to add `aws-sdk-go-v2/service/kms` and `cloud.google.com/go/kms/apiv1` to `go.sum`.
 - **Why it matters:** ADR-0004 calls `EnvProvider` development-only; production deployments need KMS. Without this, the runbook tells customers "use a KMS" but the binary doesn't support one yet.
@@ -161,6 +176,8 @@ Captured here so they're not lost, **not** to be worked on until Phase B starts.
 - **Fine-grained API key scopes** (per-secret or per-action; ADR-0002). Build when a use case appears, not before.
 - **Three-of-N approval for PROD** (ADR-0003). Build if regulatory pressure or a customer commitment forces it.
 - **Subkey derivation (HKDF) for auxiliary purposes** (audit-log MAC, etc.; ADR-0004). Only with a new ADR.
+- **Ephemeral attested workload identity for AI agents (SPIFFE-shaped SVIDs).** Today `ks_` keys are issued with no expiry (`backend/internal/api/validation.go:33-38` — `CreateAPIKeyRequest` has no `expires_at`; `backend/internal/service/apikey_service.go:33` — `Create` takes no expiry param), so a leaked agent key is valid until manual deletion. **Trigger:** (a) a customer with an MCP / AI-agent workflow asks for short-lived agent credentials, OR (b) a CVE-class incident in the field shows long-lived agent keys being exfiltrated and abused, OR (c) MedQCNN / Nexus integration (`docs/medqcnn_integration.md`, `docs/nexus_integration.md`) reaches multi-tenant agent deployment. Research input: `docs/research/competitors/spiffe.md`; leapfrog framing: `docs/research/BEYOND.md` §2.5.
+- **Lease-renewal grammar for `SecretLease`** (`backend/internal/models/models.go:367-377`). Today `SecretLease` has `ExpiresAt` + `Revoked` but no renewal endpoint; long-running agents must re-issue and lose audit-trail continuity across a single session. **Trigger:** first customer agent runs longer than current lease max-TTL, OR first complaint about lease-ID churn fragmenting audit search. Pattern source: HashiCorp Vault lease-renewal grammar — see `docs/research/competitors/vault.md` Candidate 5. Owner: Backend Engineer (when trigger fires).
 
 ---
 
