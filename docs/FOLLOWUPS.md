@@ -87,6 +87,14 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Due:** 30 days (Phase A). Pattern: GitHub fine-grained PAT mandatory expiration; default 90d, ceiling 365d, sentinel `9999-12-31` for opt-out audited per-key.
 - **Related:** `docs/research/competitors/github.md` Candidate 3; `docs/research/competitors/spiffe.md` §5 row JWT-SVID; `docs/research/competitors/vault.md` Candidate 2.
 
+### 0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor
+- **Status:** **OPEN — discovered during 2026-05-15 audit team sweep (`docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11).** Pattern `c.MustGet("user_id").(uuid.UUID)` is repeated verbatim **58 times** across `backend/internal/api/handlers_*.go`. Gin's `MustGet` panics on missing key; bare type-assertion panics on type mismatch. Gin's global `gin.Recovery()` at `backend/internal/api/router.go:29` catches handler-thread panics today, but the pattern is a forward-looking footgun — the moment a future PR mounts any handler outside the `JWTAuthMiddleware` group, the handler panics on every request.
+- **Why it matters:** Defense in depth. Also a prerequisite for ADR-0015 (per-use API-key audit emission) which needs the helper as its call point. The audit's BACKEND_CRASH_RISKS.md report names this as the single most valuable hardening pass alongside `defer recover()` on goroutines.
+- **Owner:** Backend Engineer (single PR; pure refactor).
+- **Due:** 60 days (Phase A → Phase B bridge).
+- **Pattern:** new `getUserID(c *gin.Context) (uuid.UUID, bool)` helper that does `c.Get` + comma-ok type assertion + 401 on miss. Replace all 58 sites. Also introduce `safego.Launch(ctx, fn)` wrapper for the 9 production goroutines per the crash audit (ADR-0010 part C draft codifies this).
+- **Related:** `docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11; ADR-0010 (proposed) part C; ADR-0015 (proposed) — this FU is its prerequisite.
+
 ### 1. AWS / GCP KMS adapters wired into `main.go`
 - **Status:** Code exists (`kms_aws.go`, `kms_gcp.go` in `backend/internal/crypto/keyprovider/`); blocked on `go mod tidy` to add `aws-sdk-go-v2/service/kms` and `cloud.google.com/go/kms/apiv1` to `go.sum`.
 - **Why it matters:** ADR-0004 calls `EnvProvider` development-only; production deployments need KMS. Without this, the runbook tells customers "use a KMS" but the binary doesn't support one yet.
