@@ -106,6 +106,7 @@ Aligned to `docs/ROLES_30_60_90.md`.
 | ADR backlog | ADR Drafter starts day 45; cap 5 draft ADRs total |
 | Research disconnected from Phase A | Matrix `Tied FU#` column mandatory for every `adapt` cell |
 | Vendor docs misleading / marketing-shaped | Section 8 requires RFC / public audit / CVE / post-mortem — blog-only fails review |
+| Vendor docs unreachable via tooling (403, geo-block) | Section 8 allows triangulation: cite canonical URL with `(unreachable via tooling)` note + non-vendor corroborator (CVE / RFC / OWASP / third-party audit) carrying the load-bearing security claim |
 | ROADMAP_NOT violations (Trojan-horse SSO) | `adopt-when-trigger-fires` verdicts must quote the trigger from `docs/ROADMAP_NOT.md` verbatim |
 | CVE absence misread as safe | Security Reviewer adds disclosure-program-maturity line for every `adopt-now` |
 | Duplicate work | Each pattern row in matrix has exactly one owning analyst |

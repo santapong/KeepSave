@@ -27,11 +27,17 @@ Auth primitives, crypto choices, key custody, threat-model assumptions they publ
 
 ## 5. KeepSave-comparable surface
 
-Explicit mapping table. Their X corresponds to our Y at `file:line`. If a feature has no analog, say so. Required file:line citations to KeepSave.
+Explicit mapping table. Their X corresponds to our Y at `file:line`. **Only list concepts that have a KeepSave analog — existing, missing, or stub.** Required file:line citations to KeepSave for every row.
 
 | Their concept | KeepSave analog | KeepSave file:line |
 |---|---|---|
 | | | |
+
+**Concepts deliberately not adopted** (optional — use when the competitor has substantial surface area irrelevant to KeepSave because we are adopting patterns only, not deploying their product; e.g. their data plane, their IdP integration, their storage layer). Do not pad §5 with `—` rows for these; list them here instead:
+
+| Their concept | Reason we don't adopt |
+|---|---|
+| | |
 
 ## 6. Adapt candidates
 
@@ -42,18 +48,22 @@ Numbered list of specific patterns we could borrow. Each is one discrete idea, n
 
 ## 7. Pros / cons of adapting
 
-For each candidate above. Cons must include operational + security cost, not just engineering effort.
+For each candidate above.
 
 ### Candidate 1: <name>
 - **Pros:** ...
-- **Cons (operational):** ...
-- **Cons (security):** ...
+- **Cons (operational):** ... OR `none material — <one-line justification>`
+- **Cons (security):** ... OR `none material — <one-line justification>`
+
+Cons must surface real cost — engineering effort alone is not a cost. `none material` is allowed when honest, but if both buckets are `none material`, consider whether the candidate is sized too small to warrant its own dossier row — merge it with another candidate or move it to §6 prose.
 
 ### Candidate 2: ...
 
 ## 8. Validation evidence
 
 Links: official docs (version + retrieval date), RFCs, public security audits, CVE history (last 24 months), maintainer post-mortems. **Blog posts alone do not pass review.** At least one of: RFC reference, public audit, CVE, maintainer post-mortem.
+
+**When official vendor docs are unreachable via tooling** (WebFetch returns 403 due to user-agent or geo blocking; paywall; private repo): cite the canonical vendor URL with a `(unreachable via tooling YYYY-MM-DD)` note for traceability, then provide a triangulated reference — a search-result summary excerpt plus at least one non-vendor corroborator (CVE / RFC / OWASP / third-party audit). The load-bearing security claim must rest on the non-vendor source, not on the search excerpt.
 
 - <reference 1>
 - <reference 2>
@@ -67,7 +77,7 @@ Which STRIDE category in `docs/THREAT_MODEL.md` the candidate touches. Does adop
 One of:
 
 - `adopt-now` — adopt during Phase A or B; ADR required.
-- `adopt-when-trigger-fires` — adopt when a specific trigger occurs. **Quote the trigger from `docs/ROADMAP_NOT.md` or `docs/FOLLOWUPS.md` verbatim.**
+- `adopt-when-trigger-fires` — adopt when a specific trigger occurs. **Quote the trigger verbatim, with `file:line`, from one of: `docs/ROADMAP_NOT.md`, `docs/FOLLOWUPS.md`, or any committed policy doc under `docs/**`.** If the trigger lives only in this dossier's prose, promote it to `docs/FOLLOWUPS.md` in the same PR.
 - `reject` — state reason.
 - `note-only` — P2 only.
 
