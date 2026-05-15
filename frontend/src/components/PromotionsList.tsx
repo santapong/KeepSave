@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Layers, RotateCcw, CheckCircle2, XCircle } from 'lucide-react';
+import { TypedConfirmModal } from './TypedConfirmModal';
 
 interface PromotionsListProps {
   projectId: string;
@@ -45,6 +46,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const [rollbackTarget, setRollbackTarget] = useState<PromotionRequest | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,8 +85,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
     }
   }
 
-  async function handleRollback(id: string) {
-    if (!window.confirm('Rollback this promotion? Target environment secrets will be restored.')) return;
+  async function performRollback(id: string) {
     try {
       await rollbackPromotion(projectId, id);
       toast({ title: 'Rolled back', description: 'Promotion rolled back successfully' });
@@ -225,7 +226,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
                       </>
                     )}
                     {p.status === 'completed' && (
-                      <Button onClick={() => handleRollback(p.id)} size="sm" variant="outline">
+                      <Button onClick={() => setRollbackTarget(p)} size="sm" variant="outline">
                         <RotateCcw className="mr-1 h-3 w-3" /> Rollback
                       </Button>
                     )}
@@ -236,6 +237,24 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
           ))}
         </div>
       )}
+
+      <TypedConfirmModal
+        open={!!rollbackTarget}
+        onOpenChange={(open) => {
+          if (!open) setRollbackTarget(null);
+        }}
+        title="Rollback promotion"
+        description={
+          rollbackTarget
+            ? `This will restore the ${rollbackTarget.target_environment.toUpperCase()} environment secrets to their pre-promotion state. This cannot be undone.`
+            : ''
+        }
+        confirmPhrase={rollbackTarget ? rollbackTarget.target_environment.toUpperCase() : ''}
+        confirmLabel="Rollback"
+        onConfirm={() => {
+          if (rollbackTarget) performRollback(rollbackTarget.id);
+        }}
+      />
     </div>
   );
 }

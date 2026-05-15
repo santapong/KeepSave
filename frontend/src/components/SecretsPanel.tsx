@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { listSecrets, createSecret, updateSecret, deleteSecret } from '../api/client';
 import { formatDate } from '../utils/formatDate';
 import type { Secret } from '../types';
@@ -9,6 +9,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TypedConfirmModal } from './TypedConfirmModal';
+
+/** FU 0i: auto-hide revealed secrets after this many seconds. */
+const REVEAL_TIMEOUT_SECONDS = 30;
 import {
   Table,
   TableBody,
@@ -70,11 +74,15 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  // FU 0i: per-secret remaining seconds before auto-hide. 0/missing == not running.
+  const [revealRemaining, setRevealRemaining] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Secret | null>(null);
   const { toast } = useToast();
+  const tickRef = useRef<number | null>(null);
 
   const loadSecrets = useCallback(async () => {
     setLoading(true);
@@ -92,10 +100,66 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   useEffect(() => {
     loadSecrets();
     setRevealed(new Set());
+    setRevealRemaining({});
     setEditing(null);
     setEditValue('');
     setSearchQuery('');
   }, [loadSecrets]);
+
+  // FU 0i: tick down auto-hide timers once per second. Auto-hides any secret
+  // whose timer hits 0 and shows a one-time toast.
+  useEffect(() => {
+    if (Object.keys(revealRemaining).length === 0) {
+      if (tickRef.current !== null) {
+        window.clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
+      return;
+    }
+    if (tickRef.current !== null) return;
+    tickRef.current = window.setInterval(() => {
+      setRevealRemaining((prev) => {
+        const next: Record<string, number> = {};
+        const expired: string[] = [];
+        for (const [id, remaining] of Object.entries(prev)) {
+          const updated = remaining - 1;
+          if (updated <= 0) {
+            expired.push(id);
+          } else {
+            next[id] = updated;
+          }
+        }
+        if (expired.length > 0) {
+          setRevealed((rev) => {
+            const updated = new Set(rev);
+            for (const id of expired) updated.delete(id);
+            return updated;
+          });
+          toast({
+            title: 'Auto-hidden',
+            description: `Revealed secret${expired.length > 1 ? 's were' : ' was'} auto-hidden after ${REVEAL_TIMEOUT_SECONDS}s.`,
+          });
+        }
+        return next;
+      });
+    }, 1000);
+    return () => {
+      if (tickRef.current !== null) {
+        window.clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
+    };
+  }, [revealRemaining, toast]);
+
+  // Clear timers on unmount (e.g. navigation away).
+  useEffect(() => {
+    return () => {
+      if (tickRef.current !== null) {
+        window.clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
+    };
+  }, []);
 
   const filteredSecrets = secrets.filter((s) =>
     s.key.toLowerCase().includes(searchQuery.toLowerCase())
@@ -127,8 +191,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
     }
   }
 
-  async function handleDelete(secretId: string) {
-    if (!window.confirm('Delete this secret? This action cannot be undone.')) return;
+  async function performDelete(secretId: string) {
     try {
       await deleteSecret(projectId, secretId);
       toast({ title: 'Deleted', description: 'Secret deleted' });
@@ -141,8 +204,22 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   function toggleReveal(id: string) {
     setRevealed((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const wasRevealed = next.has(id);
+      if (wasRevealed) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      // Update countdown: start when revealing, clear when hiding.
+      setRevealRemaining((r) => {
+        const updated = { ...r };
+        if (wasRevealed) {
+          delete updated[id];
+        } else {
+          updated[id] = REVEAL_TIMEOUT_SECONDS;
+        }
+        return updated;
+      });
       return next;
     });
   }
@@ -150,8 +227,12 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   function toggleRevealAll() {
     if (revealed.size === filteredSecrets.length && filteredSecrets.length > 0) {
       setRevealed(new Set());
+      setRevealRemaining({});
     } else {
       setRevealed(new Set(filteredSecrets.map((s) => s.id)));
+      const fresh: Record<string, number> = {};
+      for (const s of filteredSecrets) fresh[s.id] = REVEAL_TIMEOUT_SECONDS;
+      setRevealRemaining(fresh);
     }
   }
 
@@ -404,9 +485,19 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                         </Button>
                       </div>
                     ) : (
-                      <code className="text-sm font-mono text-muted-foreground">
-                        {revealed.has(s.id) ? s.value : maskValue()}
-                      </code>
+                      <div className="flex items-center gap-2">
+                        <code className="text-sm font-mono text-muted-foreground">
+                          {revealed.has(s.id) ? s.value : maskValue()}
+                        </code>
+                        {revealed.has(s.id) && revealRemaining[s.id] !== undefined && (
+                          <span
+                            className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                            title="Auto-hides after 30s of reveal"
+                          >
+                            hides in {revealRemaining[s.id]}s
+                          </span>
+                        )}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>
@@ -463,7 +554,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-xs px-2 text-destructive border-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(s.id)}
+                        onClick={() => setDeleteTarget(s)}
                         title="Delete secret"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -476,6 +567,24 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
           </Table>
         </Card>
       )}
+
+      <TypedConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete secret"
+        description={
+          deleteTarget
+            ? `This permanently deletes "${deleteTarget.key}" from ${env.toUpperCase()}. This action cannot be undone.`
+            : ''
+        }
+        confirmPhrase={deleteTarget?.key ?? ''}
+        confirmLabel="Delete secret"
+        onConfirm={() => {
+          if (deleteTarget) performDelete(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

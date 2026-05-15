@@ -7,6 +7,7 @@ import {
   listProjects,
 } from '../api/client';
 import type { APIKey, Project } from '../types';
+import { TypedConfirmModal } from '../components/TypedConfirmModal';
 
 export function APIKeysPage() {
   const [keys, setKeys] = useState<APIKey[]>([]);
@@ -19,6 +20,7 @@ export function APIKeysPage() {
   const [scopes, setScopes] = useState('read');
   const [environment, setEnvironment] = useState('');
   const [newRawKey, setNewRawKey] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null);
 
   useEffect(() => {
     Promise.all([listAPIKeys(), listProjects()])
@@ -50,8 +52,7 @@ export function APIKeysPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!window.confirm('Delete this API key? This cannot be undone.')) return;
+  async function performDelete(id: string) {
     try {
       await deleteAPIKey(id);
       setKeys(keys.filter((k) => k.id !== id));
@@ -171,13 +172,31 @@ export function APIKeysPage() {
                   <span style={{ fontSize: 12 }}>{new Date(k.created_at).toLocaleDateString()}</span>
                 </td>
                 <td style={tdStyle}>
-                  <button onClick={() => handleDelete(k.id)} style={btnSmallDanger}>Delete</button>
+                  <button onClick={() => setDeleteTarget(k)} style={btnSmallDanger}>Delete</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <TypedConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete API key"
+        description={
+          deleteTarget
+            ? `Permanently delete "${deleteTarget.name}". Agents and services using this key will lose access immediately. This cannot be undone.`
+            : ''
+        }
+        confirmPhrase={deleteTarget?.name ?? ''}
+        confirmLabel="Delete key"
+        onConfirm={() => {
+          if (deleteTarget) performDelete(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }
