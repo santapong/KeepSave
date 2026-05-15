@@ -1,7 +1,8 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '@/hooks/useSidebar';
 import { Sidebar } from './Sidebar';
+import { CommandPalette } from './CommandPalette';
 import type { User } from '../types';
 
 interface LayoutProps {
@@ -27,7 +28,22 @@ const ROUTE_LABELS: Record<string, string> = {
 export function Layout({ user, onLogout, children }: LayoutProps) {
   const { collapsed, toggle } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+
+  // Cmd+K / Ctrl+K opens the command palette.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Ignore modifier-less or text-input-only contexts; we want the global
+      // shortcut to fire even when an input is focused (standard palette UX).
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const segments = location.pathname.split('/').filter(Boolean);
   const now = segments.length === 0
@@ -60,7 +76,20 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
             <span className="ks-sep">/</span>
             <span className="ks-now">{now}</span>
           </div>
-          <div className="ks-search" style={{ cursor: 'text' }}>
+          <button
+            type="button"
+            className="ks-search"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Open command palette"
+            style={{
+              cursor: 'pointer',
+              background: 'transparent',
+              border: 'inherit',
+              font: 'inherit',
+              color: 'inherit',
+              textAlign: 'left',
+            }}
+          >
             <span className="ks-faint">⌕</span>
             <span className="ks-faint" style={{ fontSize: 12, flex: 1 }}>
               Search secrets, projects, agents, leases…
@@ -69,7 +98,7 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
               <span className="ks-kbd">⌘</span>
               <span className="ks-kbd">K</span>
             </span>
-          </div>
+          </button>
           <div className="ks-right">
             <span className="ks-pill"><span className="ks-dot ks-dot-go" /> 18.4k rps</span>
             <span className="ks-pill ks-pill-amber">SEALED</span>
@@ -79,6 +108,8 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
         <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>
           {children}
         </main>
+
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
         {/* Mobile menu trigger */}
         <button
