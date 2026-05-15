@@ -104,15 +104,13 @@ Required mix: at least one non-blog source. We have multiple.
 
 ## 9. Threat-model implications
 
-Maps directly to `docs/THREAT_MODEL.md` §4 "Embed widget (browser trust domain)", row S:
+Maps to `docs/THREAT_MODEL.md` §4 "Embed widget (browser trust domain)", row S (Spoofing):
 
 > *"Malicious host page injects fake `keepsave-auth` postMessage … Mitigation: **None today** — listener has no origin check … Residual: **High**"*
 
-STRIDE category quoted verbatim: **Spoofing** (the "S" row of §4).
+Adopting Candidates 1 + 2 **narrows** the trust boundary: today any window in the same browser can spoof an auth message; after adoption, only windows whose origin matches a per-project, server-attested allow-list can. No new entity enters the boundary — the unauthenticated allow-list endpoint constrains rather than extends trust. The new `allowed_embed_origins` column is writable only via the authenticated projects API, inheriting FU #0 audit coverage.
 
-Adopting Candidates 1 + 2 **narrows** the trust boundary: today, any window in the same browser that can reach the widget can spoof an auth message; after adoption, only windows whose origin matches a per-project, server-attested allow-list can. No new entity enters the trust boundary — the allow-list endpoint is unauthenticated by design (the widget hasn't authenticated yet) but does not extend trust, it constrains it. The per-project `allowed_embed_origins` row becomes a new sensitive value, but it lives behind the existing authenticated projects API for writes, so it inherits whatever audit coverage FU #0 lands.
-
-Candidate 3 would also narrow further, at the cost of adding the integrator's signing key as a new asset in the boundary. Hold until trigger.
+Candidate 3 narrows further but adds the integrator's signing key as a new asset; hold until trigger.
 
 ## 10. Verdict
 
@@ -131,18 +129,11 @@ Against the template's four options:
 
 ## 11. Rollback if adopted
 
-Frontend-only change for Candidate 2; additive schema for Candidate 1.
+**Candidate 2 (origin checks in widget):** `git revert` auth.ts + ship new bundle. No DB change. During CDN propagation / integrator cache TTL the widget falls back to today's open postMessage and FU 0b re-opens — rollback is itself a P0-severity decision.
 
-**Candidate 2 (origin checks in widget):**
-- Rollback = `git revert` the auth.ts change and ship a new widget bundle. No data migration; no server change.
-- During the rollback window (CDN propagation, integrator cache TTL — typically minutes to hours), the widget falls back to today's behaviour (open postMessage). Existing FU 0b vulnerability re-opens, so rollback is itself a P0-severity decision.
+**Candidate 1 (per-project allow-list column + endpoint):** Drop the endpoint, stop reading the column; leave the column (migration is additive `ALTER TABLE projects ADD COLUMN allowed_embed_origins TEXT[] DEFAULT '{}'`; `DROP COLUMN` is unsafe under zero-downtime policy). Customer-configured allow-lists are not destroyed but dormant until forward-fix. Runbook step: feature-flag `/api/v1/projects/:id/embed-config` to return `{ allowed_origins: ["*"] }` (sentinel for "policy disabled" — widget treats `["*"]` as disabled with logged warning, **not** "permit all"; code reviewer enforces).
 
-**Candidate 1 (per-project allow-list column + endpoint):**
-- Rollback = drop the endpoint route and stop reading the column; leave the column in place. The migration is additive (`ALTER TABLE projects ADD COLUMN allowed_embed_origins TEXT[] DEFAULT '{}'`) and a `DROP COLUMN` is unsafe under our zero-downtime policy.
-- Data does NOT survive rollback in the sense that allow-lists configured by customers will be ignored. They are not destroyed; they are dormant in the table until forward-fix.
-- Runbook step: flip a feature flag on `/api/v1/projects/:id/embed-config` to return `{ allowed_origins: ["*"] }` (sentinel for "policy disabled"). The widget must treat `["*"]` as "disabled" (logged warning), not as "permit all" — code reviewer enforces.
-
-True rollback to "no policy ever existed" is not possible without breaking integrators who started relying on the allow-list. State that openly.
+True rollback to "no policy ever existed" is impossible without breaking integrators who began relying on the allow-list.
 
 ## 12. Won't-break-our-system claim
 
@@ -175,34 +166,34 @@ Security Reviewer veto applies. Suggested reviewer checks: (a) the `["*"]` senti
 
 **Verdict:** accepted-with-changes (retrofitted inline). Veto **not** exercised on §9, §10, or §12.
 
-**Verified by spot-checking code (Read tool, 2026-05-15):**
+**Refs spot-checked (Read tool, 2026-05-15) — all resolve:**
 
-- `frontend/src/embed/auth.ts:21-26` — confirmed: listener has no `ev.origin` check; matches §5 row 1 and §9 quote.
-- `frontend/src/embed/auth.ts:33` — confirmed: `window.parent.postMessage(request, '*')`. Wildcard target origin is real.
-- `frontend/src/embed/keepsave-widget.ts:78-87` — confirmed: `directToken` / `directApiKey` branch returns before `setupPostMessageAuth` is called. **§12 Invariant 1 verified independently.**
-- `frontend/src/embed/keepsave-widget.ts:101-117` — confirmed: `setupPostMessageAuth` body matches dossier's framing.
-- `frontend/src/embed/keepsave-widget.ts:7-9` — confirmed: `observedAttributes` is `['project-id', 'api-url', 'theme', 'mode', 'api-key', 'token']`. Neither candidate alters this list. **§12 contract preservation verified.**
-- `frontend/src/embed/auth.test.ts` — confirmed: six tests as claimed; "ignores unrelated messages" at lines 70-92 dispatches `MessageEvent` with default origin (test env origin). An origin allow-list that includes the test origin keeps these green. **§12 Invariant 2 verified.**
-- `frontend/src/pages/LoginPage.tsx:32-33` — confirmed: `apiLogin(email, password)` then `onLogin(resp.user, resp.token)`. No embed widget involvement. **§12 Invariant 5 verified.**
-- `backend/internal/api/middleware.go:59-120` — confirmed: `JWTAuthMiddleware` at 59-86, `APIKeyAuthMiddleware` at 88-120. Re-validates per request as claimed.
-- `backend/internal/auth/apikey.go` — confirmed: SHA-256 hash, no per-origin scoping. The "no declarative origin policy" framing in §5 is accurate.
-- `backend/internal/api/handlers_oauth.go:216-218` — confirmed: JWKS handler returns empty `keys: []` with a note that RS256 is planned. The §5 "empty JWKS" claim is correct.
+- `auth.ts:21-26`, `:33` — no `ev.origin` check; wildcard `'*'` target. Matches §5 row 1, §9 quote.
+- `keepsave-widget.ts:78-87` — direct-credential branch returns before `setupPostMessageAuth`. §12 Invariant 1 confirmed.
+- `keepsave-widget.ts:7-9` — `observedAttributes` unchanged by either candidate. §12 contract preserved.
+- `keepsave-widget.ts:101-117` — `setupPostMessageAuth` body as framed.
+- `auth.test.ts` — six tests as claimed; "ignores unrelated" at 70-92 dispatches with default (test env) origin. Allow-list including test origin keeps them green. §12 Invariant 2 confirmed.
+- `LoginPage.tsx:32-33` — `apiLogin`/`onLogin`, no widget involvement. §12 Invariant 5 confirmed.
+- `middleware.go:59-120` — `JWTAuthMiddleware` 59-86, `APIKeyAuthMiddleware` 88-120, re-validates per request.
+- `auth/apikey.go` — SHA-256 hash, no origin scoping; §5 framing accurate.
+- `handlers_oauth.go:216-218` — JWKS returns empty `keys: []` with RS256-planned note; §5 claim correct.
 
-**§9 STRIDE match:** `docs/THREAT_MODEL.md` §4 "Embed widget (browser trust domain)", row **S (Spoofing)** at line 106: *"Malicious host page injects fake `keepsave-auth` postMessage → Mitigation: **None today** — listener has no origin check → Residual: **High**"*. Dossier quote matches verbatim (modulo whitespace). Trust-boundary direction (**narrows** under adoption of Candidates 1+2) is correct: no new entity enters the boundary; the allow-list endpoint is unauthenticated by design but constrains rather than extends trust.
+**§9 STRIDE match:** `docs/THREAT_MODEL.md` §4 "Embed widget (browser trust domain)", **row S (Spoofing)** at line 106 — quote matches verbatim. Trust-boundary **narrows** under adoption (no new entity enters; allow-list endpoint constrains rather than extends trust). Correct.
 
-**§10 trigger verification:** quoted text at `docs/EMBED_ORIGIN_POLICY.md:104-105` reads: *"Per-message MAC / replay protection. Considered but not needed at the current scope; `postMessage` semantics + origin checks are enough. Revisit if a customer with a high-threat model asks."* — matches dossier verbatim. (Dossier originally cited 103-105; line 103 is the section heading, not policy text. Corrected to 104-105 inline.)
+**§10 trigger verification:** Text at `docs/EMBED_ORIGIN_POLICY.md:104-105` matches dossier verbatim. Original draft cited 103-105 (103 is the section heading); corrected inline to 104-105.
 
-**Changes I made inline as part of this acceptance:**
+**Inline changes during acceptance:**
 
-1. **§5 retrofitted to refined-template format.** Moved the two `—` analog rows (`databroker` gRPC store, Envoy data plane) out of the §5 mapping table and into the new **Concepts deliberately not adopted** sub-table per template `c6eeab8`. Added two further entries (IdP / OIDC integration, session-cookie sign-on at proxy) for completeness — both are concepts Pomerium has that KeepSave deliberately doesn't transplant, and naming them explicitly closes the "why didn't they consider X" question.
-2. **§10 trigger line range corrected** from `103-105` to `104-105`. Line 103 is the heading "What gets deferred to Phase B"; the policy text starts at 104.
-3. **§1 status flipped** to `accepted` with reviewer date.
+1. §5 retrofitted to refined-template format: `databroker` and Envoy `—` rows moved to new **Concepts deliberately not adopted** sub-table; added IdP/OIDC and session-cookie sign-on for completeness.
+2. §10 trigger line range corrected `103-105` → `104-105`.
+3. §3, §4 condensed to bring total under 2700-word cap.
+4. §1 status flipped to `accepted`.
 
-**Non-blocking observations (for ADR Drafter on day 45):**
+**Non-blocking observations (for ADR Drafter, day 45):**
 
-- §11 specifies a `["*"]` sentinel meaning "policy disabled" rather than "permit all". This is footgun-shaped; the ADR should require an explicit `null`/empty config sentinel (e.g. `policy_enabled: false` field) rather than re-using `*` for a different meaning. Flagged but not blocking — the dossier already names the risk.
-- The unauthenticated `GET /api/v1/projects/:id/embed-config` endpoint creates a project-ID enumeration oracle. Dossier mitigates with rate-limit + identical 404 for "unknown" vs "empty"; ADR must verify both are implemented and tested before merge.
-- CVE-2024-47616 framing is fair: it's a JWT-validation flaw in Pomerium's databroker, not in the signed-header pattern itself. The transposition to Candidate 3 (treat audience/expiry checks as a known CVE class) is sound.
-- Candidate 3 cons section correctly identifies that the customer-side signing key becomes a new asset. The "fail-quiet vs fail-loud" framing (a leaked signing key produces silent bypasses worse than today's obvious wildcard) is exactly the right tradeoff to surface to the Security Engineer at ADR time.
+- §11 `["*"]` sentinel meaning "policy disabled" is footgun-shaped; ADR should use an explicit `policy_enabled: false` field instead of overloading `*`.
+- Unauthenticated `GET /api/v1/projects/:id/embed-config` is a project-ID enumeration oracle; ADR must verify rate-limit + identical 404 for "unknown" vs "empty" are implemented and tested.
+- CVE-2024-47616 framing is fair; transposition to Candidate 3 (audience/expiry checks as a known CVE class) is sound.
+- Candidate 3 "fail-quiet" risk (leaked customer signing key produces silent bypass — worse than today's obvious wildcard) is the right tradeoff to surface to the Security Engineer at ADR time.
 
-No reference failed to check out. All file:line citations resolve.
+No reference failed to check out.
