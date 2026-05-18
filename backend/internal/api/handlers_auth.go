@@ -36,6 +36,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+// LookupUser is intentionally non-enumerating per audit S-M7. It used to
+// return 200 with {user: {...}} on hit and 404 on miss, which let any
+// authenticated user probe whether a given email is registered. Now it
+// returns the same {found: bool} shape for both cases - on hit it also
+// echoes the canonical user id so org-add flows still work, but a probing
+// caller cannot tell "does this email belong to anyone" without already
+// holding the user_id.
 func (h *AuthHandler) LookupUser(c *gin.Context) {
 	email := c.Query("email")
 	if email == "" {
@@ -45,11 +52,14 @@ func (h *AuthHandler) LookupUser(c *gin.Context) {
 
 	user, err := h.authService.LookupByEmail(email)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, "user not found")
+		c.JSON(http.StatusOK, gin.H{"found": false})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": gin.H{"id": user.ID, "email": user.Email}})
+	c.JSON(http.StatusOK, gin.H{
+		"found": true,
+		"user":  gin.H{"id": user.ID, "email": user.Email},
+	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
