@@ -181,3 +181,41 @@ ADRs flipped to Accepted under sponsor authorization (group G): 0005, 0006, 0007
 Out of scope (deferred to Phase 3 per the plan): 12 MEDIUM + 8 LOW items, AWS/GCP KMS adapters, the full 132-cell negative-auth matrix, audit-log nightly export (PROD gate G16), Helm chart updates (PROD gate G19).
 
 Phase 2 (audit team recheck) follows next on the same branch.
+
+---
+
+## 7. Phase 3 closure (appended 2026-05-19)
+
+Commits I–N on `claude/audit-deployment-plan-moSsk`. Closes MEDIUM + LOW
+items plus the two informational findings the Phase 2 recheck surfaced.
+
+| ID | Severity | Status | Group | Notes |
+|---|---|---|---|---|
+| S-M1 | MEDIUM | **Closed** | I | `cascade_test.go` locks the existing `ON DELETE CASCADE` so a schema regression fails CI. |
+| S-M2 | MEDIUM | **Closed** | I | `logging/gin_middleware.go::redactQuery` replaces sensitive params with `REDACTED`. |
+| S-M3 | MEDIUM | **Partial (by design)** | (Phase 1 H) | ~42 cells cover BLOCKER/HIGH attack surface; full 132-cell matrix deferred per user's plan-question-4 choice. |
+| S-M4 | MEDIUM | **Closed** | N | ADR-0009 wired end-to-end: 90d default, 365d ceiling, past-time refused. NULL rows grandfathered. |
+| S-M5 | MEDIUM | **Closed** | (Phase 1 A) | `config.go` refuses `CORS_ORIGINS=*` in production. |
+| S-M6 | MEDIUM | **Deferred to Phase B** | — | Audit doc itself flagged for Phase B (audit-log nightly export = PROD gate G16). |
+| S-M7 | MEDIUM | **Closed** | I | `/users/lookup` returns `{found: bool}` for both hit and miss. |
+| S-M8 | MEDIUM | **Closed** | I | Backend Dockerfile adds non-root user (uid 10001); frontend uses `nginxinc/nginx-unprivileged:alpine`. |
+| B-M1 | MEDIUM | **Closed** | J | `PanicRecoveryMiddleware` emits canonical INTERNAL shape on panic; replaces `gin.Recovery()`. |
+| B-M2 | MEDIUM | **Verified — no fix needed** | J | No middleware reads `c.Request.Body`. |
+| F-M1 | MEDIUM | **Closed** | K | `docs/EMBED_ORIGIN_POLICY.md` operator-facing note on the `api-url` attribute requirement. |
+| F-M2 | MEDIUM | **Closed** | K | Already in `DEPLOYMENT_PLAN.md` §4.2; ref added. |
+| S-L1 / FU #0l | LOW | **Closed** | L | 61 of 62 `MustGet("user_id")` sites migrated to `getUserID(c)`; remaining one is the helper's doc comment. |
+| S-L2 | LOW | **Closed** | L | `internal/api/csrf.go` deleted - bearer-token only, CSRF moot. |
+| S-L3 | LOW | **Closed (operational note)** | M | `RUNBOOK.md` §8 documents leaked-dev-key reminder. |
+| S-L4 | LOW | **Closed (operational note)** | M | `RUNBOOK.md` §8 documents TLS-termination invariants. |
+| S-L5 | LOW | **Verified — no fix needed** | L | `lucide-react@^1.8.0` is the current stable line; `npm audit` clean. |
+| B-L1 | LOW | **Closed** | M | Three new DB-pool gauges, polled 15s, alerting thresholds in RUNBOOK §8. |
+| B-L2 | LOW | **Already closed** | (Phase 1 A) | Pruner goroutine takes a context. |
+| F-L1 | LOW | **Closed** | K | `tsconfig.json` adds `ignoreDeprecations: "5.0"`. |
+| **NEW-1** | INFO | **Closed** | L | Same as S-L1 — the 62-site MustGet refactor. |
+| **NEW-2** | INFO | **Closed** | J | `startHTTPRedirect` takes ctx; graceful Shutdown on cancel. |
+
+ADR-0009 flipped to Accepted under sponsor authorization; added to
+`docs/adr/README.md` index. ADRs 0008, 0014, 0015 remain Proposed
+pending implementation outside this PR.
+
+**Phase 4 audit-team recheck follows next.**
