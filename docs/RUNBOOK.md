@@ -130,6 +130,64 @@ Quarterly exercise to prove rotation plumbing works.
 - Reading "just to compare" without an incident issue.
 - Skipping the post-read rotation.
 
+## §7. UAT cutover (added 2026-05-18)
+
+The full prerequisite-by-prerequisite cutover runbook lives in
+[`docs/DEPLOYMENT_PLAN.md`](DEPLOYMENT_PLAN.md) §4. This section is the
+operator's quick-reference — read the DEPLOYMENT_PLAN for the long-form
+text + rollback procedure.
+
+### Before cutover
+
+All of `DEPLOYMENT_PLAN.md` §2 gates G1–G14 closed (verified by Phase 2
+audit-team recheck in `docs/audits/AUDIT_2026-05-19_RECHECK.md`).
+
+### Day-of checklist
+
+1. **Provision Neon** project `keepsave-uat`; capture pooled DSN.
+2. **Generate per-env secrets.** `openssl rand -base64 32` for
+   `MASTER_KEY`; `openssl rand -base64 48` for `JWT_SECRET`. Store in
+   the team vault under `keepsave/uat/*`.
+3. **Deploy backend** to Fly.io (`fly secrets set ... && fly deploy
+   --strategy rolling --wait-timeout 300`). `KEEPSAVE_ENV=uat` (or
+   `production` once you're ready to enforce the strict guards).
+   Confirm `/readyz` returns 200.
+4. **Configure Vercel** project (Root Directory = `frontend`); add
+   `VITE_API_BASE_URL=https://api-uat.keepsave.example/api/v1` for the
+   Preview + Production scopes. `vercel.json` is already committed.
+5. **Push to the cutover tag** — Vercel auto-builds and promotes.
+6. **Smoke-test** per `DEPLOYMENT_PLAN.md` §4.1 step 7 (12 checks).
+7. **Announce** the URL with a link to the smoke-test summary.
+
+### CORS pattern reminder
+
+`CORS_ORIGINS` accepts a comma-separated allow-list with single-`*`
+glob patterns for Vercel previews, e.g.
+`https://app.example.com,https://keepsave-uat-*-yourteam.vercel.app`.
+Never `*` in any deployed env (`internal/config/config.go` enforces).
+
+### Rollback
+
+- **Frontend**: Vercel → Deployments → Promote previous build.
+- **Backend**: `fly releases list` then `fly deploy --image
+  registry.fly.io/keepsave-uat:<prev-tag>`.
+- **Database**: Neon → Branches → restore from PITR to T-5min.
+
+### KMS caveat (UAT only)
+
+UAT uses a HashiCorp Vault dev sidecar per ADR-0012 / ADR-0016. **This
+is dev-only**. Production cutover requires the AWS / GCP KMS adapter
+work tracked as `FOLLOWUPS.md #1` (deferred from Phase 1 per ADR-0016).
+
+### Where to look when things go sideways during cutover
+
+- `/healthz`, `/readyz`, `/metrics` are unauthenticated and safe to
+  curl from any operator workstation.
+- Backend startup log includes `version` (sourced from
+  `internal/version`) and `provider` so you can confirm what's running.
+- `audit_log` table is the audit trail — the Phase 1 sweep wired
+  `secret/project/apikey/auth` mutations to it.
+
 ## Contact paths
 
 - Primary on-call: PagerDuty `keepsave-oncall`

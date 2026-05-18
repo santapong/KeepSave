@@ -13,6 +13,30 @@ This is the single source of truth for tracked technical debt and deferred work.
 
 ---
 
+## Closed (Phase 1 deployment sweep — 2026-05-18)
+
+PR #54 / branch `claude/audit-deployment-plan-moSsk`. Cross-references in `docs/audits/AUDIT_2026-05-18_DEPLOYMENT_READINESS.md` §6.
+
+- [x] **#0 Audit logging missing for Secret / Project / API-key mutations** — `emitAudit` wired into `internal/service/{secret,project,apikey,auth}_service.go`; `internal/service/audit_helper.go` is the nil-safe wrapper; `audit_helper_test.go` asserts rows are written.
+- [x] **#0a Error responses leak DB / crypto internals** — 125 `err.Error()` leak sites migrated to `httperror.WrapError` per `docs/ERROR_HANDLING_STANDARD.md`; `internal/api/error_leak_test.go` is the AST-walking regression gate.
+- [x] **#0b Embed widget accepts auth from any origin** — already landed in PR #50; this PR added the cross-origin CORS test surface that exercises the same boundary (`backend/internal/api/cors_test.go`).
+- [x] **#0c No handler-level negative-auth tests** — ~42 cells across `internal/api/negative_auth_test.go`, `internal/service/negative_auth_test.go`, `cors_test.go`, `url_safety_test.go`. Covers the BLOCKER/HIGH surface; full 132-cell matrix remains for Phase 3.
+- [x] **#0d / #5 Approver-cannot-be-requester invariant** — app-level `ErrSelfApproval` in `internal/service/promotion_service.go` + DB `CHECK` constraint in `migrations/{postgres,mysql,sqlite}/008_promotion_self_approval_check.sql`.
+- [x] **#9 Audit-log assertion coverage gaps** — every new mutating-service test asserts the audit row; covered by the same test sweep as #0.
+
+The following remain **open** because they are explicitly out of Phase 1 scope per the user's plan choices:
+
+- **#1 AWS / GCP KMS adapters** — deferred per ADR-0016 (Vault-only this round). Tracked unchanged.
+- **#0e Promotion feature-flag / kill switch** — not in Phase 1 scope.
+- **#0f CI permissions block** — already closed earlier.
+- **#0g CODEOWNERS** — Phase 3.
+- **#0h–0j Frontend follow-ups** — closed earlier in PRs #48/#49.
+- **#0k Default expiration on `ks_` keys** — Phase 3 (audit M-4).
+- **#0l `MustGet` panic refactor** — Phase 3 (recheck flagged it again).
+- **#2, #3, #6, #7, #8, #10** — unchanged.
+
+---
+
 ## Open — Phase A (MVP hardening)
 
 Top-of-list = highest leverage. Order matters — anything blocking a 30-day action in `docs/ROLES_30_60_90.md` goes first.
