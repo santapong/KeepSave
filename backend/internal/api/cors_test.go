@@ -15,10 +15,10 @@ func TestCORSMiddleware_AllowListAndGlobs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []struct {
-		name        string
-		cors        string
-		reqOrigin   string
-		wantHeader  string // expected ACAO; "" means not present
+		name          string
+		cors          string
+		reqOrigin     string
+		wantHeader    string // expected ACAO; "" means not present
 		wantPreflight int
 	}{
 		{
