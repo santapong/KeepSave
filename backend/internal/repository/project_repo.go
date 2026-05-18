@@ -187,6 +187,10 @@ func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, er
 	// Single round-trip: covers owner OR org-member. organization_id may be
 	// NULL when the project is not assigned to an org (single-user case);
 	// in that path only the owner check matches.
+	// userID is referenced twice (once for owner, once for org-member).
+	// SQLite's "?" placeholders are positional by argument index, so we
+	// list distinct placeholders ($1 project, $2 user-as-owner, $3
+	// user-as-member) and pass userID twice.
 	query := Q(r.dialect, `
 		SELECT EXISTS (
 			SELECT 1 FROM projects p
@@ -197,14 +201,14 @@ func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, er
 					AND EXISTS (
 						SELECT 1 FROM organization_members om
 						WHERE om.organization_id = p.organization_id
-						AND om.user_id = $2
+						AND om.user_id = $3
 					)
 				)
 			)
 		)
 	`)
 	var allowed bool
-	if err := r.db.QueryRow(query, projectID, userID).Scan(&allowed); err != nil {
+	if err := r.db.QueryRow(query, projectID, userID, userID).Scan(&allowed); err != nil {
 		return false, fmt.Errorf("checking project access: %w", err)
 	}
 	if !allowed {
