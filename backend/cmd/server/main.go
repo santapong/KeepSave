@@ -227,7 +227,7 @@ func main() {
 	if tlsEnabled {
 		srv.TLSConfig = buildTLSConfig(cfg.TLSCipherSuites)
 		if cfg.TLSRedirect {
-			go startHTTPRedirect(logger)
+			go startHTTPRedirect(bgCtx, logger)
 		}
 	}
 
@@ -323,8 +323,10 @@ func buildTLSConfig(cipherList string) *tls.Config {
 }
 
 // startHTTPRedirect serves a plain-HTTP listener on :80 that 301-redirects
-// every request to https://<host><path>.
-func startHTTPRedirect(logger *logging.Logger) {
+// every request to https://<host><path>. The listener honors ctx so a
+// SIGTERM tears it down together with the main server - per audit Phase 2
+// recheck NEW-2 (consistency with the pruner-goroutine pattern).
+func startHTTPRedirect(ctx context.Context, logger *logging.Logger) {
 	srv := &http.Server{
 		Addr: ":80",
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -333,9 +335,18 @@ func startHTTPRedirect(logger *logging.Logger) {
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
-		logger.Error("http redirect listener exited", map[string]interface{}{"error": err.Error()})
-	}
+	done := make(chan struct{})
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("http redirect listener exited", map[string]interface{}{"error": err.Error()})
+		}
+		close(done)
+	}()
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+	<-done
 }
 
 // startAuditLogPruner deletes audit_log rows older than retentionDays on

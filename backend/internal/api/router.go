@@ -28,7 +28,9 @@ func SetupRouter(
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	// Custom recovery replaces gin.Recovery() so a panic produces the
+	// same {"error":{...}} shape as a returned error - per audit B-M1.
+	r.Use(PanicRecoveryMiddleware())
 	r.Use(TrustedProxyMiddleware())
 	r.Use(SecurityHeadersMiddleware())
 	r.Use(RequestSizeLimitMiddleware(1 << 20))
