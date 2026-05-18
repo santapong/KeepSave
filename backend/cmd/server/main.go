@@ -210,6 +210,9 @@ func main() {
 	// the context is cancelled or when retention is disabled (days <= 0).
 	go startAuditLogPruner(bgCtx, logger, auditRepo, cfg.AuditLogRetentionDays)
 
+	// DB pool gauges (audit B-L1). Polled every 15s; exits on shutdown.
+	go metrics.StartDBPoolUpdater(bgCtx, db, appMetrics)
+
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
 		"version":  version.Version,

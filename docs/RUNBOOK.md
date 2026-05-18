@@ -188,6 +188,32 @@ work tracked as `FOLLOWUPS.md #1` (deferred from Phase 1 per ADR-0016).
 - `audit_log` table is the audit trail — the Phase 1 sweep wired
   `secret/project/apikey/auth` mutations to it.
 
+## §8. Operational reminders (added 2026-05-19)
+
+These do not require code; they are notes operators must internalize.
+
+### S-L3 — the dev MASTER_KEY is permanently leaked
+
+`docker-compose.yml:25` ships `MASTER_KEY=43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=`. This value is in git history and on every contributor's machine. **It must never appear in any non-dev environment.** The `KEEPSAVE_ENV=production` startup check refuses it by SHA-256 hash (`backend/internal/config/config.go:17`); the check is the safety net, not the policy. If you copy it into staging/UAT/PROD by accident, treat the affected env as a compromise — rotate immediately and audit access logs from the moment the key entered the env.
+
+### S-L4 — where TLS terminates
+
+KeepSave's HSTS header is emitted unconditionally by `security_headers.go`. HSTS is meaningful only over HTTPS; if you terminate TLS at the Go process (`TLS_CERT_FILE`/`TLS_KEY_FILE` set), the HSTS chain is end-to-end. If you terminate TLS at an upstream ingress (Vercel edge, Cloud Run frontend, Fly handler), the Go process speaks plaintext to that ingress and HSTS still propagates correctly to the browser because the browser's hop is HTTPS. Confirm per environment that:
+
+- the ingress speaks HTTPS to the browser
+- the ingress propagates `X-Forwarded-Proto: https` (so KeepSave knows it's behind TLS for OAuth redirect-URI building)
+- the backend is NOT directly reachable from the public internet bypassing the ingress
+
+### DB pool gauges (B-L1)
+
+Three new gauges appear at `/metrics`:
+
+- `keepsave_db_open_connections` — total established connections
+- `keepsave_db_in_use_connections` — checked-out connections
+- `keepsave_db_idle_connections` — idle pool members
+
+Alert when `in_use / open` stays > 0.8 for 5 minutes (saturation) or when `open` oscillates more than 25% in a 1-minute window (pool churn from Neon idle eviction — re-check `ConnMaxLifetime`).
+
 ## Contact paths
 
 - Primary on-call: PagerDuty `keepsave-oncall`
