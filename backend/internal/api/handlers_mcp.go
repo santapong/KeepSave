@@ -23,7 +23,7 @@ func NewMCPHubHandler(mcpService *service.MCPService, builderService *service.MC
 func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 	var req RegisterMCPServerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 		req.EntryCommand, req.Transport, req.IconURL, req.Version, envMappings, req.IsPublic,
 	)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -68,7 +68,7 @@ func (h *MCPHubHandler) GetServer(c *gin.Context) {
 func (h *MCPHubHandler) ListPublicServers(c *gin.Context) {
 	servers, err := h.mcpService.ListPublicServers()
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *MCPHubHandler) ListMyServers(c *gin.Context) {
 
 	servers, err := h.mcpService.ListMyServers(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -106,7 +106,7 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 
 	var req UpdateMCPServerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 	}
 
 	if err := h.mcpService.UpdateServer(server); err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 
@@ -144,7 +144,7 @@ func (h *MCPHubHandler) DeleteServer(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
 	if err := h.mcpService.DeleteServer(serverID, userID); err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 
@@ -170,7 +170,7 @@ func (h *MCPHubHandler) RebuildServer(c *gin.Context) {
 func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 	var req InstallMCPServerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -199,7 +199,7 @@ func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 
 	inst, err := h.mcpService.InstallServer(userID, mcpServerID, projectID, config)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -211,7 +211,7 @@ func (h *MCPHubHandler) ListInstallations(c *gin.Context) {
 
 	installations, err := h.mcpService.ListInstallations(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -231,12 +231,12 @@ func (h *MCPHubHandler) UpdateInstallation(c *gin.Context) {
 
 	var req UpdateInstallationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	if err := h.mcpService.UpdateInstallation(instID, req.Enabled, req.Config); err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 
@@ -253,7 +253,7 @@ func (h *MCPHubHandler) UninstallServer(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 
 	if err := h.mcpService.UninstallServer(instID, userID); err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *MCPHubHandler) ListUserTools(c *gin.Context) {
 
 	serversWithTools, err := h.mcpService.ListUserTools(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -283,7 +283,7 @@ func (h *MCPHubHandler) GetGatewayStats(c *gin.Context) {
 
 	stats, err := h.mcpService.GetGatewayStats(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

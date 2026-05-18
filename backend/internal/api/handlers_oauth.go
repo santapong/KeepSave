@@ -21,13 +21,13 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 func (h *OAuthHandler) RegisterClient(c *gin.Context) {
 	var req RegisterOAuthClientRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	userID := c.MustGet("user_id").(uuid.UUID)
 	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"client": client, "client_secret": rawSecret})
@@ -37,7 +37,7 @@ func (h *OAuthHandler) ListClients(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 	clients, err := h.oauthService.ListClients(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 	if clients == nil {
@@ -54,7 +54,7 @@ func (h *OAuthHandler) DeleteClient(c *gin.Context) {
 		return
 	}
 	if err := h.oauthService.DeleteClient(clientID, userID); err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -82,7 +82,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	}
 	code, err := h.oauthService.Authorize(clientID, userID, redirectURI, scopes, codeChallenge, codeChallengeMethod)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": code, "redirect_uri": redirectURI})
@@ -115,7 +115,7 @@ func (h *OAuthHandler) handleTokenJSON(c *gin.Context, req TokenRequest) {
 	case "authorization_code":
 		resp, err := h.oauthService.ExchangeCode(req.Code, req.ClientID, req.ClientSecret, req.RedirectURI, req.CodeVerifier)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, err.Error())
+			WrapError(c, Wrap(ErrInvalidInput, err))
 			return
 		}
 		c.JSON(http.StatusOK, resp)
@@ -126,14 +126,14 @@ func (h *OAuthHandler) handleTokenJSON(c *gin.Context, req TokenRequest) {
 		}
 		resp, err := h.oauthService.ClientCredentialsGrant(req.ClientID, req.ClientSecret, scopes)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, err.Error())
+			WrapError(c, Wrap(ErrInvalidInput, err))
 			return
 		}
 		c.JSON(http.StatusOK, resp)
 	case "refresh_token":
 		resp, err := h.oauthService.RefreshToken(req.RefreshToken, req.ClientID, req.ClientSecret)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, err.Error())
+			WrapError(c, Wrap(ErrInvalidInput, err))
 			return
 		}
 		c.JSON(http.StatusOK, resp)
@@ -145,7 +145,7 @@ func (h *OAuthHandler) handleTokenJSON(c *gin.Context, req TokenRequest) {
 func (h *OAuthHandler) handleAuthorizationCodeGrant(c *gin.Context) {
 	resp, err := h.oauthService.ExchangeCode(c.PostForm("code"), c.PostForm("client_id"), c.PostForm("client_secret"), c.PostForm("redirect_uri"), c.PostForm("code_verifier"))
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusOK, resp)
@@ -158,7 +158,7 @@ func (h *OAuthHandler) handleClientCredentialsGrant(c *gin.Context) {
 	}
 	resp, err := h.oauthService.ClientCredentialsGrant(c.PostForm("client_id"), c.PostForm("client_secret"), scopes)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusOK, resp)
@@ -167,7 +167,7 @@ func (h *OAuthHandler) handleClientCredentialsGrant(c *gin.Context) {
 func (h *OAuthHandler) handleRefreshTokenGrant(c *gin.Context) {
 	resp, err := h.oauthService.RefreshToken(c.PostForm("refresh_token"), c.PostForm("client_id"), c.PostForm("client_secret"))
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusOK, resp)
@@ -186,7 +186,7 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	}
 	info, err := h.oauthService.GetUserInfo(parts[1])
 	if err != nil {
-		RespondError(c, http.StatusUnauthorized, err.Error())
+		WrapError(c, Wrap(ErrUnauthorized, err))
 		return
 	}
 	c.JSON(http.StatusOK, info)
@@ -207,7 +207,7 @@ func (h *OAuthHandler) Revoke(c *gin.Context) {
 		return
 	}
 	if err := h.oauthService.RevokeToken(token); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"revoked": true})

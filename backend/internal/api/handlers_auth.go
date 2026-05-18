@@ -19,7 +19,7 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -29,7 +29,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			RespondError(c, http.StatusConflict, "email already registered")
 			return
 		}
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -55,13 +55,13 @@ func (h *AuthHandler) LookupUser(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	resp, err := h.authService.Login(req.Email, req.Password)
 	if err != nil {
-		RespondError(c, http.StatusUnauthorized, err.Error())
+		WrapError(c, Wrap(ErrUnauthorized, err))
 		return
 	}
 

@@ -20,7 +20,7 @@ func NewProjectHandler(projectService *service.ProjectService) *ProjectHandler {
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var req CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -28,7 +28,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 	project, err := h.projectService.Create(req.Name, req.Description, userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -40,7 +40,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 
 	projects, err := h.projectService.List(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 func (h *ProjectHandler) Update(c *gin.Context) {
 	var req UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 

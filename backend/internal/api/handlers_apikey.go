@@ -21,7 +21,7 @@ func NewAPIKeyHandler(apikeyService *service.APIKeyService) *APIKeyHandler {
 func (h *APIKeyHandler) Create(c *gin.Context) {
 	var req CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -43,7 +43,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 			RespondError(c, http.StatusForbidden, "not authorized for this project")
 			return
 		}
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 
 	keys, err := h.apikeyService.List(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

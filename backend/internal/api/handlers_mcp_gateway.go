@@ -200,7 +200,7 @@ func (h *MCPGatewayHandler) MCPConfig(c *gin.Context) {
 
 	installations, err := h.mcpService.ListInstallations(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

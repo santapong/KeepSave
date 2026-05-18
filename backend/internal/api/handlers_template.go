@@ -20,7 +20,7 @@ func NewTemplateHandler(templateService *service.TemplateService) *TemplateHandl
 func (h *TemplateHandler) Create(c *gin.Context) {
 	var req CreateTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -37,7 +37,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 
 	tmpl, err := h.templateService.Create(req.Name, req.Description, req.Stack, req.Keys, userID, orgID, req.IsGlobal)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -58,7 +58,7 @@ func (h *TemplateHandler) List(c *gin.Context) {
 
 	templates, err := h.templateService.List(userID, orgID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 func (h *TemplateHandler) Update(c *gin.Context) {
 	var req UpdateTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -100,7 +100,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 
 	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -115,7 +115,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.templateService.Delete(templateID); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 func (h *TemplateHandler) Apply(c *gin.Context) {
 	var req ApplyTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *TemplateHandler) Apply(c *gin.Context) {
 
 	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

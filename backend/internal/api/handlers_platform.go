@@ -33,7 +33,7 @@ func NewPlatformHandler(bus *events.Bus, registry *plugins.Registry, ps policySt
 func (h *PlatformHandler) ListEvents(c *gin.Context) {
 	evts, err := h.eventBus.GetRecentEvents(100)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -46,12 +46,12 @@ func (h *PlatformHandler) ReplayEvents(c *gin.Context) {
 		EventType string `json:"event_type" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	if err := h.eventBus.Replay(req.EventType, time.Now().Add(-24*time.Hour)); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *PlatformHandler) ReplayEvents(c *gin.Context) {
 func (h *PlatformHandler) ListPlugins(c *gin.Context) {
 	pluginList, err := h.pluginRegistry.ListPlugins()
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -78,13 +78,13 @@ func (h *PlatformHandler) RegisterPlugin(c *gin.Context) {
 		Config     models.JSONMap `json:"config"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	plugin, err := h.pluginRegistry.RegisterPlugin(req.Name, req.PluginType, req.Version, req.Config)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -103,12 +103,12 @@ func (h *PlatformHandler) TogglePlugin(c *gin.Context) {
 		Enabled bool `json:"enabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	if err := h.pluginRegistry.TogglePlugin(pluginID, req.Enabled); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *PlatformHandler) ListAccessPolicies(c *gin.Context) {
 
 	policies, err := h.policyDB.GetPolicies(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *PlatformHandler) CreateAccessPolicy(c *gin.Context) {
 		Config     models.JSONMap `json:"config" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *PlatformHandler) CreateAccessPolicy(c *gin.Context) {
 
 	created, err := h.policyDB.CreatePolicy(policy)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -176,7 +176,7 @@ func (h *PlatformHandler) DeleteAccessPolicy(c *gin.Context) {
 	}
 
 	if err := h.policyDB.DeletePolicy(policyID); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

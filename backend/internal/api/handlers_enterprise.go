@@ -43,13 +43,13 @@ func (h *EnterpriseHandler) ConfigureSSO(c *gin.Context) {
 		Metadata     models.JSONMap `json:"metadata"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	config, err := h.ssoService.ConfigureSSO(orgID, req.Provider, req.IssuerURL, req.ClientID, req.ClientSecret, req.Metadata)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -66,7 +66,7 @@ func (h *EnterpriseHandler) ListSSOConfigs(c *gin.Context) {
 
 	configs, err := h.ssoService.ListSSOConfigs(orgID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *EnterpriseHandler) DeleteSSOConfig(c *gin.Context) {
 	provider := c.Param("provider")
 
 	if err := h.ssoService.DeleteSSOConfig(orgID, provider); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -102,14 +102,14 @@ func (h *EnterpriseHandler) GenerateComplianceReport(c *gin.Context) {
 		ReportType string `json:"report_type" binding:"required,oneof=soc2 gdpr pci"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	userID := c.MustGet("user_id").(uuid.UUID)
 	report, err := h.complianceService.GenerateReport(orgID, userID, req.ReportType)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *EnterpriseHandler) ListComplianceReports(c *gin.Context) {
 
 	reports, err := h.complianceService.ListReports(orgID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *EnterpriseHandler) CreateBackup(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 	snapshot, err := h.backupService.CreateBackup(projectID, userID, req.Type)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *EnterpriseHandler) ListBackups(c *gin.Context) {
 
 	backups, err := h.backupService.ListBackups(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -209,13 +209,13 @@ func (h *EnterpriseHandler) SetSecretPolicy(c *gin.Context) {
 		RequireRotation bool `json:"require_rotation"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	policy, err := h.policyService.SetPolicy(projectID, req.MaxAgeDays, req.ReminderDays, req.RequireRotation)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
