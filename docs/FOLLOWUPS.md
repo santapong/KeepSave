@@ -58,6 +58,60 @@ as the current stable line (S-L5 — `npm audit` clean).
 
 ---
 
+## Backlog (deferred from PR #54 deployment audit, 2026-05-20)
+
+These items were intentionally **not** addressed by the BLOCKER + HIGH +
+MEDIUM + LOW sweep on `claude/audit-deployment-plan-moSsk`. Listed here
+so an operator coming in cold sees the explicit remaining surface.
+
+### Deferred by design (audit + plan choice)
+
+- **S-M3 — Full 132-cell negative-auth test matrix.** The Phase 1 sweep
+  added ~42 cells covering the BLOCKER + HIGH attack surface
+  (`internal/api/negative_auth_test.go`,
+  `internal/service/negative_auth_test.go`, `cors_test.go`,
+  `url_safety_test.go`). The remaining ~90 cells (per
+  `tests/NEGATIVE_AUTH_PLAN.md`) were deferred per the user's
+  plan-question-4 choice during Phase 0. Trigger to revisit: any new
+  endpoint that handles a project ID, OR a customer security review
+  asking for the matrix completion.
+- **S-M6 — Audit-log tamper-evident storage.** The original audit
+  itself routed this to Phase B. Phase A operators export the
+  `audit_log` table nightly to an immutable bucket (GCS Object
+  Lock / S3 Object Lock) — see `DEPLOYMENT_PLAN.md` PROD gate G16.
+  Hash-chain / MAC inside the row is the Phase B mechanism; revisit
+  when a customer SLA names "tamper-evident audit" as a requirement.
+- **FOLLOWUPS #1 — AWS / GCP KMS adapters.** Deferred per ADR-0016 /
+  user's plan-question-3 choice. Vault provider (already wired) is the
+  UAT path. Trigger: production cloud is decided (GCP → wire GCP KMS;
+  AWS → wire AWS KMS).
+
+### Still tracked in this file's other sections
+
+- **#0e Promotion feature-flag / kill switch** (Phase A).
+- **#0g CODEOWNERS for security-critical paths** (Phase A).
+- **#2 Backup tamper-detection test** (Phase A, 60 days).
+- **#3 DEK rotation API** (Phase A, 60 days).
+- **#6 Phase 15 service unit tests** (Phase A, 60 days).
+- **#7 Nonce-collision monitoring per DEK** (Phase A, 90 days).
+- **#8 Seidr-runtime boot in E2E harness** (Phase A, 60 days).
+- **#10 FIPS-mode evaluation** (Phase A decision).
+- All **Phase B** items (per-environment DEK, JWT denylist, fine-grained
+  scopes, three-of-N approval, HKDF subkey, ephemeral attested workload
+  identity, lease-renewal grammar).
+
+### ADRs still Proposed
+
+- **ADR-0008** (RS256 JWKS rotation).
+- **ADR-0014** (Audit log taxonomy extension).
+- **ADR-0015** (`safego` helper and audit emission).
+
+ADRs 0005, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0016 are Accepted
+under sponsor authorization. Retroactive Security + Tech Lead sign-off
+remains pending per CLAUDE.md §"Decision classes".
+
+---
+
 ## Open — Phase A (MVP hardening)
 
 Top-of-list = highest leverage. Order matters — anything blocking a 30-day action in `docs/ROLES_30_60_90.md` goes first.
