@@ -34,22 +34,25 @@ type EmbedConfig struct {
 type ProjectService struct {
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
 }
 
 func NewProjectService(
 	projectRepo *repository.ProjectRepository,
 	envRepo *repository.EnvironmentRepository,
+	auditRepo *repository.AuditRepository,
 	cryptoSvc *crypto.Service,
 ) *ProjectService {
 	return &ProjectService{
 		projectRepo: projectRepo,
 		envRepo:     envRepo,
+		auditRepo:   auditRepo,
 		cryptoSvc:   cryptoSvc,
 	}
 }
 
-func (s *ProjectService) Create(name, description string, ownerID uuid.UUID) (*models.Project, error) {
+func (s *ProjectService) Create(name, description string, ownerID uuid.UUID, ipAddr string) (*models.Project, error) {
 	dek, err := s.cryptoSvc.GenerateDEK()
 	if err != nil {
 		return nil, fmt.Errorf("generating DEK: %w", err)
@@ -69,6 +72,9 @@ func (s *ProjectService) Create(name, description string, ownerID uuid.UUID) (*m
 		return nil, fmt.Errorf("creating default environments: %w", err)
 	}
 
+	emitAudit(s.auditRepo, &ownerID, &project.ID, "project.created", "",
+		models.JSONMap{"name": name}, ipAddr)
+
 	return project, nil
 }
 
@@ -87,7 +93,7 @@ func (s *ProjectService) List(ownerID uuid.UUID) ([]models.Project, error) {
 	return s.projectRepo.ListByOwnerID(ownerID)
 }
 
-func (s *ProjectService) Update(id, ownerID uuid.UUID, name, description string) (*models.Project, error) {
+func (s *ProjectService) Update(id, ownerID uuid.UUID, name, description, ipAddr string) (*models.Project, error) {
 	project, err := s.projectRepo.GetByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -95,7 +101,13 @@ func (s *ProjectService) Update(id, ownerID uuid.UUID, name, description string)
 	if project.OwnerID != ownerID {
 		return nil, fmt.Errorf("project not found")
 	}
-	return s.projectRepo.Update(id, name, description)
+	updated, err := s.projectRepo.Update(id, name, description)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &ownerID, &id, "project.updated", "",
+		models.JSONMap{"name": name}, ipAddr)
+	return updated, nil
 }
 
 // GetEmbedConfig returns the public embed-widget configuration for a project.
@@ -157,7 +169,7 @@ func (s *ProjectService) UpdateEmbedConfig(id, ownerID uuid.UUID, allowedOrigins
 	return s.projectRepo.UpdateEmbedConfig(id, allowedOrigins, embedPolicyEnabled)
 }
 
-func (s *ProjectService) Delete(id, ownerID uuid.UUID) error {
+func (s *ProjectService) Delete(id, ownerID uuid.UUID, ipAddr string) error {
 	project, err := s.projectRepo.GetByID(id)
 	if err != nil {
 		return fmt.Errorf("getting project: %w", err)
@@ -165,5 +177,10 @@ func (s *ProjectService) Delete(id, ownerID uuid.UUID) error {
 	if project.OwnerID != ownerID {
 		return fmt.Errorf("project not found")
 	}
-	return s.projectRepo.Delete(id)
+	if err := s.projectRepo.Delete(id); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &ownerID, &id, "project.deleted", "",
+		models.JSONMap{"name": project.Name}, ipAddr)
+	return nil
 }

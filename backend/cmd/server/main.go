@@ -101,9 +101,9 @@ func main() {
 	appRepo := repository.NewApplicationRepository(db, dialect)
 
 	authService := service.NewAuthService(userRepo, jwtService)
-	projectService := service.NewProjectService(projectRepo, envRepo, cryptoSvc)
-	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, cryptoSvc)
-	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo)
+	projectService := service.NewProjectService(projectRepo, envRepo, auditRepo, cryptoSvc)
+	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
+	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo, auditRepo)
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, cryptoSvc)
 	webhookService := service.NewWebhookService()
@@ -290,7 +290,11 @@ func resolveMasterKey(ctx context.Context, cfg *config.Config) ([]byte, error) {
 		}
 		return p.GetMasterKey(ctx)
 	case "awskms", "gcpkms":
-		return nil, fmt.Errorf("KEEPSAVE_KEY_PROVIDER=%s requires the SDK adapter; see docs/RUNBOOK.md and helm/keepsave/values.yaml", cfg.KeyProvider)
+		// Deferred per ADR-0016 / DEPLOYMENT_PLAN.md: this round wires
+		// Vault only. AWS/GCP adapters require pulling in their SDKs and
+		// are tracked as FOLLOWUPS #1. Use KEEPSAVE_KEY_PROVIDER=vault for
+		// UAT and early PROD; revisit when the production cloud is fixed.
+		return nil, fmt.Errorf("KEEPSAVE_KEY_PROVIDER=%s is not wired in this build (deferred per ADR-0016, tracked as FOLLOWUPS #1); use KEEPSAVE_KEY_PROVIDER=vault or env", cfg.KeyProvider)
 	default:
 		return nil, fmt.Errorf("unknown KEEPSAVE_KEY_PROVIDER=%q", cfg.KeyProvider)
 	}

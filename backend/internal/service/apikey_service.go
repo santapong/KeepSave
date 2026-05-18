@@ -19,10 +19,11 @@ var (
 type APIKeyService struct {
 	apikeyRepo  *repository.APIKeyRepository
 	projectRepo *repository.ProjectRepository
+	auditRepo   *repository.AuditRepository
 }
 
-func NewAPIKeyService(apikeyRepo *repository.APIKeyRepository, projectRepo *repository.ProjectRepository) *APIKeyService {
-	return &APIKeyService{apikeyRepo: apikeyRepo, projectRepo: projectRepo}
+func NewAPIKeyService(apikeyRepo *repository.APIKeyRepository, projectRepo *repository.ProjectRepository, auditRepo *repository.AuditRepository) *APIKeyService {
+	return &APIKeyService{apikeyRepo: apikeyRepo, projectRepo: projectRepo, auditRepo: auditRepo}
 }
 
 type CreateAPIKeyResponse struct {
@@ -30,7 +31,7 @@ type CreateAPIKeyResponse struct {
 	RawKey string         `json:"raw_key"`
 }
 
-func (s *APIKeyService) Create(name string, userID, projectID uuid.UUID, scopes []string, environment *string) (*CreateAPIKeyResponse, error) {
+func (s *APIKeyService) Create(name string, userID, projectID uuid.UUID, scopes []string, environment *string, ipAddr string) (*CreateAPIKeyResponse, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, ErrProjectNotFound
@@ -53,6 +54,13 @@ func (s *APIKeyService) Create(name string, userID, projectID uuid.UUID, scopes 
 		return nil, fmt.Errorf("storing api key: %w", err)
 	}
 
+	envStr := ""
+	if environment != nil {
+		envStr = *environment
+	}
+	emitAudit(s.auditRepo, &userID, &projectID, "apikey.created", envStr,
+		models.JSONMap{"key_id": apiKey.ID.String(), "name": name, "scopes": scopes}, ipAddr)
+
 	return &CreateAPIKeyResponse{
 		APIKey: apiKey,
 		RawKey: rawKey,
@@ -63,6 +71,11 @@ func (s *APIKeyService) List(userID uuid.UUID) ([]models.APIKey, error) {
 	return s.apikeyRepo.ListByUserID(userID)
 }
 
-func (s *APIKeyService) Delete(id, userID uuid.UUID) error {
-	return s.apikeyRepo.Delete(id, userID)
+func (s *APIKeyService) Delete(id, userID uuid.UUID, ipAddr string) error {
+	if err := s.apikeyRepo.Delete(id, userID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "apikey.deleted", "",
+		models.JSONMap{"key_id": id.String()}, ipAddr)
+	return nil
 }

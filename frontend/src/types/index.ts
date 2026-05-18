@@ -76,8 +76,11 @@ export interface PromotionRequest {
 export interface DiffEntry {
   key: string;
   action: 'add' | 'update' | 'no_change';
-  source_value?: string;
-  target_value?: string;
+  // Per audit S-B4 the API no longer returns plaintext values in promote
+  // diffs. source_hash / target_hash are per-project HMAC prefixes;
+  // equality of the two implies value equality without revealing either.
+  source_hash?: string;
+  target_hash?: string;
   source_exists: boolean;
   target_exists: boolean;
 }

@@ -29,6 +29,16 @@ func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 
 	userID := c.MustGet("user_id").(uuid.UUID)
 
+	// Reject unsafe entry commands at registration time so they never reach
+	// the DB. The same validator runs again at exec time as defence in
+	// depth (an admin or migration could in principle bypass this check).
+	if req.EntryCommand != "" {
+		if _, err := validateMCPEntryCommand(req.EntryCommand); err != nil {
+			WrapError(c, Wrap(ErrInvalidInput, err))
+			return
+		}
+	}
+
 	var envMappings models.JSONMap
 	if req.EnvMappings != nil {
 		envMappings = req.EnvMappings

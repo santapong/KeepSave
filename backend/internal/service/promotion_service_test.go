@@ -148,6 +148,59 @@ func TestOverridePolicyValidation(t *testing.T) {
 	}
 }
 
+// TestHashSecretForDiff_NoPlaintextLeak verifies the function returns a
+// fixed-length hex string that never contains the input plaintext - the
+// core property the audit S-B4 fix depends on.
+func TestHashSecretForDiff_NoPlaintextLeak(t *testing.T) {
+	dek := make([]byte, 32)
+	for i := range dek {
+		dek[i] = byte(i)
+	}
+	cases := []string{
+		"hunter2",
+		"correct horse battery staple",
+		"sk-live-1234567890abcdef",
+		"",
+	}
+	for _, plain := range cases {
+		got := hashSecretForDiff(dek, []byte(plain))
+		if len(got) != diffHashLen {
+			t.Fatalf("hash length = %d, want %d", len(got), diffHashLen)
+		}
+		if plain != "" && containsSubstring(got, plain) {
+			t.Errorf("hash %q contains plaintext %q", got, plain)
+		}
+	}
+}
+
+func TestHashSecretForDiff_DeterministicAndKeyed(t *testing.T) {
+	dekA := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	dekB := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	val := []byte("same-value")
+	if hashSecretForDiff(dekA, val) != hashSecretForDiff(dekA, val) {
+		t.Error("same DEK + value should produce same hash")
+	}
+	if hashSecretForDiff(dekA, val) == hashSecretForDiff(dekB, val) {
+		t.Error("different DEKs should produce different hashes for the same value")
+	}
+}
+
+func containsSubstring(haystack, needle string) bool {
+	if needle == "" {
+		return true
+	}
+	return len(haystack) >= len(needle) && indexOf(haystack, needle) >= 0
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
 func TestEnvOrder(t *testing.T) {
 	if envOrder["alpha"] >= envOrder["uat"] {
 		t.Error("alpha should be before uat")

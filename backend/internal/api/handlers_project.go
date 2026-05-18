@@ -26,7 +26,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 	userID := c.MustGet("user_id").(uuid.UUID)
 
-	project, err := h.projectService.Create(req.Name, req.Description, userID)
+	project, err := h.projectService.Create(req.Name, req.Description, userID, c.GetString("client_ip"))
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -84,7 +84,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	project, err := h.projectService.Update(projectID, userID, req.Name, req.Description)
+	project, err := h.projectService.Update(projectID, userID, req.Name, req.Description, c.GetString("client_ip"))
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "project not found")
 		return
@@ -102,7 +102,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.projectService.Delete(projectID, userID); err != nil {
+	if err := h.projectService.Delete(projectID, userID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "project not found")
 		return
 	}

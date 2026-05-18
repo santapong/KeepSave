@@ -33,7 +33,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment)
+	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment, c.GetString("client_ip"))
 	if err != nil {
 		if errors.Is(err, service.ErrProjectNotFound) {
 			RespondError(c, http.StatusNotFound, "project not found")
@@ -75,7 +75,7 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.apikeyService.Delete(keyID, userID); err != nil {
+	if err := h.apikeyService.Delete(keyID, userID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "api key not found")
 		return
 	}
