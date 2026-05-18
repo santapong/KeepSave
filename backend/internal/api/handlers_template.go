@@ -24,7 +24,10 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var orgID *uuid.UUID
 	if req.OrganizationID != "" {
 		id, err := uuid.Parse(req.OrganizationID)
@@ -45,7 +48,10 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 }
 
 func (h *TemplateHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var orgID *uuid.UUID
 	if orgIDStr := c.Query("organization_id"); orgIDStr != "" {
 		id, err := uuid.Parse(orgIDStr)

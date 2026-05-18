@@ -24,7 +24,10 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	project, err := h.projectService.Create(req.Name, req.Description, userID, c.GetString("client_ip"))
 	if err != nil {
@@ -36,7 +39,10 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 }
 
 func (h *ProjectHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projects, err := h.projectService.List(userID)
 	if err != nil {
@@ -52,7 +58,10 @@ func (h *ProjectHandler) List(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Get(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -76,7 +85,10 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -94,7 +106,10 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Delete(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

@@ -27,7 +27,10 @@ func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	// Reject unsafe entry commands at registration time so they never reach
 	// the DB. The same validator runs again at exec time as defence in
@@ -90,7 +93,10 @@ func (h *MCPHubHandler) ListPublicServers(c *gin.Context) {
 }
 
 func (h *MCPHubHandler) ListMyServers(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	servers, err := h.mcpService.ListMyServers(userID)
 	if err != nil {
@@ -112,7 +118,10 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	var req UpdateMCPServerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -151,7 +160,10 @@ func (h *MCPHubHandler) DeleteServer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	if err := h.mcpService.DeleteServer(serverID, userID); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
@@ -184,7 +196,10 @@ func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	mcpServerID, err := uuid.Parse(req.MCPServerID)
 	if err != nil {
@@ -217,7 +232,10 @@ func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 }
 
 func (h *MCPHubHandler) ListInstallations(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	installations, err := h.mcpService.ListInstallations(userID)
 	if err != nil {
@@ -260,7 +278,10 @@ func (h *MCPHubHandler) UninstallServer(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	if err := h.mcpService.UninstallServer(instID, userID); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
@@ -273,7 +294,10 @@ func (h *MCPHubHandler) UninstallServer(c *gin.Context) {
 // Gateway
 
 func (h *MCPHubHandler) ListUserTools(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	serversWithTools, err := h.mcpService.ListUserTools(userID)
 	if err != nil {
@@ -289,7 +313,10 @@ func (h *MCPHubHandler) ListUserTools(c *gin.Context) {
 }
 
 func (h *MCPHubHandler) GetGatewayStats(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	stats, err := h.mcpService.GetGatewayStats(userID)
 	if err != nil {

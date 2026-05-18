@@ -40,7 +40,10 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 
 // RotateAllKeys rotates keys for all projects owned by the authenticated user.
 func (h *KeyRotationHandler) RotateAllKeys(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	results, err := h.rotationService.RotateAllProjects(userID)
 	if err != nil {

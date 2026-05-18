@@ -10,6 +10,31 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
+// getUserID returns the authenticated user's uuid from the gin context.
+// On miss (no upstream auth) or type mismatch (programming error) it
+// responds 401 and Abort()s the request; the caller MUST return
+// immediately when ok is false. Replaces 62 fragile
+// `c.MustGet("user_id").(uuid.UUID)` sites per audit S-L1 / FOLLOWUPS 0l.
+//
+// The return name is `authedOK` rather than the conventional `ok` to
+// avoid shadowing local `ok` variables that some handlers (e.g.
+// handlers_mcp_gateway.go) already use.
+func getUserID(c *gin.Context) (uuid.UUID, bool) {
+	v, exists := c.Get("user_id")
+	if !exists {
+		WrapError(c, ErrUnauthorized)
+		c.Abort()
+		return uuid.Nil, false
+	}
+	id, ok := v.(uuid.UUID)
+	if !ok {
+		WrapError(c, ErrUnauthorized)
+		c.Abort()
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
 // RequireProjectAccess enforces ADR-0005: every request to a /projects/:id/*
 // route must be made by either (a) the project owner, (b) a member of the
 // project's organization, or (c) an API key whose api_key_project_id matches

@@ -149,7 +149,10 @@ func (h *PlatformHandler) CreateAccessPolicy(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	policy := &models.AccessPolicy{
 		ProjectID:  projectID,
 		PolicyType: req.PolicyType,

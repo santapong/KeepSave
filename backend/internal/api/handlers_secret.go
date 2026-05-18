@@ -30,7 +30,10 @@ func (h *SecretHandler) Create(c *gin.Context) {
 		return
 	}
 
-	actorID := c.MustGet("user_id").(uuid.UUID)
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	secret, err := h.secretService.Create(projectID, req.Environment, req.Key, req.Value, actorID, c.GetString("client_ip"))
 	if err != nil {
 		WrapError(c, err)
@@ -107,7 +110,10 @@ func (h *SecretHandler) Update(c *gin.Context) {
 		return
 	}
 
-	actorID := c.MustGet("user_id").(uuid.UUID)
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	secret, err := h.secretService.Update(projectID, secretID, req.Value, actorID, c.GetString("client_ip"))
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "secret not found")
@@ -130,7 +136,10 @@ func (h *SecretHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	actorID := c.MustGet("user_id").(uuid.UUID)
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	if err := h.secretService.Delete(projectID, secretID, actorID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "secret not found")
 		return

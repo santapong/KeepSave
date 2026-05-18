@@ -25,7 +25,10 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(req.ProjectID)
 	if err != nil {
@@ -51,7 +54,10 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 }
 
 func (h *APIKeyHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	keys, err := h.apikeyService.List(userID)
 	if err != nil {
@@ -67,7 +73,10 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 }
 
 func (h *APIKeyHandler) Delete(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	keyID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

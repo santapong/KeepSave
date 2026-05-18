@@ -93,7 +93,10 @@ func NewMCPGatewayHandler(
 
 // HandleToolCall proxies an MCP tool call to the appropriate MCP server.
 func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	var req models.MCPGatewayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -207,7 +210,10 @@ func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
 
 // ListTools returns all available tools across installed MCP servers.
 func (h *MCPGatewayHandler) ListTools(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	serversWithTools, err := h.mcpService.ListUserTools(userID)
 	if err != nil {
@@ -241,7 +247,10 @@ func (h *MCPGatewayHandler) ListTools(c *gin.Context) {
 
 // MCPConfig generates the MCP configuration JSON for the user.
 func (h *MCPGatewayHandler) MCPConfig(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	installations, err := h.mcpService.ListInstallations(userID)
 	if err != nil {

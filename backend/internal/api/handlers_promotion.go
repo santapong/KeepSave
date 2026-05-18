@@ -32,7 +32,10 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.Promote(
 		projectID,
@@ -130,7 +133,10 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.ApprovePromotion(promotionID, userID, c.ClientIP())
 	if err != nil {
@@ -149,7 +155,10 @@ func (h *PromotionHandler) RejectPromotion(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.RejectPromotion(promotionID, userID, c.ClientIP())
 	if err != nil {
@@ -168,7 +177,10 @@ func (h *PromotionHandler) Rollback(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	if err := h.promotionService.Rollback(promotionID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))

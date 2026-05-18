@@ -74,7 +74,10 @@ type UpdateEmbedConfigRequest struct {
 // embed_policy_enabled=false to disable the widget; "*" as an origin is a
 // well-known footgun (the very class of bug ADR-0006 closes).
 func (h *EmbedHandler) UpdateEmbedConfig(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

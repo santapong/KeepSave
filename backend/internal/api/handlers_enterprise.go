@@ -106,7 +106,10 @@ func (h *EnterpriseHandler) GenerateComplianceReport(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	report, err := h.complianceService.GenerateReport(orgID, userID, req.ReportType)
 	if err != nil {
 		WrapError(c, err)
@@ -151,7 +154,10 @@ func (h *EnterpriseHandler) CreateBackup(c *gin.Context) {
 		req.Type = "full"
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	snapshot, err := h.backupService.CreateBackup(projectID, userID, req.Type)
 	if err != nil {
 		WrapError(c, err)

@@ -24,7 +24,10 @@ func (h *OAuthHandler) RegisterClient(c *gin.Context) {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic)
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
@@ -34,7 +37,10 @@ func (h *OAuthHandler) RegisterClient(c *gin.Context) {
 }
 
 func (h *OAuthHandler) ListClients(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	clients, err := h.oauthService.ListClients(userID)
 	if err != nil {
 		WrapError(c, err)
@@ -47,7 +53,10 @@ func (h *OAuthHandler) ListClients(c *gin.Context) {
 }
 
 func (h *OAuthHandler) DeleteClient(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	clientID, err := uuid.Parse(c.Param("clientId"))
 	if err != nil {
 		RespondError(c, http.StatusBadRequest, "invalid client id")
@@ -75,7 +84,10 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 		RespondError(c, http.StatusBadRequest, "client_id and redirect_uri required")
 		return
 	}
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var scopes []string
 	if scope != "" {
 		scopes = strings.Split(scope, " ")
