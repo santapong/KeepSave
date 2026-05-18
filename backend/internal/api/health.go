@@ -47,6 +47,6 @@ func (h *HealthHandler) Readiness(c *gin.Context) {
 		"status":   "ready",
 		"database": "connected",
 		"uptime":   time.Since(h.startTime).String(),
-		"version":  "0.5.0",
+		"version":  version.Version,
 	})
 }
