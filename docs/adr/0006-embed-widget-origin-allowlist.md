@@ -1,6 +1,6 @@
 # ADR-0006: Embed widget origin allow-list (server-side, per-project)
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; implementation landed in PR #50, this PR adds CORS test coverage; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter
 - **Reviewers required:** Tech Lead; Security Engineer (auth-adjacent — veto applies per `docs/ROLES.md`)

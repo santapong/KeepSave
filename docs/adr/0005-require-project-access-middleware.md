@@ -1,6 +1,6 @@
 # ADR-0005: `RequireProjectAccess` middleware for `/projects/:id/*` routes
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (on behalf of Backend Engineer)
 - **Reviewers required:** Security Engineer (mandatory — touches auth); Tech Lead (Type-1 per `docs/CLAUDE.md` §"Decision classes")

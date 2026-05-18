@@ -39,5 +39,15 @@ Sequential. `0001`, `0002`, `0003`, ... — never reused, never skipped. If a dr
 | 0002 | [Authentication model: JWT + API keys](0002-auth-model.md) | Accepted | 2026-05-12 |
 | 0003 | [Promotion engine: decrypt-and-rewrap](0003-promotion-engine.md) | Accepted | 2026-05-12 |
 | 0004 | [Two-level key hierarchy: master + per-project DEK](0004-key-hierarchy.md) | Accepted | 2026-05-12 |
+| 0005 | [`RequireProjectAccess` middleware](0005-require-project-access-middleware.md) | Accepted† | 2026-05-15 |
+| 0006 | [Embed widget origin allow-list](0006-embed-widget-origin-allowlist.md) | Accepted† | 2026-05-15 |
+| 0007 | [Approver ≠ requester DB invariant](0007-approver-not-requester-db-invariant.md) | Accepted† | 2026-05-15 |
+| 0010 | [MCP gateway command-execution hardening](0010-mcp-gateway-command-execution-hardening.md) | Accepted† | 2026-05-15 |
+| 0011 | [Graceful shutdown + DB timeouts](0011-graceful-shutdown-and-db-timeouts.md) | Accepted† | 2026-05-15 |
+| 0012 | [KMS auto-unseal (Vault for UAT)](0012-kms-auto-unseal.md) | Accepted† | 2026-05-15 |
+| 0013 | [Webhook emission with SSRF guard](0013-webhook-emission-with-ssrf-guard.md) | Accepted† | 2026-05-15 |
+| 0016 | [Deployment topology: Vercel + container + Neon](0016-deployment-topology.md) | Accepted† | 2026-05-18 |
 
 (ADRs 0001-0004 are **backfilled** — they document decisions already in the code, not decisions made today. Future ADRs will be written *before* implementation.)
+
+† **Sponsor-authorized**: status flipped to Accepted with implementation landed in PR #54 (Phase 1 sweep). Retroactive Security Engineer + Tech Lead sign-off pending per CLAUDE.md §"Decision classes" (Type-1). ADRs 0008, 0009, 0014, 0015 remain Proposed pending implementation.

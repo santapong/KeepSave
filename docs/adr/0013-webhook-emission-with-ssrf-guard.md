@@ -1,6 +1,6 @@
 # ADR-0013: Webhook emission with atomic SSRF guard, body-buffered retries, and per-org signing-secret rotation
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (Backend Engineer role)
 - **Reviewers required:** Tech Lead; Security Engineer (mandatory veto — Type-1: outbound HTTP, SSRF surface, HMAC integrity boundary, per `docs/ROLES.md` §2.2/§3.1)

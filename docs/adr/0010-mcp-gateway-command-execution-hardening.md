@@ -1,6 +1,6 @@
 # ADR-0010: Harden the MCP gateway command-execution path (allowlist + sandbox + safe-goroutine + build budget)
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (Backend Engineer role)
 - **Reviewers required:** Tech Lead; Security Engineer (mandatory veto — touches the RCE surface, per `docs/ROLES.md` §2.2 and §3.1 Type-1 classification)

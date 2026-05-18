@@ -1,6 +1,6 @@
 # ADR-0016: Deployment topology — Vercel frontend, container backend, Neon Postgres
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-18
 - **Authors:** Audit team (Security, Backend, Frontend, Infra, Tech Lead — 5 reviewers; see `docs/audits/AUDIT_2026-05-18_DEPLOYMENT_READINESS.md`)
 - **Reviewers required:** Tech Lead; Security Engineer; Platform Engineer
