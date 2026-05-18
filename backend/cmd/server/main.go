@@ -24,15 +24,13 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/service"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
+	"github.com/santapong/KeepSave/backend/internal/version"
 )
 
 // shutdownGracePeriod bounds how long the server waits for in-flight
 // requests to complete after receiving SIGTERM/SIGINT. Kubernetes default
 // terminationGracePeriodSeconds is 30s; we match it.
 const shutdownGracePeriod = 30 * time.Second
-
-// version is the semantic-version string surfaced in logs and health checks.
-const version = "1.1.0"
 
 func main() {
 	logger := logging.NewLogger(os.Stdout, logging.LevelInfo)
@@ -100,7 +98,8 @@ func main() {
 	mcpRepo := repository.NewMCPRepository(db, dialect)
 	appRepo := repository.NewApplicationRepository(db, dialect)
 
-	authService := service.NewAuthService(userRepo, jwtService)
+	attemptsRepo := repository.NewAuthAttemptsRepository(db, dialect)
+	authService := service.NewAuthService(userRepo, attemptsRepo, auditRepo, jwtService)
 	projectService := service.NewProjectService(projectRepo, envRepo, auditRepo, cryptoSvc)
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo, auditRepo)
@@ -213,7 +212,7 @@ func main() {
 
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
-		"version":  version,
+		"version":  version.Version,
 		"port":     cfg.Port,
 		"env":      cfg.Env,
 		"tls":      tlsEnabled,

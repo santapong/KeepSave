@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/santapong/KeepSave/backend/internal/version"
 )
 
 // HealthHandler provides health check and readiness endpoints.
@@ -27,7 +28,7 @@ func (h *HealthHandler) Liveness(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
 		"uptime":  time.Since(h.startTime).String(),
-		"version": "0.5.0",
+		"version": version.Version,
 	})
 }
 

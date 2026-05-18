@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -234,6 +235,11 @@ func (s *PromotionService) Promote(
 	return promotion, nil
 }
 
+// ErrSelfApproval is returned when the approver is the same user that
+// requested the promotion. Per ADR-0007 / audit S-H3, four-eyes is a hard
+// invariant: a single compromised account cannot move secrets to PROD.
+var ErrSelfApproval = errors.New("requester cannot approve their own promotion")
+
 // ApprovePromotion approves and executes a pending PROD promotion.
 func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, ipAddress string) (*models.PromotionRequest, error) {
 	promotion, err := s.promotionRepo.GetByID(promotionID)
@@ -243,6 +249,10 @@ func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, i
 
 	if promotion.Status != "pending" {
 		return nil, fmt.Errorf("promotion is not pending approval (status: %s)", promotion.Status)
+	}
+
+	if promotion.RequestedBy == approverID {
+		return nil, ErrSelfApproval
 	}
 
 	if err := s.promotionRepo.UpdateStatus(promotionID, "approved", &approverID); err != nil {

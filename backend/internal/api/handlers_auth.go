@@ -59,8 +59,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.authService.Login(req.Email, req.Password)
+	resp, err := h.authService.Login(req.Email, req.Password, c.GetString("client_ip"))
 	if err != nil {
+		// Locked accounts get a distinct status (429) to make rate-stuffing
+		// tools back off; the message is intentionally generic so it does
+		// not confirm the email exists.
+		if errors.Is(err, service.ErrAccountLocked) {
+			WrapError(c, Wrap(ErrRateLimited, err))
+			return
+		}
 		WrapError(c, Wrap(ErrUnauthorized, err))
 		return
 	}
