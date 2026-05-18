@@ -141,3 +141,43 @@ The five auditors produced overlapping evidence on a handful of issues. The tabl
 ## 5. Status (this audit)
 
 Read-only. No code or doc changes in `internal/`, `migrations/`, or `helm/` proposed here. All remediation work is tracked in `docs/FOLLOWUPS.md` Phase A and the ADR set 0005–0016.
+
+---
+
+## 6. Phase 1 closure (appended 2026-05-18)
+
+Implemented per `plans/so-let-fix-everything-cozy-tide.md`. Commits on
+`claude/audit-deployment-plan-moSsk` are grouped A-H.
+
+| ID | Severity | Status | Commit group | Notes |
+|---|---|---|---|---|
+| S-B1 / B-B2 | BLOCKER | **Closed** | D | `emitAudit` wired into secret/project/apikey/auth services; test asserts row written |
+| S-B2 | BLOCKER | **Closed** | B | `RequireProjectAccess` middleware on all `/projects/:id/*` route groups |
+| S-B3 | BLOCKER | **Closed** | B | API-key scope enforced inside same middleware |
+| S-B4 | BLOCKER | **Closed** | D | `DiffEntry.SourceValue/TargetValue` removed; HMAC-SHA256 hash prefix substituted |
+| S-B5 | BLOCKER | **Closed** | D | `validateMCPEntryCommand` allow-list + shell-metachar reject at register + exec; `cmd.Env` minimized; 30s context timeout |
+| S-B6 | BLOCKER | **Closed** | already PR #50; F adds CORS test | Embed origin allow-list verified end-to-end |
+| B-B1 / S-H5 | BLOCKER | **Closed** | C | 125 `err.Error()` leak sites migrated to `WrapError`; AST-walking regression test gates CI |
+| B-B3 | BLOCKER | **Closed** | A | `signal.Notify` → `srv.Shutdown(ctx)` with 30s grace; pruner takes ctx |
+| F-B1 | BLOCKER | **Closed** | F | `VITE_API_BASE_URL` fallback in `client.ts:24`; `.env.example` documents it |
+| S-B7 | BLOCKER (prod) | **Partial** | D | Vault provider is supported; AWS/GCP stubs deferred per ADR-0016 |
+| S-B8 | BLOCKER (prod) | **Closed** | A | `KEEPSAVE_ENV=production` rejects the leaked dev key hash |
+| S-H1 | HIGH | **Closed** | A | `JWT_SECRET` < 32 bytes refused in production |
+| S-H2 | HIGH | **Closed** | E | `ValidateWebhookURL` SSRF guard; tested against 169.254 / 10/8 / 127/8 / metadata.google.internal |
+| S-H3 | HIGH | **Closed** | E | App-level `ErrSelfApproval` + DB CHECK constraint in migration 008 |
+| S-H4 | HIGH | **Closed** | E | `verifyPKCE` accepts only `S256`; public clients must supply a challenge |
+| S-H6 / B-H1 | HIGH | **Closed** | A | `ConnMaxLifetime=5m`, `ConnMaxIdleTime=2m` on Postgres + MySQL pools |
+| S-H7 | HIGH | **Closed** | E | `auth_login_attempts` table; lockout after 10 failures within 15 min |
+| B-H2 | HIGH | **Closed** | E | `internal/version` package; `/healthz` and `/readyz` now report 1.1.0 |
+| B-H3 | HIGH | **Closed** | E | `migrations/README.md` documents the per-dialect convention; sqlite 008/009 added for parity |
+| F-H1 | HIGH | **Closed** | F | `nginx.conf` header comment marks it as the Option-C self-hosted fallback |
+| F-H2 | HIGH | **Closed** | F | `frontend/vercel.json` committed |
+| F-H3 | HIGH | **Closed** | F | Backend CORS supports comma-list + single-glob; `Vary: Origin` emitted; no credentials cookie |
+
+Negative-auth coverage added: `internal/api/negative_auth_test.go` (~13 cells across IDOR / API-key scope / MCP exec); `internal/service/negative_auth_test.go` (~13 cells across PKCE / lockout / self-approval / SSRF); `internal/api/cors_test.go` (6 cells); `internal/service/url_safety_test.go` (10 cells). Total ~42 cells — at the upper end of the "~30-40" budget from the plan.
+
+ADRs flipped to Accepted under sponsor authorization (group G): 0005, 0006, 0007, 0010, 0011, 0012, 0013, 0016. ADR-0008, 0009, 0014, 0015 remain Proposed for Phase 3.
+
+Out of scope (deferred to Phase 3 per the plan): 12 MEDIUM + 8 LOW items, AWS/GCP KMS adapters, the full 132-cell negative-auth matrix, audit-log nightly export (PROD gate G16), Helm chart updates (PROD gate G19).
+
+Phase 2 (audit team recheck) follows next on the same branch.
