@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/santapong/KeepSave/backend/internal/api"
@@ -22,6 +25,11 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/service"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
 )
+
+// shutdownGracePeriod bounds how long the server waits for in-flight
+// requests to complete after receiving SIGTERM/SIGINT. Kubernetes default
+// terminationGracePeriodSeconds is 30s; we match it.
+const shutdownGracePeriod = 30 * time.Second
 
 // version is the semantic-version string surfaced in logs and health checks.
 const version = "1.1.0"
@@ -192,11 +200,15 @@ func main() {
 		logger,
 	)
 
+	// Background workers (pruner, etc.) share a context that the signal
+	// handler cancels at shutdown so they exit cleanly with the HTTP server.
+	bgCtx, cancelBackground := context.WithCancel(context.Background())
+	defer cancelBackground()
+
 	// Audit-log retention: delete rows older than AUDIT_LOG_RETENTION_DAYS
-	// once on startup and every 24h thereafter. The goroutine exits silently
-	// when retention is disabled (days <= 0); logs every prune that removes
-	// rows so operators can see retention working.
-	go startAuditLogPruner(logger, auditRepo, cfg.AuditLogRetentionDays)
+	// once on startup and every 24h thereafter. The goroutine exits when
+	// the context is cancelled or when retention is disabled (days <= 0).
+	go startAuditLogPruner(bgCtx, logger, auditRepo, cfg.AuditLogRetentionDays)
 
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
@@ -207,26 +219,55 @@ func main() {
 		"provider": cfg.KeyProvider,
 	})
 
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	if tlsEnabled {
+		srv.TLSConfig = buildTLSConfig(cfg.TLSCipherSuites)
 		if cfg.TLSRedirect {
 			go startHTTPRedirect(logger)
 		}
-		srv := &http.Server{
-			Addr:              ":" + cfg.Port,
-			Handler:           router,
-			TLSConfig:         buildTLSConfig(cfg.TLSCipherSuites),
-			ReadHeaderTimeout: 10 * time.Second,
-		}
-		if err := srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile); err != nil {
-			logger.Error("failed to start TLS server", map[string]interface{}{"error": err.Error()})
-			os.Exit(1)
-		}
-		return
 	}
 
-	if err := router.Run(":" + cfg.Port); err != nil {
-		logger.Error("failed to start server", map[string]interface{}{"error": err.Error()})
-		os.Exit(1)
+	// Run the listener in a goroutine so the main goroutine can wait on a
+	// shutdown signal. http.ErrServerClosed is the expected return after
+	// srv.Shutdown; anything else is a startup failure.
+	serverErr := make(chan error, 1)
+	go func() {
+		var err error
+		if tlsEnabled {
+			err = srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			logger.Error("server exited with error", map[string]interface{}{"error": err.Error()})
+			os.Exit(1)
+		}
+	case sig := <-quit:
+		logger.Info("shutdown signal received", map[string]interface{}{"signal": sig.String()})
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
+		defer shutdownCancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("graceful shutdown failed", map[string]interface{}{"error": err.Error()})
+			os.Exit(1)
+		}
+		cancelBackground()
+		logger.Info("shutdown complete", nil)
 	}
 }
 
@@ -294,11 +335,9 @@ func startHTTPRedirect(logger *logging.Logger) {
 }
 
 // startAuditLogPruner deletes audit_log rows older than retentionDays on
-// startup and once every 24 hours thereafter. Zero or negative retention
-// disables the pruner (useful for tests and for operators who prefer to
-// manage retention with an external cron). This closes the
-// AUDIT_LOG_RETENTION_DAYS consumer follow-up from v1.1.0.
-func startAuditLogPruner(logger *logging.Logger, repo *repository.AuditRepository, retentionDays int) {
+// startup and once every 24 hours thereafter. It exits when ctx is cancelled
+// (SIGTERM/SIGINT shutdown) or when retention is disabled (days <= 0).
+func startAuditLogPruner(ctx context.Context, logger *logging.Logger, repo *repository.AuditRepository, retentionDays int) {
 	if retentionDays <= 0 {
 		logger.Info("audit-log pruner disabled", map[string]interface{}{"retention_days": retentionDays})
 		return
@@ -328,7 +367,13 @@ func startAuditLogPruner(logger *logging.Logger, repo *repository.AuditRepositor
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
-	for range ticker.C {
-		prune()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("audit-log pruner stopping", nil)
+			return
+		case <-ticker.C:
+			prune()
+		}
 	}
 }

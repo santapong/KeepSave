@@ -1,12 +1,25 @@
 package config
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
+
+// leakedDevMasterKeyHashHex is the SHA-256 of the 32 raw bytes that decode
+// from the development MASTER_KEY committed to docker-compose.yml. Production
+// refuses any MASTER_KEY whose decoded bytes match this hash — the dev key
+// is treated as permanently leaked.
+const leakedDevMasterKeyHashHex = "f69968df7fb0fa71e2cdad7f258e0c1af7270a8cb759ca9168657e111821669a"
+
+// prodMinJWTSecretBytes is the minimum acceptable JWT_SECRET length when
+// KEEPSAVE_ENV=production. 32 bytes matches HS256 output width and current
+// industry guidance.
+const prodMinJWTSecretBytes = 32
 
 type Config struct {
 	DatabaseURL string
@@ -70,12 +83,21 @@ func Load() (*Config, error) {
 		if len(decoded) != 32 {
 			return nil, fmt.Errorf("MASTER_KEY must be exactly 32 bytes, got %d", len(decoded))
 		}
+		if env == "production" {
+			sum := sha256.Sum256(decoded)
+			if hex.EncodeToString(sum[:]) == leakedDevMasterKeyHashHex {
+				return nil, fmt.Errorf("MASTER_KEY matches the development key committed to docker-compose.yml; generate a fresh 32-byte key for production")
+			}
+		}
 		masterKey = decoded
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+	if env == "production" && len(jwtSecret) < prodMinJWTSecretBytes {
+		return nil, fmt.Errorf("JWT_SECRET must be at least %d bytes when KEEPSAVE_ENV=production, got %d", prodMinJWTSecretBytes, len(jwtSecret))
 	}
 
 	corsOrigins := getenvOr("CORS_ORIGINS", "*")

@@ -59,7 +59,7 @@ func TestLoad_ProdLockdown(t *testing.T) {
 			env: map[string]string{
 				"DATABASE_URL": "postgres://u:p@db/k?sslmode=require",
 				"MASTER_KEY":   goodKey(),
-				"JWT_SECRET":   "s",
+				"JWT_SECRET":   strings.Repeat("x", 32),
 				"KEEPSAVE_ENV": "production",
 				"CORS_ORIGINS": "*",
 			},
@@ -70,7 +70,7 @@ func TestLoad_ProdLockdown(t *testing.T) {
 			env: map[string]string{
 				"DATABASE_URL": "postgres://u:p@db/k?sslmode=disable",
 				"MASTER_KEY":   goodKey(),
-				"JWT_SECRET":   "s",
+				"JWT_SECRET":   strings.Repeat("x", 32),
 				"KEEPSAVE_ENV": "production",
 				"CORS_ORIGINS": "https://app.example.com",
 			},
@@ -85,6 +85,49 @@ func TestLoad_ProdLockdown(t *testing.T) {
 				t.Fatalf("err = %v, want contains %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestLoad_ProdRejectsLeakedDevMasterKey(t *testing.T) {
+	setenv(t, map[string]string{
+		"DATABASE_URL": "postgres://u:p@db/k?sslmode=require",
+		"MASTER_KEY":   "43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=",
+		"JWT_SECRET":   strings.Repeat("x", 32),
+		"KEEPSAVE_ENV": "production",
+		"CORS_ORIGINS": "https://app.example.com",
+	})
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "development key") {
+		t.Fatalf("err = %v, want contains \"development key\"", err)
+	}
+}
+
+func TestLoad_ProdRejectsShortJWTSecret(t *testing.T) {
+	setenv(t, map[string]string{
+		"DATABASE_URL": "postgres://u:p@db/k?sslmode=require",
+		"MASTER_KEY":   goodKey(),
+		"JWT_SECRET":   "too-short",
+		"KEEPSAVE_ENV": "production",
+		"CORS_ORIGINS": "https://app.example.com",
+	})
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "JWT_SECRET must be at least") {
+		t.Fatalf("err = %v, want JWT_SECRET length error", err)
+	}
+}
+
+func TestLoad_DevAllowsShortJWTAndDevMasterKey(t *testing.T) {
+	setenv(t, map[string]string{
+		"DATABASE_URL": "postgres://u:p@db/k?sslmode=disable",
+		"MASTER_KEY":   "43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=",
+		"JWT_SECRET":   "dev-jwt-secret-change-me",
+	})
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load (dev): %v", err)
+	}
+	if cfg.Env != "development" {
+		t.Errorf("Env = %q, want development", cfg.Env)
 	}
 }
 
