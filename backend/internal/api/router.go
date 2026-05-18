@@ -14,6 +14,7 @@ import (
 
 func SetupRouter(
 	corsOrigins string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
 	webhookHandler *WebhookHandler, versionHandler *VersionHandler, healthHandler *HealthHandler,
@@ -78,21 +79,28 @@ func SetupRouter(
 			users.GET("/lookup", authHandler.LookupUser)
 		}
 
+		// Project create + list are not :id-scoped. Per-project routes below
+		// (Get/Update/Delete/embed-config) gain RequireProjectAccess so any
+		// caller without project access gets 403/404 before the handler runs.
 		proj := v1.Group("/projects")
 		proj.Use(JWTAuthMiddleware(jwtService))
 		{
 			proj.POST("", projectHandler.Create)
 			proj.GET("", projectHandler.List)
-			proj.GET("/:id", projectHandler.Get)
-			proj.PUT("/:id", projectHandler.Update)
-			proj.DELETE("/:id", projectHandler.Delete)
+		}
+		projID := v1.Group("/projects/:id")
+		projID.Use(JWTAuthMiddleware(jwtService), RequireProjectAccess(projectRepo))
+		{
+			projID.GET("", projectHandler.Get)
+			projID.PUT("", projectHandler.Update)
+			projID.DELETE("", projectHandler.Delete)
 			// ADR-0006: authenticated mutation of a project's embed allow-list.
 			// Returns 422 when caller attempts to register "*" as an origin.
-			proj.PUT("/:id/embed-config", embedHandler.UpdateEmbedConfig)
+			projID.PUT("/embed-config", embedHandler.UpdateEmbedConfig)
 		}
 
 		sec := v1.Group("/projects/:id/secrets")
-		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
 		{
 			sec.POST("", secretHandler.Create)
 			sec.GET("", secretHandler.List)
@@ -104,7 +112,7 @@ func SetupRouter(
 		}
 
 		pm := v1.Group("/projects/:id")
-		pm.Use(JWTAuthMiddleware(jwtService))
+		pm.Use(JWTAuthMiddleware(jwtService), RequireProjectAccess(projectRepo))
 		{
 			pm.POST("/promote", promotionHandler.Promote)
 			pm.POST("/promote/diff", promotionHandler.Diff)
@@ -150,7 +158,7 @@ func SetupRouter(
 		}
 
 		ls := v1.Group("/projects/:id/leases")
-		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo))
+		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
 		{
 			ls.POST("", agentHandler.CreateLease)
 			ls.GET("", agentHandler.ListLeases)

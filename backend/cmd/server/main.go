@@ -170,6 +170,7 @@ func main() {
 		cfg.CORSOrigins,
 		jwtService,
 		apikeyRepo,
+		projectRepo,
 		authHandler,
 		projectHandler,
 		secretHandler,
