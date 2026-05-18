@@ -41,9 +41,25 @@ func TrustedProxyMiddleware() gin.HandlerFunc {
 	}
 }
 
+// CORSMiddleware reflects an Origin header that matches the configured
+// CORS_ORIGINS allow-list. Three formats are supported:
+//   - "*" (legacy / dev): mirrors the request Origin. NOT permitted in
+//     production - rejected at config-load time.
+//   - exact comma-separated list: "https://app.example.com,https://x.io"
+//   - glob patterns with a single "*" in the host: useful for Vercel
+//     preview subdomains, e.g. "https://keepsave-uat-*-yourteam.vercel.app"
+//
+// Bearer-token only - Access-Control-Allow-Credentials stays false; do
+// not change without a Type-1 ADR (cookies + CORS open up CSRF surface).
 func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
+	patterns := compileOriginPatterns(allowedOrigins)
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", allowedOrigins)
+		origin := c.GetHeader("Origin")
+		allowed := matchOrigin(origin, allowedOrigins, patterns)
+		if allowed != "" {
+			c.Header("Access-Control-Allow-Origin", allowed)
+			c.Header("Vary", "Origin")
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		c.Header("Access-Control-Max-Age", "86400")
@@ -54,6 +70,65 @@ func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// matchOrigin returns the Access-Control-Allow-Origin value to echo for
+// this request, or "" if the origin is not allowed.
+//   - cors=="*" mirrors the Origin (legacy dev mode)
+//   - exact-match against the comma-list
+//   - glob match against any pattern containing "*"
+func matchOrigin(origin, cors string, patterns []*originPattern) string {
+	if cors == "*" {
+		if origin == "" {
+			return "*"
+		}
+		return origin
+	}
+	if origin == "" {
+		return ""
+	}
+	for _, raw := range strings.Split(cors, ",") {
+		if strings.TrimSpace(raw) == origin {
+			return origin
+		}
+	}
+	for _, p := range patterns {
+		if p.matches(origin) {
+			return origin
+		}
+	}
+	return ""
+}
+
+type originPattern struct {
+	prefix string
+	suffix string
+}
+
+func (p *originPattern) matches(origin string) bool {
+	if len(origin) < len(p.prefix)+len(p.suffix) {
+		return false
+	}
+	return strings.HasPrefix(origin, p.prefix) && strings.HasSuffix(origin, p.suffix)
+}
+
+// compileOriginPatterns returns a slice of prefix/suffix splits for every
+// entry in the comma-list that contains "*". Entries with two or more "*"
+// are rejected (too permissive, hard to reason about).
+func compileOriginPatterns(cors string) []*originPattern {
+	var out []*originPattern
+	for _, raw := range strings.Split(cors, ",") {
+		s := strings.TrimSpace(raw)
+		if s == "" || s == "*" || !strings.Contains(s, "*") {
+			continue
+		}
+		if strings.Count(s, "*") != 1 {
+			continue
+		}
+		idx := strings.IndexByte(s, '*')
+		out = append(out, &originPattern{prefix: s[:idx], suffix: s[idx+1:]})
+	}
+	return out
 }
 
 func JWTAuthMiddleware(jwtService *auth.JWTService) gin.HandlerFunc {
