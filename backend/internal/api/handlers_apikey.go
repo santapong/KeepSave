@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,7 +37,17 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment, c.GetString("client_ip"))
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
+		parsed, perr := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if perr != nil {
+			WrapError(c, Wrap(ErrInvalidInput, perr))
+			return
+		}
+		expiresAt = &parsed
+	}
+
+	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment, expiresAt, c.GetString("client_ip"))
 	if err != nil {
 		if errors.Is(err, service.ErrProjectNotFound) {
 			RespondError(c, http.StatusNotFound, "project not found")
@@ -44,6 +55,10 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		}
 		if errors.Is(err, service.ErrNotAuthorized) {
 			RespondError(c, http.StatusForbidden, "not authorized for this project")
+			return
+		}
+		if errors.Is(err, service.ErrAPIKeyExpiryOutOfRange) {
+			WrapError(c, Wrap(ErrInvalidInput, err))
 			return
 		}
 		WrapError(c, err)

@@ -42,6 +42,7 @@ Sequential. `0001`, `0002`, `0003`, ... — never reused, never skipped. If a dr
 | 0005 | [`RequireProjectAccess` middleware](0005-require-project-access-middleware.md) | Accepted† | 2026-05-15 |
 | 0006 | [Embed widget origin allow-list](0006-embed-widget-origin-allowlist.md) | Accepted† | 2026-05-15 |
 | 0007 | [Approver ≠ requester DB invariant](0007-approver-not-requester-db-invariant.md) | Accepted† | 2026-05-15 |
+| 0009 | [Mandatory default expiration on `ks_` API keys](0009-default-api-key-expiration.md) | Accepted† | 2026-05-15 |
 | 0010 | [MCP gateway command-execution hardening](0010-mcp-gateway-command-execution-hardening.md) | Accepted† | 2026-05-15 |
 | 0011 | [Graceful shutdown + DB timeouts](0011-graceful-shutdown-and-db-timeouts.md) | Accepted† | 2026-05-15 |
 | 0012 | [KMS auto-unseal (Vault for UAT)](0012-kms-auto-unseal.md) | Accepted† | 2026-05-15 |

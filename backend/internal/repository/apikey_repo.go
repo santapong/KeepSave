@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -18,7 +19,7 @@ func NewAPIKeyRepository(db *sql.DB, dialect Dialect) *APIKeyRepository {
 	return &APIKeyRepository{db: db, dialect: dialect}
 }
 
-func (r *APIKeyRepository) Create(name, hashedKey string, userID, projectID uuid.UUID, scopes []string, environment *string) (*models.APIKey, error) {
+func (r *APIKeyRepository) Create(name, hashedKey string, userID, projectID uuid.UUID, scopes []string, environment *string, expiresAt *time.Time) (*models.APIKey, error) {
 	k := &models.APIKey{}
 	var env sql.NullString
 	if environment != nil {
@@ -27,20 +28,24 @@ func (r *APIKeyRepository) Create(name, hashedKey string, userID, projectID uuid
 
 	id := uuid.New()
 	scopesParam := r.arrayParam(scopes)
+	var expiresParam interface{}
+	if expiresAt != nil {
+		expiresParam = *expiresAt
+	}
 
 	if r.dialect.SupportsReturning() {
 		err := r.db.QueryRow(
-			`INSERT INTO api_keys (id, name, hashed_key, user_id, project_id, scopes, environment)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`INSERT INTO api_keys (id, name, hashed_key, user_id, project_id, scopes, environment, expires_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING id, name, hashed_key, user_id, project_id, scopes, environment, expires_at, created_at`,
-			id, name, hashedKey, userID, projectID, pq.Array(scopes), env,
+			id, name, hashedKey, userID, projectID, pq.Array(scopes), env, expiresParam,
 		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, &k.Scopes, &env, &k.ExpiresAt, &k.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("creating api key: %w", err)
 		}
 	} else {
-		insertQ := Q(r.dialect, `INSERT INTO api_keys (id, name, hashed_key, user_id, project_id, scopes, environment) VALUES ($1, $2, $3, $4, $5, $6, $7)`)
-		_, err := r.db.Exec(insertQ, id, name, hashedKey, userID, projectID, scopesParam, env)
+		insertQ := Q(r.dialect, `INSERT INTO api_keys (id, name, hashed_key, user_id, project_id, scopes, environment, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`)
+		_, err := r.db.Exec(insertQ, id, name, hashedKey, userID, projectID, scopesParam, env, expiresParam)
 		if err != nil {
 			return nil, fmt.Errorf("creating api key: %w", err)
 		}

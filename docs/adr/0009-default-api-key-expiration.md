@@ -1,6 +1,6 @@
 # ADR-0009: Mandatory default expiration on `ks_` API keys
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-19; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (with Backend Engineer, Security Engineer input)
 - **Reviewers required:** Tech Lead; Security Engineer (Type-1 — touches `internal/auth`)
