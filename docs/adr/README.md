@@ -51,4 +51,4 @@ Sequential. `0001`, `0002`, `0003`, ... — never reused, never skipped. If a dr
 
 (ADRs 0001-0004 are **backfilled** — they document decisions already in the code, not decisions made today. Future ADRs will be written *before* implementation.)
 
-† **Sponsor-authorized**: status flipped to Accepted with implementation landed in PR #54 (Phase 1 sweep). Retroactive Security Engineer + Tech Lead sign-off pending per CLAUDE.md §"Decision classes" (Type-1). ADRs 0008, 0009, 0014, 0015 remain Proposed pending implementation.
+† **Sponsor-authorized**: status flipped to Accepted with implementation landed in PR #54 (Phase 1 sweep, plus ADR-0009 from the Phase 3 sweep). Retroactive Security Engineer + Tech Lead sign-off pending per CLAUDE.md §"Decision classes" (Type-1). ADRs 0008, 0014, 0015 remain Proposed pending implementation.

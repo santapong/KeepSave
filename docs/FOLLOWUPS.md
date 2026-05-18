@@ -31,9 +31,30 @@ The following remain **open** because they are explicitly out of Phase 1 scope p
 - **#0f CI permissions block** — already closed earlier.
 - **#0g CODEOWNERS** — Phase 3.
 - **#0h–0j Frontend follow-ups** — closed earlier in PRs #48/#49.
-- **#0k Default expiration on `ks_` keys** — Phase 3 (audit M-4).
-- **#0l `MustGet` panic refactor** — Phase 3 (recheck flagged it again).
+- **#0k Default expiration on `ks_` keys** — closed in Phase 3 (see below).
+- **#0l `MustGet` panic refactor** — closed in Phase 3 (see below).
 - **#2, #3, #6, #7, #8, #10** — unchanged.
+
+---
+
+## Closed (Phase 3 medium/low sweep — 2026-05-19)
+
+Commits I–N on the same branch / PR #54. Cross-referenced in
+`docs/audits/AUDIT_2026-05-18_DEPLOYMENT_READINESS.md` §7.
+
+- [x] **#0k Default expiration on `ks_` API keys (S-M4)** — ADR-0009 wired
+  end-to-end: `internal/service/apikey_service.go::computeEffectiveAPIKeyExpiry`
+  defaults to 90 days, caps at 365 days, refuses past times. INSERT now
+  writes `expires_at`. Middleware was already enforcing non-NULL expiry.
+  Existing NULL rows grandfathered.
+- [x] **#0l `MustGet` panic refactor (S-L1)** — 61 of 62 sites migrated
+  to `getUserID(c) (uuid.UUID, bool)` helper in
+  `internal/api/project_access.go`. Returns 401 + Abort on miss instead
+  of panicking. Remaining reference is the helper's own doc comment.
+
+The dead `internal/api/csrf.go` middleware was deleted (S-L2 — KeepSave
+is bearer-token only, CSRF moot) and `lucide-react@^1.8.0` was verified
+as the current stable line (S-L5 — `npm audit` clean).
 
 ---
 
@@ -104,14 +125,14 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Owner:** Frontend Engineer + UX (interim).
 - **Due:** 30 days.
 
-### 0k. Default expiration on `ks_` API keys (no immortal credentials)
+### ~~0k. Default expiration on `ks_` API keys (no immortal credentials)~~ — **CLOSED in Phase 3 (2026-05-19), see Closed section above**
 - **Status:** **OPEN — discovered during competitor synthesis (Vault / SPIFFE / GitHub dossiers converge).** `backend/internal/api/validation.go:33-38` (`CreateAPIKeyRequest` has no `expires_at` field); `backend/internal/service/apikey_service.go:33-60` (`Create` takes no expiry arg); `backend/internal/repository/apikey_repo.go:33-36` (INSERT omits `expires_at`). Result: every `ks_` key minted is valid indefinitely until manual deletion. Middleware at `backend/internal/api/middleware.go:101-105` already honours `ExpiresAt` when non-NULL — only issuance is broken.
 - **Why it matters:** A leaked agent / CI key has no time bound. GitHub mandates ≤366d on PATs; SPIFFE recommends ≤15min on JWT-SVID; CircleCI 2023 is the canonical incident shape. Indefinite credentials are below segment baseline.
 - **Owner:** Backend Engineer + Security Engineer (review).
 - **Due:** 30 days (Phase A). Pattern: GitHub fine-grained PAT mandatory expiration; default 90d, ceiling 365d, sentinel `9999-12-31` for opt-out audited per-key.
 - **Related:** `docs/research/competitors/github.md` Candidate 3; `docs/research/competitors/spiffe.md` §5 row JWT-SVID; `docs/research/competitors/vault.md` Candidate 2.
 
-### 0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor
+### ~~0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor~~ — **CLOSED in Phase 3 (2026-05-19), see Closed section above**
 - **Status:** **OPEN — discovered during 2026-05-15 audit team sweep (`docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11).** Pattern `c.MustGet("user_id").(uuid.UUID)` is repeated verbatim **58 times** across `backend/internal/api/handlers_*.go`. Gin's `MustGet` panics on missing key; bare type-assertion panics on type mismatch. Gin's global `gin.Recovery()` at `backend/internal/api/router.go:29` catches handler-thread panics today, but the pattern is a forward-looking footgun — the moment a future PR mounts any handler outside the `JWTAuthMiddleware` group, the handler panics on every request.
 - **Why it matters:** Defense in depth. Also a prerequisite for ADR-0015 (per-use API-key audit emission) which needs the helper as its call point. The audit's BACKEND_CRASH_RISKS.md report names this as the single most valuable hardening pass alongside `defer recover()` on goroutines.
 - **Owner:** Backend Engineer (single PR; pure refactor).
