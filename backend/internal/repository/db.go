@@ -5,10 +5,20 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+)
+
+// connMaxLifetime bounds connection age below the typical idle-termination
+// window of managed Postgres providers (Neon evicts at ~5min). Without this,
+// the pool hands out connections the server has already closed, surfacing as
+// cascading 500s every few minutes.
+const (
+	connMaxLifetime = 5 * time.Minute
+	connMaxIdleTime = 2 * time.Minute
 )
 
 // NewDB opens a database connection and returns the db handle along with the detected dialect.
@@ -31,6 +41,8 @@ func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
 		}
 		db.SetMaxOpenConns(25)
 		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(connMaxLifetime)
+		db.SetConnMaxIdleTime(connMaxIdleTime)
 
 	case DBTypeMySQL:
 		dsn, dsnErr := mysqlURLToDSN(databaseURL)
@@ -43,6 +55,8 @@ func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
 		}
 		db.SetMaxOpenConns(25)
 		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(connMaxLifetime)
+		db.SetConnMaxIdleTime(connMaxIdleTime)
 
 	case DBTypeSQLite:
 		dsn := sqliteDSN(databaseURL)

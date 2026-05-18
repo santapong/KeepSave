@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/santapong/KeepSave/backend/internal/version"
 )
 
 func TestHealthLiveness(t *testing.T) {
@@ -33,8 +34,8 @@ func TestHealthLiveness(t *testing.T) {
 		t.Errorf("expected status 'ok', got %q", body["status"])
 	}
 
-	if body["version"] != "0.5.0" {
-		t.Errorf("expected version '0.5.0', got %q", body["version"])
+	if body["version"] != version.Version {
+		t.Errorf("expected version %q, got %q", version.Version, body["version"])
 	}
 
 	if _, ok := body["uptime"]; !ok {

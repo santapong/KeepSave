@@ -130,6 +130,90 @@ Quarterly exercise to prove rotation plumbing works.
 - Reading "just to compare" without an incident issue.
 - Skipping the post-read rotation.
 
+## §7. UAT cutover (added 2026-05-18)
+
+The full prerequisite-by-prerequisite cutover runbook lives in
+[`docs/DEPLOYMENT_PLAN.md`](DEPLOYMENT_PLAN.md) §4. This section is the
+operator's quick-reference — read the DEPLOYMENT_PLAN for the long-form
+text + rollback procedure.
+
+### Before cutover
+
+All of `DEPLOYMENT_PLAN.md` §2 gates G1–G14 closed (verified by Phase 2
+audit-team recheck in `docs/audits/AUDIT_2026-05-19_RECHECK.md`).
+
+### Day-of checklist
+
+1. **Provision Neon** project `keepsave-uat`; capture pooled DSN.
+2. **Generate per-env secrets.** `openssl rand -base64 32` for
+   `MASTER_KEY`; `openssl rand -base64 48` for `JWT_SECRET`. Store in
+   the team vault under `keepsave/uat/*`.
+3. **Deploy backend** to Fly.io (`fly secrets set ... && fly deploy
+   --strategy rolling --wait-timeout 300`). `KEEPSAVE_ENV=uat` (or
+   `production` once you're ready to enforce the strict guards).
+   Confirm `/readyz` returns 200.
+4. **Configure Vercel** project (Root Directory = `frontend`); add
+   `VITE_API_BASE_URL=https://api-uat.keepsave.example/api/v1` for the
+   Preview + Production scopes. `vercel.json` is already committed.
+5. **Push to the cutover tag** — Vercel auto-builds and promotes.
+6. **Smoke-test** per `DEPLOYMENT_PLAN.md` §4.1 step 7 (12 checks).
+7. **Announce** the URL with a link to the smoke-test summary.
+
+### CORS pattern reminder
+
+`CORS_ORIGINS` accepts a comma-separated allow-list with single-`*`
+glob patterns for Vercel previews, e.g.
+`https://app.example.com,https://keepsave-uat-*-yourteam.vercel.app`.
+Never `*` in any deployed env (`internal/config/config.go` enforces).
+
+### Rollback
+
+- **Frontend**: Vercel → Deployments → Promote previous build.
+- **Backend**: `fly releases list` then `fly deploy --image
+  registry.fly.io/keepsave-uat:<prev-tag>`.
+- **Database**: Neon → Branches → restore from PITR to T-5min.
+
+### KMS caveat (UAT only)
+
+UAT uses a HashiCorp Vault dev sidecar per ADR-0012 / ADR-0016. **This
+is dev-only**. Production cutover requires the AWS / GCP KMS adapter
+work tracked as `FOLLOWUPS.md #1` (deferred from Phase 1 per ADR-0016).
+
+### Where to look when things go sideways during cutover
+
+- `/healthz`, `/readyz`, `/metrics` are unauthenticated and safe to
+  curl from any operator workstation.
+- Backend startup log includes `version` (sourced from
+  `internal/version`) and `provider` so you can confirm what's running.
+- `audit_log` table is the audit trail — the Phase 1 sweep wired
+  `secret/project/apikey/auth` mutations to it.
+
+## §8. Operational reminders (added 2026-05-19)
+
+These do not require code; they are notes operators must internalize.
+
+### S-L3 — the dev MASTER_KEY is permanently leaked
+
+`docker-compose.yml:25` ships `MASTER_KEY=43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=`. This value is in git history and on every contributor's machine. **It must never appear in any non-dev environment.** The `KEEPSAVE_ENV=production` startup check refuses it by SHA-256 hash (`backend/internal/config/config.go:17`); the check is the safety net, not the policy. If you copy it into staging/UAT/PROD by accident, treat the affected env as a compromise — rotate immediately and audit access logs from the moment the key entered the env.
+
+### S-L4 — where TLS terminates
+
+KeepSave's HSTS header is emitted unconditionally by `security_headers.go`. HSTS is meaningful only over HTTPS; if you terminate TLS at the Go process (`TLS_CERT_FILE`/`TLS_KEY_FILE` set), the HSTS chain is end-to-end. If you terminate TLS at an upstream ingress (Vercel edge, Cloud Run frontend, Fly handler), the Go process speaks plaintext to that ingress and HSTS still propagates correctly to the browser because the browser's hop is HTTPS. Confirm per environment that:
+
+- the ingress speaks HTTPS to the browser
+- the ingress propagates `X-Forwarded-Proto: https` (so KeepSave knows it's behind TLS for OAuth redirect-URI building)
+- the backend is NOT directly reachable from the public internet bypassing the ingress
+
+### DB pool gauges (B-L1)
+
+Three new gauges appear at `/metrics`:
+
+- `keepsave_db_open_connections` — total established connections
+- `keepsave_db_in_use_connections` — checked-out connections
+- `keepsave_db_idle_connections` — idle pool members
+
+Alert when `in_use / open` stays > 0.8 for 5 minutes (saturation) or when `open` oscillates more than 25% in a 1-minute window (pool churn from Neon idle eviction — re-check `ConnMaxLifetime`).
+
 ## Contact paths
 
 - Primary on-call: PagerDuty `keepsave-oncall`

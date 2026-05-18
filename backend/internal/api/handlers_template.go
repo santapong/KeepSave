@@ -20,11 +20,14 @@ func NewTemplateHandler(templateService *service.TemplateService) *TemplateHandl
 func (h *TemplateHandler) Create(c *gin.Context) {
 	var req CreateTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var orgID *uuid.UUID
 	if req.OrganizationID != "" {
 		id, err := uuid.Parse(req.OrganizationID)
@@ -37,7 +40,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 
 	tmpl, err := h.templateService.Create(req.Name, req.Description, req.Stack, req.Keys, userID, orgID, req.IsGlobal)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -45,7 +48,10 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 }
 
 func (h *TemplateHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var orgID *uuid.UUID
 	if orgIDStr := c.Query("organization_id"); orgIDStr != "" {
 		id, err := uuid.Parse(orgIDStr)
@@ -58,7 +64,7 @@ func (h *TemplateHandler) List(c *gin.Context) {
 
 	templates, err := h.templateService.List(userID, orgID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -88,7 +94,7 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 func (h *TemplateHandler) Update(c *gin.Context) {
 	var req UpdateTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -100,7 +106,7 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 
 	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -115,7 +121,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.templateService.Delete(templateID); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -125,7 +131,7 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 func (h *TemplateHandler) Apply(c *gin.Context) {
 	var req ApplyTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -143,7 +149,7 @@ func (h *TemplateHandler) Apply(c *gin.Context) {
 
 	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

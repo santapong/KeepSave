@@ -142,11 +142,17 @@ type SecretVersion struct {
 }
 
 // DiffEntry represents a single key difference between two environments.
+// The Source/Target fields carry HMAC-SHA256 hash prefixes - never the
+// plaintext value. The hash is keyed by the project DEK so an attacker who
+// observes a /promote/diff response cannot tell "does this hash match the
+// secret 'admin'?" without first stealing the DEK. Equality comparison
+// works because the same value under the same DEK always yields the same
+// hash. See audit S-B4.
 type DiffEntry struct {
 	Key          string `json:"key"`
 	Action       string `json:"action"` // add, update, no_change
-	SourceValue  string `json:"source_value,omitempty"`
-	TargetValue  string `json:"target_value,omitempty"`
+	SourceHash   string `json:"source_hash,omitempty"`
+	TargetHash   string `json:"target_hash,omitempty"`
 	SourceExists bool   `json:"source_exists"`
 	TargetExists bool   `json:"target_exists"`
 }

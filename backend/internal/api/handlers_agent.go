@@ -34,7 +34,7 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 		DurationMin int      `json:"duration_minutes" binding:"required,min=1,max=1440"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -52,12 +52,15 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 	}
 
 	// Use a synthetic API key ID from context
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	duration := time.Duration(req.DurationMin) * time.Minute
 
 	lease, err := h.leaseService.CreateLease(userID, projectID, req.Environment, req.SecretKeys, duration)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -66,11 +69,14 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 
 // ListLeases returns active leases for the current agent.
 func (h *AgentHandler) ListLeases(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	leases, err := h.leaseService.ListActiveLeases(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -86,7 +92,7 @@ func (h *AgentHandler) RevokeLease(c *gin.Context) {
 	}
 
 	if err := h.leaseService.RevokeLease(leaseID); err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -95,11 +101,14 @@ func (h *AgentHandler) RevokeLease(c *gin.Context) {
 
 // GetActivitySummary returns agent activity summary.
 func (h *AgentHandler) GetActivitySummary(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	summary, err := h.analyticsService.GetActivitySummary(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -116,7 +125,7 @@ func (h *AgentHandler) GetRecentActivity(c *gin.Context) {
 
 	activities, err := h.analyticsService.GetRecentActivity(projectID, 100)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -133,7 +142,7 @@ func (h *AgentHandler) GetAccessHeatmap(c *gin.Context) {
 
 	heatmap, err := h.analyticsService.GetAccessHeatmap(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

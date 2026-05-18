@@ -44,7 +44,10 @@ func (h *WebhookHandler) Register(c *gin.Context) {
 		Events: req.Events,
 	}
 
-	h.webhookService.RegisterWebhook(projectID, config)
+	if err := h.webhookService.RegisterWebhook(projectID, config); err != nil {
+		WrapError(c, Wrap(ErrInvalidInput, err))
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "webhook registered successfully",

@@ -22,7 +22,7 @@ func NewPromotionHandler(promotionService *service.PromotionService) *PromotionH
 func (h *PromotionHandler) Promote(c *gin.Context) {
 	var req PromoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -32,7 +32,10 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.Promote(
 		projectID,
@@ -45,7 +48,7 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 		c.ClientIP(),
 	)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -61,7 +64,7 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 func (h *PromotionHandler) Diff(c *gin.Context) {
 	var req DiffRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -73,7 +76,7 @@ func (h *PromotionHandler) Diff(c *gin.Context) {
 
 	diffs, err := h.promotionService.Diff(projectID, req.SourceEnvironment, req.TargetEnvironment, req.Keys)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -94,7 +97,7 @@ func (h *PromotionHandler) ListPromotions(c *gin.Context) {
 
 	promotions, err := h.promotionService.ListPromotions(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -130,11 +133,14 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.ApprovePromotion(promotionID, userID, c.ClientIP())
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -149,11 +155,14 @@ func (h *PromotionHandler) RejectPromotion(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	promotion, err := h.promotionService.RejectPromotion(promotionID, userID, c.ClientIP())
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -168,10 +177,13 @@ func (h *PromotionHandler) Rollback(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	if err := h.promotionService.Rollback(promotionID, userID, c.ClientIP()); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -195,7 +207,7 @@ func (h *PromotionHandler) AuditLog(c *gin.Context) {
 
 	entries, err := h.promotionService.ListAuditLog(projectID, limit)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

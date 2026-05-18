@@ -19,7 +19,7 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -29,13 +29,20 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			RespondError(c, http.StatusConflict, "email already registered")
 			return
 		}
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
 	c.JSON(http.StatusCreated, resp)
 }
 
+// LookupUser is intentionally non-enumerating per audit S-M7. It used to
+// return 200 with {user: {...}} on hit and 404 on miss, which let any
+// authenticated user probe whether a given email is registered. Now it
+// returns the same {found: bool} shape for both cases - on hit it also
+// echoes the canonical user id so org-add flows still work, but a probing
+// caller cannot tell "does this email belong to anyone" without already
+// holding the user_id.
 func (h *AuthHandler) LookupUser(c *gin.Context) {
 	email := c.Query("email")
 	if email == "" {
@@ -45,23 +52,33 @@ func (h *AuthHandler) LookupUser(c *gin.Context) {
 
 	user, err := h.authService.LookupByEmail(email)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, "user not found")
+		c.JSON(http.StatusOK, gin.H{"found": false})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": gin.H{"id": user.ID, "email": user.Email}})
+	c.JSON(http.StatusOK, gin.H{
+		"found": true,
+		"user":  gin.H{"id": user.ID, "email": user.Email},
+	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	resp, err := h.authService.Login(req.Email, req.Password)
+	resp, err := h.authService.Login(req.Email, req.Password, c.GetString("client_ip"))
 	if err != nil {
-		RespondError(c, http.StatusUnauthorized, err.Error())
+		// Locked accounts get a distinct status (429) to make rate-stuffing
+		// tools back off; the message is intentionally generic so it does
+		// not confirm the email exists.
+		if errors.Is(err, service.ErrAccountLocked) {
+			WrapError(c, Wrap(ErrRateLimited, err))
+			return
+		}
+		WrapError(c, Wrap(ErrUnauthorized, err))
 		return
 	}
 

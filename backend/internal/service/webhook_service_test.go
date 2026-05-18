@@ -22,7 +22,7 @@ func TestWebhookServiceRegisterAndList(t *testing.T) {
 		Events: []string{"promotion.completed"},
 	}
 
-	ws.RegisterWebhook(projectID, config)
+	_ = ws.RegisterWebhook(projectID, config)
 
 	configs := ws.ListWebhooks(projectID)
 	if len(configs) != 1 {
@@ -40,7 +40,7 @@ func TestWebhookServiceRemove(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{URL: "https://example.com/hook"})
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{URL: "https://example.com/hook"})
 	ws.RemoveWebhooks(projectID)
 
 	configs := ws.ListWebhooks(projectID)
@@ -90,7 +90,7 @@ func TestWebhookServiceNotify(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"promotion.completed"},
 	})
@@ -140,7 +140,7 @@ func TestWebhookServiceEventFilter(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"promotion.completed"},
 	})
@@ -167,7 +167,7 @@ func TestWebhookServiceWildcardEvents(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"*"},
 	})
@@ -196,7 +196,7 @@ func TestWebhookServiceHMACSignature(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Secret: "webhook-secret-key",
 		Events: []string{"*"},
@@ -230,7 +230,7 @@ func TestWebhookServiceDeliveryLog(t *testing.T) {
 	ws := NewWebhookService()
 	projectID := uuid.New()
 
-	ws.RegisterWebhook(projectID, WebhookConfig{
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"*"},
 	})

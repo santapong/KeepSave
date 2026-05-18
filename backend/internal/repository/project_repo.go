@@ -176,3 +176,52 @@ func (r *ProjectRepository) UpdateDEK(id uuid.UUID, encryptedDEK, dekNonce []byt
 func (r *ProjectRepository) ListByOwner(ownerID uuid.UUID) ([]models.Project, error) {
 	return r.ListByOwnerID(ownerID)
 }
+
+// UserHasAccess returns (true, nil) when userID owns projectID OR is a
+// member of the organization the project belongs to. Returns (false, nil)
+// when the project exists but the user has no access path. Returns
+// (false, sql.ErrNoRows) when the project does not exist — callers should
+// surface this as 404 to avoid project-existence enumeration via 403/404
+// differential.
+func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, error) {
+	// Single round-trip: covers owner OR org-member. organization_id may be
+	// NULL when the project is not assigned to an org (single-user case);
+	// in that path only the owner check matches.
+	// userID is referenced twice (once for owner, once for org-member).
+	// SQLite's "?" placeholders are positional by argument index, so we
+	// list distinct placeholders ($1 project, $2 user-as-owner, $3
+	// user-as-member) and pass userID twice.
+	query := Q(r.dialect, `
+		SELECT EXISTS (
+			SELECT 1 FROM projects p
+			WHERE p.id = $1 AND (
+				p.owner_id = $2
+				OR (
+					p.organization_id IS NOT NULL
+					AND EXISTS (
+						SELECT 1 FROM organization_members om
+						WHERE om.organization_id = p.organization_id
+						AND om.user_id = $3
+					)
+				)
+			)
+		)
+	`)
+	var allowed bool
+	if err := r.db.QueryRow(query, projectID, userID, userID).Scan(&allowed); err != nil {
+		return false, fmt.Errorf("checking project access: %w", err)
+	}
+	if !allowed {
+		// Distinguish "no row" from "no access" so the middleware can decide
+		// the right status. A separate existence check keeps the security
+		// model honest: leaking existence is itself a finding.
+		var exists bool
+		if err := r.db.QueryRow(Q(r.dialect, `SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1)`), projectID).Scan(&exists); err != nil {
+			return false, fmt.Errorf("checking project existence: %w", err)
+		}
+		if !exists {
+			return false, sql.ErrNoRows
+		}
+	}
+	return allowed, nil
+}

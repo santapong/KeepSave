@@ -156,8 +156,46 @@ Covers the execution path that §5 does not: command spawning by the gateway and
 - Compromise of the customer-side runtime that holds API keys (we provide rotation; secure runtime storage is the customer's problem).
 - Physical compromise of the database or KMS hardware.
 
+## §8. Cross-origin trust boundary (added per ADR-0016, 2026-05-18)
+
+ADR-0016 splits the frontend (Vercel) and backend (container platform) onto distinct origins. This widens the trust boundary — there is now a public-internet hop between the React SPA and the Gin API that previously was a same-origin call.
+
+| Component | Trust | Notes |
+|---|---|---|
+| Vercel-hosted SPA | Untrusted (any browser may load it; integrity gated by Vercel + SRI) | Build artifacts are public. No secrets in `import.meta.env.VITE_*`. |
+| Public internet between SPA and API | Untrusted | Confidentiality + integrity from TLS only. No mTLS today. |
+| Container-hosted Gin API | Trusted | Holds master key in memory. CORS allow-list is the boundary control. |
+
+### STRIDE rows for the new boundary
+
+| # | Threat | Mitigation | Residual |
+|---|---|---|---|
+| §8/S | Attacker hosts a malicious SPA at `https://evil.example` and tricks a user into pasting their bearer token | Bearer tokens stored in `localStorage` are origin-bound by the browser; CORS allow-list refuses requests from non-allowlisted origins; embed widget refuses `postMessage` from non-allowlisted hosts (ADR-0006) | Low |
+| §8/T | MITM on the public-internet hop | TLS required (`https://` only; `KEEPSAVE_ENV=production` rejects `sslmode=disable`); HSTS emitted when TLS terminates at the Go process | Low — TLS at managed Vercel/Fly/Cloud Run edges |
+| §8/R | Origin spoofing in CORS preflight (the `Origin` header is set by the browser; an attacker tool may forge it) | Reflected `Access-Control-Allow-Origin` is only echoed when the value matches the exact-list or single-glob in `CORS_ORIGINS`; SOP still applies in real browsers | Low — non-browser callers can already use the API directly |
+| §8/I | A second Vercel deploy under an attacker-controlled team subdomain matches a too-permissive glob pattern | Glob patterns reject 2+ wildcards (`compileOriginPatterns` in `backend/internal/api/middleware.go`); operators must use the **single-`*`** form and pin the team suffix; runbook documents the convention | Low if convention is followed; Medium if operators use overly broad globs |
+| §8/D | Preflight floods aimed at exhausting backend CPU | Existing per-IP rate limiter applies to OPTIONS too; preflight returns 204 cheaply | Low |
+| §8/E | Cookie-based session bypass | `Access-Control-Allow-Credentials` is unconditionally false; bearer-token only. Cookie auth is a Type-1 ADR away — do not enable without a new threat-model pass | None today |
+
+### Operational invariants
+
+- `Access-Control-Allow-Credentials` MUST stay `false`. Enabling it without re-doing this section opens up CSRF on cross-origin POSTs.
+- `CORS_ORIGINS=*` is forbidden in production (`internal/config/config.go` startup check).
+- Glob patterns are single-wildcard only. Multi-wildcard entries are dropped at parse time (`backend/internal/api/middleware.go::compileOriginPatterns`).
+- `Vary: Origin` is emitted whenever an allow-list match reflects the origin (prevents cache poisoning by intermediaries).
+
+### Files for verification
+
+- `backend/internal/api/middleware.go` (`CORSMiddleware`, `matchOrigin`, `compileOriginPatterns`)
+- `backend/internal/api/cors_test.go` (allow-list matrix + no-credentials assertion)
+- `backend/internal/config/config.go:82-87` (production refuses `CORS_ORIGINS=*`)
+- `frontend/src/api/client.ts:24-31` (`VITE_API_BASE_URL` resolution)
+- `docs/adr/0016-deployment-topology.md` §Consequences/Security
+- `docs/DEPLOYMENT_PLAN.md` §4.4 (operator CORS guidance)
+
 ## Change log
 
+- **1.2.2 (2026-05-18):** Added §8 (cross-origin trust boundary per ADR-0016 acceptance). Updated mitigations columns referencing the audit S-B2/S-B3/S-B4/S-B5/S-B6 fixes that landed in PR #54.
 - **1.2.1 (2026-05-15):** Audit team sweep delta (`docs/audits/SECURITY_AUDIT_2026-05-15.md`). 5 new STRIDE rows (§2/E JWT-no-project-bind, §3/I Diff plaintext, §1/I webhook SSRF, §1/R audit-log tamper + taxonomy gaps, §6/T MCP entry-command RCE, §6/D MCP build DoS, §7/I secret-version retention) and 4 residual-risk updates (§2/E API key scope -> High; §3/R approval-merge cross-refs ADR-0007; §1/T KMS throttle noted moot pending FU#1; §1/R audit-log row added). New top-level sections §6 (MCP tool execution) and §7 (Secret-version retention).
 - **1.2.0 (2026-05-12):** Re-baselined during 30-day plan. Added Section 4 (embed widget). Added "Findings new in v1.2.0" block with four critical/high open gaps. Added file:line refs throughout. Added "Assumptions" verification cadence and "Out-of-scope" list.
 - **1.1.0 (2026-04-19):** STRIDE pass on vault, OAuth, MCP, promotion. Pre-30-day-plan baseline.

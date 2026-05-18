@@ -30,7 +30,7 @@ func (h *EnvFileHandler) Export(c *gin.Context) {
 
 	content, err := h.envFileService.Export(projectID, envName)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -47,7 +47,7 @@ func (h *EnvFileHandler) Export(c *gin.Context) {
 func (h *EnvFileHandler) Import(c *gin.Context) {
 	var req ImportEnvRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *EnvFileHandler) Import(c *gin.Context) {
 
 	result, err := h.envFileService.Import(projectID, req.Environment, req.Content, req.Overwrite)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

@@ -21,7 +21,13 @@ import type {
   GatewayStats,
 } from '../types/mcp';
 
-const BASE_URL = '/api/v1';
+// API base URL resolution:
+//   - Production (Vercel etc.): set VITE_API_BASE_URL to the absolute
+//     backend origin, e.g. "https://api-uat.keepsave.example/api/v1".
+//   - Local dev: leave VITE_API_BASE_URL unset so requests go to "/api/v1"
+//     and Vite's dev proxy (vite.config.ts) forwards them to localhost:8080.
+// See docs/DEPLOYMENT_PLAN.md sec 4.3.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 /**
  * The canonical localStorage key for the auth JWT.

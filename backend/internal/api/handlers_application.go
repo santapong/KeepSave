@@ -37,15 +37,18 @@ type UpdateApplicationRequest struct {
 func (h *ApplicationHandler) Create(c *gin.Context) {
 	var req CreateApplicationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	app, err := h.appService.Create(req.Name, req.URL, req.Description, req.Icon, req.Category, userID)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -53,7 +56,10 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 }
 
 func (h *ApplicationHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	search := c.Query("search")
 	category := c.Query("category")
 
@@ -76,7 +82,7 @@ func (h *ApplicationHandler) List(c *gin.Context) {
 
 	apps, total, err := h.appService.List(userID, search, category, limit, offset)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -123,15 +129,18 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 
 	var req UpdateApplicationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	app, err := h.appService.Update(appID, req.Name, req.URL, req.Description, req.Icon, req.Category, userID)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -145,10 +154,13 @@ func (h *ApplicationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	if err := h.appService.Delete(appID, userID); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -162,11 +174,14 @@ func (h *ApplicationHandler) ToggleFavorite(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	isFavorite, err := h.appService.ToggleFavorite(userID, appID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

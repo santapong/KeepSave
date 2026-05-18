@@ -20,7 +20,7 @@ func NewSecretHandler(secretService *service.SecretService) *SecretHandler {
 func (h *SecretHandler) Create(c *gin.Context) {
 	var req CreateSecretRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -30,9 +30,13 @@ func (h *SecretHandler) Create(c *gin.Context) {
 		return
 	}
 
-	secret, err := h.secretService.Create(projectID, req.Environment, req.Key, req.Value)
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	secret, err := h.secretService.Create(projectID, req.Environment, req.Key, req.Value, actorID, c.GetString("client_ip"))
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -54,7 +58,7 @@ func (h *SecretHandler) List(c *gin.Context) {
 
 	secrets, err := h.secretService.List(projectID, envName)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -90,7 +94,7 @@ func (h *SecretHandler) Get(c *gin.Context) {
 func (h *SecretHandler) Update(c *gin.Context) {
 	var req UpdateSecretRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -106,7 +110,11 @@ func (h *SecretHandler) Update(c *gin.Context) {
 		return
 	}
 
-	secret, err := h.secretService.Update(projectID, secretID, req.Value)
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	secret, err := h.secretService.Update(projectID, secretID, req.Value, actorID, c.GetString("client_ip"))
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "secret not found")
 		return
@@ -128,7 +136,11 @@ func (h *SecretHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.secretService.Delete(projectID, secretID); err != nil {
+	actorID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.secretService.Delete(projectID, secretID, actorID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "secret not found")
 		return
 	}

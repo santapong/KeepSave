@@ -74,9 +74,10 @@ func insertTestProject(t *testing.T, db *sql.DB, id uuid.UUID, allowedOrigins st
 func newEmbedTestHandler(t *testing.T, db *sql.DB, dialect repository.Dialect) *EmbedHandler {
 	t.Helper()
 	projectRepo := repository.NewProjectRepository(db, dialect)
-	// envRepo and cryptoSvc are only used by Create/Delete paths; the
-	// embed-config endpoint never touches them, so nil is acceptable here.
-	svc := service.NewProjectService(projectRepo, nil, nil)
+	// envRepo, auditRepo and cryptoSvc are only used by Create/Update/Delete
+	// paths; the embed-config endpoint never touches them, so nil is
+	// acceptable here. emitAudit is nil-safe.
+	svc := service.NewProjectService(projectRepo, nil, nil, nil)
 	return NewEmbedHandler(svc)
 }
 

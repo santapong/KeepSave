@@ -76,6 +76,17 @@ func (s *OAuthService) Authorize(clientID string, userID uuid.UUID, redirectURI 
 	if !s.isValidRedirectURI(client, redirectURI) {
 		return "", fmt.Errorf("invalid redirect_uri")
 	}
+	// Per audit S-H4: public clients MUST submit a S256 PKCE challenge.
+	// Confidential clients may omit PKCE since they authenticate with a
+	// client secret on the token exchange.
+	if client.IsPublic {
+		if codeChallenge == "" {
+			return "", fmt.Errorf("public clients require code_challenge")
+		}
+		if codeChallengeMethod != "S256" {
+			return "", fmt.Errorf("public clients require code_challenge_method=S256")
+		}
+	}
 	code := generateAuthCode()
 	authCode := &models.OAuthAuthorizationCode{
 		Code: code, ClientID: client.ID, UserID: userID, RedirectURI: redirectURI,
@@ -246,13 +257,17 @@ func (s *OAuthService) verifyClientSecret(client *models.OAuthClient, secret str
 	return subtle.ConstantTimeCompare([]byte(client.ClientSecretHash), []byte(hash)) == 1
 }
 
+// verifyPKCE accepts ONLY the S256 method per audit S-H4 / RFC 7636. The
+// legacy "plain" fallback has been removed because it leaves public clients
+// vulnerable to authorization-code interception. An empty method or any
+// other value is treated as a verification failure.
 func (s *OAuthService) verifyPKCE(challenge, method, verifier string) bool {
-	if method == "S256" {
-		h := sha256.Sum256([]byte(verifier))
-		computed := base64.RawURLEncoding.EncodeToString(h[:])
-		return subtle.ConstantTimeCompare([]byte(challenge), []byte(computed)) == 1
+	if method != "S256" {
+		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(challenge), []byte(verifier)) == 1
+	h := sha256.Sum256([]byte(verifier))
+	computed := base64.RawURLEncoding.EncodeToString(h[:])
+	return subtle.ConstantTimeCompare([]byte(challenge), []byte(computed)) == 1
 }
 
 func generateClientID() string {

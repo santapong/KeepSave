@@ -35,7 +35,10 @@ func (h *IntelligenceHandler) DetectDrift(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid project ID"})
 		return
 	}
-	uid := c.MustGet("user_id").(uuid.UUID)
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var req struct {
 		SourceEnv string `json:"source_env" binding:"required"`
 		TargetEnv string `json:"target_env" binding:"required"`
@@ -208,7 +211,10 @@ func (h *IntelligenceHandler) ResolveAnomaly(c *gin.Context) {
 
 // --- Alert Rules ---
 func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
-	uid := c.MustGet("user_id").(uuid.UUID)
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var req struct {
 		ProjectID string         `json:"project_id"`
 		APIKeyID  string         `json:"api_key_id"`
@@ -400,7 +406,10 @@ func (h *IntelligenceHandler) GenerateRecommendations(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid project ID"})
 		return
 	}
-	uid := c.MustGet("user_id").(uuid.UUID)
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	recs, err := h.recommSvc.GenerateRecommendations(pid, uid)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -438,7 +447,10 @@ func (h *IntelligenceHandler) DismissRecommendation(c *gin.Context) {
 
 // --- NLP ---
 func (h *IntelligenceHandler) NLPQuery(c *gin.Context) {
-	uid := c.MustGet("user_id").(uuid.UUID)
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var req struct {
 		Query string `json:"query" binding:"required"`
 	}
@@ -455,7 +467,10 @@ func (h *IntelligenceHandler) NLPQuery(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) NLPConverse(c *gin.Context) {
-	uid := c.MustGet("user_id").(uuid.UUID)
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	var req struct {
 		Messages []models.ConversationMessage `json:"messages" binding:"required"`
 	}

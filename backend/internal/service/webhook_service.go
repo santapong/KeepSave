@@ -58,11 +58,20 @@ func NewWebhookService() *WebhookService {
 	}
 }
 
-// RegisterWebhook adds a webhook configuration for a project.
-func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig) {
+// RegisterWebhook adds a webhook configuration for a project. The URL is
+// validated against the SSRF allow-policy at registration time (ADR-0013 /
+// audit S-H2) so an attacker cannot register an internal target and trigger
+// it later via a state-mutating call. Delivery does NOT re-validate -
+// re-resolving on every call costs latency and only protects against DNS
+// rebinding, which we accept as out-of-scope for this round.
+func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig) error {
+	if err := ValidateWebhookURL(config.URL); err != nil {
+		return err
+	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.configs[projectID] = append(ws.configs[projectID], config)
+	return nil
 }
 
 // RemoveWebhooks removes all webhooks for a project.

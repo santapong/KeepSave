@@ -31,7 +31,7 @@ func (h *DependencyHandler) Analyze(c *gin.Context) {
 
 	deps, err := h.depService.AnalyzeDependencies(projectID, envName)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *DependencyHandler) Graph(c *gin.Context) {
 
 	graph, err := h.depService.GetDependencyGraph(projectID, envName)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

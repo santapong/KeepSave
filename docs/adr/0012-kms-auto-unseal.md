@@ -1,6 +1,6 @@
 # ADR-0012: KMS auto-unseal as production default for the master key
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (Backend Engineer role)
 - **Reviewers required:** Tech Lead; Security Engineer (mandatory veto — touches crypto / key-custody, per `docs/ROLES.md` §3.1 Type-1)

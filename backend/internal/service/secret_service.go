@@ -13,6 +13,7 @@ type SecretService struct {
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
 }
 
@@ -20,12 +21,14 @@ func NewSecretService(
 	secretRepo *repository.SecretRepository,
 	projectRepo *repository.ProjectRepository,
 	envRepo *repository.EnvironmentRepository,
+	auditRepo *repository.AuditRepository,
 	cryptoSvc *crypto.Service,
 ) *SecretService {
 	return &SecretService{
 		secretRepo:  secretRepo,
 		projectRepo: projectRepo,
 		envRepo:     envRepo,
+		auditRepo:   auditRepo,
 		cryptoSvc:   cryptoSvc,
 	}
 }
@@ -38,7 +41,7 @@ func (s *SecretService) decryptProjectDEK(project *models.Project) ([]byte, erro
 	return dek, nil
 }
 
-func (s *SecretService) Create(projectID uuid.UUID, envName, key, value string) (*models.Secret, error) {
+func (s *SecretService) Create(projectID uuid.UUID, envName, key, value string, actorID uuid.UUID, ipAddr string) (*models.Secret, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -63,6 +66,9 @@ func (s *SecretService) Create(projectID uuid.UUID, envName, key, value string) 
 	if err != nil {
 		return nil, fmt.Errorf("creating secret: %w", err)
 	}
+
+	emitAudit(s.auditRepo, &actorID, &projectID, "secret.created", envName,
+		models.JSONMap{"secret_key": key, "secret_id": secret.ID.String()}, ipAddr)
 
 	// Return without encrypted data, with the original value
 	secret.Value = value
@@ -136,7 +142,7 @@ func (s *SecretService) List(projectID uuid.UUID, envName string) ([]models.Secr
 	return secrets, nil
 }
 
-func (s *SecretService) Update(projectID, secretID uuid.UUID, value string) (*models.Secret, error) {
+func (s *SecretService) Update(projectID, secretID uuid.UUID, value string, actorID uuid.UUID, ipAddr string) (*models.Secret, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -165,13 +171,16 @@ func (s *SecretService) Update(projectID, secretID uuid.UUID, value string) (*mo
 		return nil, fmt.Errorf("updating secret: %w", err)
 	}
 
+	emitAudit(s.auditRepo, &actorID, &projectID, "secret.updated", "",
+		models.JSONMap{"secret_key": existing.Key, "secret_id": secretID.String()}, ipAddr)
+
 	secret.Value = value
 	secret.EncryptedValue = nil
 	secret.ValueNonce = nil
 	return secret, nil
 }
 
-func (s *SecretService) Delete(projectID, secretID uuid.UUID) error {
+func (s *SecretService) Delete(projectID, secretID uuid.UUID, actorID uuid.UUID, ipAddr string) error {
 	existing, err := s.secretRepo.GetByID(secretID)
 	if err != nil {
 		return fmt.Errorf("getting secret: %w", err)
@@ -179,5 +188,10 @@ func (s *SecretService) Delete(projectID, secretID uuid.UUID) error {
 	if existing.ProjectID != projectID {
 		return fmt.Errorf("secret not found")
 	}
-	return s.secretRepo.Delete(secretID)
+	if err := s.secretRepo.Delete(secretID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, &projectID, "secret.deleted", "",
+		models.JSONMap{"secret_key": existing.Key, "secret_id": secretID.String()}, ipAddr)
+	return nil
 }

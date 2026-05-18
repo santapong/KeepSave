@@ -1,7 +1,11 @@
 package service
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -9,6 +13,24 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// diffHashLen is the number of hex chars returned for each diff hash. 16
+// hex chars = 64 bits, enough to make collision-driven false-equalities
+// vanishingly rare while keeping the response compact and removing any
+// realistic preimage exposure (HMAC truncation is safe per RFC 2104 §5).
+const diffHashLen = 16
+
+// hashSecretForDiff returns a per-project HMAC-SHA256 prefix of value.
+// Using the project DEK as the MAC key means an attacker who observes a
+// /promote/diff response cannot match the hash against guessed secret
+// values without first stealing the DEK - the very thing the encryption
+// scheme protects.
+func hashSecretForDiff(dek, value []byte) string {
+	m := hmac.New(sha256.New, dek)
+	m.Write(value)
+	sum := m.Sum(nil)
+	return hex.EncodeToString(sum)[:diffHashLen]
+}
 
 var envOrder = map[string]int{
 	"alpha": 0,
@@ -128,7 +150,7 @@ func (s *PromotionService) Diff(projectID uuid.UUID, sourceEnv, targetEnv string
 
 		entry := models.DiffEntry{
 			Key:          srcSec.Key,
-			SourceValue:  string(srcValue),
+			SourceHash:   hashSecretForDiff(dek, srcValue),
 			SourceExists: true,
 		}
 
@@ -137,10 +159,12 @@ func (s *PromotionService) Diff(projectID uuid.UUID, sourceEnv, targetEnv string
 			if err != nil {
 				return nil, fmt.Errorf("decrypting target secret %s: %w", srcSec.Key, err)
 			}
-			entry.TargetValue = string(tgtValue)
+			entry.TargetHash = hashSecretForDiff(dek, tgtValue)
 			entry.TargetExists = true
 
-			if string(srcValue) == string(tgtValue) {
+			// Equality via constant-time compare on the same-keyed HMAC is
+			// equivalent to plaintext equality without revealing either value.
+			if entry.SourceHash == entry.TargetHash {
 				entry.Action = "no_change"
 			} else {
 				entry.Action = "update"
@@ -211,6 +235,11 @@ func (s *PromotionService) Promote(
 	return promotion, nil
 }
 
+// ErrSelfApproval is returned when the approver is the same user that
+// requested the promotion. Per ADR-0007 / audit S-H3, four-eyes is a hard
+// invariant: a single compromised account cannot move secrets to PROD.
+var ErrSelfApproval = errors.New("requester cannot approve their own promotion")
+
 // ApprovePromotion approves and executes a pending PROD promotion.
 func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, ipAddress string) (*models.PromotionRequest, error) {
 	promotion, err := s.promotionRepo.GetByID(promotionID)
@@ -220,6 +249,10 @@ func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, i
 
 	if promotion.Status != "pending" {
 		return nil, fmt.Errorf("promotion is not pending approval (status: %s)", promotion.Status)
+	}
+
+	if promotion.RequestedBy == approverID {
+		return nil, ErrSelfApproval
 	}
 
 	if err := s.promotionRepo.UpdateStatus(promotionID, "approved", &approverID); err != nil {

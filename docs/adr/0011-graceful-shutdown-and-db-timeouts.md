@@ -1,6 +1,6 @@
 # ADR-0011: Graceful shutdown, DB context timeouts, HTTP server timeouts, pool-lifetime tuning, and a shared `safego` helper
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (Backend Engineer role)
 - **Reviewers required:** Tech Lead (gating sign-off); Security Engineer (recommended — touches process lifecycle but **not** crypto / auth / promotion, so no Security veto per `docs/ROLES.md` §2.2 and §3.1)

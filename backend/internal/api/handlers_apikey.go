@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,11 +22,14 @@ func NewAPIKeyHandler(apikeyService *service.APIKeyService) *APIKeyHandler {
 func (h *APIKeyHandler) Create(c *gin.Context) {
 	var req CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	projectID, err := uuid.Parse(req.ProjectID)
 	if err != nil {
@@ -33,7 +37,17 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment)
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
+		parsed, perr := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if perr != nil {
+			WrapError(c, Wrap(ErrInvalidInput, perr))
+			return
+		}
+		expiresAt = &parsed
+	}
+
+	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment, expiresAt, c.GetString("client_ip"))
 	if err != nil {
 		if errors.Is(err, service.ErrProjectNotFound) {
 			RespondError(c, http.StatusNotFound, "project not found")
@@ -43,7 +57,11 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 			RespondError(c, http.StatusForbidden, "not authorized for this project")
 			return
 		}
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, service.ErrAPIKeyExpiryOutOfRange) {
+			WrapError(c, Wrap(ErrInvalidInput, err))
+			return
+		}
+		WrapError(c, err)
 		return
 	}
 
@@ -51,11 +69,14 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 }
 
 func (h *APIKeyHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	keys, err := h.apikeyService.List(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -67,7 +88,10 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 }
 
 func (h *APIKeyHandler) Delete(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	keyID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -75,7 +99,7 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.apikeyService.Delete(keyID, userID); err != nil {
+	if err := h.apikeyService.Delete(keyID, userID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "api key not found")
 		return
 	}

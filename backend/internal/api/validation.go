@@ -31,10 +31,15 @@ type UpdateSecretRequest struct {
 }
 
 type CreateAPIKeyRequest struct {
-	Name        string   `json:"name" binding:"required,min=1,max=255"`
-	ProjectID   string   `json:"project_id" binding:"required,uuid"`
-	Scopes      []string `json:"scopes" binding:"omitempty,dive,oneof=read write delete promote"`
-	Environment *string  `json:"environment" binding:"omitempty,oneof=alpha uat prod"`
+	Name      string   `json:"name" binding:"required,min=1,max=255"`
+	ProjectID string   `json:"project_id" binding:"required,uuid"`
+	Scopes    []string `json:"scopes" binding:"omitempty,dive,oneof=read write delete promote"`
+	Environment *string `json:"environment" binding:"omitempty,oneof=alpha uat prod"`
+	// ExpiresAt bounds the credential's lifetime per ADR-0009 / audit
+	// S-M4. Optional: when omitted the service defaults to now + 90d.
+	// Service caps at now + 365d (GitHub PAT ceiling). Validated as
+	// `> now` and `<= now + 365d`. RFC3339 wire format.
+	ExpiresAt *string `json:"expires_at" binding:"omitempty"`
 }
 
 type PromoteRequest struct {

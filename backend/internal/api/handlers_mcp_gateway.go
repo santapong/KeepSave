@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +16,50 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
+
+// allowedMCPBinaries lists the executables an operator can register as a
+// MCP server entry command. Per ADR-0010, user input MUST NOT reach a shell
+// interpreter; any binary outside this list is rejected before exec.
+var allowedMCPBinaries = map[string]struct{}{
+	"node":    {},
+	"python":  {},
+	"python3": {},
+}
+
+// shellMetaChars contains characters that imply shell evaluation. Their
+// presence in any entry-command token rejects the registration even if the
+// first token is in the allow-list - they suggest the operator is trying
+// to smuggle a shell pipeline (e.g. "node -e require('fs')...|nc attacker").
+const shellMetaChars = ";|&$`\n\r<>(){}\\\"'*?~!"
+
+// mcpExecTimeout bounds how long a single tool call may run. The 30s window
+// matches the SDK's default; the process group is killed on timeout (see
+// SysProcAttr below).
+const mcpExecTimeout = 30 * time.Second
+
+// validateMCPEntryCommand parses and vets a server.EntryCommand string. It
+// returns the argv slice if safe, or a typed error otherwise. The validation
+// is intentionally strict: an allowed binary name with no path separators,
+// no shell metachars in any token.
+func validateMCPEntryCommand(entry string) ([]string, error) {
+	parts := strings.Fields(entry)
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("no entry command configured")
+	}
+	bin := parts[0]
+	if strings.ContainsAny(bin, "/\\") {
+		return nil, fmt.Errorf("entry binary must not contain path separators")
+	}
+	if _, ok := allowedMCPBinaries[bin]; !ok {
+		return nil, fmt.Errorf("entry binary %q is not in the MCP allow-list", bin)
+	}
+	for _, tok := range parts {
+		if strings.ContainsAny(tok, shellMetaChars) {
+			return nil, fmt.Errorf("entry command contains shell metacharacter")
+		}
+	}
+	return parts, nil
+}
 
 type MCPGatewayHandler struct {
 	mcpService     *service.MCPService
@@ -48,7 +93,10 @@ func NewMCPGatewayHandler(
 
 // HandleToolCall proxies an MCP tool call to the appropriate MCP server.
 func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	var req models.MCPGatewayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -162,7 +210,10 @@ func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
 
 // ListTools returns all available tools across installed MCP servers.
 func (h *MCPGatewayHandler) ListTools(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	serversWithTools, err := h.mcpService.ListUserTools(userID)
 	if err != nil {
@@ -196,11 +247,14 @@ func (h *MCPGatewayHandler) ListTools(c *gin.Context) {
 
 // MCPConfig generates the MCP configuration JSON for the user.
 func (h *MCPGatewayHandler) MCPConfig(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	installations, err := h.mcpService.ListInstallations(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -323,18 +377,26 @@ func (h *MCPGatewayHandler) executeMCPToolCall(server *models.MCPServerWithTools
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
-	// Parse entry command
-	parts := strings.Fields(server.EntryCommand)
-	if len(parts) == 0 {
-		return nil, fmt.Errorf("no entry command configured")
+	// Validate the entry command against the allow-list before exec.
+	// User-controlled DB string + os/exec is the audit S-B5 RCE vector;
+	// the validator below is the trust boundary.
+	parts, err := validateMCPEntryCommand(server.EntryCommand)
+	if err != nil {
+		return nil, err
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	// Bound the exec; the context cancel kills the process group on
+	// timeout so a runaway tool can't burn a goroutine indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), mcpExecTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
 	cmd.Dir = buildDir
 	cmd.Stdin = strings.NewReader(string(requestJSON))
 
-	// Set environment variables
-	cmd.Env = append(cmd.Env, envVars...)
+	// Inherit a minimal environment - explicitly NOT os.Environ() - and add
+	// only the per-secret envVars the caller has been authorized for.
+	cmd.Env = append([]string{}, envVars...)
 
 	output, err := cmd.Output()
 	if err != nil {

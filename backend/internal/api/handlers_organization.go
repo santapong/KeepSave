@@ -20,14 +20,17 @@ func NewOrganizationHandler(orgService *service.OrganizationService) *Organizati
 func (h *OrganizationHandler) Create(c *gin.Context) {
 	var req CreateOrganizationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	org, err := h.orgService.Create(req.Name, userID)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -35,10 +38,13 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) List(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	orgs, err := h.orgService.List(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 	if orgs == nil {
@@ -54,10 +60,13 @@ func (h *OrganizationHandler) Get(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	org, err := h.orgService.GetByID(orgID, userID)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, err.Error())
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 
@@ -67,7 +76,7 @@ func (h *OrganizationHandler) Get(c *gin.Context) {
 func (h *OrganizationHandler) Update(c *gin.Context) {
 	var req UpdateOrganizationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -77,10 +86,13 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	org, err := h.orgService.Update(orgID, userID, req.Name)
 	if err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -94,9 +106,12 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	if err := h.orgService.Delete(orgID, userID); err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -106,7 +121,7 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 func (h *OrganizationHandler) AddMember(c *gin.Context) {
 	var req AddMemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -122,10 +137,13 @@ func (h *OrganizationHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	member, err := h.orgService.AddMember(orgID, userID, targetUserID, req.Role)
 	if err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -139,10 +157,13 @@ func (h *OrganizationHandler) ListMembers(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	members, err := h.orgService.ListMembers(orgID, userID)
 	if err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -155,7 +176,7 @@ func (h *OrganizationHandler) ListMembers(c *gin.Context) {
 func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 	var req UpdateMemberRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -171,10 +192,13 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	member, err := h.orgService.UpdateMemberRole(orgID, userID, memberUserID, req.Role)
 	if err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -194,9 +218,12 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	if err := h.orgService.RemoveMember(orgID, userID, memberUserID); err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -206,7 +233,7 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 func (h *OrganizationHandler) AssignProject(c *gin.Context) {
 	var req AssignProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err.Error())
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
@@ -222,9 +249,12 @@ func (h *OrganizationHandler) AssignProject(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	if err := h.orgService.AssignProject(orgID, userID, projectID); err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 
@@ -238,10 +268,13 @@ func (h *OrganizationHandler) ListProjects(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 	projects, err := h.orgService.ListProjects(orgID, userID)
 	if err != nil {
-		RespondError(c, http.StatusForbidden, err.Error())
+		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
 

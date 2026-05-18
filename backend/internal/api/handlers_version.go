@@ -60,14 +60,14 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 
 	versions, err := h.versionRepo.ListVersions(secretID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
 	// Decrypt values
 	project, err := h.projectRepo.GetByID(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 	dek, err := h.cryptoSvc.DecryptDEK(project.EncryptedDEK, project.DEKNonce)
@@ -128,7 +128,7 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 
 	project, err := h.projectRepo.GetByID(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 	dek, err := h.cryptoSvc.DecryptDEK(project.EncryptedDEK, project.DEKNonce)

@@ -302,25 +302,35 @@ type AppMetrics struct {
 	ActiveAPIKeys     *Gauge
 	WebhookDeliveries *Counter
 	RateLimitHits     *Counter
+	// DB pool gauges - polled by StartDBStatsUpdater per audit B-L1.
+	// They let operators alert when the pool saturates (in_use approaches
+	// max_open) or when Neon's idle-connection eviction shows up as
+	// frequent pool churn (open dropping then rising).
+	DBOpenConnections  *Gauge
+	DBInUseConnections *Gauge
+	DBIdleConnections  *Gauge
 }
 
 // NewAppMetrics creates and registers all application metrics.
 func NewAppMetrics() *AppMetrics {
 	c := NewCollector()
 	return &AppMetrics{
-		Collector:         c,
-		RequestsTotal:     c.NewCounter("keepsave_http_requests_total", "Total HTTP requests"),
-		RequestDuration:   c.NewHistogram("keepsave_http_request_duration_seconds", "HTTP request duration in seconds", DefaultBuckets),
-		RequestsInFlight:  c.NewGauge("keepsave_http_requests_in_flight", "Current in-flight HTTP requests"),
-		ErrorsTotal:       c.NewCounter("keepsave_http_errors_total", "Total HTTP error responses"),
-		SecretsEncrypted:  c.NewCounter("keepsave_secrets_encrypted_total", "Total secrets encrypted"),
-		SecretsDecrypted:  c.NewCounter("keepsave_secrets_decrypted_total", "Total secrets decrypted"),
-		PromotionsTotal:   c.NewCounter("keepsave_promotions_total", "Total promotion operations"),
-		KeyRotationsTotal: c.NewCounter("keepsave_key_rotations_total", "Total key rotation operations"),
-		AuthAttemptsTotal: c.NewCounter("keepsave_auth_attempts_total", "Total authentication attempts"),
-		AuthFailuresTotal: c.NewCounter("keepsave_auth_failures_total", "Total authentication failures"),
-		ActiveAPIKeys:     c.NewGauge("keepsave_active_api_keys", "Current active API keys"),
-		WebhookDeliveries: c.NewCounter("keepsave_webhook_deliveries_total", "Total webhook deliveries"),
-		RateLimitHits:     c.NewCounter("keepsave_rate_limit_hits_total", "Total rate limit rejections"),
+		Collector:          c,
+		RequestsTotal:      c.NewCounter("keepsave_http_requests_total", "Total HTTP requests"),
+		RequestDuration:    c.NewHistogram("keepsave_http_request_duration_seconds", "HTTP request duration in seconds", DefaultBuckets),
+		RequestsInFlight:   c.NewGauge("keepsave_http_requests_in_flight", "Current in-flight HTTP requests"),
+		ErrorsTotal:        c.NewCounter("keepsave_http_errors_total", "Total HTTP error responses"),
+		SecretsEncrypted:   c.NewCounter("keepsave_secrets_encrypted_total", "Total secrets encrypted"),
+		SecretsDecrypted:   c.NewCounter("keepsave_secrets_decrypted_total", "Total secrets decrypted"),
+		PromotionsTotal:    c.NewCounter("keepsave_promotions_total", "Total promotion operations"),
+		KeyRotationsTotal:  c.NewCounter("keepsave_key_rotations_total", "Total key rotation operations"),
+		AuthAttemptsTotal:  c.NewCounter("keepsave_auth_attempts_total", "Total authentication attempts"),
+		AuthFailuresTotal:  c.NewCounter("keepsave_auth_failures_total", "Total authentication failures"),
+		ActiveAPIKeys:      c.NewGauge("keepsave_active_api_keys", "Current active API keys"),
+		WebhookDeliveries:  c.NewCounter("keepsave_webhook_deliveries_total", "Total webhook deliveries"),
+		RateLimitHits:      c.NewCounter("keepsave_rate_limit_hits_total", "Total rate limit rejections"),
+		DBOpenConnections:  c.NewGauge("keepsave_db_open_connections", "sql.DB Stats: total established connections"),
+		DBInUseConnections: c.NewGauge("keepsave_db_in_use_connections", "sql.DB Stats: connections currently in use"),
+		DBIdleConnections:  c.NewGauge("keepsave_db_idle_connections", "sql.DB Stats: idle connections in the pool"),
 	}
 }

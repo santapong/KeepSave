@@ -28,7 +28,7 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 
 	result, err := h.rotationService.RotateProjectKey(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -40,11 +40,14 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 
 // RotateAllKeys rotates keys for all projects owned by the authenticated user.
 func (h *KeyRotationHandler) RotateAllKeys(c *gin.Context) {
-	userID := c.MustGet("user_id").(uuid.UUID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
 
 	results, err := h.rotationService.RotateAllProjects(userID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 
@@ -64,7 +67,7 @@ func (h *KeyRotationHandler) VerifyEncryption(c *gin.Context) {
 
 	failedSecrets, err := h.rotationService.VerifyProjectEncryption(projectID)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err.Error())
+		WrapError(c, err)
 		return
 	}
 

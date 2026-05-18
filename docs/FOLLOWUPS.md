@@ -13,6 +13,105 @@ This is the single source of truth for tracked technical debt and deferred work.
 
 ---
 
+## Closed (Phase 1 deployment sweep — 2026-05-18)
+
+PR #54 / branch `claude/audit-deployment-plan-moSsk`. Cross-references in `docs/audits/AUDIT_2026-05-18_DEPLOYMENT_READINESS.md` §6.
+
+- [x] **#0 Audit logging missing for Secret / Project / API-key mutations** — `emitAudit` wired into `internal/service/{secret,project,apikey,auth}_service.go`; `internal/service/audit_helper.go` is the nil-safe wrapper; `audit_helper_test.go` asserts rows are written.
+- [x] **#0a Error responses leak DB / crypto internals** — 125 `err.Error()` leak sites migrated to `httperror.WrapError` per `docs/ERROR_HANDLING_STANDARD.md`; `internal/api/error_leak_test.go` is the AST-walking regression gate.
+- [x] **#0b Embed widget accepts auth from any origin** — already landed in PR #50; this PR added the cross-origin CORS test surface that exercises the same boundary (`backend/internal/api/cors_test.go`).
+- [x] **#0c No handler-level negative-auth tests** — ~42 cells across `internal/api/negative_auth_test.go`, `internal/service/negative_auth_test.go`, `cors_test.go`, `url_safety_test.go`. Covers the BLOCKER/HIGH surface; full 132-cell matrix remains for Phase 3.
+- [x] **#0d / #5 Approver-cannot-be-requester invariant** — app-level `ErrSelfApproval` in `internal/service/promotion_service.go` + DB `CHECK` constraint in `migrations/{postgres,mysql,sqlite}/008_promotion_self_approval_check.sql`.
+- [x] **#9 Audit-log assertion coverage gaps** — every new mutating-service test asserts the audit row; covered by the same test sweep as #0.
+
+The following remain **open** because they are explicitly out of Phase 1 scope per the user's plan choices:
+
+- **#1 AWS / GCP KMS adapters** — deferred per ADR-0016 (Vault-only this round). Tracked unchanged.
+- **#0e Promotion feature-flag / kill switch** — not in Phase 1 scope.
+- **#0f CI permissions block** — already closed earlier.
+- **#0g CODEOWNERS** — Phase 3.
+- **#0h–0j Frontend follow-ups** — closed earlier in PRs #48/#49.
+- **#0k Default expiration on `ks_` keys** — closed in Phase 3 (see below).
+- **#0l `MustGet` panic refactor** — closed in Phase 3 (see below).
+- **#2, #3, #6, #7, #8, #10** — unchanged.
+
+---
+
+## Closed (Phase 3 medium/low sweep — 2026-05-19)
+
+Commits I–N on the same branch / PR #54. Cross-referenced in
+`docs/audits/AUDIT_2026-05-18_DEPLOYMENT_READINESS.md` §7.
+
+- [x] **#0k Default expiration on `ks_` API keys (S-M4)** — ADR-0009 wired
+  end-to-end: `internal/service/apikey_service.go::computeEffectiveAPIKeyExpiry`
+  defaults to 90 days, caps at 365 days, refuses past times. INSERT now
+  writes `expires_at`. Middleware was already enforcing non-NULL expiry.
+  Existing NULL rows grandfathered.
+- [x] **#0l `MustGet` panic refactor (S-L1)** — 61 of 62 sites migrated
+  to `getUserID(c) (uuid.UUID, bool)` helper in
+  `internal/api/project_access.go`. Returns 401 + Abort on miss instead
+  of panicking. Remaining reference is the helper's own doc comment.
+
+The dead `internal/api/csrf.go` middleware was deleted (S-L2 — KeepSave
+is bearer-token only, CSRF moot) and `lucide-react@^1.8.0` was verified
+as the current stable line (S-L5 — `npm audit` clean).
+
+---
+
+## Backlog (deferred from PR #54 deployment audit, 2026-05-20)
+
+These items were intentionally **not** addressed by the BLOCKER + HIGH +
+MEDIUM + LOW sweep on `claude/audit-deployment-plan-moSsk`. Listed here
+so an operator coming in cold sees the explicit remaining surface.
+
+### Deferred by design (audit + plan choice)
+
+- **S-M3 — Full 132-cell negative-auth test matrix.** The Phase 1 sweep
+  added ~42 cells covering the BLOCKER + HIGH attack surface
+  (`internal/api/negative_auth_test.go`,
+  `internal/service/negative_auth_test.go`, `cors_test.go`,
+  `url_safety_test.go`). The remaining ~90 cells (per
+  `tests/NEGATIVE_AUTH_PLAN.md`) were deferred per the user's
+  plan-question-4 choice during Phase 0. Trigger to revisit: any new
+  endpoint that handles a project ID, OR a customer security review
+  asking for the matrix completion.
+- **S-M6 — Audit-log tamper-evident storage.** The original audit
+  itself routed this to Phase B. Phase A operators export the
+  `audit_log` table nightly to an immutable bucket (GCS Object
+  Lock / S3 Object Lock) — see `DEPLOYMENT_PLAN.md` PROD gate G16.
+  Hash-chain / MAC inside the row is the Phase B mechanism; revisit
+  when a customer SLA names "tamper-evident audit" as a requirement.
+- **FOLLOWUPS #1 — AWS / GCP KMS adapters.** Deferred per ADR-0016 /
+  user's plan-question-3 choice. Vault provider (already wired) is the
+  UAT path. Trigger: production cloud is decided (GCP → wire GCP KMS;
+  AWS → wire AWS KMS).
+
+### Still tracked in this file's other sections
+
+- **#0e Promotion feature-flag / kill switch** (Phase A).
+- **#0g CODEOWNERS for security-critical paths** (Phase A).
+- **#2 Backup tamper-detection test** (Phase A, 60 days).
+- **#3 DEK rotation API** (Phase A, 60 days).
+- **#6 Phase 15 service unit tests** (Phase A, 60 days).
+- **#7 Nonce-collision monitoring per DEK** (Phase A, 90 days).
+- **#8 Seidr-runtime boot in E2E harness** (Phase A, 60 days).
+- **#10 FIPS-mode evaluation** (Phase A decision).
+- All **Phase B** items (per-environment DEK, JWT denylist, fine-grained
+  scopes, three-of-N approval, HKDF subkey, ephemeral attested workload
+  identity, lease-renewal grammar).
+
+### ADRs still Proposed
+
+- **ADR-0008** (RS256 JWKS rotation).
+- **ADR-0014** (Audit log taxonomy extension).
+- **ADR-0015** (`safego` helper and audit emission).
+
+ADRs 0005, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0016 are Accepted
+under sponsor authorization. Retroactive Security + Tech Lead sign-off
+remains pending per CLAUDE.md §"Decision classes".
+
+---
+
 ## Open — Phase A (MVP hardening)
 
 Top-of-list = highest leverage. Order matters — anything blocking a 30-day action in `docs/ROLES_30_60_90.md` goes first.
@@ -80,14 +179,14 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Owner:** Frontend Engineer + UX (interim).
 - **Due:** 30 days.
 
-### 0k. Default expiration on `ks_` API keys (no immortal credentials)
+### ~~0k. Default expiration on `ks_` API keys (no immortal credentials)~~ — **CLOSED in Phase 3 (2026-05-19), see Closed section above**
 - **Status:** **OPEN — discovered during competitor synthesis (Vault / SPIFFE / GitHub dossiers converge).** `backend/internal/api/validation.go:33-38` (`CreateAPIKeyRequest` has no `expires_at` field); `backend/internal/service/apikey_service.go:33-60` (`Create` takes no expiry arg); `backend/internal/repository/apikey_repo.go:33-36` (INSERT omits `expires_at`). Result: every `ks_` key minted is valid indefinitely until manual deletion. Middleware at `backend/internal/api/middleware.go:101-105` already honours `ExpiresAt` when non-NULL — only issuance is broken.
 - **Why it matters:** A leaked agent / CI key has no time bound. GitHub mandates ≤366d on PATs; SPIFFE recommends ≤15min on JWT-SVID; CircleCI 2023 is the canonical incident shape. Indefinite credentials are below segment baseline.
 - **Owner:** Backend Engineer + Security Engineer (review).
 - **Due:** 30 days (Phase A). Pattern: GitHub fine-grained PAT mandatory expiration; default 90d, ceiling 365d, sentinel `9999-12-31` for opt-out audited per-key.
 - **Related:** `docs/research/competitors/github.md` Candidate 3; `docs/research/competitors/spiffe.md` §5 row JWT-SVID; `docs/research/competitors/vault.md` Candidate 2.
 
-### 0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor
+### ~~0l. `c.MustGet("user_id").(uuid.UUID)` panic surface (58 sites) → `safego` + helper refactor~~ — **CLOSED in Phase 3 (2026-05-19), see Closed section above**
 - **Status:** **OPEN — discovered during 2026-05-15 audit team sweep (`docs/audits/BACKEND_CRASH_RISKS.md` §Risk 11).** Pattern `c.MustGet("user_id").(uuid.UUID)` is repeated verbatim **58 times** across `backend/internal/api/handlers_*.go`. Gin's `MustGet` panics on missing key; bare type-assertion panics on type mismatch. Gin's global `gin.Recovery()` at `backend/internal/api/router.go:29` catches handler-thread panics today, but the pattern is a forward-looking footgun — the moment a future PR mounts any handler outside the `JWTAuthMiddleware` group, the handler panics on every request.
 - **Why it matters:** Defense in depth. Also a prerequisite for ADR-0015 (per-use API-key audit emission) which needs the helper as its call point. The audit's BACKEND_CRASH_RISKS.md report names this as the single most valuable hardening pass alongside `defer recover()` on goroutines.
 - **Owner:** Backend Engineer (single PR; pure refactor).

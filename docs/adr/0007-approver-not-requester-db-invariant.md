@@ -1,6 +1,6 @@
 # ADR-0007: Enforce approver ≠ requester at the database layer for promotion approvals
 
-- **Status:** Proposed
+- **Status:** Accepted (sponsor-authorized 2026-05-18; retroactive Security/Tech Lead sign-off pending per CLAUDE.md §Type-1)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (Backend Engineer role)
 - **Reviewers required:** Tech Lead; Security Engineer (mandatory veto — touches promotion engine, per `docs/ROLES.md` §2.2 and ADR-0003 §Open Questions)
