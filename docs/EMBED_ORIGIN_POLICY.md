@@ -112,9 +112,32 @@ Integrators apply this to their own pages. We document it in `docs/EMBED_INTEGRA
 - Integration: Playwright host page that *is* allow-listed — widget authenticates.
 - Negative: malformed message types are dropped, no exceptions propagate.
 
+## Operator note: `api-url` attribute is required when frontend ≠ backend origin
+
+Per audit F-M1 / ADR-0016: when the SPA is hosted on Vercel and the
+backend lives on a different origin (Fly.io, Cloud Run, etc.), the
+embed widget MUST be initialized with an explicit `api-url` attribute
+pointing at the backend. Without it, the widget falls back to
+`window.location.origin`, which would be the host page's origin — not
+KeepSave's backend — and every API call would 404.
+
+Correct:
+
+```html
+<keepsave-widget
+  api-url="https://api-uat.keepsave.example"
+  project-id="abc-123"
+></keepsave-widget>
+```
+
+For same-origin embeds (the rare case where the integrator hosts both
+their page and the KeepSave backend behind a single reverse proxy)
+the attribute can be omitted.
+
 ## References
 
 - `frontend/src/embed/auth.ts:21-33`
 - `frontend/src/embed/keepsave-widget.ts:61, 65, 85, 108-113`
 - ADR-0002 (auth model — origin trust is auth-adjacent)
+- ADR-0016 (deployment topology — drives the cross-origin requirement)
 - HTML Living Standard §`window.postMessage`
