@@ -94,6 +94,35 @@ func (r *OrganizationRepository) ListByUserID(userID uuid.UUID) ([]models.Organi
 	return orgs, rows.Err()
 }
 
+// ListMembershipGroupsByUserID returns the user's org memberships formatted as
+// "<org-slug>:<role>" strings — the shape consumed by the Grovernance Platform
+// to evaluate ProdDeployerGroups against the principal's group set. Returns a
+// non-nil empty slice when the user has no memberships.
+func (r *OrganizationRepository) ListMembershipGroupsByUserID(userID uuid.UUID) ([]string, error) {
+	rows, err := r.db.Query(
+		Q(r.dialect, `SELECT o.slug, om.role
+		 FROM organization_members om
+		 INNER JOIN organizations o ON o.id = om.organization_id
+		 WHERE om.user_id = $1
+		 ORDER BY o.slug`),
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing membership groups: %w", err)
+	}
+	defer rows.Close()
+
+	groups := []string{}
+	for rows.Next() {
+		var slug, role string
+		if err := rows.Scan(&slug, &role); err != nil {
+			return nil, fmt.Errorf("scanning membership group: %w", err)
+		}
+		groups = append(groups, slug+":"+role)
+	}
+	return groups, rows.Err()
+}
+
 func (r *OrganizationRepository) Update(id uuid.UUID, name string) (*models.Organization, error) {
 	o := &models.Organization{}
 
