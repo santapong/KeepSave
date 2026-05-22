@@ -18,10 +18,16 @@ import (
 type OAuthService struct {
 	oauthRepo *repository.OAuthRepository
 	userRepo  *repository.UserRepository
+	orgRepo   *repository.OrganizationRepository
 }
 
-func NewOAuthService(oauthRepo *repository.OAuthRepository, userRepo *repository.UserRepository) *OAuthService {
-	return &OAuthService{oauthRepo: oauthRepo, userRepo: userRepo}
+// NewOAuthService constructs the OAuth service. orgRepo is used by /userinfo to
+// surface the calling user's org memberships as "<org-slug>:<role>" group
+// strings, which downstream platforms (e.g. Grovernance) consume to evaluate
+// group-based policies. orgRepo may be nil only in tests that do not exercise
+// /userinfo group population.
+func NewOAuthService(oauthRepo *repository.OAuthRepository, userRepo *repository.UserRepository, orgRepo *repository.OrganizationRepository) *OAuthService {
+	return &OAuthService{oauthRepo: oauthRepo, userRepo: userRepo, orgRepo: orgRepo}
 }
 
 func (s *OAuthService) RegisterClient(name, description string, ownerID uuid.UUID, redirectURIs, scopes, grantTypes []string, logoURL, homepageURL string, isPublic bool) (*models.OAuthClient, string, error) {
@@ -217,14 +223,44 @@ func (s *OAuthService) GetUserInfo(accessToken string) (map[string]interface{}, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Service-account flow (client_credentials): no associated user. We surface
+	// the client ID as the subject and a stable token_type discriminator so
+	// downstream policy engines can branch on it without inspecting the
+	// presence of `email`.
 	if token.UserID == nil {
-		return map[string]interface{}{"sub": token.ClientID.String(), "token_type": "client_credentials", "scopes": token.Scopes}, nil
+		return map[string]interface{}{
+			"sub":        token.ClientID.String(),
+			"token_type": "service_account",
+			"scopes":     token.Scopes,
+		}, nil
 	}
+
 	user, err := s.userRepo.GetByID(*token.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found")
 	}
-	return map[string]interface{}{"sub": user.ID.String(), "email": user.Email, "created_at": user.CreatedAt, "scopes": token.Scopes}, nil
+
+	// Surface org memberships as "<org-slug>:<role>" so external policy gates
+	// can encode group requirements without holding KeepSave-specific IDs.
+	// orgRepo may be nil in tests; default to an empty groups slice in that
+	// case so the response shape stays stable.
+	groups := []string{}
+	if s.orgRepo != nil {
+		gs, err := s.orgRepo.ListMembershipGroupsByUserID(user.ID)
+		if err != nil {
+			return nil, fmt.Errorf("loading memberships: %w", err)
+		}
+		groups = gs
+	}
+
+	return map[string]interface{}{
+		"sub":        user.ID.String(),
+		"email":      user.Email,
+		"created_at": user.CreatedAt,
+		"scopes":     token.Scopes,
+		"groups":     groups,
+	}, nil
 }
 
 func (s *OAuthService) issueTokens(clientID uuid.UUID, userID *uuid.UUID, scopes []string) (*models.OAuthTokenResponse, error) {

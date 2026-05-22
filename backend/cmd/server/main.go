@@ -119,7 +119,7 @@ func main() {
 	leaseService := service.NewLeaseService(db, dialect)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
-	oauthService := service.NewOAuthService(oauthRepo, userRepo)
+	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo)
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
