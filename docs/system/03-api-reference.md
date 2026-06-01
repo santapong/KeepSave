@@ -2,7 +2,7 @@
 
 > Part of the **[KeepSave System Documentation](./README.md)**.
 
-This chapter is the complete inventory of KeepSave's HTTP surface. Every route is registered in one place — `backend/internal/api/router.go` — and dispatched to a handler in `backend/internal/api/handlers_*.go`. All application endpoints live under the base path **`/api/v1`**; a small set of operational/discovery endpoints live at the root. The inventory below is derived directly from `router.go` and reconciled against the read-only [`docs/audits/API_RECONCILIATION.md`](../audits/API_RECONCILIATION.md) audit (which counted **126 routes**). For the auth model in depth see the [security model](./05-security.md); for the layering behind these handlers see [backend architecture](./02-backend.md).
+This chapter is the complete inventory of KeepSave's HTTP surface. Every route is registered in one place — `backend/internal/api/router.go` — and dispatched to a handler in `backend/internal/api/handlers_*.go`. All application endpoints live under the base path **`/api/v1`**; a small set of operational/discovery endpoints live at the root. The inventory below is derived directly from `router.go` and reconciled against the read-only [`docs/audits/API_RECONCILIATION.md`](../audits/API_RECONCILIATION.md) audit (whose headline count of 126 is now stale — the live `router.go` registers **142 routes**). For the auth model in depth see the [security model](./05-security.md); for the layering behind these handlers see [backend architecture](./02-backend.md).
 
 ---
 
@@ -285,7 +285,7 @@ The authenticated counterpart, `PUT /api/v1/projects/:id/embed-config`, is liste
 
 The endpoint inventory above is cross-checked against [`docs/audits/API_RECONCILIATION.md`](../audits/API_RECONCILIATION.md), which reconciled the backend routes against the frontend client. Highlights an auditor should know:
 
-- **Total: 126 routes** (5 root + 121 under `/api/v1`). The frontend calls 87 of them; the remainder are machine/agent surfaces or backend-ahead-of-frontend features.
+- **Total: 142 routes** (5 root + 137 under `/api/v1`), counted directly from `router.go`; the per-route tables above enumerate them all. (The reconciliation audit's older 126/121 figure predates the Phase-15 per-project AI routes and the org-quota/embed routes and should be refreshed.) Most are consumed by the dashboard; the remainder are machine/agent surfaces or backend-ahead-of-frontend features.
 - **One known frontend-only mismatch (`F-C-001`):** the embed SDK references `POST /api/v1/projects/:id/secrets/batch`, which **has no backend route** — calling `KeepSaveAPI.batchGetSecrets` will 404.
 - **`DELETE /projects/:id/webhooks` has no `:webhookId`** segment, so it removes all webhooks for the project (flagged as an API-design smell in the audit).
 - A cluster of Phase-15 (drift schedules, AI rules, quotas, CSV export) and Phase-9 (webhook setup, key rotation, SSO delete) endpoints are **orphan-backend** — registered and functional but not yet wired into the dashboard UI.

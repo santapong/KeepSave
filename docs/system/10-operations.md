@@ -73,7 +73,7 @@ Two read-only audits (2026-05-15) catalog the reliability surface. **Both descri
 | Per-query `context` plumbing (182 call sites → `*Context`) | **Not yet** — repositories still use bare `db.Query/Exec`; decided in [ADR-0011](../adr/0011-graceful-shutdown-and-db-timeouts.md) part 2 |
 | `/readyz` timeout (`PingContext`) | **Not yet** — `internal/api/health.go` still calls `db.Ping()` without a context |
 | Webhook retry empty-body bug + SSRF guard | SSRF guard **landed at registration** (`url_safety.go`); body-buffered retries + delivery-time re-resolve decided in [ADR-0013](../adr/0013-webhook-emission-with-ssrf-guard.md) |
-| MCP build budget / interpreter allowlist | Exec hardening **partially landed** (`exec.CommandContext`, scrubbed env, metacharacter reject); interpreter allowlist + build-concurrency budget decided in [ADR-0010](../adr/0010-mcp-gateway-command-execution-hardening.md) |
+| MCP exec hardening / build budget | **Mostly landed** — binary allowlist (`node`/`python`/`python3`), path-separator + shell-metacharacter rejection, scrubbed env, and `exec.CommandContext` timeout are enforced (`handlers_mcp_gateway.go`). Still pending from [ADR-0010](../adr/0010-mcp-gateway-command-execution-hardening.md): the `go-binary` entry, true argv-array input (vs `strings.Fields` splitting), and the build-concurrency budget. |
 
 The audit also reaffirms the **single-replica assumptions**: the in-process rate-limiter map and event-bus/webhook subscriber maps are per-process, so scaling the backend horizontally silently changes those behaviours (rate limits multiply per replica; in-memory webhook registrations are not shared). Until those move to shared state, document the per-pod limit or run a single replica for those controls.
 

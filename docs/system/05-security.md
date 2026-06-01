@@ -285,13 +285,15 @@ The `getUserID` context helper (`project_access.go:22-36`) replaces ~58 fragile
 ### Scope and role model
 
 - **API-key scopes** (e.g. `read`, `write`, `promote`) live on the key row and are placed in
-  context by the middleware. Enforcement is **per-handler**; the secret-read group mounts
-  `APIKeyAuthMiddleware` so agents can read/write secrets, while **promotion routes mount
-  `JWTAuthMiddleware` only** (`backend/internal/api/router.go`), so promotions are a human-JWT
-  operation. **Caveat:** the promotion handlers do **not** check a `promote` scope — the
-  [threat model](../THREAT_MODEL.md) §3 row E describes a `promote`-scope gate as the mitigation,
-  but the code relies on `RequireProjectAccess` + the four-eyes invariant instead. See
-  [§ deltas](#known-doccode-deltas).
+  context by the middleware (`middleware.go:184`), but **no handler currently reads them** — the
+  value is validated as an accepted *string* at key-creation time yet gates nothing at request
+  time. **A scoped key is therefore not yet least-privilege:** a `read`-scoped key can create,
+  update, and delete secrets. What actually constrains an API key is its **project** (and optional
+  **environment**) binding — enforced by `APIKeyAuthMiddleware` + `RequireProjectAccess` — together
+  with the route's auth type: **promotion routes mount `JWTAuthMiddleware` only**
+  (`backend/internal/api/router.go`), so an API key cannot promote at all (and the `promote`-scope
+  gate the [threat model](../THREAT_MODEL.md) §3 row E describes is not implemented). Per-handler
+  scope enforcement is tracked but **not yet built**; see [§ deltas](#known-doccode-deltas).
 - **Organization roles** (`OrgMember.Role`) gate org-level operations; per
   [ADR-0014](../adr/0014-audit-log-taxonomy-extension.md) (Proposed) role changes do not yet emit a
   `role.changed` audit event.
@@ -387,6 +389,7 @@ response:
 |--------|-------|
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` |
+| `X-XSS-Protection` | `1; mode=block` (legacy/deprecated; emitted for older browsers) |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
 | `Content-Security-Policy` | strict — `default-src 'self'`, no `'unsafe-inline'`, `frame-ancestors 'none'` |
@@ -442,7 +445,8 @@ These must always hold; a violation is a security bug.
 - [ ] Production refuses the **leaked dev master key**, `JWT_SECRET` < 32 bytes, `CORS_ORIGINS=*`,
       and `sslmode=disable`.
 - [ ] Every `/projects/:id/*` route is preceded by **`RequireProjectAccess`**; a scoped API key
-      may act only on its own project.
+      may act only on its own project. *(Scope values — `read`/`write`/`promote` — are advisory
+      only and not yet enforced at any handler; see [§ Scope and role model](#scope-and-role-model).)*
 - [ ] A promotion **approver ≠ requester**, enforced at both the service layer (`ErrSelfApproval`)
       and the DB layer (CHECK constraint).
 - [ ] Every state-mutating handler **emits an audit event** and the test asserts the row.
@@ -465,7 +469,7 @@ the **code** is the ground truth:
 | RS256 / JWKS | [ADR-0008](../adr/0008-rs256-jwks-rotation.md) | **Proposed, not implemented.** JWT is HS256; JWKS endpoint returns an empty set. |
 | `actor_type` on audit rows | [ADR-0014](../adr/0014-audit-log-taxonomy-extension.md) | **Proposed, not implemented.** `AuditEntry` has no `actor_type`. |
 | Per-use API-key audit + last-used | [ADR-0015](../adr/0015-safego-helper-and-audit-emission.md) Head 2 | **Not implemented.** No middleware `auth.call`; no `last_used_at` column. (`getUserID` helper *is* implemented.) |
-| `promote` scope gate | [threat model](../THREAT_MODEL.md) §3 row E | Handlers enforce **project access + four-eyes**, not an explicit `promote` scope check. |
+| API-key scope enforcement | scope values `read`/`write`/`promote` imply least-privilege; [threat model](../THREAT_MODEL.md) §3 row E expects a `promote`-scope gate | **Not enforced anywhere.** `api_key_scopes` is set in context (`middleware.go:184`) but never read by any handler; a key is gated only by its project/environment binding (and promotions by four-eyes), so a `read` key can write/delete. |
 | `EnvProvider` in prod | [ADR-0012](../adr/0012-kms-auto-unseal.md) §OQ-2 (refuse-to-start) | Only the *leaked dev key* is rejected; env provider is otherwise allowed in prod. |
 | KeyRotationService scope | file doc comment says "master key rotation" | Rotates **per-project DEKs**, not the master key; emits **no audit event**. |
 | Threat-model file:line refs | many `promotion_service.go:215-240`-style anchors | Stale — current line numbers differ; cite this chapter's refs for the live tree. |

@@ -20,8 +20,8 @@ flowchart TD
     D --> E["resolveMasterKey(ctx, cfg)<br/>15s timeout · env | vault"]
     E --> F["crypto.NewService(masterKey)<br/>32-byte check"]
     F --> G["auth.NewJWTService · metrics · tracer<br/>events.NewBus · plugins.NewRegistry"]
-    G --> H["construct repositories (≈21)"]
-    H --> I["construct services (≈30)"]
+    G --> H["construct repositories (19)"]
+    H --> I["construct services (27 + 4 AI adapters)"]
     I --> J["construct handlers"]
     J --> K["api.SetupRouter(...)<br/>build middleware + routes"]
     K --> L["start background workers:<br/>audit pruner · DB-pool updater"]
@@ -39,7 +39,7 @@ Step by step:
 4. **Migrations.** `repository.RunMigrations(db, dialect, "migrations")` applies any pending SQL migrations transactionally and records them in `schema_migrations`. The migrations directory is resolved relative to the process working directory.
 5. **Master key.** `resolveMasterKey(ctx, cfg)` runs under a 15-second timeout and sources the 32-byte master key from the configured provider (`env` or `vault`; `awskms`/`gcpkms` return a clear "not wired in this build" error per [ADR-0012](../adr/0012-kms-auto-unseal.md) / [ADR-0016](../adr/0016-deployment-topology.md)). The key is handed to `crypto.NewService`, which re-checks the 32-byte length.
 6. **Shared singletons.** A JWT service (`auth.NewJWTService`), a Prometheus metrics registry (`metrics.NewAppMetrics`), a tracer (`tracing.NewTracer("keepsave-api")`), an event bus (`events.NewBus`), and a plugin registry (`plugins.NewRegistry`) are constructed once.
-7. **Repositories → services → handlers.** Roughly 21 repositories, 30 services, and their handlers are wired by hand (no DI container). See §4 for the full inventory.
+7. **Repositories → services → handlers.** 19 repositories and 27 services (plus 4 AI-provider adapters) and their handlers are wired by hand (no DI container). See §4 for the full inventory.
 8. **Router.** `api.SetupRouter(...)` assembles the middleware chain and registers every route (see §3 and the [API reference](./03-api-reference.md)).
 9. **Background workers.** Two goroutines start under a cancellable `bgCtx`: the audit-log pruner and the DB-pool metrics updater (see §6).
 10. **Serve.** An `http.Server` (with `ReadHeaderTimeout: 10s`) listens in a goroutine. If TLS cert/key files are configured it serves HTTPS with a TLS 1.2+ config, and optionally starts a `:80 → :443` 301 redirect listener.
@@ -181,7 +181,7 @@ Constructed in `main.go` and living in `backend/internal/service/`. Each has a s
 | `UsageAnalyticsService` | Usage trends, forecasts, CSV export. |
 | `RecommendationService` | AI-generated secret recommendations. |
 | `NLPQueryService` | Natural-language secret search and multi-turn conversation. |
-| `IPAllowlistService` | CIDR allow-lists (org/project scoped). |
+| `IPAllowlistService` | CIDR allow-lists (org/project scoped). *Type defined but **not constructed** in `main.go` — `CheckIPAllowed` is never called.* |
 
 AI provider adapters (`ClaudeProvider`, `OpenAICompatProvider`, `GeminiProvider`, `OllamaProvider`) also live in this package behind the `AIProvider` interface.
 
@@ -207,12 +207,12 @@ Living in `backend/internal/repository/`, each wraps `*sql.DB` + a `Dialect` and
 | `ComplianceRepository` | `compliance_reports` |
 | `BackupRepository` | `backup_snapshots` |
 | `AccessPolicyRepository` | `access_policies` |
-| `SecurityEventRepository` | `security_events` |
+| `SecurityEventRepository` | `security_events` — *type defined but **not wired** in `main.go`; no runtime writer* |
 | `OAuthRepository` | `oauth_clients`, `oauth_authorization_codes`, `oauth_tokens` |
 | `MCPRepository` | `mcp_servers`, `mcp_installations`, `mcp_gateway_log` |
 | `ApplicationRepository` | `applications`, `application_favorites` |
 
-> Several Phase-15 services (`DriftService`, `AnomalyService`, `UsageAnalyticsService`, `RecommendationService`, `NLPQueryService`, `LeaseService`, `AgentAnalyticsService`, `SecretPolicyService`, `IPAllowlistService`) hold the raw `*sql.DB` + `Dialect` directly and run their own SQL rather than going through a dedicated repository type. See the [data model](./04-data-model.md) chapter for the corresponding tables (and an important note about which migrations actually create them).
+> Several Phase-15 services (`DriftService`, `AnomalyService`, `UsageAnalyticsService`, `RecommendationService`, `NLPQueryService`, `LeaseService`, `AgentAnalyticsService`, `SecretPolicyService`) hold the raw `*sql.DB` + `Dialect` directly and run their own SQL rather than going through a dedicated repository type. See the [data model](./04-data-model.md) chapter for the corresponding tables (and an important note about which migrations actually create them).
 
 ---
 

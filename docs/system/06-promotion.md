@@ -307,7 +307,7 @@ error so a degraded audit table cannot fail a promotion.
 > PROD-only).
 
 Audit history for a project is readable via `GET /api/v1/projects/:id/audit-log`
-(`handlers_promotion.go:194-219` → `ListAuditLog`), newest first.
+(`handlers_promotion.go:194-219` → `AuditLog`, which calls `service.ListAuditLog`), newest first.
 
 ---
 

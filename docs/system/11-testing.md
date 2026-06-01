@@ -51,7 +51,7 @@ Authentication middleware rejects bad requests in code (`backend/internal/api/mi
 - **Endpoints (E1–E12):** secret CRUD + plaintext reveal, project CRUD, API-key create/delete, and promote / approve / rollback.
 - **Attacker cases (A1–A11):** no credentials, malformed JWT, expired JWT, wrong-secret JWT, no project membership, wrong-project API key, wrong-environment scope, missing required scope, revoked-mid-request key, **approver-equals-requester** on approve (the ADR-0003/0007 invariant), and rate-limit-exceeded. Each asserts the correct status **and** the sanitized error body code (per [ERROR_HANDLING_STANDARD](../ERROR_HANDLING_STANDARD.md)).
 
-Of the 12×11 grid, **33 cells are N/A** (e.g. project-scope cases don't apply to project-create), leaving **100 applicable cells**. Coverage today:
+The grid is **12×11 = 132 cells**, of which the plan marks **31 N/A** (e.g. project-scope cases don't apply to project-create), leaving **101 applicable**. (`NEGATIVE_AUTH_PLAN.md`'s own census predates the Phase-1 sweep and still marks the grid `✗`; the counts below reflect tests landed since.) Coverage today, against the full 132-cell grid:
 
 | State | Count | Where |
 |-------|-------|-------|

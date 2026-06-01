@@ -16,6 +16,9 @@ The integrator includes one script (the UMD or ES bundle, global name `KeepSave`
 // frontend/src/embed/index.ts
 export { KeepSaveWidget, register } from './keepsave-widget';
 export { KeepSaveAPI } from './api';
+export type { Secret } from './api';
+export type { AuthMessage, AuthRequestMessage } from './auth';
+export type { WidgetMode } from './widget';
 register();              // defines <keepsave-widget> if not already defined
 ```
 

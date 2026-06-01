@@ -155,7 +155,7 @@ flowchart TD
   PD --> ProjectAPIKeysPanel
 
   Admin --> OverviewTab & MetricsTab & AgentsTab & SecurityTab & TracesTab & MCPTab & EventsTab & PluginsTab
-  AI --> DriftTab & AnomaliesTab & AnalyticsTab & RecommendationsTab & NLPQueryTab
+  AI --> AIOverview[OverviewTab] & DriftTab & AnomaliesTab & AnalyticsTab & RecommendationsTab & NLPQueryTab
 
   SecretsPanel --> TCM[TypedConfirmModal]
   ProjectAPIKeysPanel --> TCM
@@ -218,7 +218,7 @@ KeepSave uses **no Redux/Zustand**. State is React-local plus a few `localStorag
 
 A flat module of `async` functions over `fetch`, not a class. Key mechanics:
 
-- **Base URL resolution:** `const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`. In production set `VITE_API_BASE_URL` to the absolute backend origin (e.g. `https://api-uat.keepsave.example/api/v1`); in dev leave it unset so requests hit `/api/v1` and the Vite proxy forwards them (§1.2).
+- **Base URL resolution:** `const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`. In production set `VITE_API_BASE_URL` to the absolute backend origin (e.g. `https://api-uat.keepsave.example/api/v1`); in dev leave it unset so requests hit `/api/v1` and the Vite proxy forwards them (§1.2). One exception: `getPrometheusMetrics()` fetches the same-origin relative path `/metrics` (outside `/api/v1`), so a split-origin deployment is not redirected to it by `VITE_API_BASE_URL`.
 - **Token storage and migration:** canonical key `JWT_STORAGE_KEY = 'keepsave_token'`; `migrateLegacyJWTKey()` folds legacy `jwt`/`auth_token` into it (called from `main.tsx`).
 - **Expiry check:** `isAuthenticated()` base64-decodes the JWT payload and treats the token as expired when `exp` is within **60 seconds** of now (`parseJWTExpiry`).
 - **Bearer injection:** every `request()` attaches `Authorization: Bearer <token>` when a token is present, plus `Content-Type: application/json`.
