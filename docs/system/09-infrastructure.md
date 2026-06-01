@@ -25,6 +25,7 @@ Key properties:
 - **Migrations baked in.** `COPY --from=builder /app/migrations ./migrations` — the binary runs migrations on boot (see [operations](./10-operations.md) §graceful start).
 - **`EXPOSE 8080`** — the API listens on the port from `PORT` (default `8080`).
 - Static binary (`CGO_ENABLED=0`) → no libc dependency, small attack surface.
+- **⚠️ Toolchain skew (repo bug).** The builder base is `golang:1.24-alpine`, but `backend/go.mod` declares `go 1.25.0` and CI builds on Go 1.25.x (§4). A `go 1.25` module will not build under the 1.24 toolchain — the Dockerfile base should be bumped to `golang:1.25-alpine`.
 
 ### 1.2 Frontend image — `frontend/Dockerfile`
 

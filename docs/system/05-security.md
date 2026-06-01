@@ -278,7 +278,7 @@ a cluster of nine IDOR findings. Logic:
 3. **Failure modes chosen to avoid leaking project existence:** bad UUID → 400; unknown project
    (`sql.ErrNoRows`) → 404; authenticated but no access → 403.
 
-The `getUserID` context helper (`project_access.go:22-36`) replaces ~58 fragile
+The `getUserID` context helper (`project_access.go:22-36`) replaces the fragile
 `c.MustGet("user_id").(uuid.UUID)` sites with a fail-closed comma-ok lookup — Head 1 of
 [ADR-0015](../adr/0015-safego-helper-and-audit-emission.md).
 

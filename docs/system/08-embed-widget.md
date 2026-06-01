@@ -160,7 +160,7 @@ A minimal `fetch` client constructed with the base URL (trailing slashes strippe
 | `batchGetSecrets(projectId, env, keys)` | POST | `/api/v1/projects/:id/secrets/batch` |
 | `isAuthenticated()` | — | true if a token or api-key is set |
 
-(`batchGetSecrets` is exposed on the client but not used by `WidgetRenderer` today.) These are the same secret endpoints documented in the [API reference](./03-api-reference.md).
+(`batchGetSecrets` is exposed on the client but not used by `WidgetRenderer` today — and its `POST /secrets/batch` path has **no backend route**, so it 404s; reconciliation finding F-C-001.) The other rows are the same secret endpoints documented in the [API reference](./03-api-reference.md).
 
 ### 7.2 Styles (`src/embed/styles.ts`)
 
