@@ -223,7 +223,7 @@ Under `/api/v1/ai`, JWT.
 
 ## 15. OAuth 2.0 provider
 
-KeepSave is itself an OAuth 2.0 / OIDC provider. Public token-plane endpoints under `/api/v1/oauth`; client-management endpoints require JWT. JWT signing for the OAuth tokens uses RS256 with a JWKS endpoint ([ADR-0008](../adr/0008-rs256-jwks-rotation.md)).
+KeepSave is itself an OAuth 2.0 / OIDC provider. Public token-plane endpoints under `/api/v1/oauth`; client-management endpoints require JWT. OAuth access/refresh tokens are **opaque random strings** (stored hashed, validated by DB lookup), **not JWTs**; KeepSave's own session JWTs are signed with **HS256**, and the JWKS endpoint currently returns an **empty key set** — RS256 + JWKS rotation is [ADR-0008](../adr/0008-rs256-jwks-rotation.md) (Proposed, not implemented). See the [security model](./05-security.md) and [SDKs & integrations](./13-sdks-integrations.md) for the matching detail.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|

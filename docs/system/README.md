@@ -30,7 +30,7 @@ reason to exist.
 | — | **[Overview](./01-overview.md)** | What KeepSave is, the high-level architecture, request lifecycle, tech stack, key design decisions, and the repository layout. |
 | 02 | **[Backend Architecture](./02-backend.md)** | Boot sequence, configuration, the middleware pipeline, the handler→service→repository layering, observability, and background workers. |
 | 03 | **[API Reference](./03-api-reference.md)** | The complete `/api/v1` HTTP surface — every route group and endpoint, the error model, and rate limiting. |
-| 04 | **[Data Model](./04-data-model.md)** | Every database table across migrations 001–008, the entity relationships, multi-dialect support, and how encrypted fields are stored. |
+| 04 | **[Data Model](./04-data-model.md)** | Every database table across migrations 001–009, the entity relationships, multi-dialect support, and how encrypted fields are stored. |
 | 05 | **[Security Model](./05-security.md)** | Envelope encryption and the key hierarchy, authentication and authorization, the audit-log taxonomy, error sanitization, and the trust boundaries. |
 | 06 | **[Promotion Engine](./06-promotion.md)** | The Alpha→UAT→PROD pipeline: diffing, four-eyes approval, snapshots, and rollback. |
 | 07 | **[Frontend Architecture](./07-frontend.md)** | The React dashboard: routing, components, hooks, the API client, state, styling, and the build. |

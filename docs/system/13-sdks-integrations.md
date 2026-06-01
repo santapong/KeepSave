@@ -20,7 +20,7 @@ KeepSave ships three first-party SDKs. All three wrap the same `/api/v1` REST su
 
 ### 1.1 Surface
 
-Each SDK covers projects, secrets (incl. **batch fetch** via `POST /projects/:id/secrets/batch` and `refreshSecrets` to bypass cache), promotions (`promote` + `promote/diff`), key rotation (`rotateKeys`, which invalidates the local cache), `.env` import/export, API keys, and the Application Dashboard (`/applications`). The Go and Python clients expose the circuit state (`CircuitState()` / `circuit_state`) and `ClearCache()`/`clear_cache()`.
+Each SDK covers projects, secrets (incl. `refreshSecrets` to bypass cache, and a **batch fetch** call to `POST /projects/:id/secrets/batch` — which all three SDKs ship but which has **no backend route today and 404s**; reconciliation finding F-C-001, see [API reference](./03-api-reference.md)), promotions (`promote` + `promote/diff`), key rotation (`rotateKeys`, which invalidates the local cache), `.env` import/export, API keys, and the Application Dashboard (`/applications`). The Go and Python clients expose the circuit state (`CircuitState()` / `circuit_state`) and `ClearCache()`/`clear_cache()`.
 
 ### 1.2 Basic usage
 
