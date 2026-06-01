@@ -225,6 +225,8 @@ Under `/api/v1/ai`, JWT.
 
 KeepSave is itself an OAuth 2.0 / OIDC provider. Public token-plane endpoints under `/api/v1/oauth`; client-management endpoints require JWT. OAuth access/refresh tokens are **opaque random strings** (stored hashed, validated by DB lookup), **not JWTs**; KeepSave's own session JWTs are signed with **HS256**, and the JWKS endpoint currently returns an **empty key set** — RS256 + JWKS rotation is [ADR-0008](../adr/0008-rs256-jwks-rotation.md) (Proposed, not implemented). See the [security model](./05-security.md) and [SDKs & integrations](./13-sdks-integrations.md) for the matching detail.
 
+> **PKCE caveat (code bug — integrators take note):** the authorization-code flow enforces **`S256` only** (`verifyPKCE` rejects `plain`), but the OIDC discovery document currently *advertises* `code_challenge_methods_supported: ["S256", "plain"]` (`handlers_oauth.go`). A client relying on discovery could wrongly assume `plain` is accepted. The enforcement is correct; the discovery metadata over-advertises and should be narrowed to `["S256"]`.
+
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/api/v1/oauth/token` | Public | Token endpoint (authorization_code w/ PKCE, refresh). |

@@ -237,8 +237,10 @@ API-key expiry defaults follow [ADR-0009](../adr/0009-default-api-key-expiration
 365d ceiling, matching GitHub fine-grained PATs); the goal is that no `ks_` key is immortal.
 Revocation is a **row delete** (`apikey_service.Delete`).
 
-> **Deferred — last-used tracking.** There is **no** `last_used_at` column on the `APIKey` model or
-> the `api_keys` table, and the middleware does **not** record per-use timestamps. Likewise
+> **Deferred — last-used tracking.** The `api_keys` table *does* have a `last_used_at` column
+> (added in `migrations/postgres/005`; see [data model](./04-data-model.md)), but it is currently
+> **unused** — it is not surfaced on the `APIKey` model and the middleware does **not** record
+> per-use timestamps. Likewise
 > [ADR-0015](../adr/0015-safego-helper-and-audit-emission.md) Head 2 (per-use `auth.call` audit
 > emission in `APIKeyAuthMiddleware`, **Proposed**) is **not implemented** — successful API-key
 > auth currently leaves no middleware-layer audit trail. (Head 1 of ADR-0015, the `getUserID`
@@ -403,7 +405,7 @@ response:
   global **100 req/s, burst 200**; the embed endpoints get a tighter **10/min** bucket. Over-limit
   → 429 with `Retry-After: 1`. (In-process state means this is per-replica, not cluster-wide.)
 - **CORS:** `CORSMiddleware` reflects only allow-listed origins; `Access-Control-Allow-Credentials`
-  is **unconditionally false** (bearer-token only — enabling cookies would open CSRF and needs a
+  is **never emitted** (bearer-token only — enabling cookies would open CSRF and needs a
   Type-1 ADR); glob patterns allow at most one `*` (`middleware.go:54-132`). `CORS_ORIGINS=*` is
   forbidden in production. See the [API reference](./03-api-reference.md) and
   [ADR-0016 trust-boundary section](../THREAT_MODEL.md) (§8).
@@ -468,7 +470,7 @@ the **code** is the ground truth:
 | AWS/GCP KMS | [ADR-0012](../adr/0012-kms-auto-unseal.md) Accepted; ADR-0004 "use a KMS in prod" | **Not wired** in `main.go` — only `env` + `vault`; KMS returns an explicit error (FOLLOWUPS #1). |
 | RS256 / JWKS | [ADR-0008](../adr/0008-rs256-jwks-rotation.md) | **Proposed, not implemented.** JWT is HS256; JWKS endpoint returns an empty set. |
 | `actor_type` on audit rows | [ADR-0014](../adr/0014-audit-log-taxonomy-extension.md) | **Proposed, not implemented.** `AuditEntry` has no `actor_type`. |
-| Per-use API-key audit + last-used | [ADR-0015](../adr/0015-safego-helper-and-audit-emission.md) Head 2 | **Not implemented.** No middleware `auth.call`; no `last_used_at` column. (`getUserID` helper *is* implemented.) |
+| Per-use API-key audit + last-used | [ADR-0015](../adr/0015-safego-helper-and-audit-emission.md) Head 2 | **Not implemented.** No middleware `auth.call`; the `last_used_at` column exists (`005`) but is never written. (`getUserID` helper *is* implemented.) |
 | API-key scope enforcement | scope values `read`/`write`/`promote` imply least-privilege; [threat model](../THREAT_MODEL.md) §3 row E expects a `promote`-scope gate | **Not enforced anywhere.** `api_key_scopes` is set in context (`middleware.go:184`) but never read by any handler; a key is gated only by its project/environment binding (and promotions by four-eyes), so a `read` key can write/delete. |
 | `EnvProvider` in prod | [ADR-0012](../adr/0012-kms-auto-unseal.md) §OQ-2 (refuse-to-start) | Only the *leaked dev key* is rejected; env provider is otherwise allowed in prod. |
 | KeyRotationService scope | file doc comment says "master key rotation" | Rotates **per-project DEKs**, not the master key; emits **no audit event**. |

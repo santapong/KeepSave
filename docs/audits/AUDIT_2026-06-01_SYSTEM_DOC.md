@@ -69,6 +69,15 @@ These are **real code/config issues** the audit uncovered while verifying the do
 3. **OIDC discovery over-advertises PKCE `plain`** — the discovery document lists `code_challenge_methods_supported: ["S256","plain"]`, but `verifyPKCE` enforces `S256` only. (Docs correctly describe S256-only; fix the discovery doc.)
 4. **MCP gateway timeout comment** — a code comment claims the process *group* is killed via `SysProcAttr`, but none is set, so `CommandContext` kills only the direct child.
 
+## Independent verification (external red-team)
+
+After the three-round internal loop reached PASS, two **independent** reviewers re-checked the set with an adversarial brief — assume the docs are wrong until proven right, verify against source, and report honestly even if the answer is "do not merge." Neither was told the prior verdicts.
+
+- **Accuracy red-team — "Accurate enough to merge as reference docs."** Falsification attempts across crypto, auth, promotion (both layers), OAuth/tokens, the 142-route count, the schema, and infra all verified against source — including the docs' own "deferred/not-implemented" caveats. It found **one** genuine defect: chapter 05 claimed there was no `last_used_at` column on the `api_keys` table, but the column exists (`005`, unused) and chapter 04 lists it. Fixed in both the prose and the deltas row. The CORS wording was tightened ("never emitted" vs "unconditionally false"), and the PKCE discovery code-bug (#3 above) is now noted in the API chapter for integrators.
+- **Completeness red-team — "Complete enough to merge."** Independently inventoried every backend package, all 142 routes, all 45 tables, every frontend page, the embed widget, infra, SDKs, and tests — found no real component/route/table/page/flow that exists in code but is absent or hand-waved. Only cosmetic nits (a few historical root-level files and audit files not linked).
+
+Both confirmed the set's self-criticisms (unenforced API-key scopes, unwired KMS, no key-rotation audit event, the migration gap, the toolchain skew) are **true**, not face-saving.
+
 ## Sign-off
 
-The `docs/system/` set is **complete and accurate** at the agreed bar as of **2026-06-01**, with a clean three-round audit trail. Maintain it like the other living docs: when the system changes, update the affected chapter (and any canonical doc it summarizes) in the same PR.
+The `docs/system/` set is **complete and accurate** at the agreed bar as of **2026-06-01**, verified by three internal audit rounds **plus an independent external red-team** (accuracy + completeness), with the one defect they surfaced fixed. Maintain it like the other living docs: when the system changes, update the affected chapter (and any canonical doc it summarizes) in the same PR.
