@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
-import { cn } from '@/lib/utils';
+import { Page, PageHeader } from '@/components/cosmic/primitives';
 import { Brain, GitCompare, ShieldAlert, BarChart3, Lightbulb, MessageSquare, Send, RefreshCw, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { listProjects } from '@/api/client';
 import * as aiApi from '@/api/ai';
@@ -30,22 +30,25 @@ export function AIIntelligencePage() {
   const currentTab = location.pathname.replace('/ai/', '').replace('/ai', '') || '';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">AI Intelligence</h1>
-          <p className="text-sm text-muted-foreground">Smart operations powered by multi-provider AI</p>
-        </div>
-      </div>
-      <div className="flex gap-1 overflow-x-auto border-b border-border pb-px">
+    <Page>
+      <PageHeader
+        eyebrow="Vault · intelligence"
+        title="AI Intelligence"
+        sub="Smart operations powered by multi-provider AI — drift detection, anomaly analysis, usage forecasting, and recommendations."
+      />
+      <div className="cz-tabs">
         {TABS.map((tab) => {
           const isActive = currentTab === tab.key;
           const Icon = tab.icon;
           return (
-            <button key={tab.key} onClick={() => navigate(tab.key ? `/ai/${tab.key}` : '/ai')}
-              className={cn('inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                isActive ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
-              <Icon className="h-4 w-4" />{tab.label}
+            <button
+              key={tab.key}
+              onClick={() => navigate(tab.key ? `/ai/${tab.key}` : '/ai')}
+              className={`cz-tab ${isActive ? 'cz-on' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            >
+              <Icon size={15} />
+              {tab.label}
             </button>
           );
         })}
@@ -58,7 +61,7 @@ export function AIIntelligencePage() {
         <Route path="recommendations" element={<RecommendationsTab />} />
         <Route path="query" element={<NLPQueryTab />} />
       </Routes>
-    </div>
+    </Page>
   );
 }
 
@@ -234,7 +237,7 @@ function AnalyticsTab() {
               <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Accesses</TableHead><TableHead>Growth</TableHead></TableRow></TableHeader>
                 <TableBody>{trends.map((t, i) => (
                   <TableRow key={i}><TableCell>{t.date}</TableCell><TableCell>{t.access_count}</TableCell>
-                    <TableCell>{t.growth_percent > 0 ? <span className="text-green-600">+{t.growth_percent.toFixed(1)}%</span> : t.growth_percent < 0 ? <span className="text-red-600">{t.growth_percent.toFixed(1)}%</span> : '—'}</TableCell></TableRow>
+                    <TableCell>{t.growth_percent > 0 ? <span className="text-success">+{t.growth_percent.toFixed(1)}%</span> : t.growth_percent < 0 ? <span className="text-destructive">{t.growth_percent.toFixed(1)}%</span> : '—'}</TableCell></TableRow>
                 ))}</TableBody></Table>)}
           </CardContent></Card>
           <Card><CardHeader><CardTitle>Forecast (14 days)</CardTitle></CardHeader><CardContent>
@@ -280,9 +283,9 @@ function RecommendationsTab() {
   };
 
   const severityIcon = (s: string) => {
-    if (s === 'critical') return <AlertTriangle className="h-4 w-4 text-red-500" />;
-    if (s === 'warning') return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-    return <CheckCircle className="h-4 w-4 text-blue-500" />;
+    if (s === 'critical') return <AlertTriangle className="h-4 w-4 text-destructive" />;
+    if (s === 'warning') return <AlertTriangle className="h-4 w-4 text-warning" />;
+    return <CheckCircle className="h-4 w-4 text-primary" />;
   };
 
   return (

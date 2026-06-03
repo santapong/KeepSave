@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   BarChart3,
@@ -13,6 +11,7 @@ import {
   Puzzle,
   RefreshCw,
 } from 'lucide-react';
+import { Page, PageHeader } from '@/components/cosmic/primitives';
 import { TimeRangeSelector } from '@/components/dashboard/TimeRangeSelector';
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
 import { MetricsTab } from '@/components/dashboard/MetricsTab';
@@ -43,30 +42,23 @@ export function AdminDashboardPage() {
   const currentTab = location.pathname.replace('/admin', '').replace('/', '') || '';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Monitor system health, metrics, agents, and security
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRefreshKey((k) => k + 1)}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Platform · observability"
+        title="Admin dashboard"
+        sub="Monitor system health, metrics, agents, and security across the platform."
+        actions={
+          <>
+            <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+            <button type="button" className="cz-btn" onClick={() => setRefreshKey((k) => k + 1)}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </>
+        }
+      />
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border pb-px">
+      <div className="cz-tabs">
         {TABS.map((tab) => {
           const isActive = currentTab === tab.key;
           const Icon = tab.icon;
@@ -74,14 +66,10 @@ export function AdminDashboardPage() {
             <button
               key={tab.key}
               onClick={() => navigate(tab.key ? `/admin/${tab.key}` : '/admin')}
-              className={cn(
-                'inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                isActive
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              )}
+              className={`cz-tab ${isActive ? 'cz-on' : ''}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
             >
-              <Icon className="h-4 w-4" />
+              <Icon size={15} />
               {tab.label}
             </button>
           );
@@ -99,6 +87,6 @@ export function AdminDashboardPage() {
         <Route path="events" element={<EventsTab key={refreshKey} />} />
         <Route path="plugins" element={<PluginsTab key={refreshKey} />} />
       </Routes>
-    </div>
+    </Page>
   );
 }

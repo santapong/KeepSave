@@ -11,7 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Page } from '@/components/cosmic/primitives';
 import { ArrowLeft, Users, FolderOpen, AlertCircle, Trash2, X } from 'lucide-react';
+
+const ACCENT_AVATAR = 'linear-gradient(135deg, var(--cz-accent-hi), var(--cz-plasma))';
 
 export function OrganizationManagePage() {
   const { id } = useParams<{ id: string }>();
@@ -175,19 +178,18 @@ export function OrganizationManagePage() {
   if (!org) return null;
 
   return (
-    <div>
+    <Page>
       {/* Back link */}
-      <Link
-        to="/organizations"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowLeft className="mr-1.5 h-4 w-4" />
-        Back to Organizations
+      <Link to="/organizations" className="cz-btn cz-btn-ghost" style={{ marginBottom: 16, display: 'inline-flex' }}>
+        <ArrowLeft size={14} /> Back to Organizations
       </Link>
 
       {/* Org header */}
       <div className="flex items-center gap-3.5 mb-6">
-        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shrink-0">
+        <div
+          className="w-11 h-11 rounded-full text-white flex items-center justify-center font-bold text-lg shrink-0"
+          style={{ background: ACCENT_AVATAR, color: 'oklch(0.13 0.02 280)' }}
+        >
           {org.name.charAt(0).toUpperCase()}
         </div>
         <div>
@@ -370,7 +372,10 @@ export function OrganizationManagePage() {
                 {orgProjects.map((p) => (
                   <Card key={p.id} className="shadow-none">
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-400 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0"
+                        style={{ background: ACCENT_AVATAR, color: 'oklch(0.13 0.02 280)' }}
+                      >
                         {p.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -393,16 +398,19 @@ export function OrganizationManagePage() {
       </Card>
 
       {/* Danger zone */}
-      <div className="mt-8 pt-6 border-t border-border">
-        <h3 className="text-sm font-bold text-destructive mb-3">Danger Zone</h3>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => setDeleteOrgOpen(true)}
-        >
-          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-          Delete Organization
-        </Button>
+      <div className="cz-danger-zone">
+        <div className="cz-eyebrow">Danger zone</div>
+        <div className="cz-danger-row">
+          <div>
+            <div style={{ color: 'var(--cz-ink)' }}>Delete organization</div>
+            <div className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 12, marginTop: 4 }}>
+              Irreversible · members and project links are removed
+            </div>
+          </div>
+          <button type="button" className="cz-btn cz-btn-danger" onClick={() => setDeleteOrgOpen(true)}>
+            <Trash2 size={14} /> Delete organization
+          </button>
+        </div>
       </div>
 
       {/* Confirm delete org */}
@@ -427,6 +435,6 @@ export function OrganizationManagePage() {
           setRemoveMemberId(null);
         }}
       />
-    </div>
+    </Page>
   );
 }

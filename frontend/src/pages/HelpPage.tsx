@@ -21,18 +21,18 @@ export function HelpPage() {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: 32, minHeight: 'calc(100vh - 120px)', overflow: 'auto' }}>
+    <div style={{ display: 'flex', gap: 32, minHeight: 'calc(100vh - 120px)', overflow: 'auto', padding: 32 }}>
       {/* Sidebar */}
       <nav style={sidebar}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Documentation</h3>
+        <h3 className="cz-eyebrow" style={{ marginBottom: 12 }}>Documentation</h3>
         {sections.map(s => (
           <button
             key={s.key}
             onClick={() => setActive(s.key)}
             style={{
               ...sidebarItem,
-              background: active === s.key ? 'var(--color-primary-glow, rgba(99,102,241,0.15))' : 'transparent',
-              color: active === s.key ? 'var(--color-primary-hover, #818cf8)' : 'var(--color-text-secondary)',
+              background: active === s.key ? 'var(--color-accent)' : 'transparent',
+              color: active === s.key ? 'var(--color-accent-foreground)' : 'var(--color-muted-foreground)',
               fontWeight: active === s.key ? 600 : 400,
               borderLeft: active === s.key ? '2px solid var(--color-primary)' : '2px solid transparent',
             }}
@@ -540,17 +540,17 @@ function Promotion() {
       <div style={pipelineVisual}>
         <div style={pipelineStage}>
           <span style={{ ...envLabel, background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>ALPHA</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Development</span>
+          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>Development</span>
         </div>
         <span style={pipelineArrow}>&rarr;</span>
         <div style={pipelineStage}>
           <span style={{ ...envLabel, background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>UAT</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Staging</span>
+          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>Staging</span>
         </div>
         <span style={pipelineArrow}>&rarr;</span>
         <div style={pipelineStage}>
           <span style={{ ...envLabel, background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>PROD</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Production</span>
+          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>Production</span>
         </div>
       </div>
 
@@ -1386,10 +1386,10 @@ function ApiRow({ method, path, desc }: { method: string; path: string; desc: st
   return (
     <tr style={apiTr}>
       <td style={apiTd}>
-        <span style={{ ...methodBadge, color: methodColor[method] || 'var(--color-text)' }}>{method}</span>
+        <span style={{ ...methodBadge, color: methodColor[method] || 'var(--color-foreground)' }}>{method}</span>
       </td>
       <td style={apiTd}><code style={{ fontSize: 12 }}>{path}</code></td>
-      <td style={apiTd}><span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{desc}</span></td>
+      <td style={apiTd}><span style={{ fontSize: 13, color: 'var(--color-muted-foreground)' }}>{desc}</span></td>
     </tr>
   );
 }
@@ -1425,7 +1425,7 @@ const pageTitle: React.CSSProperties = {
 
 const intro: React.CSSProperties = {
   fontSize: 15,
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-muted-foreground)',
   marginBottom: 28,
   lineHeight: 1.6,
 };
@@ -1434,7 +1434,7 @@ const stepCard: React.CSSProperties = {
   display: 'flex',
   gap: 16,
   alignItems: 'flex-start',
-  background: 'var(--color-surface)',
+  background: 'var(--color-card)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   padding: 20,
@@ -1447,7 +1447,7 @@ const stepNumber: React.CSSProperties = {
   height: 32,
   borderRadius: '50%',
   background: 'var(--color-primary)',
-  color: '#fff',
+  color: 'var(--color-primary-foreground)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -1464,12 +1464,12 @@ const stepTitle: React.CSSProperties = {
 
 const stepDesc: React.CSSProperties = {
   fontSize: 14,
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-muted-foreground)',
   lineHeight: 1.6,
 };
 
 const docCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
+  background: 'var(--color-card)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   padding: 20,
@@ -1489,12 +1489,12 @@ const docList: React.CSSProperties = {
   flexDirection: 'column',
   gap: 8,
   fontSize: 14,
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-muted-foreground)',
   lineHeight: 1.6,
 };
 
 const codeBlock: React.CSSProperties = {
-  background: 'var(--color-input-bg)',
+  background: 'var(--color-secondary)',
   border: '1px solid var(--color-border)',
   borderRadius: 6,
   padding: 16,
@@ -1506,7 +1506,7 @@ const codeBlock: React.CSSProperties = {
 };
 
 const inlineCode: React.CSSProperties = {
-  background: 'var(--color-input-bg)',
+  background: 'var(--color-secondary)',
   border: '1px solid var(--color-border)',
   borderRadius: 4,
   padding: '1px 6px',
@@ -1524,7 +1524,7 @@ const apiTh: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 11,
   fontWeight: 600,
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-muted-foreground)',
   borderBottom: '1px solid var(--color-border)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
@@ -1550,7 +1550,7 @@ const pipelineVisual: React.CSSProperties = {
   justifyContent: 'center',
   gap: 24,
   padding: 32,
-  background: 'var(--color-surface)',
+  background: 'var(--color-card)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius)',
   marginBottom: 24,
@@ -1573,5 +1573,5 @@ const envLabel: React.CSSProperties = {
 
 const pipelineArrow: React.CSSProperties = {
   fontSize: 24,
-  color: 'var(--color-text-secondary)',
+  color: 'var(--color-muted-foreground)',
 };
