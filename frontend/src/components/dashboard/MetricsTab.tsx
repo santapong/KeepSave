@@ -40,10 +40,10 @@ const METHOD_DATA = [
 ];
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: 'hsl(var(--primary))',
-  POST: '#22c55e',
-  PUT: '#f59e0b',
-  DELETE: '#ef4444',
+  GET: 'var(--color-chart-1)',
+  POST: 'var(--color-chart-2)',
+  PUT: 'var(--color-chart-4)',
+  DELETE: 'var(--color-chart-3)',
 };
 
 export function MetricsTab() {
@@ -192,8 +192,8 @@ export function MetricsTab() {
         <AreaChart data={timelineData}>
           <defs>
             <linearGradient id="metricsReqGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -207,16 +207,16 @@ export function MetricsTab() {
           <RechartsTooltip
             contentStyle={{
               borderRadius: 8,
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--popover))',
-              color: 'hsl(var(--popover-foreground))',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-popover)',
+              color: 'var(--color-popover-foreground)',
               fontSize: 13,
             }}
           />
           <Area
             type="monotone"
             dataKey="requests"
-            stroke="hsl(var(--primary))"
+            stroke="var(--color-chart-1)"
             fillOpacity={1}
             fill="url(#metricsReqGradient)"
           />
@@ -237,9 +237,9 @@ export function MetricsTab() {
           <RechartsTooltip
             contentStyle={{
               borderRadius: 8,
-              border: '1px solid hsl(var(--border))',
-              background: 'hsl(var(--popover))',
-              color: 'hsl(var(--popover-foreground))',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-popover)',
+              color: 'var(--color-popover-foreground)',
               fontSize: 13,
             }}
           />
@@ -247,7 +247,7 @@ export function MetricsTab() {
             {METHOD_DATA.map((entry) => (
               <Cell
                 key={entry.method}
-                fill={METHOD_COLORS[entry.method] ?? 'hsl(var(--primary))'}
+                fill={METHOD_COLORS[entry.method] ?? 'var(--color-chart-1)'}
               />
             ))}
           </Bar>

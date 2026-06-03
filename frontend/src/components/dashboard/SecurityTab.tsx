@@ -33,9 +33,9 @@ interface SecurityEvent {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  info: '#3b82f6',
-  warning: '#f59e0b',
-  critical: '#ef4444',
+  info: 'var(--color-chart-5)',
+  warning: 'var(--color-warning)',
+  critical: 'var(--color-destructive)',
 };
 
 const SEVERITY_BADGE_VARIANT: Record<string, 'default' | 'warning' | 'destructive'> = {
@@ -133,7 +133,7 @@ export function SecurityTab() {
       .map(([severity, count]) => ({
         name: severity.charAt(0).toUpperCase() + severity.slice(1),
         value: count,
-        color: SEVERITY_COLORS[severity] ?? '#6b7280',
+        color: SEVERITY_COLORS[severity] ?? 'var(--color-muted-foreground)',
       }));
   }, [events]);
 
@@ -218,9 +218,9 @@ export function SecurityTab() {
             <RechartsTooltip
               contentStyle={{
                 borderRadius: 8,
-                border: '1px solid hsl(var(--border))',
-                background: 'hsl(var(--popover))',
-                color: 'hsl(var(--popover-foreground))',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-popover)',
+                color: 'var(--color-popover-foreground)',
                 fontSize: 13,
               }}
             />

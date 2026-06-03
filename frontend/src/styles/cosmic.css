@@ -254,6 +254,21 @@
 .cz-input::placeholder { color: var(--cz-ink-faint); }
 [data-theme="light"] .cz-input { background: oklch(0.98 0.006 280 / 0.9); }
 
+/* keyboard focus rings (visible only for keyboard users) */
+.cz-btn:focus-visible,
+.cz-nav-item:focus-visible,
+.cz-tab:focus-visible,
+.cz-seg button:focus-visible,
+.cz-searchbar:focus-visible,
+.cz-cmdk-item:focus-visible,
+.cz-login-mode:focus-visible,
+.cz-org:focus-visible,
+.cz-reveal:focus-visible,
+.cz-wordmark:focus-visible {
+  outline: 2px solid var(--cz-accent);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    5 · APP SHELL (glass rail + topbar)
    ============================================================ */

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, importEnv } from '../api/client';
 import type { Project } from '../types';
 import { useToast } from '@/hooks/useToast';
@@ -270,7 +270,14 @@ export function ProjectsPage() {
                     </td>
                     <td>
                       <div className="cz-cell-name">
-                        <span className="cz-n">{p.name}</span>
+                        <Link
+                          to={`/projects/${p.id}`}
+                          className="cz-n"
+                          style={{ textDecoration: 'none', color: 'inherit', width: 'fit-content' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {p.name}
+                        </Link>
                         <span className="cz-d">{p.description || '—'}</span>
                       </div>
                     </td>
@@ -296,16 +303,20 @@ export function ProjectsPage() {
                     <td className="cz-faint" style={{ textAlign: 'right', fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
                       {relTime(p.updated_at)} ago
                     </td>
-                    <td
-                      style={{ textAlign: 'right' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(p);
-                      }}
-                    >
-                      <span className="cz-faint" style={{ cursor: 'pointer', fontSize: 16 }} title="Delete">
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="cz-faint"
+                        style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, background: 'transparent', border: 0, padding: '2px 6px', borderRadius: 6 }}
+                        title="Delete project"
+                        aria-label={`Delete ${p.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(p);
+                        }}
+                      >
                         ⋯
-                      </span>
+                      </button>
                     </td>
                   </tr>
                 );

@@ -17,10 +17,10 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function getCellColor(count: number, max: number): string {
   if (max === 0 || count === 0) return 'transparent';
   const ratio = count / max;
-  if (ratio <= 0.25) return 'hsl(var(--primary) / 0.2)';
-  if (ratio <= 0.5) return 'hsl(var(--primary) / 0.4)';
-  if (ratio <= 0.75) return 'hsl(var(--primary) / 0.6)';
-  return 'hsl(var(--primary))';
+  if (ratio <= 0.25) return 'color-mix(in oklch, var(--color-chart-1) 22%, transparent)';
+  if (ratio <= 0.5) return 'color-mix(in oklch, var(--color-chart-1) 45%, transparent)';
+  if (ratio <= 0.75) return 'color-mix(in oklch, var(--color-chart-1) 70%, transparent)';
+  return 'var(--color-chart-1)';
 }
 
 function formatHour(hour: number): string {
@@ -85,7 +85,7 @@ export function HeatmapGrid({ data, maxCount }: HeatmapGridProps) {
                           backgroundColor: getCellColor(count, resolvedMax),
                           border:
                             count === 0
-                              ? '1px solid hsl(var(--border))'
+                              ? '1px solid var(--color-border)'
                               : 'none',
                         }}
                       />

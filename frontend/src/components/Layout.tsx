@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Plus, Menu } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { useSidebar } from '@/hooks/useSidebar';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
@@ -29,7 +29,6 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export function Layout({ user, onLogout, children }: LayoutProps) {
   const { collapsed, toggle } = useSidebar();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
 
@@ -55,14 +54,6 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
   return (
     <div className="cz-shell">
       <Starfield />
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
 
       <Sidebar user={user} collapsed={collapsed} onToggle={toggle} onLogout={onLogout} />
 
@@ -101,31 +92,6 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
         <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>{children}</main>
 
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-
-        {/* Mobile menu trigger */}
-        <button
-          onClick={() => setMobileOpen((p) => !p)}
-          aria-label="Open menu"
-          className="sm:hidden"
-          style={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            width: 46,
-            height: 46,
-            borderRadius: 999,
-            background: 'var(--color-primary)',
-            color: 'var(--color-primary-foreground)',
-            border: 0,
-            zIndex: 60,
-            cursor: 'pointer',
-            display: 'grid',
-            placeItems: 'center',
-            boxShadow: '0 6px 20px oklch(0.6 0.16 287 / 0.45)',
-          }}
-        >
-          <Menu size={20} />
-        </button>
       </div>
     </div>
   );
