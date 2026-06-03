@@ -4,25 +4,42 @@ import * as api from '../api/client';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, RefreshCw, Download, CheckCircle2 } from 'lucide-react';
+import {
+  Page,
+  PageHeader,
+  KpiStrip,
+  Kpi,
+  SectionHead,
+  Segmented,
+  Chip,
+  CodeBlock,
+  EmptyState,
+} from '../components/cosmic/primitives';
 
-const statusVariantMap: Record<string, string> = {
-  ready: 'bg-green-500/20 text-green-500',
-  building: 'bg-amber-500/20 text-amber-500',
-  pending: 'bg-gray-500/20 text-gray-500',
-  error: 'bg-red-500/20 text-red-500',
+type Tab = 'marketplace' | 'installed' | 'my-servers';
+
+const STATUS_CHIP: Record<string, 'prod' | 'on' | undefined> = {
+  ready: 'prod',
+  building: undefined,
+  pending: undefined,
+  error: undefined,
 };
 
 export function MCPHubPage() {
-  const [tab, setTab] = useState<'marketplace' | 'installed' | 'my-servers'>('marketplace');
+  const [tab, setTab] = useState<Tab>('marketplace');
   const [publicServers, setPublicServers] = useState<MCPServer[]>([]);
   const [myServers, setMyServers] = useState<MCPServer[]>([]);
   const [installations, setInstallations] = useState<MCPInstallation[]>([]);
@@ -47,27 +64,46 @@ export function MCPHubPage() {
     setLoading(false);
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const enabled = installations.filter((i) => i.enabled).length;
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-5">
-        <h1 className="text-2xl font-bold">MCP Server Hub</h1>
-        <Button onClick={() => setShowRegister(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add MCP Server
-        </Button>
+    <Page>
+      <PageHeader
+        eyebrow="Platform · MCP Hub"
+        title={<>Servers for <em>agents</em></>}
+        sub="Register MCP servers from GitHub and install from the marketplace. Tool calls route through a gateway that injects secrets — agents never see them."
+        actions={
+          <button type="button" className="cz-btn cz-btn-primary" onClick={() => setShowRegister(true)}>
+            <Plus size={15} /> Register server
+          </button>
+        }
+      />
+
+      <KpiStrip>
+        <Kpi label="Installed" value={loading ? '—' : installations.length} hint="in this org" />
+        <Kpi label="Enabled" value={loading ? '—' : enabled} hint="routing tool calls" />
+        <Kpi label="Marketplace" value={loading ? '—' : publicServers.length} hint="public servers" />
+        <Kpi label="My servers" value={loading ? '—' : myServers.length} hint="registered by you" />
+      </KpiStrip>
+
+      <div className="cz-filter-bar">
+        <Segmented<Tab>
+          options={[
+            { value: 'marketplace', label: 'Marketplace' },
+            { value: 'installed', label: 'Installed' },
+            { value: 'my-servers', label: 'My servers' },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mb-5">
-        <TabsList>
-          <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
-          <TabsTrigger value="installed">Installed</TabsTrigger>
-          <TabsTrigger value="my-servers">My Servers</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="cz-mcp-grid">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-48 w-full rounded-lg" />
           ))}
@@ -75,48 +111,79 @@ export function MCPHubPage() {
       ) : (
         <>
           {tab === 'marketplace' && (
-            <ServerGrid servers={publicServers} installations={installations} onInstall={async (id) => {
-              try {
-                await api.installMCPServer(id);
-                toast({ title: 'Installed', description: 'MCP server installed successfully' });
-                load();
-              } catch {
-                toast({ title: 'Error', description: 'Failed to install server', variant: 'destructive' });
-              }
-            }} />
+            <ServerGrid
+              servers={publicServers}
+              installations={installations}
+              onInstall={async (id) => {
+                try {
+                  await api.installMCPServer(id);
+                  toast({ title: 'Installed', description: 'MCP server installed successfully' });
+                  load();
+                } catch {
+                  toast({ title: 'Error', description: 'Failed to install server', variant: 'destructive' });
+                }
+              }}
+            />
           )}
           {tab === 'installed' && (
-            <InstalledList installations={installations} servers={[...publicServers, ...myServers]} onUninstall={async (id) => {
-              try {
-                await api.uninstallMCPServer(id);
-                toast({ title: 'Uninstalled', description: 'MCP server uninstalled' });
-                load();
-              } catch {
-                toast({ title: 'Error', description: 'Failed to uninstall server', variant: 'destructive' });
-              }
-            }} />
+            <InstalledList
+              installations={installations}
+              servers={[...publicServers, ...myServers]}
+              onUninstall={async (id) => {
+                try {
+                  await api.uninstallMCPServer(id);
+                  toast({ title: 'Uninstalled', description: 'MCP server uninstalled' });
+                  load();
+                } catch {
+                  toast({ title: 'Error', description: 'Failed to uninstall server', variant: 'destructive' });
+                }
+              }}
+            />
           )}
           {tab === 'my-servers' && (
-            <MyServersList servers={myServers} onDelete={async (id) => {
-              try {
-                await api.deleteMCPServer(id);
-                toast({ title: 'Deleted', description: 'MCP server deleted' });
-                load();
-              } catch {
-                toast({ title: 'Error', description: 'Failed to delete server', variant: 'destructive' });
-              }
-            }} onRebuild={async (id) => {
-              try {
-                await api.rebuildMCPServer(id);
-                toast({ title: 'Rebuilding', description: 'MCP server rebuild started' });
-                load();
-              } catch {
-                toast({ title: 'Error', description: 'Failed to rebuild server', variant: 'destructive' });
-              }
-            }} />
+            <MyServersList
+              servers={myServers}
+              onDelete={async (id) => {
+                try {
+                  await api.deleteMCPServer(id);
+                  toast({ title: 'Deleted', description: 'MCP server deleted' });
+                  load();
+                } catch {
+                  toast({ title: 'Error', description: 'Failed to delete server', variant: 'destructive' });
+                }
+              }}
+              onRebuild={async (id) => {
+                try {
+                  await api.rebuildMCPServer(id);
+                  toast({ title: 'Rebuilding', description: 'MCP server rebuild started' });
+                  load();
+                } catch {
+                  toast({ title: 'Error', description: 'Failed to rebuild server', variant: 'destructive' });
+                }
+              }}
+            />
           )}
         </>
       )}
+
+      <SectionHead index="02" title="Claude config" meta="copy · paste · done" style={{ marginTop: 38 }} />
+      <CodeBlock filename="~/.claude/mcp.json" style={{ maxWidth: 760 }}>
+        {`{
+  "mcpServers": {
+    "keepsave": {
+      "transport": "http",
+      "url": `}
+        <span className="cz-c-s">"https://vault.keepsave.io/mcp"</span>
+        {`,
+      "headers": {
+        "Authorization": `}
+        <span className="cz-c-s">"Bearer ks_live_8e42···"</span>
+        {`
+      }
+    }
+  }
+}`}
+      </CodeBlock>
 
       <RegisterServerModal
         open={showRegister}
@@ -127,164 +194,134 @@ export function MCPHubPage() {
           load();
         }}
       />
-    </div>
+    </Page>
   );
 }
 
-function ServerGrid({ servers, installations, onInstall }: {
+function StatusChip({ status }: { status: string }) {
+  return <Chip variant={STATUS_CHIP[status]}>{status}</Chip>;
+}
+
+function ServerGrid({
+  servers,
+  installations,
+  onInstall,
+}: {
   servers: MCPServer[];
   installations: MCPInstallation[];
   onInstall: (id: string) => Promise<void>;
 }) {
-  const installedIds = new Set(installations.map(i => i.mcp_server_id));
+  const installedIds = new Set(installations.map((i) => i.mcp_server_id));
 
   if (servers.length === 0) {
-    return (
-      <Card className="text-center py-16 px-6">
-        <CardContent className="p-0">
-          <p className="text-sm text-muted-foreground">No public MCP servers available yet.</p>
-        </CardContent>
-      </Card>
-    );
+    return <EmptyState title="No public servers yet">Register a server or check back as the marketplace grows.</EmptyState>;
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {servers.map(server => (
-        <Card key={server.id}>
-          <CardContent className="p-4 flex flex-col">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-[15px] font-semibold mb-1">{server.name}</h3>
-                <p className="text-xs text-muted-foreground mb-2">{server.description}</p>
-              </div>
-              <StatusBadge status={server.status} />
-            </div>
-            <div className="text-[11px] text-muted-foreground mb-2">
-              v{server.version} &middot; {server.install_count} installs &middot; {server.transport}
-            </div>
-            <div className="text-[11px] text-muted-foreground mb-3 break-all">
-              {server.github_url}
-            </div>
-            {installedIds.has(server.id) ? (
-              <span className="text-xs font-semibold text-green-500 flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Installed
-              </span>
-            ) : (
-              <Button onClick={() => onInstall(server.id)} size="sm">
-                <Download className="mr-1 h-3 w-3" /> Install
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+    <div className="cz-mcp-grid">
+      {servers.map((server) => (
+        <div key={server.id} className="cz-card cz-mcp-card">
+          <div className="cz-sig">{server.name.charAt(0).toUpperCase()}</div>
+          <div className="cz-ti">
+            <span>{server.name}</span>
+            <StatusChip status={server.status} />
+          </div>
+          <div className="cz-ds">{server.description}</div>
+          <div className="cz-mt">
+            <span>v{server.version}</span>
+            <span><b>{server.install_count}</b> installs</span>
+            <span style={{ marginLeft: 'auto' }}>{server.transport}</span>
+          </div>
+          {installedIds.has(server.id) ? (
+            <span style={{ color: 'var(--cz-go)', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--cz-mono)' }}>
+              <CheckCircle2 size={14} /> Installed
+            </span>
+          ) : (
+            <button type="button" className="cz-btn cz-btn-primary" style={{ alignSelf: 'flex-start' }} onClick={() => onInstall(server.id)}>
+              <Download size={14} /> Install
+            </button>
+          )}
+        </div>
       ))}
     </div>
   );
 }
 
-function InstalledList({ installations, servers, onUninstall }: {
+function InstalledList({
+  installations,
+  servers,
+  onUninstall,
+}: {
   installations: MCPInstallation[];
   servers: MCPServer[];
   onUninstall: (id: string) => Promise<void>;
 }) {
-  const serverMap = new Map(servers.map(s => [s.id, s]));
+  const serverMap = new Map(servers.map((s) => [s.id, s]));
 
   if (installations.length === 0) {
-    return (
-      <Card className="text-center py-16 px-6">
-        <CardContent className="p-0">
-          <p className="text-sm text-muted-foreground">No MCP servers installed. Browse the marketplace to get started.</p>
-        </CardContent>
-      </Card>
-    );
+    return <EmptyState title="Nothing installed">Browse the marketplace to install your first MCP server.</EmptyState>;
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {installations.map(inst => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {installations.map((inst) => {
         const server = serverMap.get(inst.mcp_server_id);
         return (
-          <Card key={inst.id}>
-            <CardContent className="p-3 px-4 flex items-center">
-              <div className="flex-1">
-                <div className="font-semibold text-sm">
-                  {server?.name || inst.mcp_server_id}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {server?.description || ''} &middot; {inst.enabled ? 'Enabled' : 'Disabled'}
-                </div>
+          <div key={inst.id} className="cz-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="cz-secret-key">{server?.name || inst.mcp_server_id}</div>
+              <div className="cz-secret-note">
+                {server?.description || ''} · {inst.enabled ? 'Enabled' : 'Disabled'}
               </div>
-              <Button onClick={() => onUninstall(inst.id)} variant="destructive" size="sm">
-                <Trash2 className="mr-1 h-3 w-3" /> Uninstall
-              </Button>
-            </CardContent>
-          </Card>
+            </div>
+            <button type="button" className="cz-btn cz-btn-danger" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => onUninstall(inst.id)}>
+              <Trash2 size={13} /> Uninstall
+            </button>
+          </div>
         );
       })}
     </div>
   );
 }
 
-function MyServersList({ servers, onDelete, onRebuild }: {
+function MyServersList({
+  servers,
+  onDelete,
+  onRebuild,
+}: {
   servers: MCPServer[];
   onDelete: (id: string) => Promise<void>;
   onRebuild: (id: string) => Promise<void>;
 }) {
   if (servers.length === 0) {
-    return (
-      <Card className="text-center py-16 px-6">
-        <CardContent className="p-0">
-          <p className="text-sm text-muted-foreground">You haven't registered any MCP servers yet.</p>
-        </CardContent>
-      </Card>
-    );
+    return <EmptyState title="No servers registered">Register an MCP server from a GitHub repository to get started.</EmptyState>;
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {servers.map(server => (
-        <Card key={server.id}>
-          <CardContent className="p-3 px-4 flex items-center">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm">{server.name}</span>
-                <StatusBadge status={server.status} />
-                {server.is_public && (
-                  <Badge variant="secondary" className="text-[10px] bg-indigo-500/10 text-indigo-500">
-                    Public
-                  </Badge>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {server.github_url} &middot; {server.github_branch} &middot; v{server.version}
-              </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {servers.map((server) => (
+        <div key={server.id} className="cz-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="cz-secret-key">{server.name}</span>
+              <StatusChip status={server.status} />
+              {server.is_public && <Chip variant="on">public</Chip>}
             </div>
-            <div className="flex gap-1.5">
-              <Button onClick={() => onRebuild(server.id)} variant="outline" size="sm">
-                <RefreshCw className="mr-1 h-3 w-3" /> Rebuild
-              </Button>
-              <Button onClick={() => onDelete(server.id)} variant="destructive" size="sm">
-                <Trash2 className="mr-1 h-3 w-3" /> Delete
-              </Button>
+            <div className="cz-secret-note">
+              {server.github_url} · {server.github_branch} · v{server.version}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="cz-btn" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => onRebuild(server.id)}>
+              <RefreshCw size={13} /> Rebuild
+            </button>
+            <button type="button" className={cn('cz-btn cz-btn-danger')} style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => onDelete(server.id)}>
+              <Trash2 size={13} /> Delete
+            </button>
+          </div>
+        </div>
       ))}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        'text-[10px] font-semibold uppercase',
-        statusVariantMap[status] || 'bg-gray-500/20 text-gray-500'
-      )}
-    >
-      {status}
-    </Badge>
   );
 }
 
@@ -326,23 +363,23 @@ function RegisterServerModal({ open, onClose, onCreated }: { open: boolean; onCl
         <div className="space-y-4">
           <div>
             <Label>Name *</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="my-mcp-server" className="mt-1" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-mcp-server" className="mt-1" />
           </div>
 
           <div>
             <Label>GitHub URL *</Label>
-            <Input value={githubUrl} onChange={e => setGithubUrl(e.target.value)} placeholder="https://github.com/user/mcp-server" className="mt-1" />
+            <Input value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/user/mcp-server" className="mt-1" />
           </div>
 
           <div>
             <Label>Description</Label>
-            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="What does this server do?" className="mt-1" />
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this server do?" className="mt-1" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Branch</Label>
-              <Input value={branch} onChange={e => setBranch(e.target.value)} className="mt-1" />
+              <Input value={branch} onChange={(e) => setBranch(e.target.value)} className="mt-1" />
             </div>
             <div>
               <Label>Transport</Label>
@@ -361,11 +398,11 @@ function RegisterServerModal({ open, onClose, onCreated }: { open: boolean; onCl
 
           <div>
             <Label>Entry Command (auto-detected if empty)</Label>
-            <Input value={entryCommand} onChange={e => setEntryCommand(e.target.value)} placeholder="node dist/index.js" className="mt-1" />
+            <Input value={entryCommand} onChange={(e) => setEntryCommand(e.target.value)} placeholder="node dist/index.js" className="mt-1" />
           </div>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="rounded" />
+            <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="rounded" />
             Make this server public in the marketplace
           </label>
 
