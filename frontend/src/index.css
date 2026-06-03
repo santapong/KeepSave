@@ -54,6 +54,11 @@
   --color-flare:  oklch(0.72 0.21 350);
   --color-hot:    oklch(0.86 0.16 78);
   --color-photon: oklch(0.93 0.10 200);
+
+  /* Type: Space Grotesk for display/UI, JetBrains Mono for data/code.
+     Drives the `font-sans` / `font-mono` Tailwind utilities. */
+  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -65,9 +70,10 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
-    line-height: 1.5;
-    font-feature-settings: 'ss01', 'ss02', 'cv01', 'cv11', 'tnum';
+    /* Event Horizon: Space Grotesk for UI; data/code opt into .font-mono */
+    font-family: var(--font-sans);
+    line-height: 1.55;
+    font-feature-settings: 'ss01', 'cv01', 'cv11', 'tnum';
   }
 
   button {
