@@ -10,6 +10,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep React in its own long-cache vendor chunk; route chunks are
+        // split via React.lazy in App.tsx (recharts ends up in the admin
+        // dashboard chunk, loaded only when that route is visited).
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {
