@@ -2,19 +2,16 @@
    KEEPSAVE — EVENT HORIZON · cosmic component layer
    A cosmic vault. Secrets fall past the horizon; nothing escapes.
 
-   This sheet is imported AFTER keepsave.css and tailwind. It:
+   This sheet is imported after tailwind. It:
      1. defines the `--cz-*` design variables (theme-aware, they flow
         from the shadcn @theme tokens in index.css);
      2. provides the `cz-`-prefixed cosmic components (atmosphere,
         event horizon, glass shell, login, hold-to-reveal, orbital
-        pipeline, command palette) used by components/cosmic/* and the
-        rewritten shell;
-     3. bridges the legacy `--ks-*` palette to cosmic so the pages that
-        still use ks- classes (Projects / ProjectDetail) re-skin to
-        violet/indigo with no JSX changes.
+        pipeline, command palette, and screen components) used by
+        components/cosmic/* and the pages.
 
    All cosmic classes are namespaced `cz-` to guarantee no collision
-   with the shadcn utilities or the legacy ks- system.
+   with the shadcn utilities.
    ============================================================ */
 
 /* ============================================================
@@ -485,77 +482,6 @@
 [data-motion="off"] .cz-cosmos::after,
 [data-motion="off"] .cz-eh__disk,
 [data-motion="off"] .cz-orbit-spin { animation: none !important; }
-
-/* ============================================================
-   12 · LEGACY ks- BRIDGE → cosmic palette
-   Recolors pages still using ks- classes (Projects / ProjectDetail)
-   to violet/indigo + Space Grotesk, with no JSX changes.
-   ============================================================ */
-:root,
-[data-theme="dark"] {
-  --ks-bg:        oklch(0.10 0.022 280);
-  --ks-bg-1:      oklch(0.17 0.030 282);
-  --ks-bg-2:      oklch(0.21 0.032 284);
-  --ks-ink:       oklch(0.95 0.012 280);
-  --ks-ink-dim:   oklch(0.78 0.018 282);
-  --ks-ink-mute:  oklch(0.62 0.020 284);
-  --ks-ink-faint: oklch(0.46 0.022 286);
-  --ks-rule:      oklch(0.30 0.028 286);
-  --ks-rule-soft: oklch(0.24 0.026 286);
-  --ks-amber:     oklch(0.80 0.16 290);   /* now: periwinkle accent */
-  --ks-amber-dim: oklch(0.55 0.15 287);
-  --ks-amber-bg:  oklch(0.30 0.10 287);
-  --ks-go:        oklch(0.82 0.15 168);
-  --ks-warn:      oklch(0.84 0.15 82);
-  --ks-stop:      oklch(0.67 0.22 12);
-  --ks-blue:      oklch(0.74 0.14 220);
-  --ks-serif:     'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-}
-[data-theme="light"] {
-  --ks-bg:        oklch(0.98 0.008 280);
-  --ks-bg-1:      oklch(0.97 0.010 282);
-  --ks-bg-2:      oklch(0.94 0.014 284);
-  --ks-ink:       oklch(0.22 0.030 285);
-  --ks-ink-dim:   oklch(0.38 0.028 285);
-  --ks-ink-mute:  oklch(0.52 0.026 286);
-  --ks-ink-faint: oklch(0.66 0.022 286);
-  --ks-rule:      oklch(0.86 0.018 286);
-  --ks-rule-soft: oklch(0.91 0.014 286);
-  --ks-amber:     oklch(0.48 0.19 288);
-  --ks-amber-dim: oklch(0.66 0.15 287);
-  --ks-amber-bg:  oklch(0.92 0.06 287);
-}
-
-/* the cosmic display face is non-italic; accent words are just colored */
-.ks-page-title em,
-.ks-login-title em,
-.ks-login-h2,
-.ks-kpi .ks-v em,
-.ks-sec-head h2 em,
-.ks-mcp-card .ks-sig em,
-.ks-wordmark .ks-mk em,
-.ks-promo-stage.prod .ks-env,
-.ks-promo-arrow .ks-ar,
-.ks-todo-n,
-.ks-proj-card-name { font-style: normal; }
-
-/* soft corners + faint glass on the most visible ks surfaces */
-.ks-kpi-strip,
-.ks-secrets,
-.ks-todo-stack,
-.ks-proj-cards,
-.ks-mcp-grid,
-.ks-promo-rail,
-.ks-diff-list,
-.ks-code,
-.ks-heatmap,
-.ks-login-card,
-.ks-login-inventory,
-.ks-danger-zone { border-radius: var(--radius); overflow: hidden; }
-.ks-input { border-radius: var(--radius-sm); }
-.ks-btn { border-radius: 999px; }
-.ks-pill, .ks-env-chip { border-radius: 999px; }
-.ks-secret-val .ks-bricks { border-radius: 7px; }
 
 /* ============================================================
    13 · SCREEN COMPONENTS (page header, KPI strip, tables, code…)
