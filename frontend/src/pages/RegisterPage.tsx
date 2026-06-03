@@ -1,16 +1,21 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
+import { EventHorizon } from '../components/cosmic/EventHorizon';
+import { EhMark } from '../components/cosmic/EhMark';
+import { Starfield } from '../components/cosmic/Starfield';
 import type { User } from '../types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
 
 interface RegisterPageProps {
   onLogin: (user: User, token: string) => void;
 }
+
+const INCLUDED: Array<[string, string]> = [
+  ['Encrypted at rest', 'AES-256-GCM'],
+  ['Lease-based access', 'just-in-time'],
+  ['Audited end to end', 'tamper-evident'],
+  ['Self-host or hosted', 'docker compose'],
+];
 
 export function RegisterPage({ onLogin }: RegisterPageProps) {
   const [email, setEmail] = useState('');
@@ -38,103 +43,132 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-background overflow-hidden">
-      {/* Background orbs */}
-      <div className="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(79,70,229,0.04)_0%,transparent_70%)] pointer-events-none" />
-      <div className="absolute -bottom-[20%] -left-[10%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.03)_0%,transparent_70%)] pointer-events-none" />
+    <div className="cz-login-root">
+      <Starfield />
 
-      <div className="relative z-10 w-full max-w-[420px] px-5">
-        {/* Branding */}
-        <div className="text-center mb-8">
-          <div className="inline-flex mb-4">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <rect width="40" height="40" rx="10" fill="#6366f1" />
-              <path d="M20 10a6 6 0 0 0-6 6v2h-1a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1v-2a6 6 0 0 0-6-6zm-3 8v-2a3 3 0 1 1 6 0v2h-6zm4 5.7V26a1 1 0 1 1-2 0v-2.3a1.5 1.5 0 1 1 2 0z" fill="#fff"/>
-            </svg>
-          </div>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">KeepSave</h1>
-          <p className="text-sm text-muted-foreground mt-1">Secure Environment Variable Storage</p>
+      {/* Hero pane */}
+      <aside className="cz-login-aside">
+        <div className="cz-login-aside-bg" aria-hidden="true">
+          <EventHorizon size={560} />
         </div>
 
-        {/* Register Card */}
-        <Card className="shadow-lg">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-xl font-bold">Create Account</CardTitle>
-            <CardDescription>Start managing your secrets securely</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {error && (
-                <div className="bg-destructive/10 text-destructive px-3.5 py-2.5 rounded-md text-sm border border-destructive/20">
-                  {error}
-                </div>
-              )}
+        <div className="cz-login-aside-head">
+          <span className="cz-pill cz-pill-go">
+            <span className="cz-dot cz-dot-go" /> All systems operational
+          </span>
+        </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="register-email">Email</Label>
-                <Input
-                  id="register-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="you@company.com"
-                />
-              </div>
+        <div className="cz-login-aside-body">
+          <span className="cz-eyebrow">Create account</span>
+          <h1 className="cz-login-title">
+            Start keeping
+            <br />
+            <em>secrets properly.</em>
+          </h1>
+          <p className="cz-login-sub">
+            An encrypted vault, OAuth 2.0 identity provider, and central MCP hub for the teams
+            whose agents and pipelines reach into production.
+          </p>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="register-password">Password</Label>
-                <Input
-                  id="register-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="Min. 8 characters"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="register-confirm">Confirm Password</Label>
-                <Input
-                  id="register-confirm"
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="Repeat your password"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="mt-1 w-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-[0_2px_12px_rgba(99,102,241,0.3)] hover:opacity-90"
-              >
-                {loading ? 'Creating account...' : 'Create Account'}
-              </Button>
-            </form>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-5">
-              <span className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <span className="flex-1 h-px bg-border" />
+          <div className="cz-login-stats">
+            <div className="cz-eyebrow" style={{ marginBottom: 8 }}>
+              Included
             </div>
+            {INCLUDED.map(([label, value], i) => (
+              <div key={label} className="cz-login-stat">
+                <span className="cz-ix">{String(i + 1).padStart(2, '0')}</span>
+                <span className="cz-lb">{label}</span>
+                <span className="cz-vl cz-mono">{value}</span>
+                <span className="cz-dot cz-dot-go" />
+              </div>
+            ))}
+          </div>
+        </div>
 
-            <p className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
-              <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
-            </p>
-          </CardContent>
-        </Card>
+        <div className="cz-login-aside-foot">
+          <span>KeepSave · 2026</span>
+          <span>build 14.0</span>
+        </div>
+      </aside>
 
-        <p className="text-xs text-muted-foreground text-center mt-6">
-          Encrypted at rest with AES-256-GCM
-        </p>
-      </div>
+      {/* Form pane */}
+      <main className="cz-login-main">
+        <div className="cz-login-card">
+          <div className="cz-login-card-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <EhMark />
+              <span className="cz-mk" style={{ fontWeight: 500, fontSize: 20 }}>
+                Keep<em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>save</em>
+              </span>
+            </div>
+            <span className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
+              v14.0
+            </span>
+          </div>
+
+          <h2 className="cz-login-h2">Create account</h2>
+          <p className="cz-login-lead">
+            Already have an account? <Link to="/login">Sign in →</Link>
+          </p>
+
+          <form className="cz-login-form" onSubmit={handleSubmit} style={{ marginTop: 22 }}>
+            {error && <div className="cz-login-error">{error}</div>}
+
+            <div className="cz-login-field">
+              <label htmlFor="register-email">Email</label>
+              <input
+                id="register-email"
+                className="cz-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                required
+              />
+            </div>
+            <div className="cz-login-field">
+              <label htmlFor="register-password">Password</label>
+              <input
+                id="register-password"
+                className="cz-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min. 8 characters"
+                minLength={8}
+                required
+              />
+            </div>
+            <div className="cz-login-field">
+              <label htmlFor="register-confirm">Confirm password</label>
+              <input
+                id="register-confirm"
+                className="cz-input"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Repeat your password"
+                minLength={8}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="cz-btn cz-btn-primary"
+              style={{ justifyContent: 'center', width: '100%' }}
+              disabled={loading}
+            >
+              {loading ? 'Creating account…' : 'Create account →'}
+            </button>
+          </form>
+
+          <div className="cz-login-divider" />
+          <div className="cz-login-fine">
+            <span>Encrypted at rest · AES-256-GCM</span>
+            <span>CSRF · HSTS · CSP</span>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
