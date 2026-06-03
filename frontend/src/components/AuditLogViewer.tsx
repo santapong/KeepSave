@@ -73,10 +73,10 @@ function getActionBadgeClass(action: string): string {
     return 'bg-red-500/15 text-destructive';
   }
   if (action.startsWith('promotion.')) {
-    return 'bg-indigo-500/15 text-primary';
+    return 'bg-primary/15 text-primary';
   }
   if (action.startsWith('apikey.')) {
-    return 'bg-blue-500/15 text-blue-500';
+    return 'bg-primary/15 text-primary';
   }
   if (action.startsWith('auth.')) {
     return 'bg-gray-500/15 text-muted-foreground';
@@ -89,9 +89,9 @@ function getEnvBadgeClass(env: string): string {
     case 'alpha':
       return 'bg-green-500/15 text-green-500';
     case 'uat':
-      return 'bg-indigo-500/15 text-primary';
+      return 'bg-primary/15 text-primary';
     case 'prod':
-      return 'bg-amber-500/15 text-amber-500';
+      return 'bg-warning/15 text-warning';
     default:
       return 'bg-gray-500/15 text-muted-foreground';
   }
@@ -171,7 +171,7 @@ export function AuditLogViewer({ projectId }: AuditLogViewerProps) {
 
       {/* Example entries info banner */}
       {isShowingExamples && (
-        <div className="flex items-center gap-2.5 bg-blue-500/10 border border-blue-500/25 text-blue-500 rounded-md px-3.5 py-2.5 text-sm mb-4 leading-relaxed">
+        <div className="flex items-center gap-2.5 bg-primary/10 border border-primary/25 text-primary rounded-md px-3.5 py-2.5 text-sm mb-4 leading-relaxed">
           <Info className="h-4 w-4 shrink-0" />
           <span>
             These are example entries showing what audit activity looks like.
