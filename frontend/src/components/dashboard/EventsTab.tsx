@@ -132,7 +132,7 @@ export function EventsTab() {
           label="Pending"
           value={pendingCount}
           icon={<Clock className="h-4 w-4" />}
-          color="text-amber-600"
+          color="text-warning"
         />
         <StatCard
           label="Webhook Deliveries"

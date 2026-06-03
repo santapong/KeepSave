@@ -1,23 +1,39 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Search,
+  FolderClosed,
+  Building2,
+  Boxes,
+  Server,
+  ShieldCheck,
+  AppWindow,
+  Bot,
+  LayoutGrid,
+  BookOpen,
+  CornerDownLeft,
+} from 'lucide-react';
+
+type IconType = ComponentType<{ size?: number; className?: string }>;
 
 interface CommandAction {
   id: string;
   label: string;
   hint?: string;
   path: string;
+  icon: IconType;
 }
 
 const ACTIONS: CommandAction[] = [
-  { id: 'projects', label: 'Go to Projects', hint: 'shelf · the dossier of vaults', path: '/' },
-  { id: 'organizations', label: 'Go to Organizations', hint: 'tenancy', path: '/organizations' },
-  { id: 'templates', label: 'Go to Templates', hint: 'stack starter kits', path: '/templates' },
-  { id: 'mcp-hub', label: 'Go to MCP Hub', hint: 'agent gateway', path: '/mcp-hub' },
-  { id: 'oauth', label: 'Go to OAuth Clients', hint: 'integrations', path: '/oauth-clients' },
-  { id: 'applications', label: 'Go to Applications', hint: 'app dashboard', path: '/applications' },
-  { id: 'ai', label: 'Go to AI Intelligence', hint: 'drift · anomaly · usage', path: '/ai' },
-  { id: 'admin', label: 'Go to Admin Dashboard', hint: 'observability · audit', path: '/admin' },
-  { id: 'help', label: 'Go to Docs', hint: 'embed widget · integration', path: '/help' },
+  { id: 'projects', label: 'Go to Projects', hint: 'shelf · the dossier of vaults', path: '/', icon: FolderClosed },
+  { id: 'organizations', label: 'Go to Organizations', hint: 'tenancy', path: '/organizations', icon: Building2 },
+  { id: 'templates', label: 'Go to Templates', hint: 'stack starter kits', path: '/templates', icon: Boxes },
+  { id: 'mcp-hub', label: 'Go to MCP Hub', hint: 'agent gateway', path: '/mcp-hub', icon: Server },
+  { id: 'oauth', label: 'Go to OAuth Clients', hint: 'integrations', path: '/oauth-clients', icon: ShieldCheck },
+  { id: 'applications', label: 'Go to Applications', hint: 'app dashboard', path: '/applications', icon: AppWindow },
+  { id: 'ai', label: 'Go to AI Intelligence', hint: 'drift · anomaly · usage', path: '/ai', icon: Bot },
+  { id: 'admin', label: 'Go to Admin Dashboard', hint: 'observability · audit', path: '/admin', icon: LayoutGrid },
+  { id: 'help', label: 'Go to Docs', hint: 'embed widget · integration', path: '/help', icon: BookOpen },
 ];
 
 interface CommandPaletteProps {
@@ -26,11 +42,11 @@ interface CommandPaletteProps {
 }
 
 /**
- * Minimum-viable Cmd+K / Ctrl+K command palette.
+ * Cmd+K / Ctrl+K command palette — Event Horizon glass panel.
  *
- * Wires the previously-decorative chrome in Layout.tsx (the "⌘ K" badge) to an
- * actual searchable navigation menu. Esc or click-outside closes. Up/Down
- * arrows move selection; Enter activates.
+ * Esc or click-outside closes. Up/Down move selection; Enter activates.
+ * Behaviour is unchanged from the prior implementation; only the chrome
+ * is re-skinned to the cosmic ⌘K spec (.cz-cmdk*).
  */
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -89,6 +105,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   return (
     <div
+      className="cz-cmdk-back"
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
@@ -97,89 +114,51 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         if (e.target === e.currentTarget) onClose();
       }}
       onKeyDown={handleKey}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'oklch(0.12 0.008 60 / 0.75)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 400,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        paddingTop: '14vh',
-      }}
     >
-      <div
-        style={{
-          width: 'min(560px, 92vw)',
-          background: 'var(--ks-bg, #1a1a1a)',
-          border: '1px solid var(--ks-amber-dim, rgba(255,193,7,0.25))',
-          boxShadow: '0 40px 80px oklch(0 0 0 / 0.6)',
-          padding: 0,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--ks-border, #2a2a2a)' }}>
-          <span className="ks-faint" style={{ fontSize: 14 }}>⌕</span>
+      <div className="cz-cmdk">
+        <div className="cz-cmdk-head">
+          <Search size={18} className="cz-faint" />
           <input
             ref={inputRef}
+            className="cz-cmdk-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type to filter actions…"
+            placeholder="Search or jump to…"
             spellCheck={false}
             autoComplete="off"
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'inherit',
-              fontFamily: 'var(--ks-mono, monospace)',
-              fontSize: 13,
-            }}
           />
-          <span className="ks-faint" style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-            esc to close
-          </span>
+          <span className="cz-kbd">ESC</span>
         </div>
-        <div role="listbox" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+        <div className="cz-cmdk-list" role="listbox">
           {filtered.length === 0 ? (
-            <div className="ks-faint" style={{ padding: '20px 16px', fontSize: 12 }}>
-              No actions match &quot;{query}&quot;.
-            </div>
+            <div className="cz-cmdk-empty">No actions match &quot;{query}&quot;.</div>
           ) : (
-            filtered.map((action, i) => {
-              const isSelected = i === selected;
-              return (
-                <button
-                  key={action.id}
-                  role="option"
-                  aria-selected={isSelected}
-                  type="button"
-                  onMouseEnter={() => setSelected(i)}
-                  onClick={() => activate(action)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    background: isSelected ? 'var(--ks-amber-soft, rgba(255,193,7,0.10))' : 'transparent',
-                    border: 'none',
-                    borderLeft: isSelected ? '2px solid var(--ks-amber, #ffc107)' : '2px solid transparent',
-                    padding: '10px 14px',
-                    cursor: 'pointer',
-                    color: 'inherit',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{action.label}</span>
-                  {action.hint && (
-                    <span className="ks-faint" style={{ fontSize: 11 }}>{action.hint}</span>
-                  )}
-                </button>
-              );
-            })
+            <>
+              <div className="cz-cmdk-section">Jump to</div>
+              {filtered.map((action, i) => {
+                const isSelected = i === selected;
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.id}
+                    role="option"
+                    aria-selected={isSelected}
+                    type="button"
+                    className={`cz-cmdk-item${isSelected ? ' cz-sel' : ''}`}
+                    onMouseEnter={() => setSelected(i)}
+                    onClick={() => activate(action)}
+                  >
+                    <Icon size={16} className="cz-faint" />
+                    <span>{action.label}</span>
+                    {isSelected ? (
+                      <CornerDownLeft size={14} className="cz-sp" />
+                    ) : (
+                      action.hint && <span className="cz-sp">{action.hint}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </>
           )}
         </div>
       </div>

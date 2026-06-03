@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
+import { Page, PageHeader } from '@/components/cosmic/primitives';
 import { ArrowLeft, Plus, Copy, Check, Trash2 } from 'lucide-react';
 
 export function ApplicationSettingsPage() {
@@ -75,22 +76,15 @@ export function ApplicationSettingsPage() {
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-6">
-        <Button variant="link" asChild className="p-0 h-auto mb-2 text-sm">
-          <Link to="/applications">
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Back to Applications
-          </Link>
-        </Button>
-        <h1 className="text-xl font-bold text-foreground mt-2">
-          Application Dashboard Settings
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage API keys and view integration documentation
-        </p>
-      </div>
+    <Page>
+      <Link to="/applications" className="cz-btn cz-btn-ghost" style={{ marginBottom: 16, display: 'inline-flex' }}>
+        <ArrowLeft size={14} /> Back to Applications
+      </Link>
+      <PageHeader
+        eyebrow="Platform · applications"
+        title="Application settings"
+        sub="Manage API keys and view integration documentation for the application dashboard."
+      />
 
       {/* Created Key Banner */}
       {createdKey && (
@@ -228,21 +222,21 @@ curl -X POST \\
           </CardContent>
         </Card>
       </div>
-    </div>
+    </Page>
   );
 }
 
 function EndpointDoc({ method, path, description, params, body }: { method: string; path: string; description: string; params?: string; body?: string }) {
   const methodColors: Record<string, string> = {
-    GET: 'bg-green-500 hover:bg-green-500',
-    POST: 'bg-blue-500 hover:bg-blue-500',
-    PUT: 'bg-amber-500 hover:bg-amber-500',
-    DELETE: 'bg-red-500 hover:bg-red-500',
+    GET: 'bg-success hover:bg-success',
+    POST: 'bg-primary hover:bg-primary',
+    PUT: 'bg-warning hover:bg-warning',
+    DELETE: 'bg-destructive hover:bg-destructive',
   };
   return (
     <div className="p-2.5 bg-muted rounded-lg border">
       <div className="flex items-center gap-2 mb-1">
-        <Badge className={`${methodColors[method] || 'bg-gray-500'} text-white text-[11px] font-bold font-mono px-2 py-0`}>
+        <Badge className={`${methodColors[method] || 'bg-muted-foreground'} text-white text-[11px] font-bold font-mono px-2 py-0`}>
           {method}
         </Badge>
         <code className="text-xs text-foreground font-mono">{path}{params || ''}</code>

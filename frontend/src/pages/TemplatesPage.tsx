@@ -1,27 +1,24 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import type { SecretTemplate, Project } from '../types';
 import * as api from '../api/client';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Plus, Trash2, Play, X } from 'lucide-react';
-
-const stackColorMap: Record<string, string> = {
-  nodejs: 'bg-green-600',
-  python: 'bg-blue-600',
-  go: 'bg-cyan-500',
-  aws: 'bg-orange-500',
-  custom: 'bg-gray-500',
-};
+import { Trash2, Play } from 'lucide-react';
+import { Page, PageHeader, KpiStrip, Kpi, SectionHead, Chip, EmptyState } from '../components/cosmic/primitives';
 
 export function TemplatesPage() {
   const [templates, setTemplates] = useState<SecretTemplate[]>([]);
@@ -133,35 +130,101 @@ export function TemplatesPage() {
 
   const totalCount = builtinTemplates.length + templates.length;
 
-  if (loading) {
-    return (
-      <div className="space-y-4 p-10">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  return (
+    <Page>
+      <PageHeader
+        eyebrow="Vault · starter kits"
+        title="Secret templates"
+        sub="Define a reusable set of secret keys per stack, then apply them to any project and environment in one move."
+        actions={
+          <button type="button" className={`cz-btn ${showCreate ? '' : 'cz-btn-primary'}`} onClick={() => setShowCreate((v) => !v)}>
+            {showCreate ? 'Cancel' : '+ New template'}
+          </button>
+        }
+      />
+
+      <KpiStrip>
+        <Kpi label="Templates" value={loading ? '—' : totalCount} hint="builtin + custom" />
+        <Kpi label="Builtin" value={loading ? '—' : builtinTemplates.length} hint="ready to apply" />
+        <Kpi label="Custom" value={loading ? '—' : templates.length} hint="defined by your org" />
+        <Kpi label="Projects" value={loading ? '—' : projects.length} hint="targets available" />
+      </KpiStrip>
+
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-48 w-full rounded-lg" />
           ))}
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <>
+          <SectionHead index="01" title="Builtin templates" meta={`${builtinTemplates.length} available`} />
+          {builtinTemplates.length === 0 ? (
+            <p className="cz-mute" style={{ marginBottom: 28 }}>No builtin templates available.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginBottom: 34 }}>
+              {builtinTemplates.map((tmpl, idx) => {
+                const cardId = `builtin-${idx}`;
+                return (
+                  <TemplateCard
+                    key={cardId}
+                    template={tmpl}
+                    cardId={cardId}
+                    keys={getTemplateKeyNames(tmpl)}
+                    applyingId={applyingId}
+                    applyProjectId={applyProjectId}
+                    applyEnv={applyEnv}
+                    projects={projects}
+                    onApplyStart={() => {
+                      setApplyingId(cardId);
+                      setApplyProjectId('');
+                      setApplyEnv('alpha');
+                    }}
+                    onApplyCancel={() => setApplyingId(null)}
+                    onProjectIdChange={setApplyProjectId}
+                    onEnvChange={setApplyEnv}
+                    onApply={() => handleApply(tmpl.id)}
+                    isBuiltin
+                  />
+                );
+              })}
+            </div>
+          )}
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Secret Templates</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {totalCount} template{totalCount !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <Button onClick={() => setShowCreate(!showCreate)} variant={showCreate ? 'outline' : 'default'}>
-          {showCreate ? <><X className="mr-2 h-4 w-4" /> Cancel</> : <><Plus className="mr-2 h-4 w-4" /> New Template</>}
-        </Button>
-      </div>
+          <SectionHead index="02" title="Custom templates" meta={`${templates.length} defined`} />
+          {templates.length === 0 ? (
+            <EmptyState title="No custom templates yet" size={140}>
+              Create a template to apply a set of secret keys to any project in one step.
+            </EmptyState>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+              {templates.map((tmpl) => (
+                <TemplateCard
+                  key={tmpl.id}
+                  template={tmpl}
+                  cardId={tmpl.id}
+                  keys={getTemplateKeyNames(tmpl)}
+                  applyingId={applyingId}
+                  applyProjectId={applyProjectId}
+                  applyEnv={applyEnv}
+                  projects={projects}
+                  onApplyStart={() => {
+                    setApplyingId(tmpl.id);
+                    setApplyProjectId('');
+                    setApplyEnv('alpha');
+                  }}
+                  onApplyCancel={() => setApplyingId(null)}
+                  onProjectIdChange={setApplyProjectId}
+                  onEnvChange={setApplyEnv}
+                  onApply={() => handleApply(tmpl.id)}
+                  onDelete={() => setDeleteTarget(tmpl.id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
-      {/* Create form dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -172,14 +235,7 @@ export function TemplatesPage() {
             <div className="flex gap-3 flex-wrap">
               <div className="flex-1 min-w-[200px]">
                 <Label htmlFor="tmpl-name">Template name</Label>
-                <Input
-                  id="tmpl-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Template name"
-                  required
-                  className="mt-1"
-                />
+                <Input id="tmpl-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Template name" required className="mt-1" />
               </div>
               <div className="min-w-[140px]">
                 <Label>Stack</Label>
@@ -199,13 +255,7 @@ export function TemplatesPage() {
             </div>
             <div>
               <Label htmlFor="tmpl-desc">Description (optional)</Label>
-              <Input
-                id="tmpl-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description (optional)"
-                className="mt-1"
-              />
+              <Input id="tmpl-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optional)" className="mt-1" />
             </div>
             <div>
               <Label htmlFor="tmpl-keys">Keys (one per line, KEY=default_value)</Label>
@@ -213,7 +263,7 @@ export function TemplatesPage() {
                 id="tmpl-keys"
                 value={keysText}
                 onChange={(e) => setKeysText(e.target.value)}
-                placeholder={"DATABASE_URL=\nPORT=3000\nLOG_LEVEL=info"}
+                placeholder={'DATABASE_URL=\nPORT=3000\nLOG_LEVEL=info'}
                 rows={5}
                 className="mt-1 font-mono text-sm resize-y"
               />
@@ -226,73 +276,11 @@ export function TemplatesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Builtin Templates */}
-      <h2 className="text-base font-semibold mb-3">Builtin Templates</h2>
-      {builtinTemplates.length === 0 ? (
-        <p className="text-muted-foreground text-sm mb-6">No builtin templates available.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          {builtinTemplates.map((tmpl, idx) => {
-            const cardId = `builtin-${idx}`;
-            return (
-              <TemplateCard
-                key={cardId}
-                template={tmpl}
-                cardId={cardId}
-                keys={getTemplateKeyNames(tmpl)}
-                applyingId={applyingId}
-                applyProjectId={applyProjectId}
-                applyEnv={applyEnv}
-                projects={projects}
-                onApplyStart={() => { setApplyingId(cardId); setApplyProjectId(''); setApplyEnv('alpha'); }}
-                onApplyCancel={() => setApplyingId(null)}
-                onProjectIdChange={setApplyProjectId}
-                onEnvChange={setApplyEnv}
-                onApply={() => handleApply(tmpl.id)}
-                isBuiltin
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Custom Templates */}
-      <h2 className="text-base font-semibold mb-3">Custom Templates</h2>
-      {templates.length === 0 ? (
-        <Card className="text-center py-16 px-6">
-          <CardContent className="p-0">
-            <p className="text-base font-medium mb-1">No custom templates yet</p>
-            <p className="text-sm text-muted-foreground">
-              Create a template to quickly apply a set of secret keys to any project.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          {templates.map((tmpl) => (
-            <TemplateCard
-              key={tmpl.id}
-              template={tmpl}
-              cardId={tmpl.id}
-              keys={getTemplateKeyNames(tmpl)}
-              applyingId={applyingId}
-              applyProjectId={applyProjectId}
-              applyEnv={applyEnv}
-              projects={projects}
-              onApplyStart={() => { setApplyingId(tmpl.id); setApplyProjectId(''); setApplyEnv('alpha'); }}
-              onApplyCancel={() => setApplyingId(null)}
-              onProjectIdChange={setApplyProjectId}
-              onEnvChange={setApplyEnv}
-              onApply={() => handleApply(tmpl.id)}
-              onDelete={() => setDeleteTarget(tmpl.id)}
-            />
-          ))}
-        </div>
-      )}
-      {/* Confirm delete dialog */}
       <ConfirmDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
         title="Delete Template"
         description="Are you sure you want to delete this template? This action cannot be undone."
         confirmLabel="Delete"
@@ -301,11 +289,9 @@ export function TemplatesPage() {
           setDeleteTarget(null);
         }}
       />
-    </div>
+    </Page>
   );
 }
-
-/* ───────────────────── TemplateCard Component ───────────────────── */
 
 function TemplateCard({
   template,
@@ -341,93 +327,77 @@ function TemplateCard({
   const isApplying = applyingId === cardId;
 
   return (
-    <Card className="flex flex-col">
-      <CardContent className="p-5 flex flex-col flex-1">
-        {/* Header: name + stack badge */}
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <strong className="text-[15px]">{template.name}</strong>
-            <Badge className={cn('text-white text-[11px]', stackColorMap[template.stack] || stackColorMap.custom)}>
-              {template.stack}
-            </Badge>
-            {isBuiltin && <Badge variant="outline" className="text-[10px]">builtin</Badge>}
-          </div>
-        </div>
+    <div className="cz-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 15, fontFamily: 'var(--cz-sans)' }}>{template.name}</strong>
+        <Chip variant="on">{template.stack}</Chip>
+        {isBuiltin && <Chip>builtin</Chip>}
+      </div>
 
-        {/* Description */}
-        {template.description && (
-          <p className="text-sm text-muted-foreground mb-3 leading-snug">
-            {template.description}
-          </p>
+      {template.description && <p className="cz-mute" style={{ fontSize: 13, lineHeight: 1.5 }}>{template.description}</p>}
+
+      <div className="cz-envs">
+        {keys.length === 0 ? (
+          <span className="cz-faint" style={{ fontSize: 12 }}>No keys defined</span>
+        ) : (
+          <>
+            {keys.slice(0, 5).map((k) => (
+              <Chip key={k}>{k}</Chip>
+            ))}
+            {keys.length > 5 && (
+              <span className="cz-faint" style={{ fontSize: 11, alignSelf: 'center' }}>
+                +{keys.length - 5} more
+              </span>
+            )}
+          </>
         )}
+      </div>
 
-        {/* Keys list */}
-        <div className="text-xs font-mono text-muted-foreground mb-3">
-          {keys.length === 0 ? (
-            <span className="italic font-sans">No keys defined</span>
-          ) : (
-            <>
-              {keys.slice(0, 5).map((k) => (
-                <span key={k} className="inline-block px-1.5 py-0.5 m-0.5 bg-muted border border-border rounded text-[11px]">
-                  {k}
-                </span>
-              ))}
-              {keys.length > 5 && (
-                <div className="mt-1 text-[11px] font-sans">
-                  +{keys.length - 5} more key{keys.length - 5 !== 1 ? 's' : ''}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="mt-auto">
-          {isApplying ? (
-            <div className="flex flex-col gap-2">
-              <Select value={applyProjectId} onValueChange={onProjectIdChange}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="-- Select project --" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={applyEnv} onValueChange={onEnvChange}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="alpha">Alpha</SelectItem>
-                  <SelectItem value="uat">UAT</SelectItem>
-                  <SelectItem value="prod">Prod</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Button onClick={onApply} size="sm" className="flex-1">
-                  Confirm
-                </Button>
-                <Button onClick={onApplyCancel} variant="outline" size="sm" className="flex-1">
-                  Cancel
-                </Button>
-              </div>
+      <div style={{ marginTop: 'auto' }}>
+        {isApplying ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Select value={applyProjectId} onValueChange={onProjectIdChange}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="-- Select project --" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={applyEnv} onValueChange={onEnvChange}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="alpha">Alpha</SelectItem>
+                <SelectItem value="uat">UAT</SelectItem>
+                <SelectItem value="prod">Prod</SelectItem>
+              </SelectContent>
+            </Select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="cz-btn cz-btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '7px 12px', fontSize: 11 }} onClick={onApply}>
+                Confirm
+              </button>
+              <button type="button" className="cz-btn" style={{ flex: 1, justifyContent: 'center', padding: '7px 12px', fontSize: 11 }} onClick={onApplyCancel}>
+                Cancel
+              </button>
             </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button onClick={onApplyStart} size="sm">
-                <Play className="mr-1 h-3 w-3" /> Apply
-              </Button>
-              {onDelete && (
-                <Button onClick={onDelete} variant="destructive" size="sm">
-                  <Trash2 className="mr-1 h-3 w-3" /> Delete
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="cz-btn cz-btn-primary" style={{ padding: '7px 12px', fontSize: 11 }} onClick={onApplyStart}>
+              <Play size={13} /> Apply
+            </button>
+            {onDelete && (
+              <button type="button" className="cz-btn cz-btn-danger" style={{ padding: '7px 12px', fontSize: 11 }} onClick={onDelete}>
+                <Trash2 size={13} /> Delete
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

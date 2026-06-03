@@ -1,8 +1,10 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { Search, Plus } from 'lucide-react';
 import { useSidebar } from '@/hooks/useSidebar';
 import { Sidebar } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
+import { Starfield } from './cosmic/Starfield';
 import type { User } from '../types';
 
 interface LayoutProps {
@@ -27,15 +29,13 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export function Layout({ user, onLogout, children }: LayoutProps) {
   const { collapsed, toggle } = useSidebar();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
 
   // Cmd+K / Ctrl+K opens the command palette.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Ignore modifier-less or text-input-only contexts; we want the global
-      // shortcut to fire even when an input is focused (standard palette UX).
+      // Fire even when an input is focused (standard palette UX).
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setPaletteOpen((open) => !open);
@@ -46,93 +46,52 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
   }, []);
 
   const segments = location.pathname.split('/').filter(Boolean);
-  const now = segments.length === 0
-    ? 'dossier'
-    : segments.map((s) => ROUTE_LABELS[s] || decodeURIComponent(s)).join(' / ');
+  const now =
+    segments.length === 0
+      ? 'projects'
+      : segments.map((s) => ROUTE_LABELS[s] || decodeURIComponent(s)).join(' / ');
 
   return (
-    <div className="ks-shell">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+    <div className="cz-shell">
+      <Starfield />
 
-      <Sidebar
-        user={user}
-        collapsed={collapsed}
-        onToggle={toggle}
-        onLogout={onLogout}
-      />
+      <Sidebar user={user} collapsed={collapsed} onToggle={toggle} onLogout={onLogout} />
 
-      <div className="ks-main">
-        <div className="ks-topbar">
-          <div className="ks-crumbs">
-            <span className="ks-faint">acme-platform</span>
-            <span className="ks-sep">/</span>
-            <span className="ks-faint">vault</span>
-            <span className="ks-sep">/</span>
-            <span className="ks-now">{now}</span>
+      <div className="cz-main">
+        <div className="cz-topbar">
+          <div className="cz-crumbs">
+            <span className="cz-faint">acme-platform</span>
+            <span className="cz-sep">/</span>
+            <span className="cz-now">{now}</span>
           </div>
+
           <button
             type="button"
-            className="ks-search"
+            className="cz-searchbar"
             onClick={() => setPaletteOpen(true)}
             aria-label="Open command palette"
-            style={{
-              cursor: 'pointer',
-              background: 'transparent',
-              border: 'inherit',
-              font: 'inherit',
-              color: 'inherit',
-              textAlign: 'left',
-            }}
           >
-            <span className="ks-faint">⌕</span>
-            <span className="ks-faint" style={{ fontSize: 12, flex: 1 }}>
-              Search secrets, projects, agents, leases…
-            </span>
-            <span className="ks-k">
-              <span className="ks-kbd">⌘</span>
-              <span className="ks-kbd">K</span>
+            <Search size={15} className="cz-faint" />
+            <span className="cz-ph">Search secrets, projects, agents, leases…</span>
+            <span style={{ display: 'flex', gap: 4 }}>
+              <span className="cz-kbd">⌘</span>
+              <span className="cz-kbd">K</span>
             </span>
           </button>
-          <div className="ks-right">
-            <span className="ks-pill"><span className="ks-dot ks-dot-go" /> 18.4k rps</span>
-            <span className="ks-pill ks-pill-amber">SEALED</span>
+
+          <div className="cz-topbar-right">
+            <span className="cz-pill cz-pill-go">
+              <span className="cz-dot cz-dot-go" /> Operational
+            </span>
+            <Link to="/" className="cz-btn cz-btn-primary" title="New project">
+              <Plus size={15} /> New
+            </Link>
           </div>
         </div>
 
-        <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>
-          {children}
-        </main>
+        <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>{children}</main>
 
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-
-        {/* Mobile menu trigger */}
-        <button
-          onClick={() => setMobileOpen((p) => !p)}
-          aria-label="Open menu"
-          className="sm:hidden"
-          style={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            width: 44,
-            height: 44,
-            background: 'var(--ks-amber)',
-            color: '#140d00',
-            border: '1px solid var(--ks-amber)',
-            zIndex: 60,
-            cursor: 'pointer',
-            fontFamily: 'var(--ks-mono)',
-            fontWeight: 600,
-          }}
-        >
-          ≡
-        </button>
       </div>
     </div>
   );

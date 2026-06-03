@@ -260,7 +260,7 @@ export function TracesTab() {
           <XAxis dataKey="bucket" tick={{ fontSize: 12 }} />
           <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
           <Tooltip />
-          <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="count" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ChartCard>
     </div>

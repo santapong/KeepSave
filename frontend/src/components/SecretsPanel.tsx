@@ -39,26 +39,26 @@ type Environment = (typeof ENVIRONMENTS)[number];
 
 const ENV_BADGE_CLASSES: Record<Environment, string> = {
   alpha: 'bg-green-500 hover:bg-green-600 text-white',
-  uat: 'bg-indigo-500 hover:bg-indigo-600 text-white',
-  prod: 'bg-amber-500 hover:bg-amber-600 text-white',
+  uat: 'bg-primary hover:bg-primary text-white',
+  prod: 'bg-warning hover:bg-warning text-white',
 };
 
 const ENV_OUTLINE_CLASSES: Record<Environment, string> = {
   alpha: 'border-green-500 text-green-500',
-  uat: 'border-indigo-500 text-indigo-500',
-  prod: 'border-amber-500 text-amber-500',
+  uat: 'border-primary text-primary',
+  prod: 'border-warning text-warning',
 };
 
 const ENV_TEXT_CLASSES: Record<Environment, string> = {
   alpha: 'text-green-500',
-  uat: 'text-indigo-500',
-  prod: 'text-amber-500',
+  uat: 'text-primary',
+  prod: 'text-warning',
 };
 
 const ENV_BG_CLASSES: Record<Environment, string> = {
   alpha: 'bg-green-500',
-  uat: 'bg-indigo-500',
-  prod: 'bg-amber-500',
+  uat: 'bg-primary',
+  prod: 'bg-warning',
 };
 
 interface SecretsPanelProps {

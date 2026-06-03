@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
-import { Settings, Plus, Pencil, Trash2, Star, Rocket } from 'lucide-react';
+import { Page, PageHeader, EmptyState } from '@/components/cosmic/primitives';
+import { Settings, Plus, Pencil, Trash2, Star } from 'lucide-react';
 
 export function ApplicationDashboardPage() {
   const [apps, setApps] = useState<DashboardApplication[]>([]);
@@ -65,30 +66,26 @@ export function ApplicationDashboardPage() {
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">
-            Application Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your services and applications &middot; {total} registered
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/applications/settings" className="flex items-center gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
-              Settings &amp; API
-            </Link>
-          </Button>
-          <Button onClick={() => { setEditingApp(null); setShowAddForm(true); }}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Register Service
-          </Button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Platform · applications"
+        title="Application dashboard"
+        sub={`Manage your services and applications · ${total} registered.`}
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link to="/applications/settings" className="flex items-center gap-1.5">
+                <Settings className="h-3.5 w-3.5" />
+                Settings &amp; API
+              </Link>
+            </Button>
+            <Button onClick={() => { setEditingApp(null); setShowAddForm(true); }}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Register Service
+            </Button>
+          </>
+        }
+      />
 
       {/* Search & Filter */}
       <div className="flex gap-3 mb-5 flex-wrap items-center">
@@ -138,13 +135,9 @@ export function ApplicationDashboardPage() {
           ))}
         </div>
       ) : apps.length === 0 ? (
-        <div className="text-center py-16 px-5">
-          <Rocket className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h3 className="text-base font-bold text-foreground">No Applications Registered</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Register your first service to get started
-          </p>
-        </div>
+        <EmptyState title="No applications registered">
+          Register your first service to get started.
+        </EmptyState>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {apps.map((app) => (
@@ -197,7 +190,7 @@ export function ApplicationDashboardPage() {
 
       {/* AI Chatbot */}
       <AppChatbot applications={apps} />
-    </div>
+    </Page>
   );
 }
 
@@ -231,7 +224,7 @@ function AppCard({
             <Button
               variant="ghost"
               size="icon"
-              className={cn('h-7 w-7', app.is_favorite ? 'text-amber-500' : 'text-muted-foreground')}
+              className={cn('h-7 w-7', app.is_favorite ? 'text-warning' : 'text-muted-foreground')}
               onClick={onToggleFavorite}
               title="Favorite"
             >
@@ -260,7 +253,7 @@ function AppCard({
 
         <div className="mt-4 pt-3 border-t border-border flex justify-between items-center">
           <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <div className="w-1.5 h-1.5 rounded-full bg-success" />
             <span className="text-[11px] text-muted-foreground font-medium">Active</span>
           </div>
           <span className="text-[11px] text-muted-foreground">

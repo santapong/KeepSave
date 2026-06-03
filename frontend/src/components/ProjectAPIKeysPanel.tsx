@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, Copy, Check, Key } from 'lucide-react';
 import { TypedConfirmModal } from './TypedConfirmModal';
+import { HoldToReveal } from './cosmic/HoldToReveal';
 
 interface ProjectAPIKeysPanelProps {
   projectId: string;
@@ -152,12 +153,12 @@ export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {
           <CardContent className="p-4">
             <p className="font-semibold text-sm mb-1">API Key Created</p>
             <p className="text-sm text-muted-foreground mb-2.5">
-              Copy this key now — it will not be shown again.
+              Copy this key now — it will not be shown again. Press and hold to reveal it.
             </p>
             <div className="flex items-center gap-2">
-              <code className="text-sm break-all bg-muted px-2 py-1 rounded border border-border flex-1 font-mono">
-                {newRawKey}
-              </code>
+              <div className="flex-1 min-w-0">
+                <HoldToReveal value={newRawKey} bricks={16} />
+              </div>
               <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
                 {copied ? (
                   <><Check className="mr-1 h-3 w-3 text-green-500" /> Copied!</>

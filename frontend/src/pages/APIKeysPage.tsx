@@ -1,13 +1,18 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  listAPIKeys,
-  createAPIKey,
-  deleteAPIKey,
-  listProjects,
-} from '../api/client';
+import { Plus, Trash2 } from 'lucide-react';
+import { listAPIKeys, createAPIKey, deleteAPIKey, listProjects } from '../api/client';
 import type { APIKey, Project } from '../types';
 import { TypedConfirmModal } from '../components/TypedConfirmModal';
+import { HoldToReveal } from '../components/cosmic/HoldToReveal';
+import {
+  Page,
+  PageHeader,
+  KpiStrip,
+  Kpi,
+  Chip,
+  EmptyState,
+} from '../components/cosmic/primitives';
 
 export function APIKeysPage() {
   const [keys, setKeys] = useState<APIKey[]>([]);
@@ -41,7 +46,7 @@ export function APIKeysPage() {
         name,
         projectId,
         scopes.split(',').map((s) => s.trim()).filter(Boolean),
-        environment || undefined
+        environment || undefined,
       );
       setNewRawKey(resp.raw_key);
       setName('');
@@ -65,71 +70,78 @@ export function APIKeysPage() {
     return projects.find((p) => p.id === id)?.name || id.slice(0, 8);
   }
 
-  if (loading) return <p>Loading API keys...</p>;
+  // KPIs derived from real data (no fabricated metrics).
+  const readScoped = keys.filter((k) => k.scopes?.includes('read')).length;
+  const scopedToEnv = keys.filter((k) => !!k.environment).length;
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700 }}>API Keys</h1>
-        <button onClick={() => { setShowCreate(!showCreate); setNewRawKey(''); }} style={btnPrimary}>
-          {showCreate ? 'Cancel' : 'Create API Key'}
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Vault · access"
+        title="API keys"
+        sub="Keys are scoped per-project and per-environment. Prefer short expirations — the vault records every use."
+        actions={
+          <button
+            type="button"
+            className={`cz-btn ${showCreate ? '' : 'cz-btn-primary'}`}
+            onClick={() => {
+              setShowCreate((v) => !v);
+              setNewRawKey('');
+            }}
+          >
+            {showCreate ? 'Cancel' : (<><Plus size={15} /> Create API key</>)}
+          </button>
+        }
+      />
 
-      {error && <div style={errorStyle}>{error}</div>}
+      <KpiStrip>
+        <Kpi label="Active keys" value={loading ? '—' : keys.length} hint="across this org" />
+        <Kpi label="Projects" value={loading ? '—' : projects.length} hint="with vault access" />
+        <Kpi label="Read-scoped" value={loading ? '—' : readScoped} hint="of all keys" />
+        <Kpi label="Env-scoped" value={loading ? '—' : scopedToEnv} hint="pinned to one env" />
+      </KpiStrip>
+
+      {error && <div className="cz-login-error" style={{ marginBottom: 16 }}>{error}</div>}
 
       {newRawKey && (
-        <div style={successBox}>
-          <p style={{ fontWeight: 600, marginBottom: 4 }}>API Key Created</p>
-          <p style={{ fontSize: 13, marginBottom: 8 }}>
-            Copy this key now. You won&apos;t be able to see it again.
+        <div className="cz-card" style={{ padding: 18, marginBottom: 18, borderColor: 'var(--cz-go)' }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>API key created</p>
+          <p className="cz-mute" style={{ fontSize: 13, marginBottom: 12 }}>
+            Copy this key now — it will not be shown again. Press and hold to reveal it.
           </p>
-          <code style={{ fontSize: 13, wordBreak: 'break-all', background: 'var(--color-input-bg)', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--color-border)' }}>
-            {newRawKey}
-          </code>
+          <HoldToReveal value={newRawKey} bricks={16} />
         </div>
       )}
 
       {showCreate && projects.length === 0 && (
-        <div style={errorStyle}>
+        <div className="cz-login-error" style={{ marginBottom: 16 }}>
           You must create a project before you can create an API key.{' '}
-          <Link to="/projects" style={{ color: 'inherit', fontWeight: 600 }}>Go to Projects →</Link>
+          <Link to="/" style={{ color: 'inherit', fontWeight: 600 }}>Go to Projects →</Link>
         </div>
       )}
 
       {showCreate && projects.length > 0 && (
-        <form onSubmit={handleCreate} style={formCard}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <label style={labelStyle}>
-              Name
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                placeholder="my-agent-key"
-                style={inputStyle}
-              />
+        <form onSubmit={handleCreate} className="cz-card" style={{ padding: 20, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <label className="cz-login-field">
+              <span style={{ display: 'block', marginBottom: 7 }}>Name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="my-agent-key" className="cz-input" />
             </label>
-            <label style={labelStyle}>
-              Project
-              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={inputStyle}>
+            <label className="cz-login-field">
+              <span style={{ display: 'block', marginBottom: 7 }}>Project</span>
+              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="cz-input">
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </label>
-            <label style={labelStyle}>
-              Scopes
-              <input
-                value={scopes}
-                onChange={(e) => setScopes(e.target.value)}
-                placeholder="read,write"
-                style={inputStyle}
-              />
+            <label className="cz-login-field">
+              <span style={{ display: 'block', marginBottom: 7 }}>Scopes</span>
+              <input value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="read,write" className="cz-input" />
             </label>
-            <label style={labelStyle}>
-              Environment (optional)
-              <select value={environment} onChange={(e) => setEnvironment(e.target.value)} style={inputStyle}>
+            <label className="cz-login-field">
+              <span style={{ display: 'block', marginBottom: 7 }}>Environment (optional)</span>
+              <select value={environment} onChange={(e) => setEnvironment(e.target.value)} className="cz-input">
                 <option value="">All environments</option>
                 <option value="alpha">Alpha</option>
                 <option value="uat">UAT</option>
@@ -137,47 +149,66 @@ export function APIKeysPage() {
               </select>
             </label>
           </div>
-          <button type="submit" style={{ ...btnPrimary, marginTop: 12 }}>Create Key</button>
+          <button type="submit" className="cz-btn cz-btn-primary" style={{ marginTop: 14 }}>Create key →</button>
         </form>
       )}
 
-      {keys.length === 0 ? (
-        <p style={{ color: 'var(--color-text-secondary)' }}>No API keys yet.</p>
+      {loading ? (
+        <p className="cz-mute">Loading API keys…</p>
+      ) : keys.length === 0 ? (
+        <EmptyState title="No API keys yet">
+          Issue a scoped key to let agents, scripts, or CI/CD pipelines read your secrets.
+        </EmptyState>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Project</th>
-              <th style={thStyle}>Scopes</th>
-              <th style={thStyle}>Environment</th>
-              <th style={thStyle}>Created</th>
-              <th style={thStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k.id}>
-                <td style={tdStyle}><strong>{k.name}</strong></td>
-                <td style={tdStyle}>{projectName(k.project_id)}</td>
-                <td style={tdStyle}>
-                  {k.scopes?.map((s) => (
-                    <span key={s} style={scopeBadge}>{s}</span>
-                  ))}
-                </td>
-                <td style={tdStyle}>
-                  {k.environment ? k.environment.toUpperCase() : 'All'}
-                </td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: 12 }}>{new Date(k.created_at).toLocaleDateString()}</span>
-                </td>
-                <td style={tdStyle}>
-                  <button onClick={() => setDeleteTarget(k)} style={btnSmallDanger}>Delete</button>
-                </td>
+        <div className="cz-card cz-secrets">
+          <table className="cz-dtable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Project</th>
+                <th>Scopes</th>
+                <th>Environment</th>
+                <th>Created</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k.id}>
+                  <td><span className="cz-secret-key">{k.name}</span></td>
+                  <td className="cz-mute">{projectName(k.project_id)}</td>
+                  <td>
+                    <div className="cz-envs">
+                      {k.scopes?.map((s) => (
+                        <Chip key={s} variant={s === 'admin' || s === 'delete' ? 'on' : undefined}>{s}</Chip>
+                      ))}
+                    </div>
+                  </td>
+                  <td>
+                    {k.environment ? (
+                      <Chip variant={k.environment === 'prod' ? 'prod' : undefined}>{k.environment}</Chip>
+                    ) : (
+                      <span className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 12 }}>all</span>
+                    )}
+                  </td>
+                  <td className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
+                    {new Date(k.created_at).toLocaleDateString()}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      className="cz-btn cz-btn-danger"
+                      style={{ padding: '6px 12px', fontSize: 11 }}
+                      onClick={() => setDeleteTarget(k)}
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <TypedConfirmModal
@@ -197,97 +228,6 @@ export function APIKeysPage() {
           if (deleteTarget) performDelete(deleteTarget.id);
         }}
       />
-    </div>
+    </Page>
   );
 }
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--color-primary)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  fontWeight: 600,
-};
-
-const btnSmallDanger: React.CSSProperties = {
-  padding: '4px 10px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid var(--color-danger)',
-  borderRadius: 4,
-  fontSize: 12,
-};
-
-const formCard: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-  padding: 20,
-  marginBottom: 24,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  fontSize: 13,
-  fontWeight: 500,
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  fontSize: 13,
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius)',
-  boxShadow: 'var(--shadow)',
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--color-text-secondary)',
-  borderBottom: '1px solid var(--color-border)',
-  textTransform: 'uppercase',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderBottom: '1px solid var(--color-border)',
-};
-
-const scopeBadge: React.CSSProperties = {
-  padding: '1px 6px',
-  borderRadius: 3,
-  fontSize: 11,
-  background: 'var(--color-input-bg)',
-  border: '1px solid var(--color-border)',
-  marginRight: 4,
-};
-
-const successBox: React.CSSProperties = {
-  background: 'rgba(34, 197, 94, 0.1)',
-  border: '1px solid rgba(34, 197, 94, 0.25)',
-  borderRadius: 'var(--radius)',
-  padding: 16,
-  marginBottom: 16,
-};
-
-const errorStyle: React.CSSProperties = {
-  background: 'var(--color-error-bg)',
-  color: 'var(--color-danger)',
-  padding: '8px 12px',
-  borderRadius: 'var(--radius)',
-  fontSize: 13,
-  marginBottom: 16,
-};

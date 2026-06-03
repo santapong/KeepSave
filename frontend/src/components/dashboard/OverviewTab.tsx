@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { OrbitalPipeline } from '@/components/cosmic/OrbitalPipeline';
 
 interface HealthEndpoint {
   label: string;
@@ -123,6 +124,18 @@ export function OverviewTab() {
           icon={<KeyRound className="h-5 w-5" />}
         />
       </div>
+
+      {/* Promotion pipeline */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Promotion pipeline</h2>
+        <OrbitalPipeline
+          stages={[
+            { id: 'alpha', label: 'alpha', sub: 'Development' },
+            { id: 'uat', label: 'uat', sub: 'Staging' },
+            { id: 'prod', label: 'prod', sub: 'Production' },
+          ]}
+        />
+      </section>
 
       {/* Health check endpoints */}
       <Card>

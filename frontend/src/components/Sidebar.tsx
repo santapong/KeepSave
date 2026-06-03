@@ -1,6 +1,23 @@
+import type { ComponentType } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import {
+  LayoutGrid,
+  FolderClosed,
+  Building2,
+  Boxes,
+  Server,
+  ShieldCheck,
+  AppWindow,
+  Bot,
+  BookOpen,
+  ChevronDown,
+  LogOut,
+  Moon,
+  Sun,
+} from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
+import { EhMark } from './cosmic/EhMark';
 
 interface SidebarProps {
   user: { email: string } | null;
@@ -12,6 +29,7 @@ interface SidebarProps {
 interface NavItem {
   path: string;
   label: string;
+  icon: ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
   count?: string;
 }
 
@@ -22,38 +40,36 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
+    label: 'Overview',
+    items: [{ path: '/admin', label: 'Dashboard', icon: LayoutGrid }],
+  },
+  {
     label: 'Vault',
     items: [
-      { path: '/', label: 'Projects' },
-      { path: '/organizations', label: 'Organizations' },
-      { path: '/templates', label: 'Templates' },
+      { path: '/', label: 'Projects', icon: FolderClosed },
+      { path: '/organizations', label: 'Organizations', icon: Building2 },
+      { path: '/templates', label: 'Templates', icon: Boxes },
     ],
   },
   {
     label: 'Platform',
     items: [
-      { path: '/mcp-hub', label: 'MCP Hub' },
-      { path: '/oauth-clients', label: 'OAuth Clients' },
-      { path: '/applications', label: 'Applications' },
+      { path: '/mcp-hub', label: 'MCP Hub', icon: Server },
+      { path: '/oauth-clients', label: 'OAuth Clients', icon: ShieldCheck },
+      { path: '/applications', label: 'Applications', icon: AppWindow },
     ],
   },
   {
     label: 'Intelligence',
     items: [
-      { path: '/ai', label: 'AI Intelligence' },
-      { path: '/admin', label: 'Dashboard' },
-    ],
-  },
-  {
-    label: 'Help',
-    items: [
-      { path: '/help', label: 'Docs' },
+      { path: '/ai', label: 'AI Intelligence', icon: Bot },
+      { path: '/help', label: 'Docs', icon: BookOpen },
     ],
   },
 ];
 
 function isActive(currentPath: string, itemPath: string): boolean {
-  if (itemPath === '/') return currentPath === '/';
+  if (itemPath === '/') return currentPath === '/' || currentPath.startsWith('/projects');
   return currentPath.startsWith(itemPath);
 }
 
@@ -61,36 +77,39 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const location = useLocation();
   const { theme, toggle: toggleTheme } = useTheme();
 
-  const initial = user?.email?.charAt(0).toUpperCase() ?? 's';
+  const initial = user?.email?.charAt(0).toUpperCase() ?? 'S';
+  const name = user?.email?.split('@')[0] ?? 'guest';
 
   return (
-    <aside className="ks-rail" style={{ width: 220 }}>
-      <Link to="/" className="ks-wordmark">
-        <span className="ks-mk">Keep<em>save</em></span>
-        <span className="ks-sub">/ VAULT · v.13.42</span>
+    <aside className="cz-rail">
+      <Link to="/" className="cz-wordmark">
+        <EhMark />
+        <span className="cz-mk">
+          Keep<em>save</em>
+        </span>
       </Link>
 
-      <div style={{ padding: '14px 20px 0', fontSize: 10, color: 'var(--ks-ink-mute)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span className="ks-faint">Org</span>
-          <span className="ks-amber">acme-platform ▾</span>
-        </div>
-      </div>
+      <button type="button" className="cz-org">
+        <span className="cz-nm">acme-platform</span>
+        <ChevronDown className="cz-ar" size={14} />
+      </button>
 
-      <nav className="ks-nav">
+      <nav className="cz-nav">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label}>
-            <div className="ks-nav-section">{section.label}</div>
+            <div className="cz-nav-section">{section.label}</div>
             {section.items.map((item) => {
+              const Icon = item.icon;
               const active = isActive(location.pathname, item.path);
               return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={cn('ks-nav-item', active && 'active')}
+                  className={cn('cz-nav-item', active && 'cz-active')}
                 >
-                  <span>{item.label}</span>
-                  {item.count && <span className="ks-count">{item.count}</span>}
+                  <Icon className="cz-ic" size={16} strokeWidth={1.6} />
+                  <span className="cz-lb">{item.label}</span>
+                  {item.count && <span className="cz-ct">{item.count}</span>}
                 </Link>
               );
             })}
@@ -98,33 +117,78 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="ks-rail-foot">
-        <div className="ks-row"><span>Region</span><span className="ks-amber">eu-west-1</span></div>
-        <div className="ks-row"><span>Master key</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="ks-dot ks-dot-go" /> HSM-ATT</span></div>
-        <div className="ks-row"><span>Uptime</span><span className="ks-num">99.997%</span></div>
-        <hr className="ks-hair-soft" style={{ margin: '6px 0' }} />
-        <div className="ks-row" style={{ alignItems: 'center' }}>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{
-              width: 20, height: 20, background: 'var(--ks-amber)', color: '#140d00',
-              fontFamily: 'var(--ks-serif)', fontStyle: 'italic',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 600,
-            }}>{initial}</span>
-            <span style={{ color: 'var(--ks-ink)' }}>{user?.email?.split('@')[0] ?? 'guest'}</span>
-          </span>
-          <span className="ks-amber" style={{ cursor: 'pointer' }} onClick={onLogout}>OUT ↗</span>
+      <div className="cz-rail-foot">
+        <div className="cz-row">
+          <span>Region</span>
+          <b>eu-west-1</b>
         </div>
-        <div className="ks-row" style={{ marginTop: 4 }}>
-          <span
-            className="ks-faint"
-            style={{ cursor: 'pointer' }}
-            onClick={toggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'}`}
-          >
-            {theme === 'dark' ? '☾ DARK' : '☀ LIGHT'}
+        <div className="cz-row">
+          <span>Master key</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span className="cz-dot cz-dot-go" /> HSM
           </span>
-          <span className="ks-faint">build.13.42.7</span>
+        </div>
+        <div className="cz-row">
+          <span>Uptime</span>
+          <b className="cz-num">99.997%</b>
+        </div>
+
+        <div className="cz-user-row">
+          <span className="cz-avatar">{initial}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: 'var(--cz-ink)',
+                fontSize: 13,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {name}
+            </div>
+            <div className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 10 }}>
+              member
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Sign out"
+            aria-label="Sign out"
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: 'var(--cz-accent-hi)',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <LogOut size={15} />
+          </button>
+        </div>
+
+        <div className="cz-row" style={{ marginTop: 2 }}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            className="cz-faint"
+            style={{
+              background: 'transparent',
+              border: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontFamily: 'var(--cz-mono)',
+              fontSize: 11,
+            }}
+          >
+            {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
+            {theme === 'dark' ? 'Dark' : 'Light'}
+          </button>
+          <span className="cz-faint">build 14.0</span>
         </div>
       </div>
     </aside>

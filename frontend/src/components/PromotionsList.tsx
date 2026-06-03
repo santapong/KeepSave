@@ -30,8 +30,8 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 const statusBadgeClasses: Record<string, string> = {
-  pending: 'bg-amber-500/15 text-amber-500',
-  approved: 'bg-indigo-500/15 text-indigo-400',
+  pending: 'bg-warning/15 text-warning',
+  approved: 'bg-primary/15 text-primary',
   completed: 'bg-green-500/15 text-green-500',
   rejected: 'bg-red-500/15 text-red-500',
 };

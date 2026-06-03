@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { login as apiLogin } from '../api/client';
+import { EventHorizon } from '../components/cosmic/EventHorizon';
+import { EhMark } from '../components/cosmic/EhMark';
+import { Starfield } from '../components/cosmic/Starfield';
 import type { User } from '../types';
 
 interface LoginPageProps {
@@ -10,11 +13,11 @@ interface LoginPageProps {
 type Mode = 'password' | 'key' | 'sso';
 
 const SESSION_LEDGER: Array<[string, string, 'go' | 'warn' | 'stop']> = [
-  ['LOGINS', '1,204', 'go'],
-  ['KEYS ISSUED', '  318', 'go'],
-  ['LEASES ACTIVE', '   44', 'go'],
-  ['ANOMALIES', '    0', 'go'],
-  ['FAILED ATTEMPTS', '    7', 'warn'],
+  ['Logins', '1,204', 'go'],
+  ['Keys issued', '318', 'go'],
+  ['Leases active', '44', 'go'],
+  ['Anomalies', '0', 'go'],
+  ['Failed attempts', '7', 'warn'],
 ];
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -39,92 +42,103 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    <div className="ks-login-root">
-      {/* Editorial left pane */}
-      <aside className="ks-login-aside">
-        <div className="ks-login-aside-head">
-          <span className="ks-eyebrow ks-faint">— KeepSave · MMXXVI</span>
-          <span className="ks-pill ks-pill-go">
-            <span className="ks-dot ks-dot-go" /> EU-WEST-1 · HEALTHY
+    <div className="cz-login-root">
+      <Starfield />
+
+      {/* Hero pane */}
+      <aside className="cz-login-aside">
+        <div className="cz-login-aside-bg" aria-hidden="true">
+          <EventHorizon size={560} />
+        </div>
+
+        <div className="cz-login-aside-head">
+          <span className="cz-pill cz-pill-go">
+            <span className="cz-dot cz-dot-go" /> eu-west-1 · healthy
           </span>
         </div>
 
-        <div className="ks-login-aside-body">
-          <div className="ks-eyebrow ks-amber">Entry authorization</div>
-          <h1 className="ks-login-title">
-            Return to<br />
+        <div className="cz-login-aside-body">
+          <span className="cz-eyebrow">Entry authorization</span>
+          <h1 className="cz-login-title">
+            Return to
+            <br />
             <em>the keeping-place.</em>
           </h1>
-          <p className="ks-dim" style={{ maxWidth: '42ch', marginTop: 14, fontSize: 13, lineHeight: 1.6 }}>
-            One identity provider for every secret, agent, and environment you
-            hold. Lease-based access. Audited end-to-end.
+          <p className="cz-login-sub">
+            One identity provider for every secret, agent, and environment you hold — with
+            lease-based access, audited end to end.
           </p>
 
-          <div className="ks-login-inventory">
-            <div className="ks-eyebrow ks-mute" style={{ marginBottom: 10 }}>
-              SESSION LEDGER · LAST 24H
+          <div className="cz-login-stats">
+            <div className="cz-eyebrow" style={{ marginBottom: 8 }}>
+              Last 24 hours
             </div>
             {SESSION_LEDGER.map(([label, value, status], i) => (
-              <div key={label} className="ks-login-inv-row">
-                <span className="ks-faint">{String(i + 1).padStart(2, '0')}</span>
-                <span className="ks-dim">{label}</span>
-                <span className="ks-num ks-amber" style={{ marginLeft: 'auto' }}>{value}</span>
-                <span className={`ks-dot ks-dot-${status}`} />
+              <div key={label} className="cz-login-stat">
+                <span className="cz-ix">{String(i + 1).padStart(2, '0')}</span>
+                <span className="cz-lb">{label}</span>
+                <span className="cz-vl cz-num">{value}</span>
+                <span className={`cz-dot cz-dot-${status}`} />
               </div>
             ))}
           </div>
         </div>
 
-        <div className="ks-login-aside-foot">
-          <span className="ks-faint">MMXXVI · KeepSave Co-operative</span>
-          <span className="ks-faint">build.13.42.7</span>
+        <div className="cz-login-aside-foot">
+          <span>KeepSave · 2026</span>
+          <span>build 14.0</span>
         </div>
       </aside>
 
       {/* Form pane */}
-      <main className="ks-login-main">
-        <div className="ks-login-card">
-          <div className="ks-login-card-head">
-            <span className="ks-eyebrow">— Check-in —</span>
-            <span className="ks-faint" style={{ fontSize: 10 }}>Form IV-b</span>
+      <main className="cz-login-main">
+        <div className="cz-login-card">
+          <div className="cz-login-card-head">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <EhMark />
+              <span className="cz-mk" style={{ fontWeight: 500, fontSize: 20 }}>
+                Keep<em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>save</em>
+              </span>
+            </div>
+            <span className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
+              v14.0
+            </span>
           </div>
 
-          <h2 className="ks-login-h2">Sign in</h2>
-          <p className="ks-dim" style={{ fontSize: 12, marginTop: 6 }}>
+          <h2 className="cz-login-h2">Sign in</h2>
+          <p className="cz-login-lead">
             New to KeepSave?{' '}
-            <Link
-              to="/register"
-              className="ks-amber"
-              style={{ borderBottom: '1px dashed', textDecoration: 'none', cursor: 'pointer' }}
-            >
-              Open an account →
-            </Link>
+            <Link to="/register">Open an account →</Link>
           </p>
 
-          <div className="ks-login-modes">
-            {(['password', 'key', 'sso'] as Mode[]).map((m) => (
+          <div className="cz-login-modes">
+            {(
+              [
+                ['password', 'Email & password'],
+                ['key', 'API key'],
+                ['sso', 'SSO'],
+              ] as Array<[Mode, string]>
+            ).map(([m, label]) => (
               <button
                 key={m}
                 type="button"
-                className={`ks-login-mode ${mode === m ? 'on' : ''}`}
+                className={`cz-login-mode ${mode === m ? 'cz-on' : ''}`}
                 onClick={() => setMode(m)}
               >
-                {m === 'password' && 'Email & password'}
-                {m === 'key' && 'API key'}
-                {m === 'sso' && 'SSO'}
+                {label}
               </button>
             ))}
           </div>
 
-          {error && <div className="ks-error">{error}</div>}
+          {error && <div className="cz-login-error">{error}</div>}
 
           {mode === 'password' && (
-            <form className="ks-login-form" onSubmit={handleSubmit}>
-              <div className="ks-tweak-row">
+            <form className="cz-login-form" onSubmit={handleSubmit}>
+              <div className="cz-login-field">
                 <label htmlFor="login-email">Email</label>
                 <input
                   id="login-email"
-                  className="ks-input"
+                  className="cz-input"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -132,19 +146,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   required
                 />
               </div>
-              <div className="ks-tweak-row">
+              <div className="cz-login-field">
                 <label htmlFor="login-password">
                   Password
-                  <span
-                    className="ks-amber"
-                    style={{ float: 'right', fontSize: 9, cursor: 'pointer' }}
-                  >
-                    RECOVER →
-                  </span>
+                  <span className="cz-recover">RECOVER →</span>
                 </label>
                 <input
                   id="login-password"
-                  className="ks-input"
+                  className="cz-input"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -152,12 +161,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   required
                 />
               </div>
-              <label className="ks-login-check">
-                <input type="checkbox" defaultChecked /> Trust this device · 30d
+              <label className="cz-login-check">
+                <input type="checkbox" defaultChecked /> Trust this device for 30 days
               </label>
               <button
                 type="submit"
-                className="ks-btn ks-btn-primary"
+                className="cz-btn cz-btn-primary"
                 style={{ justifyContent: 'center', width: '100%' }}
                 disabled={loading}
               >
@@ -167,20 +176,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           )}
 
           {mode === 'key' && (
-            <form className="ks-login-form" onSubmit={(e) => e.preventDefault()}>
-              <div className="ks-tweak-row">
-                <label>API key</label>
+            <form className="cz-login-form" onSubmit={(e) => e.preventDefault()}>
+              <div className="cz-login-field">
+                <label htmlFor="login-key">API key</label>
                 <input
-                  className="ks-input"
+                  id="login-key"
+                  className="cz-input"
                   defaultValue="ks_live_8e42••••••••••••••••••••••1b"
                 />
               </div>
-              <p className="ks-faint" style={{ fontSize: 10 }}>
-                For CLI and M2M. Keys are scoped; see Agents → Leases.
+              <p className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
+                For CLI and machine-to-machine. Keys are scoped — manage them under Agents → Leases.
               </p>
               <button
                 type="submit"
-                className="ks-btn ks-btn-primary"
+                className="cz-btn cz-btn-primary"
                 style={{ justifyContent: 'center', width: '100%' }}
                 disabled
               >
@@ -190,26 +200,29 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           )}
 
           {mode === 'sso' && (
-            <div className="ks-login-form">
-              <button className="ks-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
+            <div className="cz-login-form">
+              <button className="cz-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
                 Continue with Okta
               </button>
-              <button className="ks-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
+              <button className="cz-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
                 Continue with Google Workspace
               </button>
-              <button className="ks-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
+              <button className="cz-btn" style={{ justifyContent: 'center', width: '100%' }} disabled>
                 Continue with GitHub
               </button>
-              <p className="ks-faint" style={{ fontSize: 10, textAlign: 'center' }}>
+              <p
+                className="cz-faint"
+                style={{ fontFamily: 'var(--cz-mono)', fontSize: 11, textAlign: 'center' }}
+              >
                 SAML · OIDC · SCIM configured at the org level.
               </p>
             </div>
           )}
 
-          <hr className="ks-hair-soft" style={{ margin: '22px 0 14px' }} />
-          <div className="ks-login-fine">
-            <span className="ks-faint">Signed requests only · TLS 1.3</span>
-            <span className="ks-faint">CSRF · HSTS · CSP</span>
+          <div className="cz-login-divider" />
+          <div className="cz-login-fine">
+            <span>Signed requests · TLS 1.3</span>
+            <span>CSRF · HSTS · CSP</span>
           </div>
         </div>
       </main>

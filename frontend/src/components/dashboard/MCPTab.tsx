@@ -183,7 +183,7 @@ export function MCPTab() {
             <Tooltip />
             <Bar
               dataKey="total_calls"
-              fill="hsl(var(--primary))"
+              fill="var(--color-chart-1)"
               radius={[4, 4, 0, 0]}
             />
           </BarChart>

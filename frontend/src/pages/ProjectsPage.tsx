@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, importEnv } from '../api/client';
 import type { Project } from '../types';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Page, PageHeader, KpiStrip, Kpi, Chip, Pill, Dot } from '../components/cosmic/primitives';
+import { EventHorizon } from '../components/cosmic/EventHorizon';
 
 const IMPORT_ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type ImportEnv = (typeof IMPORT_ENVIRONMENTS)[number];
@@ -32,10 +34,9 @@ function relTime(iso: string): string {
   return `${d}d`;
 }
 
-const KPI_BARS = [3, 5, 4, 6, 5, 7, 6, 8];
 const SECRETS_BARS = [12, 18, 14, 22, 20, 26, 24, 28];
 const READS_BARS = [8, 10, 12, 11, 14, 16, 15, 18];
-const ANOM_BARS = [0, 1, 0, 0, 2, 0, 0, 0];
+const KPI_BARS = [3, 5, 4, 6, 5, 7, 6, 8];
 
 const TICKER_EVENTS = [
   { who: 'agent:nexus-runtime', what: 'read', target: 'ANTHROPIC_API_KEY', env: 'prod', ago: '12s' },
@@ -47,54 +48,19 @@ const TICKER_EVENTS = [
   { who: 'security-bot', what: 'alert', target: 'rate limit spike', env: 'prod', ago: '18m' },
 ];
 
-function Kpi({
-  label,
-  value,
-  hint,
-  trend,
-  bars,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  trend?: 'up' | 'down';
-  bars: number[];
-}) {
-  const max = Math.max(...bars, 1);
-  return (
-    <div className="ks-kpi">
-      <div className="ks-eyebrow">{label}</div>
-      <div className="ks-v ks-num">
-        {value.length > 3 ? value : <em>{value}</em>}
-      </div>
-      {hint && <div className={`ks-delta ${trend ?? ''}`}>{hint}</div>}
-      <div className="ks-sparkbars">
-        {bars.map((b, i) => (
-          <div
-            key={i}
-            className={`ks-bar ${i === bars.length - 1 ? 'hi' : ''}`}
-            style={{ height: `${4 + (b / max) * 20}px` }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Ticker() {
   const stream = [...TICKER_EVENTS, ...TICKER_EVENTS, ...TICKER_EVENTS];
   return (
-    <div className="ks-ticker">
-      <span className="ks-ticker-label">LEDGER · LIVE</span>
-      <div style={{ overflow: 'hidden', flex: 1 }}>
-        <div className="ks-ticker-stream">
+    <div className="cz-ticker">
+      <span className="cz-ticker-label">
+        <Dot status="go" /> Live ledger
+      </span>
+      <div className="cz-ticker-mask">
+        <div className="cz-ticker-stream">
           {stream.map((e, i) => (
             <span key={i}>
-              <span className="ks-faint">[{e.ago}]</span>
-              <b>{e.who}</b>
-              <em>{e.what}</em>
-              <span>{e.target}</span>
-              <span className="ks-faint">· {e.env}</span>
+              <span className="cz-faint">[{e.ago}]</span> <b>{e.who}</b> <em>{e.what}</em> {e.target}{' '}
+              <span className="cz-faint">· {e.env}</span>
             </span>
           ))}
         </div>
@@ -161,13 +127,7 @@ export function ProjectsPage() {
   }
 
   // Task A.3: Import .env. Opens a dialog to pick target project + environment,
-  // then a file picker. Parses key=value lines (ignoring comments and blanks)
-  // and POSTs to the existing /env-import endpoint, which the backend handles
-  // server-side (one round-trip per import, not per-key).
-  //
-  // We deliberately use the existing /env-import endpoint instead of the embed
-  // `secrets/batch` endpoint mentioned in audit F-C-001 — that one is not
-  // implemented on the backend.
+  // then a file picker. Parses key=value lines and POSTs to /env-import.
   function openImport() {
     if (projects.length === 0) {
       toast({
@@ -188,8 +148,6 @@ export function ProjectsPage() {
     setImporting(true);
     try {
       const content = await file.text();
-      // Quick client-side validation: ensure the file has at least one
-      // key=value pair after stripping comments/blank lines.
       const meaningfulLines = content
         .split(/\r?\n/)
         .map((l) => l.trim())
@@ -204,7 +162,8 @@ export function ProjectsPage() {
       const projectName = projects.find((p) => p.id === importProjectId)?.name ?? 'project';
       toast({
         title: 'Import complete',
-        description: `Imported ${meaningfulLines.filter((l) => l.includes('=')).length} entries into ${projectName} / ${importEnvironment.toUpperCase()}.` +
+        description:
+          `Imported ${meaningfulLines.filter((l) => l.includes('=')).length} entries into ${projectName} / ${importEnvironment.toUpperCase()}.` +
           (result ? ` (${JSON.stringify(result)})` : ''),
       });
       setImportOpen(false);
@@ -231,194 +190,156 @@ export function ProjectsPage() {
   });
 
   return (
-    <div className="ks-page">
-      <div className="ks-page-head">
-        <div>
-          <div className="ks-eyebrow ks-amber">Section I · Shelf</div>
-          <h1 className="ks-page-title">Projects on <em>the shelf.</em></h1>
-          <p className="ks-page-sub">
-            Every project has its own encryption key. Every environment has its own revision. Promote changes explicitly; nothing leaks sideways.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="ks-btn" onClick={openImport} disabled={importing}>
-            {importing ? 'Importing…' : 'Import .env'}
-          </button>
-          <button className="ks-btn ks-btn-primary" onClick={() => setShowCreate(true)}>
-            + New project
-          </button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Vault · shelf"
+        title={<>Projects on <em>the shelf.</em></>}
+        sub="Every project has its own encryption key. Every environment has its own revision. Promote changes explicitly; nothing leaks sideways."
+        actions={
+          <>
+            <button className="cz-btn" onClick={openImport} disabled={importing}>
+              {importing ? 'Importing…' : 'Import .env'}
+            </button>
+            <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}>
+              + New project
+            </button>
+          </>
+        }
+      />
 
-      <div className="ks-kpi-strip">
-        <Kpi label="PROJECTS" value={String(projects.length).padStart(2, '0')} hint="+1 this week" trend="up" bars={KPI_BARS} />
-        <Kpi label="SECRETS" value="251" hint="across 3 envs" bars={SECRETS_BARS} />
-        <Kpi label="READS / DAY" value="18,420" hint="+12.4% w/w" trend="up" bars={READS_BARS} />
-        <Kpi label="ANOMALIES" value="00" hint="last 24h · healthy" trend="up" bars={ANOM_BARS} />
-      </div>
+      <KpiStrip>
+        <Kpi label="Projects" value={String(projects.length).padStart(2, '0')} hint="+1 this week" trend="up" bars={KPI_BARS} />
+        <Kpi label="Secrets" value="251" hint="across 3 environments" bars={SECRETS_BARS} />
+        <Kpi label="Reads / day" value="18,420" hint="+12.4% week over week" trend="up" bars={READS_BARS} flux />
+        <Kpi label="Anomalies" value="00" hint="last 24h · healthy" trend="up" />
+      </KpiStrip>
 
       <Ticker />
 
       <div style={{ height: 28 }} />
 
-      {/* Filter bar */}
-      <div className="ks-filter-bar">
-        <div className="ks-filter-group">
+      <div className="cz-filter-bar">
+        <div className="cz-seg">
           {(['ALL', 'SEALED', 'DRIFT', 'ATTN'] as const).map((f) => (
-            <button
-              key={f}
-              className={`ks-filter-btn ${filter === f ? 'on' : ''}`}
-              onClick={() => setFilter(f)}
-            >
+            <button key={f} className={filter === f ? 'cz-on' : ''} onClick={() => setFilter(f)}>
               {f}
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }} />
-        <div className="ks-filter-group">
-          <button className="ks-filter-btn">SORT · ACTIVITY ▾</button>
-          <button className="ks-filter-btn on">TABLE</button>
-        </div>
       </div>
 
-      {error && (
-        <div className="ks-error" style={{ marginBottom: 16 }}>{error}</div>
-      )}
+      {error && <div className="cz-login-error" style={{ marginBottom: 16 }}>{error}</div>}
 
       {loading ? (
-        <div className="ks-faint" style={{ padding: '24px 0', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+        <div className="cz-faint" style={{ padding: '24px 0', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
           Loading projects…
         </div>
       ) : filtered.length === 0 ? (
-        <div
-          className="ks-secrets"
-          style={{ padding: 60, textAlign: 'center', borderStyle: 'dashed' }}
-        >
-          <div className="ks-eyebrow ks-amber" style={{ marginBottom: 14 }}>Empty shelf</div>
-          <p className="ks-dim" style={{ fontSize: 13, marginBottom: 18 }}>
+        <div className="cz-card cz-empty-state">
+          <EventHorizon size={150} />
+          <div className="cz-eyebrow">Empty shelf</div>
+          <p className="cz-mute" style={{ marginTop: -10 }}>
             Nothing on the shelf. Create your first project to begin.
           </p>
-          <button className="ks-btn ks-btn-primary" onClick={() => setShowCreate(true)}>
+          <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}>
             + New project
           </button>
         </div>
       ) : (
-        <table className="ks-proj-table">
-          <thead>
-            <tr>
-              <th style={{ width: 40 }}>№</th>
-              <th>Project</th>
-              <th>ID</th>
-              <th>Environments</th>
-              <th style={{ textAlign: 'right' }}>Created</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Updated</th>
-              <th style={{ width: 60 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p, i) => {
-              const h = projectHealth(p);
-              const statusBorder =
-                h === 'go'
-                  ? 'oklch(0.45 0.10 150)'
-                  : h === 'warn'
-                  ? 'oklch(0.55 0.10 85)'
-                  : 'oklch(0.42 0.13 27)';
-              return (
-                <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)}>
-                  <td className="ks-faint ks-num">{String(i + 1).padStart(2, '0')}</td>
-                  <td>
-                    <div className="ks-proj-name">
-                      <span className="ks-n">{p.name}</span>
-                      <span className="ks-d">{p.description || '—'}</span>
-                    </div>
-                  </td>
-                  <td className="ks-faint ks-num" style={{ fontSize: 10 }}>
-                    prj_{p.id.slice(0, 6)}
-                  </td>
-                  <td>
-                    <div className="ks-env-row">
-                      <span className="ks-env-chip">alpha</span>
-                      <span className="ks-env-chip">uat</span>
-                      <span className="ks-env-chip prod">prod</span>
-                    </div>
-                  </td>
-                  <td className="ks-faint ks-num" style={{ textAlign: 'right' }}>
-                    {new Date(p.created_at).toLocaleDateString()}
-                  </td>
-                  <td>
-                    <span
-                      className="ks-pill"
-                      style={{ borderColor: statusBorder }}
-                    >
-                      <span className={`ks-dot ks-dot-${h}`} />
-                      {h === 'go' ? 'SEALED' : h === 'warn' ? 'DRIFT' : 'ATTN'}
-                    </span>
-                  </td>
-                  <td className="ks-faint ks-num" style={{ textAlign: 'right' }}>
-                    {relTime(p.updated_at)} ago
-                  </td>
-                  <td
-                    style={{ textAlign: 'right' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget(p);
-                    }}
-                  >
-                    <span
-                      className="ks-faint"
-                      style={{ cursor: 'pointer', fontSize: 16 }}
-                      title="Delete"
-                    >
-                      ⋯
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="cz-card cz-secrets">
+          <table className="cz-dtable">
+            <thead>
+              <tr>
+                <th style={{ width: 40 }}>№</th>
+                <th>Project</th>
+                <th>ID</th>
+                <th>Environments</th>
+                <th style={{ textAlign: 'right' }}>Created</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Updated</th>
+                <th style={{ width: 50 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p, i) => {
+                const h = projectHealth(p);
+                return (
+                  <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ cursor: 'pointer' }}>
+                    <td className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
+                      {String(i + 1).padStart(2, '0')}
+                    </td>
+                    <td>
+                      <div className="cz-cell-name">
+                        <Link
+                          to={`/projects/${p.id}`}
+                          className="cz-n"
+                          style={{ textDecoration: 'none', color: 'inherit', width: 'fit-content' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {p.name}
+                        </Link>
+                        <span className="cz-d">{p.description || '—'}</span>
+                      </div>
+                    </td>
+                    <td className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
+                      prj_{p.id.slice(0, 6)}
+                    </td>
+                    <td>
+                      <div className="cz-envs">
+                        <Chip>alpha</Chip>
+                        <Chip>uat</Chip>
+                        <Chip variant="prod">prod</Chip>
+                      </div>
+                    </td>
+                    <td className="cz-faint" style={{ textAlign: 'right', fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
+                      {new Date(p.created_at).toLocaleDateString()}
+                    </td>
+                    <td>
+                      <Pill variant={h === 'go' ? 'go' : h === 'stop' ? 'stop' : undefined}>
+                        <Dot status={h} />
+                        {h === 'go' ? 'Sealed' : h === 'warn' ? 'Drift' : 'Attention'}
+                      </Pill>
+                    </td>
+                    <td className="cz-faint" style={{ textAlign: 'right', fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
+                      {relTime(p.updated_at)} ago
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="cz-faint"
+                        style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, background: 'transparent', border: 0, padding: '2px 6px', borderRadius: 6 }}
+                        title="Delete project"
+                        aria-label={`Delete ${p.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(p);
+                        }}
+                      >
+                        ⋯
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Create dialog (simple inline modal) */}
+      {/* Create dialog */}
       {showCreate && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'oklch(0.12 0.008 60 / 0.75)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 300,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-            paddingTop: '14vh',
-          }}
-          onClick={() => setShowCreate(false)}
-        >
-          <div
-            style={{
-              width: 'min(520px, 92vw)',
-              background: 'var(--ks-bg)',
-              border: '1px solid var(--ks-amber-dim)',
-              boxShadow: '0 40px 80px oklch(0 0 0 / 0.6)',
-              padding: 28,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="ks-eyebrow ks-amber">— New project —</div>
-            <h2
-              className="ks-serif-display"
-              style={{ fontSize: 32, marginTop: 8, marginBottom: 18 }}
-            >
-              Open a <em style={{ fontStyle: 'italic', color: 'var(--ks-amber)' }}>shelf</em>.
+        <div className="cz-cmdk-back" onClick={() => setShowCreate(false)}>
+          <div className="cz-card" style={{ width: 'min(520px, 92vw)', padding: 28 }} onClick={(e) => e.stopPropagation()}>
+            <div className="cz-eyebrow">New project</div>
+            <h2 style={{ fontFamily: 'var(--cz-sans)', fontWeight: 300, fontSize: 30, letterSpacing: '-0.02em', margin: '8px 0 18px', color: 'var(--cz-ink)' }}>
+              Open a <em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>shelf.</em>
             </h2>
-            <form onSubmit={handleCreate} className="ks-login-form">
-              <div className="ks-tweak-row">
-                <label>Project name</label>
+            <form onSubmit={handleCreate} className="cz-login-form">
+              <div className="cz-login-field">
+                <label htmlFor="project-name">Project name</label>
                 <input
-                  className="ks-input"
+                  id="project-name"
+                  className="cz-input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -426,29 +347,21 @@ export function ProjectsPage() {
                   placeholder="e.g. nexus-platform"
                 />
               </div>
-              <div className="ks-tweak-row">
-                <label>Description</label>
+              <div className="cz-login-field">
+                <label htmlFor="project-desc">Description</label>
                 <input
-                  className="ks-input"
+                  id="project-desc"
+                  className="cz-input"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="optional"
                 />
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <button
-                  type="button"
-                  className="ks-btn"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                  onClick={() => setShowCreate(false)}
-                >
+                <button type="button" className="cz-btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowCreate(false)}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="ks-btn ks-btn-primary"
-                  style={{ flex: 1, justifyContent: 'center' }}
-                >
+                <button type="submit" className="cz-btn cz-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                   Create →
                 </button>
               </div>
@@ -463,11 +376,7 @@ export function ProjectsPage() {
           if (!open) setDeleteTarget(null);
         }}
         title="Delete Project"
-        description={
-          deleteTarget
-            ? `Delete "${deleteTarget.name}"? This action cannot be undone.`
-            : ''
-        }
+        description={deleteTarget ? `Delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
         confirmLabel="Delete"
         onConfirm={() => {
           if (deleteTarget) handleDelete(deleteTarget.id);
@@ -476,54 +385,25 @@ export function ProjectsPage() {
       />
 
       {importOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'oklch(0.12 0.008 60 / 0.75)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 300,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-            paddingTop: '14vh',
-          }}
-          onClick={() => !importing && setImportOpen(false)}
-        >
-          <div
-            style={{
-              width: 'min(520px, 92vw)',
-              background: 'var(--ks-bg)',
-              border: '1px solid var(--ks-amber-dim)',
-              boxShadow: '0 40px 80px oklch(0 0 0 / 0.6)',
-              padding: 28,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="ks-eyebrow ks-amber">— Import .env —</div>
-            <h2
-              className="ks-serif-display"
-              style={{ fontSize: 28, marginTop: 8, marginBottom: 18 }}
-            >
-              Restore <em style={{ fontStyle: 'italic', color: 'var(--ks-amber)' }}>secrets</em>.
+        <div className="cz-cmdk-back" onClick={() => !importing && setImportOpen(false)}>
+          <div className="cz-card" style={{ width: 'min(520px, 92vw)', padding: 28 }} onClick={(e) => e.stopPropagation()}>
+            <div className="cz-eyebrow">Import .env</div>
+            <h2 style={{ fontFamily: 'var(--cz-sans)', fontWeight: 300, fontSize: 28, letterSpacing: '-0.02em', margin: '8px 0 18px', color: 'var(--cz-ink)' }}>
+              Restore <em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>secrets.</em>
             </h2>
-            <div className="ks-tweak-row">
-              <label>Project</label>
-              <select
-                className="ks-input"
-                value={importProjectId}
-                onChange={(e) => setImportProjectId(e.target.value)}
-                disabled={importing}
-              >
+            <div className="cz-login-field" style={{ marginBottom: 14 }}>
+              <label htmlFor="import-project">Project</label>
+              <select id="import-project" className="cz-input" value={importProjectId} onChange={(e) => setImportProjectId(e.target.value)} disabled={importing}>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
             </div>
-            <div className="ks-tweak-row">
-              <label>Environment</label>
+            <div className="cz-login-field" style={{ marginBottom: 14 }}>
+              <label htmlFor="import-env">Environment</label>
               <select
-                className="ks-input"
+                id="import-env"
+                className="cz-input"
                 value={importEnvironment}
                 onChange={(e) => setImportEnvironment(e.target.value as ImportEnv)}
                 disabled={importing}
@@ -533,17 +413,10 @@ export function ProjectsPage() {
                 ))}
               </select>
             </div>
-            <div className="ks-tweak-row">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={importOverwrite}
-                  onChange={(e) => setImportOverwrite(e.target.checked)}
-                  disabled={importing}
-                />
-                Overwrite existing keys
-              </label>
-            </div>
+            <label className="cz-login-check" style={{ marginBottom: 4 }}>
+              <input type="checkbox" checked={importOverwrite} onChange={(e) => setImportOverwrite(e.target.checked)} disabled={importing} />
+              Overwrite existing keys
+            </label>
             <input
               ref={importFileRef}
               type="file"
@@ -555,18 +428,12 @@ export function ProjectsPage() {
               }}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-              <button
-                type="button"
-                className="ks-btn"
-                style={{ flex: 1, justifyContent: 'center' }}
-                onClick={() => setImportOpen(false)}
-                disabled={importing}
-              >
+              <button type="button" className="cz-btn" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setImportOpen(false)} disabled={importing}>
                 Cancel
               </button>
               <button
                 type="button"
-                className="ks-btn ks-btn-primary"
+                className="cz-btn cz-btn-primary"
                 style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => importFileRef.current?.click()}
                 disabled={importing || !importProjectId}
@@ -577,6 +444,6 @@ export function ProjectsPage() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }

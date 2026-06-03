@@ -223,7 +223,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
             </div>
 
             {pathIdx === 1 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-sm text-amber-500 mb-4 flex items-center gap-2">
+              <div className="bg-warning/10 border border-warning/30 rounded-md px-3.5 py-2.5 text-sm text-warning mb-4 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 PROD promotions require multi-party approval before secrets are applied.
               </div>
@@ -271,7 +271,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
             </p>
 
             {pathIdx === 1 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-md px-3.5 py-2.5 text-sm text-amber-500 mb-4 flex items-center gap-2">
+              <div className="bg-warning/10 border border-warning/30 rounded-md px-3.5 py-2.5 text-sm text-warning mb-4 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 PROD promotions require multi-party approval before secrets are applied.
               </div>
@@ -298,7 +298,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                         className={cn(
                           entry.action === 'no_change' && 'opacity-50',
                           entry.action === 'add' && 'bg-green-500/5',
-                          entry.action === 'update' && 'bg-amber-500/5'
+                          entry.action === 'update' && 'bg-warning/5'
                         )}
                       >
                         <TableCell>
@@ -319,7 +319,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                             className={cn(
                               'text-[11px] uppercase font-semibold',
                               entry.action === 'add' && 'bg-green-500/15 text-green-500',
-                              entry.action === 'update' && 'bg-amber-500/15 text-amber-500',
+                              entry.action === 'update' && 'bg-warning/15 text-warning',
                               entry.action === 'no_change' && 'bg-muted text-muted-foreground'
                             )}
                           >
@@ -347,7 +347,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                 onClick={handlePromote}
                 disabled={loading || selectedKeys.size === 0}
                 className={cn(
-                  path.target === 'prod' && 'bg-amber-500 hover:bg-amber-600'
+                  path.target === 'prod' && 'bg-warning hover:bg-warning'
                 )}
               >
                 {loading
