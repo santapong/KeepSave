@@ -104,7 +104,7 @@ func main() {
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo, auditRepo)
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
-	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, cryptoSvc)
+	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, auditRepo, cryptoSvc)
 	webhookService := service.NewWebhookService()
 	orgService := service.NewOrganizationService(orgRepo)
 	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
