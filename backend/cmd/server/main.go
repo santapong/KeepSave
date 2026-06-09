@@ -165,8 +165,13 @@ func main() {
 	// ADR-0006: embed widget origin allow-list.
 	embedHandler := api.NewEmbedHandler(projectService)
 
+	if !cfg.PromotionsEnabled {
+		logger.Info("promotions disabled by kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false); /promote and /approve will return 503", nil)
+	}
+
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
+		cfg.PromotionsEnabled,
 		jwtService,
 		apikeyRepo,
 		projectRepo,

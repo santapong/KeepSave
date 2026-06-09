@@ -162,6 +162,7 @@ func openAPISpec() map[string]interface{} {
 					"security": []map[string]interface{}{{"bearerAuth": []string{}}},
 					"responses": map[string]interface{}{
 						"200": map[string]string{"description": "Promotion initiated"},
+						"503": map[string]string{"description": "Promotions disabled by operator kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false)"},
 					},
 				},
 			},

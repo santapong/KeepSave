@@ -54,6 +54,14 @@ type Config struct {
 	TLSCipherSuites string
 
 	AuditLogRetentionDays int
+
+	// PromotionsEnabled is the promotion kill switch (FOLLOWUPS #0e,
+	// ADR-0003 rollback plan step 1). When false, POST /promote and
+	// POST /promotions/:id/approve return 503 without reaching the
+	// promotion engine. Reject, rollback, and read endpoints stay live
+	// so operators can drain the queue mid-incident. Toggled via
+	// KEEPSAVE_PROMOTIONS_ENABLED; absent/empty means enabled.
+	PromotionsEnabled bool
 }
 
 func Load() (*Config, error) {
@@ -117,6 +125,18 @@ func Load() (*Config, error) {
 		retention = n
 	}
 
+	// A malformed value fails the boot loudly rather than defaulting to
+	// enabled: an operator typo at incident time must not silently leave
+	// promotions running.
+	promotionsEnabled := true
+	if v := os.Getenv("KEEPSAVE_PROMOTIONS_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("KEEPSAVE_PROMOTIONS_ENABLED must be a boolean (true/false/1/0), got %q", v)
+		}
+		promotionsEnabled = b
+	}
+
 	return &Config{
 		DatabaseURL:           databaseURL,
 		KeyProvider:           keyProvider,
@@ -136,6 +156,7 @@ func Load() (*Config, error) {
 		TLSRedirect:           strings.EqualFold(os.Getenv("TLS_REDIRECT"), "true"),
 		TLSCipherSuites:       os.Getenv("TLS_CIPHER_SUITES"),
 		AuditLogRetentionDays: retention,
+		PromotionsEnabled:     promotionsEnabled,
 	}, nil
 }
 
