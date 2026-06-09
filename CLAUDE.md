@@ -94,6 +94,7 @@ docker-compose up --build                  # Run everything
 | `JWT_SECRET`          | JWT signing secret                       |
 | `PORT`                | API server port (default: 8080)          |
 | `CORS_ORIGINS`        | Allowed origins for embed widget         |
+| `KEEPSAVE_PROMOTIONS_ENABLED` | Promotion kill switch (default: true). `false` makes `/promote` + `/approve` return 503; see `docs/RUNBOOK.md` §8 |
 
 ## Coding Conventions
 

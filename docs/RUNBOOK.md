@@ -13,6 +13,7 @@ P2 = degraded service.
 5. govulncheck regression (P2)
 6. Deploy rollback drill (P2 — drill, not incident)
 7. Break-glass production secret read (procedure)
+8. Promotion kill switch (P1 tool)
 
 ---
 
@@ -23,7 +24,10 @@ all decrypt operations return `message authentication failed`.
 
 **Containment**
 
-1. Put service into read-only mode (`ENABLE_WRITES=false`).
+1. Put service into read-only mode (`ENABLE_WRITES=false`). *Note:
+   `ENABLE_WRITES` is aspirational — no implementation exists yet. The
+   promotion-specific kill switch (section 8) IS implemented; use it when
+   the blast radius is the promotion engine.*
 2. Rotate the KMS key alias to the last known good version (AWS KMS:
    `aws kms update-alias --alias-name alias/keepsave-master --target-key-id ...`).
 3. Restart one pod, confirm DEK unwrap succeeds against a sample project.
@@ -129,6 +133,36 @@ Quarterly exercise to prove rotation plumbing works.
 - Copying a production secret to a Slack message, ticket, or doc.
 - Reading "just to compare" without an incident issue.
 - Skipping the post-read rotation.
+
+## 8. Promotion kill switch (P1 tool)
+
+**When to use:** ADR-0003 rollback plan step 1 — a suspected promotion-engine
+bug (wrong values copied, approval bypass, crash loop in `/promote`). The
+switch stops new promotions and approvals while you diagnose; it does NOT
+undo anything (step 2, `promotion_rollback`, stays available for that).
+
+**How to disable promotions** (env flip + restart; no image build):
+
+- Fly.io: `fly secrets set KEEPSAVE_PROMOTIONS_ENABLED=false -a <app>`
+  (triggers a restart automatically).
+- Kubernetes: `kubectl set env deploy/keepsave-api KEEPSAVE_PROMOTIONS_ENABLED=false`.
+- docker-compose: add `KEEPSAVE_PROMOTIONS_ENABLED=false` to the backend
+  environment and `docker-compose up -d backend`.
+
+**Verify:** an authenticated `POST /api/v1/projects/<id>/promote` returns
+`503` with `error_code: "SERVICE_UNAVAILABLE"` and message "promotions are
+temporarily disabled by the operator". The startup log also prints
+`promotions disabled by kill switch`.
+
+**What stays available while disabled** (by design — these ARE the incident
+response): `reject` (drain the pending-approval queue), `rollback`
+(undo a bad promotion), `promote/diff`, `GET /promotions`, audit-log reads.
+Only `POST /promote` and `POST /promotions/:id/approve` are gated.
+
+**Re-enable:** set `KEEPSAVE_PROMOTIONS_ENABLED=true` (or unset it — absent
+means enabled) and restart. A malformed value (anything not parseable as a
+boolean) fails the boot loudly by design — fix the value rather than
+deleting the variable under pressure unless you intend to re-enable.
 
 ## §7. UAT cutover (added 2026-05-18)
 
