@@ -14,6 +14,7 @@ type KeyRotationService struct {
 	projectRepo *repository.ProjectRepository
 	secretRepo  *repository.SecretRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
 }
 
@@ -22,18 +23,21 @@ func NewKeyRotationService(
 	projectRepo *repository.ProjectRepository,
 	secretRepo *repository.SecretRepository,
 	envRepo *repository.EnvironmentRepository,
+	auditRepo *repository.AuditRepository,
 	cryptoSvc *crypto.Service,
 ) *KeyRotationService {
 	return &KeyRotationService{
 		projectRepo: projectRepo,
 		secretRepo:  secretRepo,
 		envRepo:     envRepo,
+		auditRepo:   auditRepo,
 		cryptoSvc:   cryptoSvc,
 	}
 }
 
 // RotateProjectKey generates a new DEK for a project and re-encrypts all secrets.
-func (s *KeyRotationService) RotateProjectKey(projectID uuid.UUID) (*RotationResult, error) {
+// Emits one key.dek_rotated audit row (docs/AUDIT_LOG_COVERAGE.md) on success.
+func (s *KeyRotationService) RotateProjectKey(projectID, actorID uuid.UUID, ipAddr string) (*RotationResult, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -100,6 +104,11 @@ func (s *KeyRotationService) RotateProjectKey(projectID uuid.UUID) (*RotationRes
 		return nil, fmt.Errorf("updating project DEK: %w", err)
 	}
 
+	// Environment column is empty: rotation spans every environment in the
+	// project (same convention as project-scoped secret events).
+	emitAudit(s.auditRepo, &actorID, &projectID, "key.dek_rotated", "",
+		models.JSONMap{"secrets_rotated": reEncryptedCount, "environments": len(envs)}, ipAddr)
+
 	return &RotationResult{
 		ProjectID:        projectID,
 		SecretsRotated:   reEncryptedCount,
@@ -115,7 +124,9 @@ type RotationResult struct {
 }
 
 // RotateAllProjects rotates keys for all projects owned by a user.
-func (s *KeyRotationService) RotateAllProjects(ownerID uuid.UUID) ([]RotationResult, error) {
+// Audit shape: one key.dek_rotated row per project (no summary event —
+// the rows share actor/IP/timestamp, which reconstructs the bulk run).
+func (s *KeyRotationService) RotateAllProjects(ownerID uuid.UUID, ipAddr string) ([]RotationResult, error) {
 	projects, err := s.projectRepo.ListByOwner(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("listing projects: %w", err)
@@ -123,7 +134,7 @@ func (s *KeyRotationService) RotateAllProjects(ownerID uuid.UUID) ([]RotationRes
 
 	var results []RotationResult
 	for _, p := range projects {
-		result, err := s.RotateProjectKey(p.ID)
+		result, err := s.RotateProjectKey(p.ID, ownerID, ipAddr)
 		if err != nil {
 			return results, fmt.Errorf("rotating project %s (%s): %w", p.Name, p.ID, err)
 		}

@@ -13,7 +13,7 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	corsOrigins string, promotionsEnabled bool, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
@@ -116,11 +116,16 @@ func SetupRouter(
 		pm := v1.Group("/projects/:id")
 		pm.Use(JWTAuthMiddleware(jwtService), RequireProjectAccess(projectRepo))
 		{
-			pm.POST("/promote", promotionHandler.Promote)
+			// FOLLOWUPS #0e: kill switch gates promote + approve only.
+			// Reject/rollback/reads stay live — see PromotionGateMiddleware.
+			// Group middleware (JWT + project access) runs first, so the
+			// switch never changes 401/403 behavior or leaks pre-auth.
+			promotionGate := PromotionGateMiddleware(promotionsEnabled)
+			pm.POST("/promote", promotionGate, promotionHandler.Promote)
 			pm.POST("/promote/diff", promotionHandler.Diff)
 			pm.GET("/promotions", promotionHandler.ListPromotions)
 			pm.GET("/promotions/:promotionId", promotionHandler.GetPromotion)
-			pm.POST("/promotions/:promotionId/approve", promotionHandler.ApprovePromotion)
+			pm.POST("/promotions/:promotionId/approve", promotionGate, promotionHandler.ApprovePromotion)
 			pm.POST("/promotions/:promotionId/reject", promotionHandler.RejectPromotion)
 			pm.POST("/promotions/:promotionId/rollback", promotionHandler.Rollback)
 			pm.GET("/audit-log", promotionHandler.AuditLog)

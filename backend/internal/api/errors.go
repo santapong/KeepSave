@@ -48,6 +48,11 @@ var (
 	ErrConflict     = &HTTPError{Symbol: "CONFLICT", Status: http.StatusConflict, Message: "conflict with current state"}
 	ErrRateLimited  = &HTTPError{Symbol: "RATE_LIMITED", Status: http.StatusTooManyRequests, Message: "too many requests"}
 	ErrInternal     = &HTTPError{Symbol: "INTERNAL", Status: http.StatusInternalServerError, Message: "internal error"}
+
+	// ErrServiceUnavailable is for features deliberately switched off at
+	// runtime (e.g. the promotion kill switch, FOLLOWUPS #0e) — not an
+	// authz decision, so 403 would mislead clients.
+	ErrServiceUnavailable = &HTTPError{Symbol: "SERVICE_UNAVAILABLE", Status: http.StatusServiceUnavailable, Message: "service temporarily unavailable"}
 )
 
 // Wrap returns a new HTTPError that inherits Symbol/Status/Message from base

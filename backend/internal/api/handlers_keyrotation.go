@@ -26,7 +26,12 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 		return
 	}
 
-	result, err := h.rotationService.RotateProjectKey(projectID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	result, err := h.rotationService.RotateProjectKey(projectID, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -45,7 +50,7 @@ func (h *KeyRotationHandler) RotateAllKeys(c *gin.Context) {
 		return
 	}
 
-	results, err := h.rotationService.RotateAllProjects(userID)
+	results, err := h.rotationService.RotateAllProjects(userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return

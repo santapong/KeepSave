@@ -72,7 +72,7 @@ These are tracked in `docs/FOLLOWUPS.md` but do not have a corresponding ADR. Mo
 | **0b** | Embed widget accepts auth from any origin | Frontend Engineer | **Closed by PR #50** (ADR-0006 impl) once merged |
 | **0c** | No handler-level negative-auth tests | QA + Backend Engineer | Post-Option-C "Option E" candidate; closes part of audit A01 chain |
 | **0d** | Approver-cannot-be-requester invariant | Backend + Security Engineer | **Closed by ADR-0007 impl** |
-| **0e** | Promotion feature flag / kill switch | Backend Engineer | Tech Lead's call: promote to ADR-0016 (Type-1) or close as feature-flag (Type-2). Plan recommends Type-2 — runtime env flag, not architectural |
+| **0e** | Promotion feature flag / kill switch | Backend Engineer | **Closed 2026-06-09** as Type-2 (runtime env flag, not architectural — per this row's recommendation): `KEEPSAVE_PROMOTIONS_ENABLED` + `internal/api/promotion_gate.go`; see `docs/FOLLOWUPS.md` "Closed (2026-06-09)" |
 | **0f** | CI workflow lacked explicit `permissions:` block | DevOps | Independent; touches `.github/workflows/*.yml` |
 | **0g** | CODEOWNERS + commit-message convention | Tech Lead | Independent; touches `.github/CODEOWNERS` |
 | **0h** | Dashboard JWT storage key-name inconsistency | Frontend Engineer | **Closed by PR #49** (Task B) once merged |

@@ -295,4 +295,3 @@ func TestEmbedConfig_WildcardSentinel_StrippedOnRead(t *testing.T) {
 		t.Errorf("allowed_origins = %v, want [https://example.com]", body.AllowedOrigins)
 	}
 }
-

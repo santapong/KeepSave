@@ -63,6 +63,30 @@ describe('PromotionWizard', () => {
     expect(promote).toHaveBeenCalled();
   });
 
+  it('surfaces the kill-switch message and stays on review', async () => {
+    // Backend kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false) returns 503
+    // SERVICE_UNAVAILABLE; the api client throws Error(error.message).
+    (promote as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('promotions are temporarily disabled by the operator')
+    );
+
+    const user = userEvent.setup();
+    render(<PromotionWizard projectId="p1" />);
+
+    await user.click(screen.getByText('Preview Changes'));
+    await waitFor(() => expect(screen.getByText('DB_HOST')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Promote to UAT'));
+    await waitFor(() => {
+      expect(
+        screen.getByText('promotions are temporarily disabled by the operator')
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Promote to UAT')).toBeInTheDocument();
+    expect(screen.queryByText('Promotion completed successfully!')).not.toBeInTheDocument();
+  });
+
   it('shows pending message for PROD promotions', async () => {
     (promote as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'promo-1',

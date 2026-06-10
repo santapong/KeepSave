@@ -27,7 +27,7 @@ PR #54 / branch `claude/audit-deployment-plan-moSsk`. Cross-references in `docs/
 The following remain **open** because they are explicitly out of Phase 1 scope per the user's plan choices:
 
 - **#1 AWS / GCP KMS adapters** — deferred per ADR-0016 (Vault-only this round). Tracked unchanged.
-- **#0e Promotion feature-flag / kill switch** — not in Phase 1 scope.
+- **#0e Promotion feature-flag / kill switch** — not in Phase 1 scope. *Since closed — see "Closed (2026-06-09)" below.*
 - **#0f CI permissions block** — already closed earlier.
 - **#0g CODEOWNERS** — Phase 3.
 - **#0h–0j Frontend follow-ups** — closed earlier in PRs #48/#49.
@@ -55,6 +55,39 @@ Commits I–N on the same branch / PR #54. Cross-referenced in
 The dead `internal/api/csrf.go` middleware was deleted (S-L2 — KeepSave
 is bearer-token only, CSRF moot) and `lucide-react@^1.8.0` was verified
 as the current stable line (S-L5 — `npm audit` clean).
+
+---
+
+## Closed (2026-06-09)
+
+- [x] **#0e / #4 Promotion feature flag / kill switch** (the same item was
+  listed twice — both entries closed). `KEEPSAVE_PROMOTIONS_ENABLED` env
+  flag in `backend/internal/config/config.go` (default enabled; malformed
+  value fails boot); `internal/api/promotion_gate.go` middleware returns
+  503 `SERVICE_UNAVAILABLE` on `POST /promote` and
+  `POST /promotions/:id/approve` only — reject/rollback/reads stay live
+  per the ADR-0003 rollback plan. Tests: `promotion_gate_test.go`,
+  `config_test.go::TestLoad_PromotionsEnabledFlag`,
+  `PromotionWizard.test.tsx` (banner regression). Operator procedure:
+  `docs/RUNBOOK.md` §8. Classified Type-2 per `docs/research/BACKLOG.md` §3.
+- [x] **`key.dek_rotated` audit emission** (residual of the #0/#9 audit
+  sweep — `keyrotation_service.go` was the last mutating service with no
+  audit events). One row per project after `UpdateDEK` succeeds, details
+  `{secrets_rotated, environments}`, via the nil-safe `emitAudit` helper;
+  `RotateAllProjects` emits per-project rows. Handler now passes actor +
+  IP. Tests: `TestRotateProjectKey_EmitsAudit`,
+  `TestRotateAllProjects_EmitsAuditPerProject`. Taxonomy row updated in
+  `docs/AUDIT_LOG_COVERAGE.md`.
+
+Deliberate deferrals recorded with this close-out:
+
+- **No authenticated admin toggle endpoint** for the kill switch: org
+  roles exist in the DB but are not enforced by handlers, so any JWT user
+  could flip it. Revisit once RBAC enforcement lands.
+- **`promotion.blocked` audit event** for gated attempts: not in the
+  canonical taxonomy, and taxonomy extension is ADR-0014's (Proposed,
+  Type-1) job — proposed there as a candidate row. Blocked attempts are
+  structured-logged (path, user, IP) in the meantime.
 
 ---
 
@@ -88,7 +121,6 @@ so an operator coming in cold sees the explicit remaining surface.
 
 ### Still tracked in this file's other sections
 
-- **#0e Promotion feature-flag / kill switch** (Phase A).
 - **#0g CODEOWNERS for security-critical paths** (Phase A).
 - **#2 Backup tamper-detection test** (Phase A, 60 days).
 - **#3 DEK rotation API** (Phase A, 60 days).
@@ -150,7 +182,7 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Owner:** Backend Engineer + Security Engineer.
 - **Due:** 30 days.
 
-### 0e. Promotion feature flag / kill switch
+### ~~0e. Promotion feature flag / kill switch~~ — **CLOSED (2026-06-09), see Closed section above**
 - **Status:** No runtime flag exists to disable `/promote` and `/approve` without redeploy.
 - **Why it matters:** ADR-0003 names this as step 1 of the rollback plan.
 - **Owner:** Backend Engineer.
@@ -215,7 +247,7 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Due:** 60 days (Phase A).
 - **Related:** ADR-0004 §Open Questions; ROLES_30_60_90 §3 "Backend 90d".
 
-### 4. Promotion feature flag / kill switch
+### ~~4. Promotion feature flag / kill switch~~ — **CLOSED (2026-06-09), duplicate of #0e, see Closed section above**
 - **Status:** No runtime flag to disable `/promote` and `/approve`.
 - **Why it matters:** ADR-0003 names this as the first step in the rollback plan; today it requires a code change + deploy, which is the wrong shape for an incident.
 - **Owner:** Backend Engineer.

@@ -38,7 +38,7 @@ Reviewers reject PRs that fail either.
 | Auth login failed | `auth.login_failed`       | `email_attempted`, `ip` — **no user_id** (the email may not be a real user)      |
 | Auth logout       | `auth.logout`             | `user_id`                                                                        |
 | Key rotation (master) | `key.master_rotated`  | `actor_id`, `provider`                                                          |
-| Key rotation (DEK)| `key.dek_rotated`         | `project_id`, `actor_id` — **once implemented (FOLLOWUPS §3)**                  |
+| Key rotation (DEK)| `key.dek_rotated`         | `project_id`, `actor_id`, `secrets_rotated`, `environments` — emitted by `keyrotation_service.go::RotateProjectKey` (one row per project; bulk rotation emits per-project rows) |
 | Origin allow-list update | `embed.origins_updated` | `project_id`, `actor_id`, `added[]`, `removed[]` — once allow-list lands       |
 
 Event names use `entity.action` form. The full list lives in `backend/internal/events/events.go` as constants — handlers reference the constants, never bare strings.

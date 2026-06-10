@@ -46,6 +46,51 @@ func TestLoad_Defaults(t *testing.T) {
 	if len(cfg.MasterKey) != 32 {
 		t.Errorf("MasterKey len = %d, want 32", len(cfg.MasterKey))
 	}
+	if !cfg.PromotionsEnabled {
+		t.Error("PromotionsEnabled = false, want true by default")
+	}
+}
+
+func TestLoad_PromotionsEnabledFlag(t *testing.T) {
+	base := map[string]string{
+		"DATABASE_URL": "postgres://u:p@db/k?sslmode=require",
+		"MASTER_KEY":   goodKey(),
+		"JWT_SECRET":   "secret",
+	}
+	cases := []struct {
+		name    string
+		value   string
+		want    bool
+		wantErr bool
+	}{
+		{"explicit false", "false", false, false},
+		{"zero", "0", false, false},
+		{"explicit true", "true", true, false},
+		{"one", "1", true, false},
+		{"unset defaults to enabled", "", true, false},
+		{"malformed value fails boot", "banana", false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setenv(t, base)
+			if tc.value != "" {
+				t.Setenv("KEEPSAVE_PROMOTIONS_ENABLED", tc.value)
+			}
+			cfg, err := Load()
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "KEEPSAVE_PROMOTIONS_ENABLED") {
+					t.Fatalf("err = %v, want error naming KEEPSAVE_PROMOTIONS_ENABLED", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if cfg.PromotionsEnabled != tc.want {
+				t.Errorf("PromotionsEnabled = %v, want %v", cfg.PromotionsEnabled, tc.want)
+			}
+		})
+	}
 }
 
 func TestLoad_ProdLockdown(t *testing.T) {
