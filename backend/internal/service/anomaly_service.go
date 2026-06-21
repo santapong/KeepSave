@@ -14,13 +14,14 @@ import (
 
 // AnomalyService detects anomalies in secret access patterns.
 type AnomalyService struct {
-	db      *sql.DB
-	dialect repository.Dialect
-	aiMgr   *AIProviderManager
+	db        *sql.DB
+	dialect   repository.Dialect
+	aiMgr     *AIProviderManager
+	auditRepo *repository.AuditRepository
 }
 
-func NewAnomalyService(db *sql.DB, dialect repository.Dialect, aiMgr *AIProviderManager) *AnomalyService {
-	return &AnomalyService{db: db, dialect: dialect, aiMgr: aiMgr}
+func NewAnomalyService(db *sql.DB, dialect repository.Dialect, aiMgr *AIProviderManager, auditRepo *repository.AuditRepository) *AnomalyService {
+	return &AnomalyService{db: db, dialect: dialect, aiMgr: aiMgr, auditRepo: auditRepo}
 }
 
 // RunDetection scans recent agent_activities and flags anomalies.
@@ -185,19 +186,29 @@ func (s *AnomalyService) ListAnomalies(projectID *uuid.UUID, status string) ([]m
 	return anomalies, nil
 }
 
-func (s *AnomalyService) AcknowledgeAnomaly(id uuid.UUID) error {
+func (s *AnomalyService) AcknowledgeAnomaly(id, actorID uuid.UUID, ipAddr string) error {
 	_, err := s.db.Exec(`UPDATE anomalies SET status = 'acknowledged', acknowledged_at = $1 WHERE id = $2`, time.Now(), id)
-	return err
+	if err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "anomaly.acknowledged", "",
+		models.JSONMap{"anomaly_id": id.String()}, ipAddr)
+	return nil
 }
 
-func (s *AnomalyService) ResolveAnomaly(id uuid.UUID) error {
+func (s *AnomalyService) ResolveAnomaly(id, actorID uuid.UUID, ipAddr string) error {
 	_, err := s.db.Exec(`UPDATE anomalies SET status = 'resolved', resolved_at = $1 WHERE id = $2`, time.Now(), id)
-	return err
+	if err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "anomaly.resolved", "",
+		models.JSONMap{"anomaly_id": id.String()}, ipAddr)
+	return nil
 }
 
 // --- Alert Rules CRUD ---
 
-func (s *AnomalyService) CreateRule(projectID *uuid.UUID, apiKeyID *uuid.UUID, ruleType string, config models.JSONMap, createdBy uuid.UUID) (*models.AnomalyRule, error) {
+func (s *AnomalyService) CreateRule(projectID *uuid.UUID, apiKeyID *uuid.UUID, ruleType string, config models.JSONMap, createdBy uuid.UUID, ipAddr string) (*models.AnomalyRule, error) {
 	now := time.Now()
 	rule := &models.AnomalyRule{
 		ID: uuid.New(), ProjectID: projectID, APIKeyID: apiKeyID,
@@ -210,6 +221,8 @@ func (s *AnomalyService) CreateRule(projectID *uuid.UUID, apiKeyID *uuid.UUID, r
 	if err != nil {
 		return nil, err
 	}
+	emitAudit(s.auditRepo, &createdBy, projectID, "anomaly.rule_created", "",
+		models.JSONMap{"rule_id": rule.ID.String(), "rule_type": ruleType}, ipAddr)
 	return rule, nil
 }
 
@@ -250,13 +263,23 @@ func (s *AnomalyService) ListRules(projectID *uuid.UUID) ([]models.AnomalyRule, 
 	return rules, nil
 }
 
-func (s *AnomalyService) UpdateRule(id uuid.UUID, enabled bool, config models.JSONMap) error {
+func (s *AnomalyService) UpdateRule(id uuid.UUID, enabled bool, config models.JSONMap, actorID uuid.UUID, ipAddr string) error {
 	configJSON, _ := json.Marshal(config)
 	_, err := s.db.Exec(`UPDATE anomaly_rules SET enabled = $1, config = $2, updated_at = $3 WHERE id = $4`, enabled, string(configJSON), time.Now(), id)
-	return err
+	if err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "anomaly.rule_updated", "",
+		models.JSONMap{"rule_id": id.String(), "enabled": enabled}, ipAddr)
+	return nil
 }
 
-func (s *AnomalyService) DeleteRule(id uuid.UUID) error {
+func (s *AnomalyService) DeleteRule(id uuid.UUID, actorID uuid.UUID, ipAddr string) error {
 	_, err := s.db.Exec(`DELETE FROM anomaly_rules WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "anomaly.rule_deleted", "",
+		models.JSONMap{"rule_id": id.String()}, ipAddr)
+	return nil
 }

@@ -19,6 +19,7 @@ type OAuthService struct {
 	oauthRepo *repository.OAuthRepository
 	userRepo  *repository.UserRepository
 	orgRepo   *repository.OrganizationRepository
+	auditRepo *repository.AuditRepository
 }
 
 // NewOAuthService constructs the OAuth service. orgRepo is used by /userinfo to
@@ -26,11 +27,11 @@ type OAuthService struct {
 // strings, which downstream platforms (e.g. Grovernance) consume to evaluate
 // group-based policies. orgRepo may be nil only in tests that do not exercise
 // /userinfo group population.
-func NewOAuthService(oauthRepo *repository.OAuthRepository, userRepo *repository.UserRepository, orgRepo *repository.OrganizationRepository) *OAuthService {
-	return &OAuthService{oauthRepo: oauthRepo, userRepo: userRepo, orgRepo: orgRepo}
+func NewOAuthService(oauthRepo *repository.OAuthRepository, userRepo *repository.UserRepository, orgRepo *repository.OrganizationRepository, auditRepo *repository.AuditRepository) *OAuthService {
+	return &OAuthService{oauthRepo: oauthRepo, userRepo: userRepo, orgRepo: orgRepo, auditRepo: auditRepo}
 }
 
-func (s *OAuthService) RegisterClient(name, description string, ownerID uuid.UUID, redirectURIs, scopes, grantTypes []string, logoURL, homepageURL string, isPublic bool) (*models.OAuthClient, string, error) {
+func (s *OAuthService) RegisterClient(name, description string, ownerID uuid.UUID, redirectURIs, scopes, grantTypes []string, logoURL, homepageURL string, isPublic bool, ipAddr string) (*models.OAuthClient, string, error) {
 	clientID := generateClientID()
 	rawSecret := generateClientSecret()
 	secretHash := hashSecret(rawSecret)
@@ -56,6 +57,10 @@ func (s *OAuthService) RegisterClient(name, description string, ownerID uuid.UUI
 	if err := s.oauthRepo.CreateClient(client); err != nil {
 		return nil, "", fmt.Errorf("creating oauth client: %w", err)
 	}
+	// OAuth clients are org/user-owned, not project-scoped: projectID is nil.
+	// Never log the client secret.
+	emitAudit(s.auditRepo, &ownerID, nil, "oauth.client_registered", "",
+		models.JSONMap{"oauth_client_id": client.ID.String(), "client_id": clientID, "name": name}, ipAddr)
 	return client, rawSecret, nil
 }
 
@@ -67,11 +72,16 @@ func (s *OAuthService) GetClient(clientID string) (*models.OAuthClient, error) {
 	return s.oauthRepo.GetClientByClientID(clientID)
 }
 
-func (s *OAuthService) DeleteClient(id, ownerID uuid.UUID) error {
+func (s *OAuthService) DeleteClient(id, ownerID uuid.UUID, ipAddr string) error {
 	if err := s.oauthRepo.RevokeAllTokensForClient(id); err != nil {
 		return fmt.Errorf("revoking tokens: %w", err)
 	}
-	return s.oauthRepo.DeleteClient(id, ownerID)
+	if err := s.oauthRepo.DeleteClient(id, ownerID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &ownerID, nil, "oauth.client_deleted", "",
+		models.JSONMap{"oauth_client_id": id.String()}, ipAddr)
+	return nil
 }
 
 func (s *OAuthService) Authorize(clientID string, userID uuid.UUID, redirectURI string, scopes []string, codeChallenge, codeChallengeMethod string) (string, error) {

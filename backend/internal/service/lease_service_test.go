@@ -31,7 +31,7 @@ func newLeaseTestService(t *testing.T) (*LeaseService, *sql.DB) {
 		t.Fatalf("ddl: %v", err)
 	}
 	dialect := repository.NewDialect(repository.DBTypeSQLite)
-	return NewLeaseService(db, dialect), db
+	return NewLeaseService(db, dialect, nil), db
 }
 
 // TestRevokeLease_ScopedToProject verifies AUTH-04: a lease can only be revoked
@@ -59,7 +59,7 @@ func TestRevokeLease_ScopedToProject(t *testing.T) {
 	}
 
 	// Wrong project: no-op + not-found.
-	if err := svc.RevokeLease(leaseID, projectB); !errors.Is(err, ErrLeaseNotFound) {
+	if err := svc.RevokeLease(leaseID, projectB, uuid.New(), ""); !errors.Is(err, ErrLeaseNotFound) {
 		t.Fatalf("cross-project revoke err = %v, want ErrLeaseNotFound", err)
 	}
 	if isRevoked() {
@@ -67,7 +67,7 @@ func TestRevokeLease_ScopedToProject(t *testing.T) {
 	}
 
 	// Owning project: revoked.
-	if err := svc.RevokeLease(leaseID, projectA); err != nil {
+	if err := svc.RevokeLease(leaseID, projectA, uuid.New(), ""); err != nil {
 		t.Fatalf("same-project revoke err = %v, want nil", err)
 	}
 	if !isRevoked() {

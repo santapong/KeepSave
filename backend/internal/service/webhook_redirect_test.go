@@ -24,7 +24,7 @@ func TestWebhookClient_DoesNotFollowRedirect(t *testing.T) {
 	}))
 	defer redirector.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	resp, err := ws.client.Get(redirector.URL)
 	if err != nil {
 		t.Fatalf("client.Get: %v", err)

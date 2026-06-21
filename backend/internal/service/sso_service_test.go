@@ -85,13 +85,13 @@ func TestConfigureSSO_RequiresAdmin(t *testing.T) {
 	viewer := uuid.New()
 	addMember(t, db, org, viewer, "viewer")
 
-	svc := NewSSOService(nil, orgRepo, nil)
+	svc := NewSSOService(nil, orgRepo, nil, nil)
 
-	if _, err := svc.ConfigureSSO(org, viewer, "oidc", "https://idp", "client", "secret", nil); !errors.Is(err, ErrOrgAccessDenied) {
+	if _, err := svc.ConfigureSSO(org, viewer, "oidc", "https://idp", "client", "secret", nil, ""); !errors.Is(err, ErrOrgAccessDenied) {
 		t.Fatalf("ConfigureSSO as viewer err = %v, want ErrOrgAccessDenied", err)
 	}
 	stranger := uuid.New()
-	if _, err := svc.ConfigureSSO(org, stranger, "oidc", "https://idp", "client", "secret", nil); !errors.Is(err, ErrOrgAccessDenied) {
+	if _, err := svc.ConfigureSSO(org, stranger, "oidc", "https://idp", "client", "secret", nil, ""); !errors.Is(err, ErrOrgAccessDenied) {
 		t.Fatalf("ConfigureSSO as non-member err = %v, want ErrOrgAccessDenied", err)
 	}
 }

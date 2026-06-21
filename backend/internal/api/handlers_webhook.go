@@ -38,13 +38,18 @@ func (h *WebhookHandler) Register(c *gin.Context) {
 		return
 	}
 
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
 	config := service.WebhookConfig{
 		URL:    req.URL,
 		Secret: req.Secret,
 		Events: req.Events,
 	}
 
-	if err := h.webhookService.RegisterWebhook(projectID, config); err != nil {
+	if err := h.webhookService.RegisterWebhook(projectID, config, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
@@ -78,7 +83,12 @@ func (h *WebhookHandler) Remove(c *gin.Context) {
 		return
 	}
 
-	h.webhookService.RemoveWebhooks(projectID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	h.webhookService.RemoveWebhooks(projectID, userID, c.ClientIP())
 	c.Status(http.StatusNoContent)
 }
 

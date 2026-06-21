@@ -14,6 +14,7 @@ type TemplateService struct {
 	secretRepo   *repository.SecretRepository
 	projectRepo  *repository.ProjectRepository
 	envRepo      *repository.EnvironmentRepository
+	auditRepo    *repository.AuditRepository
 	cryptoSvc    *crypto.Service
 }
 
@@ -22,6 +23,7 @@ func NewTemplateService(
 	secretRepo *repository.SecretRepository,
 	projectRepo *repository.ProjectRepository,
 	envRepo *repository.EnvironmentRepository,
+	auditRepo *repository.AuditRepository,
 	cryptoSvc *crypto.Service,
 ) *TemplateService {
 	return &TemplateService{
@@ -29,15 +31,22 @@ func NewTemplateService(
 		secretRepo:   secretRepo,
 		projectRepo:  projectRepo,
 		envRepo:      envRepo,
+		auditRepo:    auditRepo,
 		cryptoSvc:    cryptoSvc,
 	}
 }
 
-func (s *TemplateService) Create(name, description, stack string, keys models.JSONMap, createdBy uuid.UUID, orgID *uuid.UUID, isGlobal bool) (*models.SecretTemplate, error) {
+func (s *TemplateService) Create(name, description, stack string, keys models.JSONMap, createdBy uuid.UUID, orgID *uuid.UUID, isGlobal bool, ipAddr string) (*models.SecretTemplate, error) {
 	if name == "" {
 		return nil, fmt.Errorf("template name is required")
 	}
-	return s.templateRepo.Create(name, description, stack, keys, createdBy, orgID, isGlobal)
+	tmpl, err := s.templateRepo.Create(name, description, stack, keys, createdBy, orgID, isGlobal)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &createdBy, nil, "template.created", "",
+		models.JSONMap{"template_id": tmpl.ID.String(), "name": name}, ipAddr)
+	return tmpl, nil
 }
 
 func (s *TemplateService) GetByID(id uuid.UUID) (*models.SecretTemplate, error) {
@@ -51,12 +60,23 @@ func (s *TemplateService) List(userID uuid.UUID, orgID *uuid.UUID) ([]models.Sec
 	return s.templateRepo.ListByUser(userID)
 }
 
-func (s *TemplateService) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap) (*models.SecretTemplate, error) {
-	return s.templateRepo.Update(id, name, description, stack, keys)
+func (s *TemplateService) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap, actorID uuid.UUID, ipAddr string) (*models.SecretTemplate, error) {
+	tmpl, err := s.templateRepo.Update(id, name, description, stack, keys)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "template.updated", "",
+		models.JSONMap{"template_id": id.String(), "name": name}, ipAddr)
+	return tmpl, nil
 }
 
-func (s *TemplateService) Delete(id uuid.UUID) error {
-	return s.templateRepo.Delete(id)
+func (s *TemplateService) Delete(id uuid.UUID, actorID uuid.UUID, ipAddr string) error {
+	if err := s.templateRepo.Delete(id); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "template.deleted", "",
+		models.JSONMap{"template_id": id.String()}, ipAddr)
+	return nil
 }
 
 // ApplyTemplate creates secrets in a project environment based on a template.

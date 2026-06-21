@@ -160,7 +160,7 @@ func TestNegAuth_Lockout(t *testing.T) {
 // service-call side (the registration path actually used by handlers).
 func TestNegAuth_WebhookSSRF_RegistrationRejects(t *testing.T) {
 	t.Setenv("KEEPSAVE_ENV", "production")
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	pid := uuid.New()
 
 	bad := []string{
@@ -171,14 +171,14 @@ func TestNegAuth_WebhookSSRF_RegistrationRejects(t *testing.T) {
 	}
 	for _, u := range bad {
 		t.Run(u, func(t *testing.T) {
-			if err := ws.RegisterWebhook(pid, WebhookConfig{URL: u}); err == nil {
+			if err := ws.RegisterWebhook(pid, WebhookConfig{URL: u}, uuid.Nil, ""); err == nil {
 				t.Errorf("RegisterWebhook(%q) should have rejected", u)
 			}
 		})
 	}
 
 	good := "https://example.com/hook"
-	if err := ws.RegisterWebhook(pid, WebhookConfig{URL: good}); err != nil {
+	if err := ws.RegisterWebhook(pid, WebhookConfig{URL: good}, uuid.Nil, ""); err != nil {
 		t.Errorf("RegisterWebhook(%q) unexpectedly rejected: %v", good, err)
 	}
 }
