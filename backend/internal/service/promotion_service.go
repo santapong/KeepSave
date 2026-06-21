@@ -220,9 +220,10 @@ func (s *PromotionService) Promote(
 	}
 
 	// For non-prod, execute immediately
-	if err := s.executePromotion(promotion, userID, ipAddress); err != nil {
-		// Mark as rejected on failure
-		s.promotionRepo.UpdateStatus(promotion.ID, "rejected", nil)
+	if err := s.runPromotion(promotion, userID, nil, ipAddress); err != nil {
+		if !errors.Is(err, ErrPromotionNotPending) {
+			s.promotionRepo.UpdateStatus(promotion.ID, "rejected", nil)
+		}
 		return nil, fmt.Errorf("executing promotion: %w", err)
 	}
 
@@ -240,6 +241,11 @@ func (s *PromotionService) Promote(
 // invariant: a single compromised account cannot move secrets to PROD.
 var ErrSelfApproval = errors.New("requester cannot approve their own promotion")
 
+// ErrPromotionNotPending is returned when the compare-and-set claim finds the
+// promotion already moved out of `pending` — i.e. a concurrent approver won the
+// race and executed it (ADR-0017, P-02). Callers must NOT mark it rejected.
+var ErrPromotionNotPending = errors.New("promotion is no longer pending")
+
 // ApprovePromotion approves and executes a pending PROD promotion.
 func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, ipAddress string) (*models.PromotionRequest, error) {
 	promotion, err := s.promotionRepo.GetByID(promotionID)
@@ -255,11 +261,14 @@ func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, i
 		return nil, ErrSelfApproval
 	}
 
-	if err := s.promotionRepo.UpdateStatus(promotionID, "approved", &approverID); err != nil {
-		return nil, fmt.Errorf("approving promotion: %w", err)
-	}
-
-	if err := s.executePromotion(promotion, approverID, ipAddress); err != nil {
+	// runPromotion claims (pending -> completed) and executes atomically; the
+	// claim is the four-eyes-safe race guard. Record approverID as approved_by.
+	if err := s.runPromotion(promotion, approverID, &approverID, ipAddress); err != nil {
+		if errors.Is(err, ErrPromotionNotPending) {
+			// Another approver won the race and already executed it; do not
+			// flip the now-completed promotion to rejected.
+			return nil, err
+		}
 		s.promotionRepo.UpdateStatus(promotionID, "rejected", &approverID)
 		return nil, fmt.Errorf("executing promotion: %w", err)
 	}
@@ -301,8 +310,13 @@ func (s *PromotionService) RejectPromotion(promotionID, rejecterID uuid.UUID, ip
 	return promotion, nil
 }
 
-// executePromotion performs the actual secret copy between environments.
-func (s *PromotionService) executePromotion(promotion *models.PromotionRequest, executorID uuid.UUID, ipAddress string) error {
+// runPromotion executes the secret copy from source to target inside a single
+// transaction (ADR-0017). It claims the request with a conditional
+// pending -> completed update; the single matched row is the execution right,
+// which closes the approve TOCTOU. Every written key is snapshotted with its
+// prior state (overwrite vs. add) so Rollback can fully reverse the promotion.
+// Any error rolls the whole transaction back, leaving status `pending`.
+func (s *PromotionService) runPromotion(promotion *models.PromotionRequest, executorID uuid.UUID, approvedBy *uuid.UUID, ipAddress string) error {
 	project, err := s.projectRepo.GetByID(promotion.ProjectID)
 	if err != nil {
 		return fmt.Errorf("getting project: %w", err)
@@ -328,65 +342,71 @@ func (s *PromotionService) executePromotion(promotion *models.PromotionRequest, 
 		return fmt.Errorf("listing source secrets: %w", err)
 	}
 
-	// Build key filter set
 	filterSet := make(map[string]bool)
 	for _, k := range promotion.KeysFilter {
 		filterSet[k] = true
 	}
 
-	promotedKeys := []string{}
-	skippedKeys := []string{}
+	var promotedKeys, skippedKeys []string
 
-	for _, srcSec := range srcSecrets {
-		if len(filterSet) > 0 && !filterSet[srcSec.Key] {
-			continue
-		}
-
-		// Check if target already has this key
-		existingTarget, err := s.secretRepo.GetByEnvAndKey(tgtEnv.ID, srcSec.Key)
-		if err != nil && err.Error() != fmt.Sprintf("getting secret by env and key: %s", sql.ErrNoRows.Error()) {
-			// Key doesn't exist in target - check if it's actually a not-found error
-			existingTarget = nil
-		}
-
-		if existingTarget != nil && promotion.OverridePolicy == "skip" {
-			skippedKeys = append(skippedKeys, srcSec.Key)
-			continue
-		}
-
-		// Snapshot existing target value before overwrite (for rollback)
-		if existingTarget != nil {
-			s.promotionRepo.CreateSnapshot(
-				promotion.ID, tgtEnv.ID, existingTarget.Key,
-				existingTarget.EncryptedValue, existingTarget.ValueNonce,
-			)
-		}
-
-		// Decrypt source value and re-encrypt for target (same DEK since same project)
-		srcValue, err := crypto.Decrypt(dek, srcSec.EncryptedValue, srcSec.ValueNonce)
+	txErr := s.promotionRepo.WithTx(func(tx *sql.Tx) error {
+		// Claim the promotion: pending -> completed. The single affected row is
+		// the right to execute; a concurrent approver loses here and rolls back.
+		claimed, err := s.promotionRepo.CompareAndSetStatusTx(tx, promotion.ID, "pending", "completed", approvedBy)
 		if err != nil {
-			return fmt.Errorf("decrypting source secret %s: %w", srcSec.Key, err)
+			return err
+		}
+		if !claimed {
+			return ErrPromotionNotPending
 		}
 
-		newEncrypted, newNonce, err := crypto.Encrypt(dek, srcValue)
-		if err != nil {
-			return fmt.Errorf("encrypting secret %s for target: %w", srcSec.Key, err)
-		}
+		for _, srcSec := range srcSecrets {
+			if len(filterSet) > 0 && !filterSet[srcSec.Key] {
+				continue
+			}
 
-		_, err = s.secretRepo.Upsert(promotion.ProjectID, tgtEnv.ID, srcSec.Key, newEncrypted, newNonce)
-		if err != nil {
-			return fmt.Errorf("upserting secret %s: %w", srcSec.Key, err)
-		}
+			existing, err := s.secretRepo.GetByEnvAndKeyTx(tx, tgtEnv.ID, srcSec.Key)
+			if err != nil {
+				return fmt.Errorf("checking target key %s: %w", srcSec.Key, err)
+			}
+			if existing != nil && promotion.OverridePolicy == "skip" {
+				skippedKeys = append(skippedKeys, srcSec.Key)
+				continue
+			}
 
-		promotedKeys = append(promotedKeys, srcSec.Key)
+			// Snapshot prior state so rollback can restore (overwrite) or
+			// delete (add) this key.
+			if existing != nil {
+				if err := s.promotionRepo.CreateSnapshotTx(tx, promotion.ID, tgtEnv.ID, existing.Key, existing.EncryptedValue, existing.ValueNonce, true); err != nil {
+					return err
+				}
+			} else {
+				if err := s.promotionRepo.CreateSnapshotTx(tx, promotion.ID, tgtEnv.ID, srcSec.Key, []byte{}, []byte{}, false); err != nil {
+					return err
+				}
+			}
+
+			// Decrypt source, re-encrypt with a fresh nonce under the same DEK.
+			srcValue, err := crypto.Decrypt(dek, srcSec.EncryptedValue, srcSec.ValueNonce)
+			if err != nil {
+				return fmt.Errorf("decrypting source secret %s: %w", srcSec.Key, err)
+			}
+			newEncrypted, newNonce, err := crypto.Encrypt(dek, srcValue)
+			if err != nil {
+				return fmt.Errorf("encrypting secret %s for target: %w", srcSec.Key, err)
+			}
+			if err := s.secretRepo.UpsertTx(tx, promotion.ProjectID, tgtEnv.ID, srcSec.Key, newEncrypted, newNonce); err != nil {
+				return fmt.Errorf("upserting secret %s: %w", srcSec.Key, err)
+			}
+
+			promotedKeys = append(promotedKeys, srcSec.Key)
+		}
+		return nil
+	})
+	if txErr != nil {
+		return txErr
 	}
 
-	// Mark promotion as completed
-	if err := s.promotionRepo.UpdateStatus(promotion.ID, "completed", nil); err != nil {
-		return fmt.Errorf("completing promotion: %w", err)
-	}
-
-	// Audit log
 	s.auditRepo.Create(&executorID, &promotion.ProjectID, "promotion_completed", promotion.TargetEnvironment, models.JSONMap{
 		"promotion_id":       promotion.ID.String(),
 		"source_environment": promotion.SourceEnvironment,
@@ -415,17 +435,34 @@ func (s *PromotionService) Rollback(promotionID, userID uuid.UUID, ipAddress str
 		return fmt.Errorf("getting snapshots: %w", err)
 	}
 
-	restoredKeys := []string{}
+	var restoredKeys, deletedKeys []string
 
-	for _, snap := range snapshots {
-		_, err := s.secretRepo.Upsert(
-			promotion.ProjectID, snap.EnvironmentID,
-			snap.Key, snap.EncryptedValue, snap.ValueNonce,
-		)
-		if err != nil {
-			return fmt.Errorf("restoring secret %s: %w", snap.Key, err)
+	txErr := s.promotionRepo.WithTx(func(tx *sql.Tx) error {
+		for _, snap := range snapshots {
+			if snap.PriorExisted {
+				if err := s.secretRepo.UpsertTx(tx, promotion.ProjectID, snap.EnvironmentID, snap.Key, snap.EncryptedValue, snap.ValueNonce); err != nil {
+					return fmt.Errorf("restoring secret %s: %w", snap.Key, err)
+				}
+				restoredKeys = append(restoredKeys, snap.Key)
+			} else {
+				// The promotion added this key; rollback removes it.
+				if err := s.secretRepo.DeleteByEnvAndKeyTx(tx, snap.EnvironmentID, snap.Key); err != nil {
+					return fmt.Errorf("removing added secret %s: %w", snap.Key, err)
+				}
+				deletedKeys = append(deletedKeys, snap.Key)
+			}
 		}
-		restoredKeys = append(restoredKeys, snap.Key)
+		ok, err := s.promotionRepo.MarkRolledBackTx(tx, promotionID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("promotion was not in completed state at rollback")
+		}
+		return nil
+	})
+	if txErr != nil {
+		return txErr
 	}
 
 	// Audit log
@@ -434,6 +471,7 @@ func (s *PromotionService) Rollback(promotionID, userID uuid.UUID, ipAddress str
 		"source_environment": promotion.SourceEnvironment,
 		"target_environment": promotion.TargetEnvironment,
 		"restored_keys":      restoredKeys,
+		"deleted_keys":       deletedKeys,
 	}, ipAddress)
 
 	return nil

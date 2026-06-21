@@ -124,7 +124,11 @@ type SecretSnapshot struct {
 	Key            string    `json:"key"`
 	EncryptedValue []byte    `json:"-"`
 	ValueNonce     []byte    `json:"-"`
-	CreatedAt      time.Time `json:"created_at"`
+	// PriorExisted is true when the snapshot captures a value the promotion
+	// overwrote (rollback restores it) and false when the promotion added the
+	// key (rollback deletes it). See ADR-0017.
+	PriorExisted bool      `json:"prior_existed"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // SecretVersion stores a historical version of a secret value.

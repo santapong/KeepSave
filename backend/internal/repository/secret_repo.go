@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -183,4 +184,45 @@ func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (
 		return nil, fmt.Errorf("getting secret by env and key: %w", err)
 	}
 	return s, nil
+}
+
+// GetByEnvAndKeyTx looks up a secret inside tx, returning (nil, nil) when the
+// key does not exist so callers can branch on existence without string-matching
+// the wrapped sql.ErrNoRows.
+func (r *SecretRepository) GetByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID, key string) (*models.Secret, error) {
+	s := &models.Secret{}
+	err := QueryRowQ(tx, r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE environment_id = $1 AND key = $2`, environmentID, key).
+		Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting secret by env and key: %w", err)
+	}
+	return s, nil
+}
+
+// UpsertTx inserts or updates a secret inside tx (used by the promotion engine,
+// ADR-0017). It does not read the row back — promotion does not need it.
+func (r *SecretRepository) UpsertTx(tx *sql.Tx, projectID, environmentID uuid.UUID, key string, encryptedValue, valueNonce []byte) error {
+	id := uuid.New()
+	upsertClause := r.dialect.FormatUpsert("environment_id, key",
+		"encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = "+r.dialect.Now())
+	_, err := ExecQ(tx, r.dialect, `INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce)
+		 VALUES ($1, $2, $3, $4, $5, $6) `+upsertClause, id, projectID, environmentID, key, encryptedValue, valueNonce)
+	if err != nil {
+		return fmt.Errorf("upserting secret: %w", err)
+	}
+	return nil
+}
+
+// DeleteByEnvAndKeyTx removes a secret inside tx. Used by promotion rollback to
+// undo keys the promotion added (ADR-0017).
+func (r *SecretRepository) DeleteByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID, key string) error {
+	_, err := ExecQ(tx, r.dialect, `DELETE FROM secrets WHERE environment_id = $1 AND key = $2`, environmentID, key)
+	if err != nil {
+		return fmt.Errorf("deleting secret by env and key: %w", err)
+	}
+	return nil
 }
