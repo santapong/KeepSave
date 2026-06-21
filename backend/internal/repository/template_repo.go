@@ -111,8 +111,7 @@ func (r *TemplateRepository) Update(id uuid.UUID, name, description, stack strin
 			return nil, fmt.Errorf("updating template: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE secret_templates SET name = $2, description = $3, stack = $4, keys = $5, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-		_, err := r.db.Exec(updateQ, id, name, description, stack, keys)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE secret_templates SET name = $2, description = $3, stack = $4, keys = $5, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, name, description, stack, keys)
 		if err != nil {
 			return nil, fmt.Errorf("updating template: %w", err)
 		}

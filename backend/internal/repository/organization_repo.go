@@ -137,8 +137,7 @@ func (r *OrganizationRepository) Update(id uuid.UUID, name string) (*models.Orga
 			return nil, fmt.Errorf("updating organization: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE organizations SET name = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-		_, err := r.db.Exec(updateQ, id, name)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE organizations SET name = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, name)
 		if err != nil {
 			return nil, fmt.Errorf("updating organization: %w", err)
 		}
@@ -241,8 +240,7 @@ func (r *OrganizationRepository) UpdateMemberRole(orgID, userID uuid.UUID, role 
 			return nil, fmt.Errorf("updating member role: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE organization_members SET role = $3, updated_at = `+r.dialect.Now()+` WHERE organization_id = $1 AND user_id = $2`)
-		_, err := r.db.Exec(updateQ, orgID, userID, role)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE organization_members SET role = $3, updated_at = `+r.dialect.Now()+` WHERE organization_id = $1 AND user_id = $2`, orgID, userID, role)
 		if err != nil {
 			return nil, fmt.Errorf("updating member role: %w", err)
 		}
@@ -289,8 +287,8 @@ func (r *OrganizationRepository) ListProjectsByOrg(orgID uuid.UUID) ([]models.Pr
 }
 
 func (r *OrganizationRepository) AssignProjectToOrg(projectID, orgID uuid.UUID) error {
-	_, err := r.db.Exec(
-		Q(r.dialect, `UPDATE projects SET organization_id = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`),
+	_, err := ExecQ(r.db, r.dialect,
+		`UPDATE projects SET organization_id = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`,
 		projectID, orgID,
 	)
 	if err != nil {

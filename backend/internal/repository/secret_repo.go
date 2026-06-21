@@ -95,8 +95,7 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE secrets SET encrypted_value = $2, value_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-		_, err := r.db.Exec(updateQ, id, encryptedValue, valueNonce)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE secrets SET encrypted_value = $2, value_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, encryptedValue, valueNonce)
 		if err != nil {
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}

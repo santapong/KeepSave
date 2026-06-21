@@ -128,8 +128,7 @@ func (r *ProjectRepository) Update(id uuid.UUID, name, description string) (*mod
 			return nil, fmt.Errorf("updating project: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE projects SET name = $2, description = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-		_, err := r.db.Exec(updateQ, id, name, description)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE projects SET name = $2, description = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, name, description)
 		if err != nil {
 			return nil, fmt.Errorf("updating project: %w", err)
 		}
@@ -149,8 +148,7 @@ func (r *ProjectRepository) UpdateEmbedConfig(id uuid.UUID, allowedOrigins []str
 	if err != nil {
 		return fmt.Errorf("encoding allowed_origins: %w", err)
 	}
-	updateQ := Q(r.dialect, `UPDATE projects SET allowed_origins = $2, embed_policy_enabled = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-	if _, err := r.db.Exec(updateQ, id, arrParam, embedPolicyEnabled); err != nil {
+	if _, err := ExecQ(r.db, r.dialect, `UPDATE projects SET allowed_origins = $2, embed_policy_enabled = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, arrParam, embedPolicyEnabled); err != nil {
 		return fmt.Errorf("updating embed config: %w", err)
 	}
 	return nil
@@ -165,8 +163,7 @@ func (r *ProjectRepository) Delete(id uuid.UUID) error {
 }
 
 func (r *ProjectRepository) UpdateDEK(id uuid.UUID, encryptedDEK, dekNonce []byte) error {
-	updateQ := Q(r.dialect, `UPDATE projects SET encrypted_dek = $2, dek_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`)
-	_, err := r.db.Exec(updateQ, id, encryptedDEK, dekNonce)
+	_, err := ExecQ(r.db, r.dialect, `UPDATE projects SET encrypted_dek = $2, dek_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, encryptedDEK, dekNonce)
 	if err != nil {
 		return fmt.Errorf("updating project DEK: %w", err)
 	}

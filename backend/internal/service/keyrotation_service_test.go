@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"testing"
@@ -160,6 +161,7 @@ func newRotationTestEnv(t *testing.T) *rotationTestEnv {
 	if err != nil {
 		t.Fatalf("sqlite open: %v", err)
 	}
+	db.SetMaxOpenConns(1) // ":memory:" is per-connection; pin to one DB
 	t.Cleanup(func() { _ = db.Close() })
 	for _, ddl := range []string{
 		`CREATE TABLE projects (
@@ -362,6 +364,73 @@ func TestRotateProjectKey_EmitsAudit(t *testing.T) {
 	}
 	if got, ok := detailMap["environments"].(float64); !ok || int(got) != 2 {
 		t.Errorf("details.environments = %v, want 2", detailMap["environments"])
+	}
+}
+
+// TestRotateProjectKey_ActuallyReEncrypts is the non-vacuous rotation guard.
+// The original audit test only decrypted under the "new" DEK, which passed
+// even when UpdateDEK + secret Update silently no-opped (DB-12): nothing
+// changed, so old ciphertext still decrypted under the unchanged key. This
+// test captures the pre-rotation DEK and asserts (a) the project DEK actually
+// changed and (b) every secret now FAILS under the old DEK and SUCCEEDS under
+// the new one — i.e. the re-encryption really happened.
+func TestRotateProjectKey_ActuallyReEncrypts(t *testing.T) {
+	env := newRotationTestEnv(t)
+	owner := uuid.New()
+	pid, plaintexts := env.seedProject(t, owner, []string{"alpha", "uat"})
+
+	before, err := env.projectRepo.GetByID(pid)
+	if err != nil {
+		t.Fatalf("GetByID before: %v", err)
+	}
+	oldDEK, err := env.cryptoSvc.DecryptDEK(before.EncryptedDEK, before.DEKNonce)
+	if err != nil {
+		t.Fatalf("DecryptDEK before: %v", err)
+	}
+
+	if _, err := env.svc.RotateProjectKey(pid, owner, "127.0.0.1"); err != nil {
+		t.Fatalf("RotateProjectKey: %v", err)
+	}
+
+	after, err := env.projectRepo.GetByID(pid)
+	if err != nil {
+		t.Fatalf("GetByID after: %v", err)
+	}
+	newDEK, err := env.cryptoSvc.DecryptDEK(after.EncryptedDEK, after.DEKNonce)
+	if err != nil {
+		t.Fatalf("DecryptDEK after: %v", err)
+	}
+	if bytes.Equal(oldDEK, newDEK) {
+		t.Fatal("project DEK unchanged after rotation (UpdateDEK no-op?)")
+	}
+
+	rows, err := env.db.Query(`SELECT key, encrypted_value, value_nonce FROM secrets WHERE project_id = ?`, pid.String())
+	if err != nil {
+		t.Fatalf("query secrets: %v", err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var key string
+		var ct, nonce []byte
+		if err := rows.Scan(&key, &ct, &nonce); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if _, err := crypto.Decrypt(oldDEK, ct, nonce); err == nil {
+			t.Errorf("secret %s still decrypts under OLD DEK — not re-encrypted", key)
+		}
+		pt, err := crypto.Decrypt(newDEK, ct, nonce)
+		if err != nil {
+			t.Errorf("secret %s does not decrypt under NEW DEK: %v", key, err)
+			continue
+		}
+		if string(pt) != plaintexts[key] {
+			t.Errorf("secret %s = %q, want %q", key, pt, plaintexts[key])
+		}
+		n++
+	}
+	if n != 2 {
+		t.Errorf("checked %d secrets, want 2", n)
 	}
 }
 
