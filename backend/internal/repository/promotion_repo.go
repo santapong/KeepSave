@@ -113,18 +113,7 @@ func (r *PromotionRepository) ListByProjectID(projectID uuid.UUID) ([]models.Pro
 // status) runs through one tx so a partial failure leaves no half-promoted
 // state (ADR-0017, P-01).
 func (r *PromotionRepository) WithTx(fn func(*sql.Tx) error) error {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return fmt.Errorf("beginning promotion transaction: %w", err)
-	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing promotion transaction: %w", err)
-	}
-	return nil
+	return runInTx(r.db, fn)
 }
 
 // UpdateStatus sets a promotion's status unconditionally — used for the non-prod

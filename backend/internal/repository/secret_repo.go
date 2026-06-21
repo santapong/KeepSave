@@ -226,3 +226,13 @@ func (r *SecretRepository) DeleteByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UU
 	}
 	return nil
 }
+
+// UpdateValueTx re-writes a secret's ciphertext inside tx. Used by key rotation
+// so all secrets and the project DEK swap atomically (ADR-0018).
+func (r *SecretRepository) UpdateValueTx(tx *sql.Tx, id uuid.UUID, encryptedValue, valueNonce []byte) error {
+	_, err := ExecQ(tx, r.dialect, `UPDATE secrets SET encrypted_value = $2, value_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, encryptedValue, valueNonce)
+	if err != nil {
+		return fmt.Errorf("updating secret: %w", err)
+	}
+	return nil
+}

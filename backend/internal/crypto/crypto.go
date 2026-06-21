@@ -3,10 +3,17 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 )
+
+// serviceSecretLabel domain-separates the sub-key used to encrypt service-level
+// secrets (SSO client secrets, backup blobs) from the master key's DEK-wrapping
+// role. See ADR-0018.
+const serviceSecretLabel = "keepsave/service-secret/v1"
 
 // Service provides AES-256-GCM envelope encryption operations.
 type Service struct {
@@ -40,9 +47,39 @@ func (s *Service) DecryptDEK(ciphertext, nonce []byte) ([]byte, error) {
 	return decrypt(s.masterKey, ciphertext, nonce)
 }
 
-// GetMasterKey returns the master key for direct encryption operations.
-func (s *Service) GetMasterKey() []byte {
-	return s.masterKey
+// deriveSubKey returns a 32-byte key derived from the master key for a given
+// label, using HMAC-SHA256 as a one-step KDF. This keeps the master key inside
+// this package and domain-separates derived keys from DEK wrapping.
+func (s *Service) deriveSubKey(label string) []byte {
+	m := hmac.New(sha256.New, s.masterKey)
+	m.Write([]byte(label))
+	return m.Sum(nil)
+}
+
+// EncryptServiceSecret encrypts a service-level secret (e.g. an SSO client
+// secret or a backup blob) under a master-key-derived sub-key, so callers never
+// handle the raw master key (ADR-0018, C-02).
+func (s *Service) EncryptServiceSecret(plaintext []byte) ([]byte, []byte, error) {
+	return encrypt(s.deriveSubKey(serviceSecretLabel), plaintext)
+}
+
+// DecryptServiceSecret decrypts a service secret. It first tries the derived
+// sub-key, then falls back to the legacy raw-master-key scheme so blobs written
+// before ADR-0018 still decrypt (and are upgraded on next write).
+func (s *Service) DecryptServiceSecret(ciphertext, nonce []byte) ([]byte, error) {
+	if pt, err := decrypt(s.deriveSubKey(serviceSecretLabel), ciphertext, nonce); err == nil {
+		return pt, nil
+	}
+	return decrypt(s.masterKey, ciphertext, nonce)
+}
+
+// SecureZero overwrites b with zeros. Call it on decrypted DEKs and plaintext
+// secret values once they are no longer needed, to shorten their lifetime in
+// memory. Best-effort under a managed runtime (ADR-0018, H-04).
+func SecureZero(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
 }
 
 // Encrypt encrypts plaintext using the given key. Returns (ciphertext, nonce, error).

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -48,12 +49,14 @@ func (s *KeyRotationService) RotateProjectKey(projectID, actorID uuid.UUID, ipAd
 	if err != nil {
 		return nil, fmt.Errorf("decrypting old DEK: %w", err)
 	}
+	defer crypto.SecureZero(oldDEK)
 
 	// Generate new DEK
 	newDEK, err := s.cryptoSvc.GenerateDEK()
 	if err != nil {
 		return nil, fmt.Errorf("generating new DEK: %w", err)
 	}
+	defer crypto.SecureZero(newDEK)
 
 	// Encrypt new DEK with master key
 	encryptedDEK, dekNonce, err := s.cryptoSvc.EncryptDEK(newDEK)
@@ -69,39 +72,37 @@ func (s *KeyRotationService) RotateProjectKey(projectID, actorID uuid.UUID, ipAd
 
 	reEncryptedCount := 0
 
-	// Re-encrypt all secrets in every environment
-	for _, env := range envs {
-		secrets, err := s.secretRepo.ListByProjectAndEnv(projectID, env.ID)
-		if err != nil {
-			return nil, fmt.Errorf("listing secrets for env %s: %w", env.Name, err)
+	// Re-encrypt every secret AND swap the project DEK in one transaction so a
+	// failure cannot leave the project split across two keys (ADR-0018, C-01).
+	txErr := s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		for _, env := range envs {
+			secrets, err := s.secretRepo.ListByProjectAndEnv(projectID, env.ID)
+			if err != nil {
+				return fmt.Errorf("listing secrets for env %s: %w", env.Name, err)
+			}
+			for _, secret := range secrets {
+				plaintext, err := crypto.Decrypt(oldDEK, secret.EncryptedValue, secret.ValueNonce)
+				if err != nil {
+					return fmt.Errorf("decrypting secret %s: %w", secret.Key, err)
+				}
+				newCiphertext, newNonce, err := crypto.Encrypt(newDEK, plaintext)
+				crypto.SecureZero(plaintext)
+				if err != nil {
+					return fmt.Errorf("re-encrypting secret %s: %w", secret.Key, err)
+				}
+				if err := s.secretRepo.UpdateValueTx(tx, secret.ID, newCiphertext, newNonce); err != nil {
+					return fmt.Errorf("updating secret %s: %w", secret.Key, err)
+				}
+				reEncryptedCount++
+			}
 		}
-
-		for _, secret := range secrets {
-			// Decrypt with old DEK
-			plaintext, err := crypto.Decrypt(oldDEK, secret.EncryptedValue, secret.ValueNonce)
-			if err != nil {
-				return nil, fmt.Errorf("decrypting secret %s: %w", secret.Key, err)
-			}
-
-			// Re-encrypt with new DEK
-			newCiphertext, newNonce, err := crypto.Encrypt(newDEK, plaintext)
-			if err != nil {
-				return nil, fmt.Errorf("re-encrypting secret %s: %w", secret.Key, err)
-			}
-
-			// Update secret
-			_, err = s.secretRepo.Update(secret.ID, newCiphertext, newNonce)
-			if err != nil {
-				return nil, fmt.Errorf("updating secret %s: %w", secret.Key, err)
-			}
-
-			reEncryptedCount++
+		if err := s.projectRepo.UpdateDEKTx(tx, projectID, encryptedDEK, dekNonce); err != nil {
+			return fmt.Errorf("updating project DEK: %w", err)
 		}
-	}
-
-	// Update project DEK
-	if err := s.projectRepo.UpdateDEK(projectID, encryptedDEK, dekNonce); err != nil {
-		return nil, fmt.Errorf("updating project DEK: %w", err)
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
 	}
 
 	// Environment column is empty: rotation spans every environment in the

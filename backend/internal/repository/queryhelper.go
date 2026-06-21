@@ -75,6 +75,23 @@ func QueryQ(db dbtx, dialect Dialect, query string, args ...interface{}) (*sql.R
 	return db.Query(Q(dialect, query), rebindArgs(dialect, query, args)...)
 }
 
+// runInTx runs fn inside a transaction on db, committing on success and rolling
+// back on any error. Shared by the repositories that expose a WithTx entry point.
+func runInTx(db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+	return nil
+}
+
 // InsertReturning executes an INSERT statement and scans the returned row.
 // For PostgreSQL, it uses RETURNING clause.
 // For MySQL/SQLite, it executes the INSERT then SELECTs by the given ID.

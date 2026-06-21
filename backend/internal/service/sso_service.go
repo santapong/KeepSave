@@ -29,8 +29,7 @@ func (s *SSOService) ConfigureSSO(orgID, userID uuid.UUID, provider, issuerURL, 
 	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
 		return nil, err
 	}
-	masterKey := s.cryptoSvc.GetMasterKey()
-	encrypted, nonce, err := crypto.Encrypt(masterKey, []byte(clientSecret))
+	encrypted, nonce, err := s.cryptoSvc.EncryptServiceSecret([]byte(clientSecret))
 	if err != nil {
 		return nil, fmt.Errorf("encrypting client secret: %w", err)
 	}
@@ -164,8 +163,7 @@ func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType s
 		return nil, fmt.Errorf("unexpected data type from Value()")
 	}
 
-	masterKey := s.cryptoSvc.GetMasterKey()
-	encrypted, nonce, err := crypto.Encrypt(masterKey, dataStr)
+	encrypted, nonce, err := s.cryptoSvc.EncryptServiceSecret(dataStr)
 	if err != nil {
 		return nil, fmt.Errorf("encrypting backup: %w", err)
 	}

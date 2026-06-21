@@ -170,6 +170,22 @@ func (r *ProjectRepository) UpdateDEK(id uuid.UUID, encryptedDEK, dekNonce []byt
 	return nil
 }
 
+// WithTx runs fn inside a single transaction on this repository's DB handle.
+// Used by key rotation to re-encrypt all secrets and swap the project DEK
+// atomically (ADR-0018).
+func (r *ProjectRepository) WithTx(fn func(*sql.Tx) error) error {
+	return runInTx(r.db, fn)
+}
+
+// UpdateDEKTx is UpdateDEK scoped to a caller-managed transaction.
+func (r *ProjectRepository) UpdateDEKTx(tx *sql.Tx, id uuid.UUID, encryptedDEK, dekNonce []byte) error {
+	_, err := ExecQ(tx, r.dialect, `UPDATE projects SET encrypted_dek = $2, dek_nonce = $3, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, encryptedDEK, dekNonce)
+	if err != nil {
+		return fmt.Errorf("updating project DEK: %w", err)
+	}
+	return nil
+}
+
 func (r *ProjectRepository) ListByOwner(ownerID uuid.UUID) ([]models.Project, error) {
 	return r.ListByOwnerID(ownerID)
 }

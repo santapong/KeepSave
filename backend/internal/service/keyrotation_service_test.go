@@ -434,6 +434,66 @@ func TestRotateProjectKey_ActuallyReEncrypts(t *testing.T) {
 	}
 }
 
+// TestRotateProjectKey_RollsBackOnFailure verifies C-01 atomicity: if a secret
+// fails to decrypt mid-rotation, the whole rotation rolls back — the project DEK
+// is unchanged and an already-processed secret is NOT left re-encrypted.
+func TestRotateProjectKey_RollsBackOnFailure(t *testing.T) {
+	env := newRotationTestEnv(t)
+	owner := uuid.New()
+
+	dek, err := env.cryptoSvc.GenerateDEK()
+	if err != nil {
+		t.Fatalf("GenerateDEK: %v", err)
+	}
+	encDEK, dekNonce, err := env.cryptoSvc.EncryptDEK(dek)
+	if err != nil {
+		t.Fatalf("EncryptDEK: %v", err)
+	}
+	pid := uuid.New()
+	if _, err := env.db.Exec(`INSERT INTO projects (id, name, description, owner_id, encrypted_dek, dek_nonce) VALUES (?,?,'',?,?,?)`,
+		pid.String(), "p", owner.String(), encDEK, dekNonce); err != nil {
+		t.Fatal(err)
+	}
+	envID := uuid.New()
+	if _, err := env.db.Exec(`INSERT INTO environments (id, project_id, name) VALUES (?,?,'alpha')`, envID.String(), pid.String()); err != nil {
+		t.Fatal(err)
+	}
+	// AAA is valid and sorts first; ZZZ has ciphertext that won't decrypt.
+	aaaCipher, aaaNonce, err := crypto.Encrypt(dek, []byte("good"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.db.Exec(`INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce) VALUES (?,?,?,?,?,?)`,
+		uuid.New().String(), pid.String(), envID.String(), "AAA", aaaCipher, aaaNonce); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.db.Exec(`INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce) VALUES (?,?,?,?,?,?)`,
+		uuid.New().String(), pid.String(), envID.String(), "ZZZ", []byte("garbage"), []byte("badnonce0000")); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := env.svc.RotateProjectKey(pid, owner, "127.0.0.1"); err == nil {
+		t.Fatal("RotateProjectKey succeeded, want failure on corrupt secret")
+	}
+
+	// Project DEK must be unchanged (still decrypts AAA under the original DEK).
+	after, err := env.projectRepo.GetByID(pid)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if !bytes.Equal(after.EncryptedDEK, encDEK) {
+		t.Error("project DEK changed despite failed rotation")
+	}
+	var ct, nonce []byte
+	if err := env.db.QueryRow(`SELECT encrypted_value, value_nonce FROM secrets WHERE environment_id=? AND key='AAA'`, envID.String()).Scan(&ct, &nonce); err != nil {
+		t.Fatal(err)
+	}
+	pt, err := crypto.Decrypt(dek, ct, nonce)
+	if err != nil || string(pt) != "good" {
+		t.Errorf("AAA no longer decrypts under original DEK (pt=%q err=%v) — partial rotation persisted", pt, err)
+	}
+}
+
 // TestRotateAllProjects_EmitsAuditPerProject pins the bulk-rotation audit
 // shape: one key.dek_rotated row per project, no summary event.
 func TestRotateAllProjects_EmitsAuditPerProject(t *testing.T) {
