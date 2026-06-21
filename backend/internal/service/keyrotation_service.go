@@ -70,31 +70,37 @@ func (s *KeyRotationService) RotateProjectKey(projectID, actorID uuid.UUID, ipAd
 		return nil, fmt.Errorf("listing environments: %w", err)
 	}
 
+	// Read every secret BEFORE opening the transaction. Doing a pool query
+	// inside the tx would need a second connection and deadlock under a
+	// single-connection pool (and reads stale data on a larger pool).
+	var toRotate []models.Secret
+	for _, env := range envs {
+		secrets, err := s.secretRepo.ListByProjectAndEnv(projectID, env.ID)
+		if err != nil {
+			return nil, fmt.Errorf("listing secrets for env %s: %w", env.Name, err)
+		}
+		toRotate = append(toRotate, secrets...)
+	}
+
 	reEncryptedCount := 0
 
 	// Re-encrypt every secret AND swap the project DEK in one transaction so a
 	// failure cannot leave the project split across two keys (ADR-0018, C-01).
 	txErr := s.projectRepo.WithTx(func(tx *sql.Tx) error {
-		for _, env := range envs {
-			secrets, err := s.secretRepo.ListByProjectAndEnv(projectID, env.ID)
+		for _, secret := range toRotate {
+			plaintext, err := crypto.Decrypt(oldDEK, secret.EncryptedValue, secret.ValueNonce)
 			if err != nil {
-				return fmt.Errorf("listing secrets for env %s: %w", env.Name, err)
+				return fmt.Errorf("decrypting secret %s: %w", secret.Key, err)
 			}
-			for _, secret := range secrets {
-				plaintext, err := crypto.Decrypt(oldDEK, secret.EncryptedValue, secret.ValueNonce)
-				if err != nil {
-					return fmt.Errorf("decrypting secret %s: %w", secret.Key, err)
-				}
-				newCiphertext, newNonce, err := crypto.Encrypt(newDEK, plaintext)
-				crypto.SecureZero(plaintext)
-				if err != nil {
-					return fmt.Errorf("re-encrypting secret %s: %w", secret.Key, err)
-				}
-				if err := s.secretRepo.UpdateValueTx(tx, secret.ID, newCiphertext, newNonce); err != nil {
-					return fmt.Errorf("updating secret %s: %w", secret.Key, err)
-				}
-				reEncryptedCount++
+			newCiphertext, newNonce, err := crypto.Encrypt(newDEK, plaintext)
+			crypto.SecureZero(plaintext)
+			if err != nil {
+				return fmt.Errorf("re-encrypting secret %s: %w", secret.Key, err)
 			}
+			if err := s.secretRepo.UpdateValueTx(tx, secret.ID, newCiphertext, newNonce); err != nil {
+				return fmt.Errorf("updating secret %s: %w", secret.Key, err)
+			}
+			reEncryptedCount++
 		}
 		if err := s.projectRepo.UpdateDEKTx(tx, projectID, encryptedDEK, dekNonce); err != nil {
 			return fmt.Errorf("updating project DEK: %w", err)
