@@ -15,24 +15,49 @@ spec:
       labels:
         app: {{ .Release.Name }}-frontend
     spec:
+      {{- with .Values.frontend.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          {{- with .Values.frontend.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
-            - containerPort: {{ .Values.frontend.port }}
+            # nginx-unprivileged listens on containerPort (3000), not 80.
+            - containerPort: {{ .Values.frontend.containerPort }}
               protocol: TCP
+          # nginx-unprivileged needs these writable while the root FS stays
+          # read-only (readOnlyRootFilesystem: true).
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
           livenessProbe:
             httpGet:
               path: /
-              port: {{ .Values.frontend.port }}
+              port: {{ .Values.frontend.containerPort }}
             initialDelaySeconds: 5
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /
-              port: {{ .Values.frontend.port }}
+              port: {{ .Values.frontend.containerPort }}
             initialDelaySeconds: 3
             periodSeconds: 10
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}

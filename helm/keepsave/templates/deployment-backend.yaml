@@ -1,3 +1,6 @@
+{{- /* Secret holding DB/JWT/KMS creds: an externally-managed one if provided,
+       else the chart-rendered {{ .Release.Name }}-secrets (see secrets.yaml). */ -}}
+{{- $secretName := .Values.secrets.existingSecret | default (printf "%s-secrets" .Release.Name) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,10 +21,18 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Name }}
       {{- end }}
+      {{- with .Values.backend.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- with .Values.backend.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.backend.port }}
               protocol: TCP
@@ -39,18 +50,18 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: database-url
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: jwt-secret
             {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "env" }}
             - name: MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: master-key
             {{- end }}
             {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "awskms" }}
@@ -59,7 +70,7 @@ spec:
             - name: KEEPSAVE_KMS_CIPHERTEXT
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: kms-ciphertext
             {{- end }}
             {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "gcpkms" }}
@@ -68,7 +79,7 @@ spec:
             - name: KEEPSAVE_KMS_CIPHERTEXT
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: kms-ciphertext
             {{- end }}
             {{- if eq .Values.backend.env.KEEPSAVE_KEY_PROVIDER "vault" }}
@@ -81,7 +92,7 @@ spec:
             - name: VAULT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $secretName }}
                   key: vault-token
             {{- end }}
             {{- if .Values.backend.tls.enabled }}
@@ -94,12 +105,16 @@ spec:
             - name: TLS_CIPHER_SUITES
               value: "{{ .Values.backend.tls.cipherSuites }}"
             {{- end }}
-          {{- if .Values.backend.tls.enabled }}
           volumeMounts:
+            # Writable scratch for readOnlyRootFilesystem. The MCP builder writes
+            # to /tmp/keepsave-mcp-builds (internal/service/mcp_builder_service.go).
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.backend.tls.enabled }}
             - name: tls-certs
               mountPath: /etc/keepsave/tls
               readOnly: true
-          {{- end }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -116,9 +131,11 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
-      {{- if .Values.backend.tls.enabled }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.backend.tls.enabled }}
         - name: tls-certs
           secret:
             secretName: {{ .Values.backend.tls.secretName | default (printf "%s-tls" .Release.Name) }}
-      {{- end }}
+        {{- end }}
