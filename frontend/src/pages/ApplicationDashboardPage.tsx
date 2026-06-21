@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
 import { Page, PageHeader, EmptyState } from '@/components/cosmic/primitives';
+import { TypedConfirmModal } from '@/components/TypedConfirmModal';
 import { Settings, Plus, Pencil, Trash2, Star } from 'lucide-react';
 
 export function ApplicationDashboardPage() {
@@ -27,6 +28,7 @@ export function ApplicationDashboardPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingApp, setEditingApp] = useState<DashboardApplication | null>(null);
   const [page, setPage] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<DashboardApplication | null>(null);
   const pageSize = 50;
   const { toast } = useToast();
 
@@ -45,11 +47,12 @@ export function ApplicationDashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete application "${name}"?`)) return;
+  // FE-F01/02/03: destructive delete is gated by a TypedConfirmModal (the user
+  // must type the application name) instead of window.confirm.
+  const performDelete = async (app: DashboardApplication) => {
     try {
-      await api.deleteApplication(id);
-      toast({ title: 'Application deleted', description: `"${name}" has been removed.` });
+      await api.deleteApplication(app.id);
+      toast({ title: 'Application deleted', description: `"${app.name}" has been removed.` });
       load();
     } catch {
       toast({ title: 'Error', description: 'Failed to delete application.', variant: 'destructive' });
@@ -145,7 +148,7 @@ export function ApplicationDashboardPage() {
               key={app.id}
               app={app}
               onEdit={() => { setEditingApp(app); setShowAddForm(true); }}
-              onDelete={() => handleDelete(app.id, app.name)}
+              onDelete={() => setDeleteTarget(app)}
               onToggleFavorite={() => handleToggleFavorite(app.id)}
             />
           ))}
@@ -187,6 +190,24 @@ export function ApplicationDashboardPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <TypedConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete application"
+        description={
+          deleteTarget
+            ? `This permanently removes "${deleteTarget.name}" from the dashboard. This action cannot be undone.`
+            : ''
+        }
+        confirmPhrase={deleteTarget?.name ?? ''}
+        confirmLabel="Delete application"
+        onConfirm={() => {
+          if (deleteTarget) performDelete(deleteTarget);
+        }}
+      />
 
       {/* AI Chatbot */}
       <AppChatbot applications={apps} />
