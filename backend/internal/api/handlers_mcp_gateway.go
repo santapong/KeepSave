@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,6 +39,10 @@ const shellMetaChars = ";|&$`\n\r<>(){}\\\"'*?~!"
 // matches the SDK's default; the process group is killed on timeout (see
 // SysProcAttr below).
 const mcpExecTimeout = 30 * time.Second
+
+// maxMCPOutput caps a single tool call's stdout so a runaway or malicious MCP
+// server cannot exhaust the API process's memory (ADR-0010 part B).
+const maxMCPOutput = 4 << 20 // 4 MiB
 
 // validateMCPEntryCommand parses and vets a server.EntryCommand string. It
 // returns the argv slice if safe, or a typed error otherwise. The validation
@@ -409,9 +415,45 @@ func (h *MCPGatewayHandler) executeMCPToolCall(server *models.MCPServerWithTools
 	// Inherit a minimal environment - explicitly NOT os.Environ() - and add
 	// only the per-secret envVars the caller has been authorized for.
 	cmd.Env = append([]string{}, envVars...)
+	// Run the child in its own process group so the whole group can be killed
+	// on timeout/cancel (an interpreter may fork children).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	output, err := cmd.Output()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return nil, fmt.Errorf("opening tool output: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("starting tool: %w", err)
+	}
+
+	// Kill the entire process group (negative pid) on timeout/cancel, not just
+	// the direct child, so forked grandchildren cannot linger.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			}
+		case <-done:
+		}
+	}()
+
+	// Read at most maxMCPOutput bytes (plus one, to detect overflow) so a
+	// runaway server cannot exhaust API-process memory (ADR-0010 part B).
+	output, _ := io.ReadAll(io.LimitReader(stdout, maxMCPOutput+1))
+	truncated := len(output) > maxMCPOutput
+	if truncated {
+		output = output[:maxMCPOutput]
+		// Stop the still-writing group immediately rather than waiting for the
+		// timeout to fire.
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+	}
+	if err := cmd.Wait(); err != nil && !truncated {
 		return nil, fmt.Errorf("executing tool: %w", err)
 	}
 
