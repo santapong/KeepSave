@@ -210,7 +210,7 @@ func (s *PromotionService) Promote(
 	// For PROD promotions, require approval workflow
 	if targetEnv == "prod" {
 		// Log audit for promotion request
-		s.auditRepo.Create(&userID, &projectID, "promotion_requested", targetEnv, models.JSONMap{
+		emitAudit(s.auditRepo, &userID, &projectID, "promotion_requested", targetEnv, models.JSONMap{
 			"promotion_id":       promotion.ID.String(),
 			"source_environment": sourceEnv,
 			"target_environment": targetEnv,
@@ -264,7 +264,7 @@ func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, i
 	// Record the approval action itself (A-01) — distinct from promotion_completed
 	// — so the audit trail shows WHO approved, even if execution later fails or a
 	// concurrent approver wins the execution race.
-	s.auditRepo.Create(&approverID, &promotion.ProjectID, "promotion_approved", promotion.TargetEnvironment, models.JSONMap{
+	emitAudit(s.auditRepo, &approverID, &promotion.ProjectID, "promotion_approved", promotion.TargetEnvironment, models.JSONMap{
 		"promotion_id":       promotionID.String(),
 		"source_environment": promotion.SourceEnvironment,
 		"target_environment": promotion.TargetEnvironment,
@@ -305,7 +305,7 @@ func (s *PromotionService) RejectPromotion(promotionID, rejecterID uuid.UUID, ip
 		return nil, fmt.Errorf("rejecting promotion: %w", err)
 	}
 
-	s.auditRepo.Create(&rejecterID, &promotion.ProjectID, "promotion_rejected", promotion.TargetEnvironment, models.JSONMap{
+	emitAudit(s.auditRepo, &rejecterID, &promotion.ProjectID, "promotion_rejected", promotion.TargetEnvironment, models.JSONMap{
 		"promotion_id":       promotionID.String(),
 		"source_environment": promotion.SourceEnvironment,
 		"target_environment": promotion.TargetEnvironment,
@@ -416,7 +416,7 @@ func (s *PromotionService) runPromotion(promotion *models.PromotionRequest, exec
 		return txErr
 	}
 
-	s.auditRepo.Create(&executorID, &promotion.ProjectID, "promotion_completed", promotion.TargetEnvironment, models.JSONMap{
+	emitAudit(s.auditRepo, &executorID, &promotion.ProjectID, "promotion_completed", promotion.TargetEnvironment, models.JSONMap{
 		"promotion_id":       promotion.ID.String(),
 		"source_environment": promotion.SourceEnvironment,
 		"target_environment": promotion.TargetEnvironment,
@@ -475,7 +475,7 @@ func (s *PromotionService) Rollback(promotionID, userID uuid.UUID, ipAddress str
 	}
 
 	// Audit log
-	s.auditRepo.Create(&userID, &promotion.ProjectID, "promotion_rollback", promotion.TargetEnvironment, models.JSONMap{
+	emitAudit(s.auditRepo, &userID, &promotion.ProjectID, "promotion_rollback", promotion.TargetEnvironment, models.JSONMap{
 		"promotion_id":       promotionID.String(),
 		"source_environment": promotion.SourceEnvironment,
 		"target_environment": promotion.TargetEnvironment,

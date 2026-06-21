@@ -73,6 +73,14 @@ func main() {
 	jwtService := auth.NewJWTService(cfg.JWTSecret)
 
 	appMetrics := metrics.NewAppMetrics()
+	// Surface audit-emission outcomes to metrics (A-06) without coupling the
+	// service layer to the metrics package.
+	service.SetAuditObserver(func(action string, ok bool) {
+		appMetrics.AuditEventsTotal.Inc(action)
+		if !ok {
+			appMetrics.AuditEmitFailures.Inc(action)
+		}
+	})
 	tracer := tracing.NewTracer("keepsave-api")
 
 	eventBus := events.NewBus(db, dialect)
