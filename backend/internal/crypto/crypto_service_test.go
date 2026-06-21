@@ -79,6 +79,23 @@ func TestServiceSecret_RejectsTamper(t *testing.T) {
 	}
 }
 
+func TestDeriveAuditChainKey(t *testing.T) {
+	svc := newTestService(t)
+	k := svc.DeriveAuditChainKey()
+	if len(k) != 32 {
+		t.Fatalf("key length = %d, want 32", len(k))
+	}
+	if !bytes.Equal(k, svc.DeriveAuditChainKey()) {
+		t.Error("DeriveAuditChainKey not deterministic")
+	}
+	if bytes.Equal(k, svc.masterKey) {
+		t.Error("audit chain key equals master key")
+	}
+	if bytes.Equal(k, svc.deriveSubKey(serviceSecretLabel)) {
+		t.Error("audit chain key not domain-separated from the service-secret key")
+	}
+}
+
 func TestSecureZero(t *testing.T) {
 	b := []byte("super-secret-key-material")
 	SecureZero(b)

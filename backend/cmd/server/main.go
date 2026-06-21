@@ -92,6 +92,9 @@ func main() {
 	secretRepo := repository.NewSecretRepository(db, dialect)
 	apikeyRepo := repository.NewAPIKeyRepository(db, dialect)
 	auditRepo := repository.NewAuditRepository(db, dialect)
+	// Enable the tamper-evident audit hash chain (ADR-0019). The key is derived
+	// from the master key and never leaves internal/crypto.
+	auditRepo.SetChainKey(cryptoSvc.DeriveAuditChainKey())
 	promotionRepo := repository.NewPromotionRepository(db, dialect)
 	_ = repository.NewSecretVersionRepository(db, dialect)
 	orgRepo := repository.NewOrganizationRepository(db, dialect)

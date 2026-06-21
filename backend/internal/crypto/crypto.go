@@ -56,6 +56,17 @@ func (s *Service) deriveSubKey(label string) []byte {
 	return m.Sum(nil)
 }
 
+// auditChainLabel domain-separates the audit hash-chain key (ADR-0019).
+const auditChainLabel = "keepsave/audit-chain/v1"
+
+// DeriveAuditChainKey returns the keyed-hash key for the tamper-evident audit
+// chain (ADR-0019). It is derived from the master key so the raw key never
+// leaves this package and an attacker who can write audit rows still cannot
+// forge valid chain hashes.
+func (s *Service) DeriveAuditChainKey() []byte {
+	return s.deriveSubKey(auditChainLabel)
+}
+
 // EncryptServiceSecret encrypts a service-level secret (e.g. an SSO client
 // secret or a backup blob) under a master-key-derived sub-key, so callers never
 // handle the raw master key (ADR-0018, C-02).
