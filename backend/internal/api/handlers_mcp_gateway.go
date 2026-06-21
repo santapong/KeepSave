@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -320,6 +321,17 @@ func (h *MCPGatewayHandler) resolveSecretEnvVars(server *models.MCPServerWithToo
 
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
+			continue
+		}
+
+		// Enforce that the caller may actually access this project before
+		// decrypting any of its secrets. Without this, a server owner could
+		// map an arbitrary project_id and exfiltrate another tenant's
+		// plaintext secrets (DB-01). Skip silently — consistent with the
+		// other failure branches and leaking nothing about project existence.
+		allowed, err := h.projectRepo.UserHasAccess(userID, projectID)
+		if err != nil || !allowed {
+			log.Printf("mcp gateway: denied secret mapping env_var=%s project=%s user=%s", envName, projectID, userID)
 			continue
 		}
 
