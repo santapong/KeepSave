@@ -129,6 +129,16 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 		return
 	}
 
+	// Re-validate the entry command on update, not just at registration
+	// (API-F02): without this, an authenticated owner could swap a vetted
+	// command for an arbitrary one and reach the exec path — authenticated RCE.
+	if req.EntryCommand != "" {
+		if _, err := validateMCPEntryCommand(req.EntryCommand); err != nil {
+			WrapError(c, Wrap(ErrInvalidInput, err))
+			return
+		}
+	}
+
 	server := &models.MCPServer{
 		ID:           serverID,
 		OwnerID:      userID,
