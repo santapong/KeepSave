@@ -24,7 +24,9 @@ spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.frontend.port }}
-      targetPort: {{ .Values.frontend.port }}
+      # nginx-unprivileged listens on containerPort (3000); the Service still
+      # publishes on .Values.frontend.port (80) for ingress/callers.
+      targetPort: {{ .Values.frontend.containerPort }}
       protocol: TCP
       name: http
   selector:

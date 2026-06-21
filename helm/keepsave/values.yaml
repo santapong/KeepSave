@@ -6,6 +6,26 @@ backend:
     tag: "1.1.0"
     pullPolicy: IfNotPresent
   port: 8080
+  # Pod- and container-level hardening (INF-1). The distroless image runs as
+  # uid/gid 65532; readOnlyRootFilesystem is satisfied by the writable /tmp
+  # emptyDir mounted in deployment-backend.yaml (MCP builder writes there).
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
   resources:
     requests:
       cpu: 100m
@@ -48,7 +68,31 @@ frontend:
     repository: keepsave-frontend
     tag: "1.1.0"
     pullPolicy: IfNotPresent
+  # The nginx-unprivileged image listens on 3000 (see frontend/nginx.conf and
+  # frontend/Dockerfile EXPOSE 3000). containerPort/targetPort follow this; the
+  # Service still publishes on .Values.frontend.port for callers/ingress.
+  containerPort: 3000
   port: 80
+  # Pod- and container-level hardening (INF-1). nginx-unprivileged runs as
+  # uid/gid 101 and needs writable /tmp, /var/cache/nginx and /var/run, all
+  # provided as emptyDir mounts in deployment-frontend.yaml.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
   resources:
     requests:
       cpu: 50m
@@ -68,6 +112,15 @@ postgresql:
       size: 10Gi
 
 secrets:
+  # PREFERRED: reference a Secret you manage out-of-band (ExternalSecrets,
+  # SealedSecrets, SOPS, sealed CI step). When set, the chart will NOT template
+  # a Secret from the values below — they stay out of the release manifest and
+  # out of git. The referenced Secret must contain the keys: database-url,
+  # jwt-secret, and (per KEEPSAVE_KEY_PROVIDER) master-key / kms-ciphertext /
+  # vault-token. See docs/SECRET_SOURCES.md.
+  existingSecret: ""
+  # The values below are used ONLY when existingSecret is empty (dev/bootstrap).
+  # Do not commit real values here.
   # Only set masterKey when backend.env.KEEPSAVE_KEY_PROVIDER=env.
   # In all other modes the KMS/Vault path is used and this stays empty.
   masterKey: ""
@@ -98,6 +151,35 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}
+
+# Default-deny NetworkPolicy (INF-1). When enabled, both deployments get a
+# baseline that denies all ingress/egress and then re-allows only:
+#   - frontend  -> backend  (API calls)
+#   - backend   -> postgres (DB)
+#   - backend   -> DNS      (so KMS/Vault/Neon hostnames resolve)
+#   - <monitoring namespace> -> backend /metrics (scrape)
+# Egress to external KMS/Vault/Neon over the public internet is allowed broadly
+# (egressAllowExternal) because those endpoints are not in-cluster; tighten with
+# CIDRs once the provider IP ranges are known.
+networkPolicy:
+  enabled: false
+  # Namespace where Postgres runs (set to "" / same namespace if in-cluster via
+  # the bundled chart; the policy matches the release's postgres pod labels).
+  postgres:
+    # podSelector labels identifying the Postgres pods to allow egress to.
+    podSelectorLabels:
+      app.kubernetes.io/name: postgresql
+    port: 5432
+  # Namespace label used to identify the monitoring/Prometheus namespace that
+  # is permitted to scrape the backend /metrics endpoint.
+  monitoring:
+    namespaceSelectorLabels:
+      kubernetes.io/metadata.name: monitoring
+  # Allow backend egress to the public internet (KMS / Vault / Neon). Set false
+  # for fully in-cluster deployments.
+  egressAllowExternal: true
+  # DNS resolver port (kube-dns / CoreDNS).
+  dnsPort: 53
 
 autoscaling:
   enabled: false

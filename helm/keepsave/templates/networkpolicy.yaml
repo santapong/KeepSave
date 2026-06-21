@@ -1,0 +1,108 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny NetworkPolicies (INF-1). Each policy selects one tier's pods and
+# declares both Ingress and Egress policyTypes; an empty rule set for a type
+# means "deny all of that direction", and the rules below re-open only what the
+# tier needs. Requires a CNI that enforces NetworkPolicy (Calico, Cilium, etc.).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-backend
+  labels:
+    app: {{ .Release.Name }}-backend
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Release.Name }}-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # frontend -> backend (API).
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-frontend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+    # monitoring namespace -> backend /metrics (scrape) only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.monitoring.namespaceSelectorLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+  egress:
+    # DNS resolution (KMS/Vault/Neon hostnames).
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: {{ .Values.networkPolicy.dnsPort }}
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.dnsPort }}
+    # backend -> postgres.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.postgres.podSelectorLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.postgres.port }}
+    {{- if .Values.networkPolicy.egressAllowExternal }}
+    # backend -> external KMS / Vault / Neon over the public internet.
+    # Excludes in-cluster/link-local ranges; tighten to provider CIDRs when known.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    app: {{ .Release.Name }}-frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Release.Name }}-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress to the frontend on its container port. Restrict the source
+    # to the ingress-controller namespace by adding a namespaceSelector here if
+    # your ingress runs in a known namespace; left open by default so the policy
+    # works regardless of ingress topology.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.containerPort }}
+  egress:
+    # DNS.
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: {{ .Values.networkPolicy.dnsPort }}
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.dnsPort }}
+    # frontend -> backend (nginx reverse-proxies /api to the backend service).
+    - to:
+        - podSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-backend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+{{- end }}
