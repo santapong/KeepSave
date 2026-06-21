@@ -279,6 +279,35 @@ func TestCompareAndSetStatusTx_ClaimsOnce(t *testing.T) {
 	}
 }
 
+// TestApprove_EmitsApprovedAudit pins A-01: approving a PROD promotion writes a
+// distinct promotion_approved row attributed to the approver.
+func TestApprove_EmitsApprovedAudit(t *testing.T) {
+	e := newPromoEnv(t)
+	owner := uuid.New()
+	pid, dek, envs := e.seedProject(t, owner, "uat", "prod")
+	e.seedSecret(t, dek, pid, envs["uat"], "K", "v")
+	requester := uuid.New()
+	approver := uuid.New()
+	promo, err := e.svc.Promote(pid, "uat", "prod", nil, "overwrite", "", requester, "127.0.0.1")
+	if err != nil {
+		t.Fatalf("Promote: %v", err)
+	}
+	if _, err := e.svc.ApprovePromotion(promo.ID, approver, "10.0.0.1"); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+	var count int
+	var gotUser string
+	if err := e.db.QueryRow(`SELECT COUNT(*), MAX(user_id) FROM audit_log WHERE action='promotion_approved' AND project_id=?`, pid.String()).Scan(&count, &gotUser); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("promotion_approved rows = %d, want 1", count)
+	}
+	if gotUser != approver.String() {
+		t.Errorf("promotion_approved user = %q, want approver %q", gotUser, approver.String())
+	}
+}
+
 // TestApprove_DoubleApproveExecutesOnce fires two concurrent approvers at a
 // pending PROD promotion and asserts exactly one succeeds and the copy runs
 // once (one promotion_completed row), proving four-eyes can't double-apply.

@@ -261,6 +261,15 @@ func (s *PromotionService) ApprovePromotion(promotionID, approverID uuid.UUID, i
 		return nil, ErrSelfApproval
 	}
 
+	// Record the approval action itself (A-01) — distinct from promotion_completed
+	// — so the audit trail shows WHO approved, even if execution later fails or a
+	// concurrent approver wins the execution race.
+	s.auditRepo.Create(&approverID, &promotion.ProjectID, "promotion_approved", promotion.TargetEnvironment, models.JSONMap{
+		"promotion_id":       promotionID.String(),
+		"source_environment": promotion.SourceEnvironment,
+		"target_environment": promotion.TargetEnvironment,
+	}, ipAddress)
+
 	// runPromotion claims (pending -> completed) and executes atomically; the
 	// claim is the four-eyes-safe race guard. Record approverID as approved_by.
 	if err := s.runPromotion(promotion, approverID, &approverID, ipAddress); err != nil {
