@@ -10,6 +10,35 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
+// RequirePlatformAdmin restricts a route group to platform administrators —
+// users whose JWT email is in the configured allowlist
+// (KEEPSAVE_PLATFORM_ADMIN_EMAILS). It MUST be mounted after JWTAuthMiddleware
+// (which sets the "email" claim). It fails closed: an empty allowlist denies
+// everyone, so /admin is never world-readable by default (DB-06).
+func RequirePlatformAdmin(adminEmails []string) gin.HandlerFunc {
+	allow := make(map[string]struct{}, len(adminEmails))
+	for _, e := range adminEmails {
+		if v := strings.ToLower(strings.TrimSpace(e)); v != "" {
+			allow[v] = struct{}{}
+		}
+	}
+	return func(c *gin.Context) {
+		email, _ := c.Get("email")
+		es, _ := email.(string)
+		if es == "" {
+			WrapError(c, ErrUnauthorized)
+			c.Abort()
+			return
+		}
+		if _, ok := allow[strings.ToLower(es)]; !ok {
+			WrapError(c, ErrForbidden)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // TrustedProxyMiddleware extracts the real client IP from reverse proxy headers
 // (X-Forwarded-For, X-Real-IP) and sets X-Forwarded-Proto awareness.
 // This allows KeepSave to work correctly behind nginx, Traefik, Kong, etc.

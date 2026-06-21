@@ -168,10 +168,14 @@ func main() {
 	if !cfg.PromotionsEnabled {
 		logger.Info("promotions disabled by kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false); /promote and /approve will return 503", nil)
 	}
+	if len(cfg.PlatformAdminEmails) == 0 {
+		logger.Warn("KEEPSAVE_PLATFORM_ADMIN_EMAILS is empty; /admin endpoints will reject all callers (fail-closed)", nil)
+	}
 
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
 		cfg.PromotionsEnabled,
+		cfg.PlatformAdminEmails,
 		jwtService,
 		apikeyRepo,
 		projectRepo,

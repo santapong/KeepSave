@@ -13,7 +13,7 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string, promotionsEnabled bool, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
@@ -228,8 +228,10 @@ func SetupRouter(
 			tpl.POST("/:templateId/apply", templateHandler.Apply)
 		}
 
+		// /admin exposes cross-tenant operational data (security events,
+		// traces), so it is gated by a platform-admin allowlist on top of JWT.
 		adm := v1.Group("/admin")
-		adm.Use(JWTAuthMiddleware(jwtService))
+		adm.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
 		{
 			adm.GET("/dashboard", metricsHandler.AdminDashboard)
 			adm.GET("/traces", metricsHandler.Traces)
