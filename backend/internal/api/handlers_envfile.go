@@ -57,7 +57,12 @@ func (h *EnvFileHandler) Import(c *gin.Context) {
 		return
 	}
 
-	result, err := h.envFileService.Import(projectID, req.Environment, req.Content, req.Overwrite)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	result, err := h.envFileService.Import(projectID, req.Environment, req.Content, req.Overwrite, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return

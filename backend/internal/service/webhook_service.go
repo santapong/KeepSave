@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
 // WebhookEvent represents an event that triggers a webhook.
@@ -32,10 +34,11 @@ type WebhookConfig struct {
 
 // WebhookService manages webhook notifications.
 type WebhookService struct {
-	mu       sync.RWMutex
-	configs  map[uuid.UUID][]WebhookConfig // project_id -> configs
-	client   *http.Client
-	eventLog []WebhookDelivery
+	mu        sync.RWMutex
+	configs   map[uuid.UUID][]WebhookConfig // project_id -> configs
+	client    *http.Client
+	eventLog  []WebhookDelivery
+	auditRepo *repository.AuditRepository
 }
 
 // WebhookDelivery records a webhook delivery attempt.
@@ -49,12 +52,13 @@ type WebhookDelivery struct {
 }
 
 // NewWebhookService creates a new webhook service.
-func NewWebhookService() *WebhookService {
+func NewWebhookService(auditRepo *repository.AuditRepository) *WebhookService {
 	return &WebhookService{
 		configs: make(map[uuid.UUID][]WebhookConfig),
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		auditRepo: auditRepo,
 	}
 }
 
@@ -64,21 +68,29 @@ func NewWebhookService() *WebhookService {
 // it later via a state-mutating call. Delivery does NOT re-validate -
 // re-resolving on every call costs latency and only protects against DNS
 // rebinding, which we accept as out-of-scope for this round.
-func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig) error {
+func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig, actorID uuid.UUID, ipAddr string) error {
 	if err := ValidateWebhookURL(config.URL); err != nil {
 		return err
 	}
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
 	ws.configs[projectID] = append(ws.configs[projectID], config)
+	ws.mu.Unlock()
+
+	// Never log the webhook secret; the URL/events are non-sensitive metadata.
+	emitAudit(ws.auditRepo, &actorID, &projectID, "webhook.registered", "",
+		models.JSONMap{"project_id": projectID.String(), "url": config.URL, "events": config.Events}, ipAddr)
 	return nil
 }
 
 // RemoveWebhooks removes all webhooks for a project.
-func (ws *WebhookService) RemoveWebhooks(projectID uuid.UUID) {
+func (ws *WebhookService) RemoveWebhooks(projectID uuid.UUID, actorID uuid.UUID, ipAddr string) {
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
+	removed := len(ws.configs[projectID])
 	delete(ws.configs, projectID)
+	ws.mu.Unlock()
+
+	emitAudit(ws.auditRepo, &actorID, &projectID, "webhook.removed", "",
+		models.JSONMap{"project_id": projectID.String(), "removed_count": removed}, ipAddr)
 }
 
 // ListWebhooks returns all webhook configs for a project.

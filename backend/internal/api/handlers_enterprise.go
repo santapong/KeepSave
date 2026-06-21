@@ -47,7 +47,12 @@ func (h *EnterpriseHandler) ConfigureSSO(c *gin.Context) {
 		return
 	}
 
-	config, err := h.ssoService.ConfigureSSO(orgID, req.Provider, req.IssuerURL, req.ClientID, req.ClientSecret, req.Metadata)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	config, err := h.ssoService.ConfigureSSO(orgID, userID, req.Provider, req.IssuerURL, req.ClientID, req.ClientSecret, req.Metadata, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -82,7 +87,12 @@ func (h *EnterpriseHandler) DeleteSSOConfig(c *gin.Context) {
 	}
 	provider := c.Param("provider")
 
-	if err := h.ssoService.DeleteSSOConfig(orgID, provider); err != nil {
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	if err := h.ssoService.DeleteSSOConfig(orgID, userID, provider, c.ClientIP()); err != nil {
 		WrapError(c, err)
 		return
 	}
@@ -110,7 +120,7 @@ func (h *EnterpriseHandler) GenerateComplianceReport(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	report, err := h.complianceService.GenerateReport(orgID, userID, req.ReportType)
+	report, err := h.complianceService.GenerateReport(orgID, userID, req.ReportType, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -158,7 +168,7 @@ func (h *EnterpriseHandler) CreateBackup(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	snapshot, err := h.backupService.CreateBackup(projectID, userID, req.Type)
+	snapshot, err := h.backupService.CreateBackup(projectID, userID, req.Type, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -219,7 +229,12 @@ func (h *EnterpriseHandler) SetSecretPolicy(c *gin.Context) {
 		return
 	}
 
-	policy, err := h.policyService.SetPolicy(projectID, req.MaxAgeDays, req.ReminderDays, req.RequireRotation)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	policy, err := h.policyService.SetPolicy(projectID, req.MaxAgeDays, req.ReminderDays, req.RequireRotation, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return

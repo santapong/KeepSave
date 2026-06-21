@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
+	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -14,6 +15,7 @@ type EnvFileService struct {
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
 }
 
@@ -21,12 +23,14 @@ func NewEnvFileService(
 	secretRepo *repository.SecretRepository,
 	projectRepo *repository.ProjectRepository,
 	envRepo *repository.EnvironmentRepository,
+	auditRepo *repository.AuditRepository,
 	cryptoSvc *crypto.Service,
 ) *EnvFileService {
 	return &EnvFileService{
 		secretRepo:  secretRepo,
 		projectRepo: projectRepo,
 		envRepo:     envRepo,
+		auditRepo:   auditRepo,
 		cryptoSvc:   cryptoSvc,
 	}
 }
@@ -74,7 +78,7 @@ func (s *EnvFileService) Export(projectID uuid.UUID, envName string) (string, er
 }
 
 // Import parses .env file content and creates/updates secrets in a project environment.
-func (s *EnvFileService) Import(projectID uuid.UUID, envName, content string, overwrite bool) (*ImportResult, error) {
+func (s *EnvFileService) Import(projectID uuid.UUID, envName, content string, overwrite bool, actorID uuid.UUID, ipAddr string) (*ImportResult, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -122,6 +126,16 @@ func (s *EnvFileService) Import(projectID uuid.UUID, envName, content string, ov
 			result.Created = append(result.Created, key)
 		}
 	}
+
+	// The import bulk-mutates secrets; record one envfile.imported row with the
+	// affected counts (never the secret values themselves).
+	emitAudit(s.auditRepo, &actorID, &projectID, "envfile.imported", envName,
+		models.JSONMap{
+			"project_id":    projectID.String(),
+			"created_count": len(result.Created),
+			"updated_count": len(result.Updated),
+			"skipped_count": len(result.Skipped),
+		}, ipAddr)
 
 	return result, nil
 }
