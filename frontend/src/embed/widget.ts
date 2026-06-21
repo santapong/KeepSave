@@ -13,6 +13,51 @@ export interface WidgetState {
   showAddForm: boolean;
   newKey: string;
   newValue: string;
+  /** FE-F01/02/03: secret pending typed-confirmation delete, or null. */
+  pendingDelete: { id: string; key: string } | null;
+}
+
+// FE-F06: All DOM in this widget is built with createElement / textContent /
+// setAttribute. Assigning `innerHTML` from a template string is BANNED here —
+// secret values and keys are attacker-influenced and an `innerHTML` sink is an
+// XSS trap. An ESLint `no-restricted-properties` rule enforces this (see
+// eslint.config.js); do not reintroduce string-HTML rendering.
+
+type ElProps = {
+  className?: string;
+  text?: string;
+  type?: string;
+  placeholder?: string;
+  value?: string;
+  /** data-* attributes (set via setAttribute, value-escaped by the DOM). */
+  dataset?: Record<string, string>;
+};
+
+/**
+ * Safe element factory. Text content is always set via `textContent` and
+ * attributes via `setAttribute`, so no markup in `text`/`value`/dataset values
+ * is ever interpreted as HTML.
+ */
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: ElProps = {},
+  children: (Node | null | undefined)[] = []
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (props.className) node.className = props.className;
+  if (props.text !== undefined) node.textContent = props.text;
+  if (props.type !== undefined) node.setAttribute('type', props.type);
+  if (props.placeholder !== undefined) node.setAttribute('placeholder', props.placeholder);
+  if (props.value !== undefined) (node as HTMLInputElement).value = props.value;
+  if (props.dataset) {
+    for (const [k, v] of Object.entries(props.dataset)) {
+      node.setAttribute(`data-${k}`, v);
+    }
+  }
+  for (const child of children) {
+    if (child) node.appendChild(child);
+  }
+  return node;
 }
 
 export class WidgetRenderer {
@@ -21,6 +66,9 @@ export class WidgetRenderer {
   private projectId: string;
   private mode: WidgetMode;
   private state: WidgetState;
+  /** FE-F04: bound visibilitychange handler so it can be removed on destroy. */
+  private onVisibilityChange: () => void;
+  private visibilityBound = false;
 
   constructor(root: ShadowRoot, api: KeepSaveAPI, projectId: string, mode: WidgetMode) {
     this.root = root;
@@ -38,7 +86,32 @@ export class WidgetRenderer {
       showAddForm: false,
       newKey: '',
       newValue: '',
+      pendingDelete: null,
     };
+    // FE-F04 / EMBED_STATE.md §"Auto-clear / timeout policy": when the tab is
+    // hidden, immediately re-mask any revealed secret so plaintext never
+    // persists in the DOM across a tab switch.
+    this.onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && this.state.revealed.size > 0) {
+        this.state.revealed = new Set();
+        this.render();
+      }
+    };
+  }
+
+  /** Registers the visibilitychange listener once. */
+  private ensureVisibilityListener(): void {
+    if (this.visibilityBound) return;
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.visibilityBound = true;
+  }
+
+  /** Removes global listeners. Call from the element's disconnectedCallback. */
+  destroy(): void {
+    if (this.visibilityBound) {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      this.visibilityBound = false;
+    }
   }
 
   async loadSecrets(): Promise<void> {
@@ -105,160 +178,214 @@ export class WidgetRenderer {
     const body = container.querySelector('.ks-body');
     if (!body) return;
 
-    body.innerHTML = this.renderBody();
+    body.replaceChildren(this.renderBody());
     this.attachBodyListeners(body);
+    this.syncConfirmModal();
   }
 
   renderFull(): void {
     const container = this.root.querySelector('.ks-widget-root');
     if (!container) return;
 
-    container.innerHTML = this.renderContainer();
+    container.replaceChildren(this.renderContainer());
     this.attachListeners(container);
+    this.syncConfirmModal();
   }
 
   initialRender(): void {
-    const wrapper = this.root.querySelector('.ks-widget-root') || document.createElement('div');
-    wrapper.className = 'ks-widget-root';
-    wrapper.innerHTML = this.renderContainer();
-
-    if (!this.root.querySelector('.ks-widget-root')) {
-      this.root.appendChild(wrapper);
-    }
-
+    this.ensureVisibilityListener();
+    const wrapper = this.ensureWrapper();
+    wrapper.replaceChildren(this.renderContainer());
     this.attachListeners(wrapper);
+    this.syncConfirmModal();
   }
 
   renderAuthPrompt(): void {
-    const wrapper = this.root.querySelector('.ks-widget-root') || document.createElement('div');
-    wrapper.className = 'ks-widget-root';
-    wrapper.innerHTML = `
-      <div class="ks-container">
-        <div class="ks-header">
-          <span class="ks-header-title">KeepSave</span>
-          <span class="ks-status">
-            <span class="ks-status-dot disconnected"></span>
-            Not connected
-          </span>
-        </div>
-        <div class="ks-auth-prompt">
-          <p>Waiting for authentication...</p>
-          <p>The host page must provide credentials via postMessage.</p>
-        </div>
-      </div>
-    `;
+    const wrapper = this.ensureWrapper();
+    wrapper.replaceChildren(this.renderAuthPromptNode());
+  }
 
-    if (!this.root.querySelector('.ks-widget-root')) {
+  /** Returns the existing root wrapper or creates and attaches a fresh one. */
+  private ensureWrapper(): Element {
+    let wrapper = this.root.querySelector('.ks-widget-root');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'ks-widget-root';
       this.root.appendChild(wrapper);
     }
+    return wrapper;
   }
 
-  private renderContainer(): string {
+  private renderAuthPromptNode(): HTMLElement {
+    return el('div', { className: 'ks-container' }, [
+      el('div', { className: 'ks-header' }, [
+        el('span', { className: 'ks-header-title', text: 'KeepSave' }),
+        el('span', { className: 'ks-status' }, [
+          el('span', { className: 'ks-status-dot disconnected' }),
+          document.createTextNode('Not connected'),
+        ]),
+      ]),
+      el('div', { className: 'ks-auth-prompt' }, [
+        el('p', { text: 'Waiting for authentication...' }),
+        el('p', { text: 'The host page must provide credentials via postMessage.' }),
+      ]),
+    ]);
+  }
+
+  private renderContainer(): HTMLElement {
     const envs = ['alpha', 'uat', 'prod'];
-    const tabs = envs.map((env) => {
-      const active = env === this.state.environment ? ' active' : '';
-      return `<button class="ks-tab${active}" data-env="${env}">${env.toUpperCase()}</button>`;
-    }).join('');
+    const tabs = envs.map((env) =>
+      el('button', {
+        className: env === this.state.environment ? 'ks-tab active' : 'ks-tab',
+        text: env.toUpperCase(),
+        dataset: { env },
+      })
+    );
 
-    return `
-      <div class="ks-container">
-        <div class="ks-header">
-          <span class="ks-header-title">KeepSave</span>
-          <span class="ks-status">
-            <span class="ks-status-dot"></span>
-            Connected
-          </span>
-        </div>
-        <div class="ks-tabs">${tabs}</div>
-        <div class="ks-body">${this.renderBody()}</div>
-      </div>
-    `;
+    return el('div', { className: 'ks-container' }, [
+      el('div', { className: 'ks-header' }, [
+        el('span', { className: 'ks-header-title', text: 'KeepSave' }),
+        el('span', { className: 'ks-status' }, [
+          el('span', { className: 'ks-status-dot' }),
+          document.createTextNode('Connected'),
+        ]),
+      ]),
+      el('div', { className: 'ks-tabs' }, tabs),
+      el('div', { className: 'ks-body' }, [this.renderBody()]),
+    ]);
   }
 
-  private renderBody(): string {
-    let html = '';
+  private renderBody(): DocumentFragment {
+    const frag = document.createDocumentFragment();
 
     if (this.state.error) {
-      html += `<div class="ks-error">${this.escapeHtml(this.state.error)}</div>`;
+      frag.appendChild(el('div', { className: 'ks-error', text: this.state.error }));
     }
 
     if (this.state.loading) {
-      return html + `<div class="ks-loading">Loading secrets...</div>`;
+      frag.appendChild(el('div', { className: 'ks-loading', text: 'Loading secrets...' }));
+      return frag;
     }
 
     if (this.mode === 'readwrite') {
-      html += this.renderAddForm();
+      frag.appendChild(this.renderAddForm());
     }
 
     if (this.state.secrets.length === 0) {
-      return html + `<div class="ks-empty">No secrets in this environment.</div>`;
+      frag.appendChild(el('div', { className: 'ks-empty', text: 'No secrets in this environment.' }));
+      return frag;
     }
 
-    html += `<ul class="ks-secret-list">`;
+    const list = el('ul', { className: 'ks-secret-list' });
     for (const secret of this.state.secrets) {
-      html += this.renderSecretItem(secret);
+      list.appendChild(this.renderSecretItem(secret));
     }
-    html += `</ul>`;
+    frag.appendChild(list);
 
-    return html;
+    return frag;
   }
 
-  private renderAddForm(): string {
+  private renderAddForm(): HTMLElement {
     if (!this.state.showAddForm) {
-      return `<div style="margin-bottom: 12px;">
-        <button class="ks-btn ks-btn-primary" data-action="show-add">+ Add Secret</button>
-      </div>`;
+      const wrap = el('div', { className: 'ks-add-toggle' }, [
+        el('button', {
+          className: 'ks-btn ks-btn-primary',
+          text: '+ Add Secret',
+          dataset: { action: 'show-add' },
+        }),
+      ]);
+      return wrap;
     }
 
-    return `
-      <div class="ks-add-form">
-        <input class="ks-input" placeholder="KEY" data-input="new-key" value="${this.escapeAttr(this.state.newKey)}" />
-        <input class="ks-input" placeholder="Value" data-input="new-value" type="password" value="${this.escapeAttr(this.state.newValue)}" />
-        <button class="ks-btn ks-btn-primary ks-btn-sm" data-action="add">Add</button>
-        <button class="ks-btn ks-btn-sm" data-action="cancel-add">Cancel</button>
-      </div>
-    `;
+    return el('div', { className: 'ks-add-form' }, [
+      el('input', {
+        className: 'ks-input',
+        placeholder: 'KEY',
+        value: this.state.newKey,
+        dataset: { input: 'new-key' },
+      }),
+      el('input', {
+        className: 'ks-input',
+        placeholder: 'Value',
+        type: 'password',
+        value: this.state.newValue,
+        dataset: { input: 'new-value' },
+      }),
+      el('button', {
+        className: 'ks-btn ks-btn-primary ks-btn-sm',
+        text: 'Add',
+        dataset: { action: 'add' },
+      }),
+      el('button', {
+        className: 'ks-btn ks-btn-sm',
+        text: 'Cancel',
+        dataset: { action: 'cancel-add' },
+      }),
+    ]);
   }
 
-  private renderSecretItem(secret: Secret): string {
+  private renderSecretItem(secret: Secret): HTMLElement {
     const isRevealed = this.state.revealed.has(secret.id);
     const isEditing = this.state.editingId === secret.id;
 
-    let valueHtml: string;
+    let valueNode: HTMLElement;
     if (isEditing) {
-      valueHtml = `
-        <div class="ks-edit-row">
-          <input class="ks-input" data-input="edit-value" value="${this.escapeAttr(this.state.editingValue)}" />
-          <button class="ks-btn ks-btn-primary ks-btn-sm" data-action="save-edit" data-id="${secret.id}">Save</button>
-          <button class="ks-btn ks-btn-sm" data-action="cancel-edit">Cancel</button>
-        </div>
-      `;
+      valueNode = el('div', { className: 'ks-edit-row' }, [
+        el('input', {
+          className: 'ks-input',
+          value: this.state.editingValue,
+          dataset: { input: 'edit-value' },
+        }),
+        el('button', {
+          className: 'ks-btn ks-btn-primary ks-btn-sm',
+          text: 'Save',
+          dataset: { action: 'save-edit', id: secret.id },
+        }),
+        el('button', {
+          className: 'ks-btn ks-btn-sm',
+          text: 'Cancel',
+          dataset: { action: 'cancel-edit' },
+        }),
+      ]);
     } else if (isRevealed) {
-      valueHtml = `<span class="ks-secret-value">${this.escapeHtml(secret.value || '')}</span>`;
+      valueNode = el('span', { className: 'ks-secret-value', text: secret.value || '' });
     } else {
-      valueHtml = `<span class="ks-secret-value ks-secret-mask">••••••••</span>`;
+      valueNode = el('span', {
+        className: 'ks-secret-value ks-secret-mask',
+        text: '••••••••',
+      });
     }
 
-    let actionsHtml = `
-      <button class="ks-btn ks-btn-sm" data-action="toggle-reveal" data-id="${secret.id}">
-        ${isRevealed ? 'Hide' : 'Reveal'}
-      </button>
-    `;
+    const actions = el('span', { className: 'ks-secret-actions' }, [
+      el('button', {
+        className: 'ks-btn ks-btn-sm',
+        text: isRevealed ? 'Hide' : 'Reveal',
+        dataset: { action: 'toggle-reveal', id: secret.id },
+      }),
+    ]);
 
     if (this.mode === 'readwrite' && !isEditing) {
-      actionsHtml += `
-        <button class="ks-btn ks-btn-sm" data-action="edit" data-id="${secret.id}" data-value="${this.escapeAttr(secret.value || '')}">Edit</button>
-        <button class="ks-btn ks-btn-sm ks-btn-danger" data-action="delete" data-id="${secret.id}" data-key="${this.escapeAttr(secret.key)}">Delete</button>
-      `;
+      actions.appendChild(
+        el('button', {
+          className: 'ks-btn ks-btn-sm',
+          text: 'Edit',
+          dataset: { action: 'edit', id: secret.id, value: secret.value || '' },
+        })
+      );
+      actions.appendChild(
+        el('button', {
+          className: 'ks-btn ks-btn-sm ks-btn-danger',
+          text: 'Delete',
+          dataset: { action: 'delete', id: secret.id, key: secret.key },
+        })
+      );
     }
 
-    return `
-      <li class="ks-secret-item">
-        <span class="ks-secret-key">${this.escapeHtml(secret.key)}</span>
-        ${valueHtml}
-        <span class="ks-secret-actions">${actionsHtml}</span>
-      </li>
-    `;
+    return el('li', { className: 'ks-secret-item' }, [
+      el('span', { className: 'ks-secret-key', text: secret.key }),
+      valueNode,
+      actions,
+    ]);
   }
 
   private attachListeners(container: Element): void {
@@ -331,8 +458,10 @@ export class WidgetRenderer {
             this.render();
             break;
           case 'delete':
-            if (id && confirm(`Delete secret "${btn.dataset.key}"?`)) {
-              this.deleteSecret(id);
+            // FE-F01/02/03: typed-confirmation modal instead of window.confirm.
+            if (id) {
+              this.state.pendingDelete = { id, key: btn.dataset.key || '' };
+              this.syncConfirmModal();
             }
             break;
         }
@@ -357,18 +486,75 @@ export class WidgetRenderer {
     });
   }
 
-  private escapeHtml(str: string): string {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
+  /**
+   * FE-F01/02/03: typed-confirmation modal for destructive delete. Mirrors the
+   * dashboard's <TypedConfirmModal>: the user must type the secret key before
+   * the Delete button enables. Built entirely with createElement so no
+   * attacker-controlled key reaches an innerHTML sink.
+   */
+  private syncConfirmModal(): void {
+    const existing = this.root.querySelector('.ks-modal-overlay');
+    if (existing) existing.remove();
+    if (!this.state.pendingDelete) return;
 
-  private escapeAttr(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const { id, key } = this.state.pendingDelete;
+
+    const confirmBtn = el('button', {
+      className: 'ks-btn ks-btn-danger ks-btn-modal',
+      text: 'Delete secret',
+    });
+    (confirmBtn as HTMLButtonElement).disabled = true;
+
+    const input = el('input', {
+      className: 'ks-input',
+      placeholder: key,
+      dataset: { input: 'confirm-delete' },
+    });
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('spellcheck', 'false');
+
+    input.addEventListener('input', () => {
+      (confirmBtn as HTMLButtonElement).disabled = (input as HTMLInputElement).value !== key;
+    });
+
+    const close = () => {
+      this.state.pendingDelete = null;
+      this.syncConfirmModal();
+    };
+
+    confirmBtn.addEventListener('click', () => {
+      if ((input as HTMLInputElement).value !== key) return;
+      this.state.pendingDelete = null;
+      this.syncConfirmModal();
+      this.deleteSecret(id);
+    });
+
+    const cancelBtn = el('button', { className: 'ks-btn ks-btn-modal', text: 'Cancel' });
+    cancelBtn.addEventListener('click', close);
+
+    const hint = el('div', { className: 'ks-modal-hint' }, [
+      document.createTextNode('Type '),
+      el('code', { text: key }),
+      document.createTextNode(' to confirm deletion.'),
+    ]);
+
+    const dialog = el('div', { className: 'ks-modal' }, [
+      el('div', { className: 'ks-modal-title', text: 'Delete secret' }),
+      el('div', {
+        className: 'ks-modal-desc',
+        text: `This permanently deletes "${key}". This action cannot be undone.`,
+      }),
+      hint,
+      input,
+      el('div', { className: 'ks-modal-actions' }, [cancelBtn, confirmBtn]),
+    ]);
+
+    const overlay = el('div', { className: 'ks-modal-overlay' }, [dialog]);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    this.root.appendChild(overlay);
+    setTimeout(() => (input as HTMLInputElement).focus(), 0);
   }
 }
