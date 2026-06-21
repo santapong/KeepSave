@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -83,15 +84,26 @@ func (h *AgentHandler) ListLeases(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"leases": leases})
 }
 
-// RevokeLease revokes an active lease.
+// RevokeLease revokes an active lease. The lease is scoped to the :id project
+// (already authorized by RequireProjectAccess) so a caller cannot revoke a
+// lease belonging to another project by its ID.
 func (h *AgentHandler) RevokeLease(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project ID")
+		return
+	}
 	leaseID, err := uuid.Parse(c.Param("leaseId"))
 	if err != nil {
 		RespondError(c, http.StatusBadRequest, "invalid lease ID")
 		return
 	}
 
-	if err := h.leaseService.RevokeLease(leaseID); err != nil {
+	if err := h.leaseService.RevokeLease(leaseID, projectID); err != nil {
+		if errors.Is(err, service.ErrLeaseNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}

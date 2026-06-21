@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,11 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// ErrLeaseNotFound is returned by RevokeLease when no lease with the given ID
+// exists in the given project — either it does not exist or it belongs to a
+// different project. Callers map this to a 404 (anti-enumeration).
+var ErrLeaseNotFound = errors.New("lease not found")
 
 // LeaseService manages just-in-time secret leases for agents.
 type LeaseService struct {
@@ -91,12 +97,22 @@ func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLeas
 	return leases, nil
 }
 
-// RevokeLease revokes an active lease.
-func (s *LeaseService) RevokeLease(leaseID uuid.UUID) error {
-	q := repository.Q(s.dialect, `UPDATE secret_leases SET revoked = `+s.dialect.BoolLiteral(true)+`, revoked_at = `+s.dialect.Now()+` WHERE id = $1`)
-	_, err := s.db.Exec(q, leaseID)
+// RevokeLease revokes an active lease, scoped to the project it belongs to.
+// Scoping the UPDATE by project_id (not id alone) means a caller with access
+// to one project cannot revoke another project's lease by guessing its ID
+// (AUTH-04). Returns ErrLeaseNotFound when no matching row exists.
+func (s *LeaseService) RevokeLease(leaseID, projectID uuid.UUID) error {
+	q := repository.Q(s.dialect, `UPDATE secret_leases SET revoked = `+s.dialect.BoolLiteral(true)+`, revoked_at = `+s.dialect.Now()+` WHERE id = $1 AND project_id = $2`)
+	res, err := s.db.Exec(q, leaseID, projectID)
 	if err != nil {
 		return fmt.Errorf("revoking lease: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("revoking lease: %w", err)
+	}
+	if n == 0 {
+		return ErrLeaseNotFound
 	}
 	return nil
 }
