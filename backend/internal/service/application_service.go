@@ -9,14 +9,15 @@ import (
 )
 
 type ApplicationService struct {
-	appRepo *repository.ApplicationRepository
+	appRepo   *repository.ApplicationRepository
+	auditRepo *repository.AuditRepository
 }
 
-func NewApplicationService(appRepo *repository.ApplicationRepository) *ApplicationService {
-	return &ApplicationService{appRepo: appRepo}
+func NewApplicationService(appRepo *repository.ApplicationRepository, auditRepo *repository.AuditRepository) *ApplicationService {
+	return &ApplicationService{appRepo: appRepo, auditRepo: auditRepo}
 }
 
-func (s *ApplicationService) Create(name, url, description, icon, category string, ownerID uuid.UUID) (*models.Application, error) {
+func (s *ApplicationService) Create(name, url, description, icon, category string, ownerID uuid.UUID, ipAddr string) (*models.Application, error) {
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
@@ -42,6 +43,8 @@ func (s *ApplicationService) Create(name, url, description, icon, category strin
 	if err := s.appRepo.Create(app); err != nil {
 		return nil, fmt.Errorf("creating application: %w", err)
 	}
+	emitAudit(s.auditRepo, &ownerID, nil, "application.created", "",
+		models.JSONMap{"application_id": app.ID.String(), "name": name}, ipAddr)
 	return app, nil
 }
 
@@ -69,7 +72,7 @@ func (s *ApplicationService) List(ownerID uuid.UUID, search, category string, li
 	return apps, total, nil
 }
 
-func (s *ApplicationService) Update(id uuid.UUID, name, url, description, icon, category string, ownerID uuid.UUID) (*models.Application, error) {
+func (s *ApplicationService) Update(id uuid.UUID, name, url, description, icon, category string, ownerID uuid.UUID, ipAddr string) (*models.Application, error) {
 	app := &models.Application{
 		ID:          id,
 		Name:        name,
@@ -82,11 +85,18 @@ func (s *ApplicationService) Update(id uuid.UUID, name, url, description, icon, 
 	if err := s.appRepo.Update(app); err != nil {
 		return nil, err
 	}
+	emitAudit(s.auditRepo, &ownerID, nil, "application.updated", "",
+		models.JSONMap{"application_id": id.String(), "name": name}, ipAddr)
 	return s.appRepo.GetByID(id)
 }
 
-func (s *ApplicationService) Delete(id, ownerID uuid.UUID) error {
-	return s.appRepo.Delete(id, ownerID)
+func (s *ApplicationService) Delete(id, ownerID uuid.UUID, ipAddr string) error {
+	if err := s.appRepo.Delete(id, ownerID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &ownerID, nil, "application.deleted", "",
+		models.JSONMap{"application_id": id.String()}, ipAddr)
+	return nil
 }
 
 func (s *ApplicationService) ToggleFavorite(userID, appID uuid.UUID) (bool, error) {

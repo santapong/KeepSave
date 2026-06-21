@@ -106,8 +106,8 @@ func main() {
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, auditRepo, cryptoSvc)
 	webhookService := service.NewWebhookService()
-	orgService := service.NewOrganizationService(orgRepo)
-	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
+	orgService := service.NewOrganizationService(orgRepo, auditRepo)
+	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, cryptoSvc)
 	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
@@ -123,7 +123,7 @@ func main() {
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
-	appService := service.NewApplicationService(appRepo)
+	appService := service.NewApplicationService(appRepo, auditRepo)
 
 	aiMgr := service.NewAIProviderManager()
 	if aiMgr.HasProvider() {

@@ -13,11 +13,12 @@ import (
 var slugRegex = regexp.MustCompile(`[^a-z0-9-]+`)
 
 type OrganizationService struct {
-	orgRepo *repository.OrganizationRepository
+	orgRepo   *repository.OrganizationRepository
+	auditRepo *repository.AuditRepository
 }
 
-func NewOrganizationService(orgRepo *repository.OrganizationRepository) *OrganizationService {
-	return &OrganizationService{orgRepo: orgRepo}
+func NewOrganizationService(orgRepo *repository.OrganizationRepository, auditRepo *repository.AuditRepository) *OrganizationService {
+	return &OrganizationService{orgRepo: orgRepo, auditRepo: auditRepo}
 }
 
 func generateSlug(name string) string {
@@ -30,7 +31,7 @@ func generateSlug(name string) string {
 	return slug
 }
 
-func (s *OrganizationService) Create(name string, ownerID uuid.UUID) (*models.Organization, error) {
+func (s *OrganizationService) Create(name string, ownerID uuid.UUID, ipAddr string) (*models.Organization, error) {
 	if name == "" {
 		return nil, fmt.Errorf("organization name is required")
 	}
@@ -46,6 +47,9 @@ func (s *OrganizationService) Create(name string, ownerID uuid.UUID) (*models.Or
 	if _, err := s.orgRepo.AddMember(org.ID, ownerID, "admin"); err != nil {
 		return nil, fmt.Errorf("adding owner as admin: %w", err)
 	}
+
+	emitAudit(s.auditRepo, &ownerID, nil, "org.created", "",
+		models.JSONMap{"organization_id": org.ID.String(), "name": name}, ipAddr)
 
 	return org, nil
 }
@@ -67,14 +71,20 @@ func (s *OrganizationService) List(userID uuid.UUID) ([]models.Organization, err
 	return s.orgRepo.ListByUserID(userID)
 }
 
-func (s *OrganizationService) Update(id, userID uuid.UUID, name string) (*models.Organization, error) {
+func (s *OrganizationService) Update(id, userID uuid.UUID, name, ipAddr string) (*models.Organization, error) {
 	if err := s.requireRole(id, userID, "admin"); err != nil {
 		return nil, err
 	}
-	return s.orgRepo.Update(id, name)
+	org, err := s.orgRepo.Update(id, name)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "org.updated", "",
+		models.JSONMap{"organization_id": id.String(), "name": name}, ipAddr)
+	return org, nil
 }
 
-func (s *OrganizationService) Delete(id, userID uuid.UUID) error {
+func (s *OrganizationService) Delete(id, userID uuid.UUID, ipAddr string) error {
 	org, err := s.orgRepo.GetByID(id)
 	if err != nil {
 		return fmt.Errorf("getting organization: %w", err)
@@ -82,17 +92,28 @@ func (s *OrganizationService) Delete(id, userID uuid.UUID) error {
 	if org.OwnerID != userID {
 		return fmt.Errorf("only the owner can delete the organization")
 	}
-	return s.orgRepo.Delete(id)
+	if err := s.orgRepo.Delete(id); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "org.deleted", "",
+		models.JSONMap{"organization_id": id.String(), "name": org.Name}, ipAddr)
+	return nil
 }
 
-func (s *OrganizationService) AddMember(orgID, userID, targetUserID uuid.UUID, role string) (*models.OrgMember, error) {
+func (s *OrganizationService) AddMember(orgID, userID, targetUserID uuid.UUID, role, ipAddr string) (*models.OrgMember, error) {
 	if err := s.requireRole(orgID, userID, "admin"); err != nil {
 		return nil, err
 	}
 	if !isValidRole(role) {
 		return nil, fmt.Errorf("invalid role: %s (must be viewer, editor, admin, or promoter)", role)
 	}
-	return s.orgRepo.AddMember(orgID, targetUserID, role)
+	member, err := s.orgRepo.AddMember(orgID, targetUserID, role)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "org.member_added", "",
+		models.JSONMap{"organization_id": orgID.String(), "target_user_id": targetUserID.String(), "role": role}, ipAddr)
+	return member, nil
 }
 
 func (s *OrganizationService) ListMembers(orgID, userID uuid.UUID) ([]models.OrgMember, error) {
@@ -102,17 +123,23 @@ func (s *OrganizationService) ListMembers(orgID, userID uuid.UUID) ([]models.Org
 	return s.orgRepo.ListMembers(orgID)
 }
 
-func (s *OrganizationService) UpdateMemberRole(orgID, userID, targetUserID uuid.UUID, role string) (*models.OrgMember, error) {
+func (s *OrganizationService) UpdateMemberRole(orgID, userID, targetUserID uuid.UUID, role, ipAddr string) (*models.OrgMember, error) {
 	if err := s.requireRole(orgID, userID, "admin"); err != nil {
 		return nil, err
 	}
 	if !isValidRole(role) {
 		return nil, fmt.Errorf("invalid role: %s", role)
 	}
-	return s.orgRepo.UpdateMemberRole(orgID, targetUserID, role)
+	member, err := s.orgRepo.UpdateMemberRole(orgID, targetUserID, role)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "org.member_role_updated", "",
+		models.JSONMap{"organization_id": orgID.String(), "target_user_id": targetUserID.String(), "role": role}, ipAddr)
+	return member, nil
 }
 
-func (s *OrganizationService) RemoveMember(orgID, userID, targetUserID uuid.UUID) error {
+func (s *OrganizationService) RemoveMember(orgID, userID, targetUserID uuid.UUID, ipAddr string) error {
 	if err := s.requireRole(orgID, userID, "admin"); err != nil {
 		return err
 	}
@@ -123,7 +150,12 @@ func (s *OrganizationService) RemoveMember(orgID, userID, targetUserID uuid.UUID
 	if org.OwnerID == targetUserID {
 		return fmt.Errorf("cannot remove the organization owner")
 	}
-	return s.orgRepo.RemoveMember(orgID, targetUserID)
+	if err := s.orgRepo.RemoveMember(orgID, targetUserID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "org.member_removed", "",
+		models.JSONMap{"organization_id": orgID.String(), "target_user_id": targetUserID.String()}, ipAddr)
+	return nil
 }
 
 func (s *OrganizationService) AssignProject(orgID, userID, projectID uuid.UUID) error {

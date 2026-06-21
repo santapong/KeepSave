@@ -46,7 +46,7 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	app, err := h.appService.Create(req.Name, req.URL, req.Description, req.Icon, req.Category, userID)
+	app, err := h.appService.Create(req.Name, req.URL, req.Description, req.Icon, req.Category, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -138,7 +138,7 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	app, err := h.appService.Update(appID, req.Name, req.URL, req.Description, req.Icon, req.Category, userID)
+	app, err := h.appService.Update(appID, req.Name, req.URL, req.Description, req.Icon, req.Category, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -159,7 +159,7 @@ func (h *ApplicationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.appService.Delete(appID, userID); err != nil {
+	if err := h.appService.Delete(appID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
