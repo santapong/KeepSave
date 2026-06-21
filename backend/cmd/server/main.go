@@ -116,11 +116,11 @@ func main() {
 	backupService := service.NewBackupService(backupRepo, secretRepo, auditRepo, cryptoSvc)
 	policyService := service.NewSecretPolicyService(db, dialect, auditRepo)
 
-	leaseService := service.NewLeaseService(db, dialect)
+	leaseService := service.NewLeaseService(db, dialect, auditRepo)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
-	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo)
-	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
+	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo, auditRepo)
+	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo, auditRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
 	appService := service.NewApplicationService(appRepo, auditRepo)
@@ -132,7 +132,7 @@ func main() {
 		logger.Info("no AI providers configured (Phase 15 features will use fallback mode)", nil)
 	}
 	driftService := service.NewDriftService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
-	anomalyService := service.NewAnomalyService(db, dialect, aiMgr)
+	anomalyService := service.NewAnomalyService(db, dialect, aiMgr, auditRepo)
 	usageAnalyticsSvc := service.NewUsageAnalyticsService(db, dialect)
 	recommService := service.NewRecommendationService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
 	nlpService := service.NewNLPQueryService(db, dialect, projectRepo, envRepo, secretRepo, aiMgr)

@@ -58,7 +58,7 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 	}
 	duration := time.Duration(req.DurationMin) * time.Minute
 
-	lease, err := h.leaseService.CreateLease(userID, projectID, req.Environment, req.SecretKeys, duration)
+	lease, err := h.leaseService.CreateLease(userID, projectID, req.Environment, req.SecretKeys, duration, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -91,7 +91,12 @@ func (h *AgentHandler) RevokeLease(c *gin.Context) {
 		return
 	}
 
-	if err := h.leaseService.RevokeLease(leaseID); err != nil {
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	if err := h.leaseService.RevokeLease(leaseID, userID, c.ClientIP()); err != nil {
 		WrapError(c, err)
 		return
 	}

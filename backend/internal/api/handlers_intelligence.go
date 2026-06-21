@@ -189,7 +189,11 @@ func (h *IntelligenceHandler) AcknowledgeAnomaly(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid ID"})
 		return
 	}
-	if err := h.anomalySvc.AcknowledgeAnomaly(id); err != nil {
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.anomalySvc.AcknowledgeAnomaly(id, uid, c.ClientIP()); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -202,7 +206,11 @@ func (h *IntelligenceHandler) ResolveAnomaly(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid ID"})
 		return
 	}
-	if err := h.anomalySvc.ResolveAnomaly(id); err != nil {
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.anomalySvc.ResolveAnomaly(id, uid, c.ClientIP()); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -234,7 +242,7 @@ func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
 		k, _ := uuid.Parse(req.APIKeyID)
 		kid = &k
 	}
-	rule, err := h.anomalySvc.CreateRule(pid, kid, req.RuleType, req.Config, uid)
+	rule, err := h.anomalySvc.CreateRule(pid, kid, req.RuleType, req.Config, uid, c.ClientIP())
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -271,7 +279,11 @@ func (h *IntelligenceHandler) UpdateAlertRule(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.anomalySvc.UpdateRule(id, req.Enabled, req.Config); err != nil {
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.anomalySvc.UpdateRule(id, req.Enabled, req.Config, uid, c.ClientIP()); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -284,7 +296,11 @@ func (h *IntelligenceHandler) DeleteAlertRule(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid ID"})
 		return
 	}
-	if err := h.anomalySvc.DeleteRule(id); err != nil {
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.anomalySvc.DeleteRule(id, uid, c.ClientIP()); err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}

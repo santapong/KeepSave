@@ -28,7 +28,7 @@ func (h *OAuthHandler) RegisterClient(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic)
+	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -62,7 +62,7 @@ func (h *OAuthHandler) DeleteClient(c *gin.Context) {
 		RespondError(c, http.StatusBadRequest, "invalid client id")
 		return
 	}
-	if err := h.oauthService.DeleteClient(clientID, userID); err != nil {
+	if err := h.oauthService.DeleteClient(clientID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}

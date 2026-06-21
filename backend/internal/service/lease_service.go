@@ -12,17 +12,18 @@ import (
 
 // LeaseService manages just-in-time secret leases for agents.
 type LeaseService struct {
-	db      *sql.DB
-	dialect repository.Dialect
+	db        *sql.DB
+	dialect   repository.Dialect
+	auditRepo *repository.AuditRepository
 }
 
 // NewLeaseService creates a new lease service.
-func NewLeaseService(db *sql.DB, dialect repository.Dialect) *LeaseService {
-	return &LeaseService{db: db, dialect: dialect}
+func NewLeaseService(db *sql.DB, dialect repository.Dialect, auditRepo *repository.AuditRepository) *LeaseService {
+	return &LeaseService{db: db, dialect: dialect, auditRepo: auditRepo}
 }
 
 // CreateLease grants time-limited access to specific secrets.
-func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment string, secretKeys []string, duration time.Duration) (*models.SecretLease, error) {
+func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment string, secretKeys []string, duration time.Duration, ipAddr string) (*models.SecretLease, error) {
 	lease := &models.SecretLease{}
 	id := uuid.New()
 	expiresAt := time.Now().Add(duration)
@@ -52,6 +53,8 @@ func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment st
 			return nil, fmt.Errorf("reading created lease: %w", err)
 		}
 	}
+	emitAudit(s.auditRepo, &apiKeyID, &projectID, "lease.created", environment,
+		models.JSONMap{"project_id": projectID.String(), "lease_id": lease.ID.String(), "secret_keys": secretKeys}, ipAddr)
 	return lease, nil
 }
 
@@ -92,12 +95,16 @@ func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLeas
 }
 
 // RevokeLease revokes an active lease.
-func (s *LeaseService) RevokeLease(leaseID uuid.UUID) error {
+func (s *LeaseService) RevokeLease(leaseID, actorID uuid.UUID, ipAddr string) error {
 	q := repository.Q(s.dialect, `UPDATE secret_leases SET revoked = `+s.dialect.BoolLiteral(true)+`, revoked_at = `+s.dialect.Now()+` WHERE id = $1`)
 	_, err := s.db.Exec(q, leaseID)
 	if err != nil {
 		return fmt.Errorf("revoking lease: %w", err)
 	}
+	// The UPDATE is keyed by lease id alone, so the project scope is not known
+	// here; emit with a nil project id (the lease id pins the affected row).
+	emitAudit(s.auditRepo, &actorID, nil, "lease.revoked", "",
+		models.JSONMap{"lease_id": leaseID.String()}, ipAddr)
 	return nil
 }
 
