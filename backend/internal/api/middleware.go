@@ -1,12 +1,16 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -34,6 +38,89 @@ func RequirePlatformAdmin(adminEmails []string) gin.HandlerFunc {
 			WrapError(c, ErrForbidden)
 			c.Abort()
 			return
+		}
+		c.Next()
+	}
+}
+
+// scopeForMethod maps an HTTP method to the API-key scope required to perform
+// it. The scope vocabulary (read/write/delete/promote) matches validation.go.
+func scopeForMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead:
+		return "read"
+	case http.MethodDelete:
+		return "delete"
+	default: // POST, PUT, PATCH
+		return "write"
+	}
+}
+
+// apiKeyHasScope reports whether scopes grant the required scope. A "write"
+// scope also implies "delete" (operators commonly issue ["write"] expecting
+// full mutate access).
+func apiKeyHasScope(scopes models.StringList, required string) bool {
+	for _, s := range scopes {
+		if s == required || (required == "delete" && s == "write") {
+			return true
+		}
+	}
+	return false
+}
+
+// targetEnvironment best-effort extracts the environment a request targets,
+// from the ?environment query param or a JSON body "environment" field. The
+// body is read and restored so the handler's own bind is unaffected. Returns
+// "" when the request does not name an environment (e.g. routes keyed only by
+// :secretId), in which case the environment check is skipped at this layer.
+func targetEnvironment(c *gin.Context) string {
+	if env := c.Query("environment"); env != "" {
+		return env
+	}
+	if c.Request.Body == nil || !strings.Contains(c.GetHeader("Content-Type"), "application/json") {
+		return ""
+	}
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return ""
+	}
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(raw))
+	if len(raw) == 0 {
+		return ""
+	}
+	var probe struct {
+		Environment string `json:"environment"`
+	}
+	if json.Unmarshal(raw, &probe) == nil {
+		return probe.Environment
+	}
+	return ""
+}
+
+// EnforceAPIKeyScope restricts API-key callers to their granted scope and, when
+// the key is environment-locked, to that environment (AUTH-01/02). It is a
+// no-op for JWT callers (which never set api_key_scopes), so it must be mounted
+// after APIKeyAuthMiddleware.
+func EnforceAPIKeyScope() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scopesVal, ok := c.Get("api_key_scopes")
+		if !ok {
+			c.Next() // not API-key auth — unaffected
+			return
+		}
+		scopes, _ := scopesVal.(models.StringList)
+		if !apiKeyHasScope(scopes, scopeForMethod(c.Request.Method)) {
+			WrapError(c, ErrForbidden)
+			c.Abort()
+			return
+		}
+		if envVal, ok := c.Get("api_key_environment"); ok {
+			keyEnv, _ := envVal.(string)
+			if target := targetEnvironment(c); target != "" && !strings.EqualFold(target, keyEnv) {
+				WrapError(c, ErrForbidden)
+				c.Abort()
+				return
+			}
 		}
 		c.Next()
 	}

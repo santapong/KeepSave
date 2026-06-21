@@ -102,7 +102,7 @@ func SetupRouter(
 		}
 
 		sec := v1.Group("/projects/:id/secrets")
-		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
+		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
 		{
 			sec.POST("", secretHandler.Create)
 			sec.GET("", secretHandler.List)
@@ -165,7 +165,7 @@ func SetupRouter(
 		}
 
 		ls := v1.Group("/projects/:id/leases")
-		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
+		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
 		{
 			ls.POST("", agentHandler.CreateLease)
 			ls.GET("", agentHandler.ListLeases)
