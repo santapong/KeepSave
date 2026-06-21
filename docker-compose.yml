@@ -1,16 +1,53 @@
+# Local/dev stack. Hardened per the INF findings in
+# docs/research/IMPROVEMENT_PLAN_2026-06.md:
+#   - secrets come from .env (see .env.example), not inline literals;
+#   - ports bind to 127.0.0.1 so nothing is exposed on the LAN by default;
+#   - containers drop all capabilities, forbid privilege escalation, and run
+#     read-only roots with tmpfs for the few writable paths each image needs;
+#   - resource limits cap blast radius.
+#
+# This file remains DEV-shaped (per ADR-0016 it is not the production topology;
+# Helm is). The defaults below keep `docker-compose up` working with no .env,
+# but every secret can be overridden from .env for anything resembling real use.
 services:
   db:
-    image: postgres:16-alpine
+    # Digest-pinned (INF-2). # tag: postgres:16-alpine
+    image: postgres:16-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
     environment:
-      POSTGRES_USER: keepsave
-      POSTGRES_PASSWORD: keepsave_dev
-      POSTGRES_DB: keepsave
+      POSTGRES_USER: ${POSTGRES_USER:-keepsave}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keepsave_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-keepsave}
     ports:
-      - "5435:5432"
+      # Bind to loopback only — never expose Postgres on the host LAN.
+      - "127.0.0.1:5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Postgres writes its data to the named volume; the rest of the root FS can
+    # be read-only with tmpfs for the runtime scratch + unix socket dirs.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/run/postgresql
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Postgres needs CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER to drop from the
+    # entrypoint (root) to the postgres user and fix data-dir ownership.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keepsave -d keepsave"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-keepsave} -d ${POSTGRES_DB:-keepsave}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,30 +56,63 @@ services:
   api:
     build: ./backend
     ports:
-      - "8080:8080"
+      # Loopback-only; reach it at http://127.0.0.1:8080.
+      - "127.0.0.1:8080:8080"
     environment:
-      DATABASE_URL: postgres://keepsave:keepsave_dev@db:5432/keepsave?sslmode=disable
-      MASTER_KEY: 43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=
-      JWT_SECRET: dev-jwt-secret-change-me
+      DATABASE_URL: ${DATABASE_URL:-postgres://keepsave:keepsave_dev@db:5432/keepsave?sslmode=disable}
+      # Dev-only MASTER_KEY: this committed default is treated as permanently
+      # leaked (ADR-0016 §Security). Override via .env for anything real.
+      MASTER_KEY: ${MASTER_KEY:-43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       PORT: "8080"
-      CORS_ORIGINS: "*"
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/readyz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+    # The backend writes only to /tmp (MCP builder: /tmp/keepsave-mcp-builds).
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    # No container healthcheck: the runtime image is distroless (no shell, no
+    # wget), so an in-container probe is impossible. Liveness/readiness are
+    # exercised by Kubernetes httpGet probes in the Helm chart instead; here the
+    # frontend waits on service_started (see below).
 
   frontend:
     build: ./frontend
     ports:
-      - "3002:3000"
+      # Loopback-only; reach the UI at http://127.0.0.1:3002.
+      - "127.0.0.1:3002:3000"
     depends_on:
       api:
-        condition: service_healthy
+        # service_started (not service_healthy) because the distroless api
+        # image has no in-container healthcheck.
+        condition: service_started
+    # nginx-unprivileged needs a few writable scratch dirs; everything else
+    # can be read-only.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
 volumes:
   pgdata:
