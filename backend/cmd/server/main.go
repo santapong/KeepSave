@@ -111,7 +111,7 @@ func main() {
 	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, cryptoSvc)
 	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
-	ssoService := service.NewSSOService(ssoRepo, cryptoSvc)
+	ssoService := service.NewSSOService(ssoRepo, orgRepo, cryptoSvc)
 	complianceService := service.NewComplianceService(complianceRepo, auditRepo, orgRepo)
 	backupService := service.NewBackupService(backupRepo, secretRepo, cryptoSvc)
 	policyService := service.NewSecretPolicyService(db, dialect)

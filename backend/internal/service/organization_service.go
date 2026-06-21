@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -148,15 +149,28 @@ func (s *OrganizationService) GetMemberRole(orgID, userID uuid.UUID) (string, er
 	return member.Role, nil
 }
 
-func (s *OrganizationService) requireRole(orgID, userID uuid.UUID, requiredRole string) error {
-	member, err := s.orgRepo.GetMember(orgID, userID)
+// ErrOrgAccessDenied is returned when a caller is not a member of an
+// organization, or is a member but lacks the required role. API handlers map
+// it to 403.
+var ErrOrgAccessDenied = errors.New("organization access denied")
+
+// requireOrgRole verifies userID is a member of orgID with at least
+// requiredRole. It is shared by OrganizationService, SSOService and
+// ComplianceService so every org-scoped mutation enforces membership the same
+// way. Failures wrap ErrOrgAccessDenied so callers can map them to a 403.
+func requireOrgRole(orgRepo *repository.OrganizationRepository, orgID, userID uuid.UUID, requiredRole string) error {
+	member, err := orgRepo.GetMember(orgID, userID)
 	if err != nil {
-		return fmt.Errorf("not a member of this organization")
+		return fmt.Errorf("%w: not a member of this organization", ErrOrgAccessDenied)
 	}
 	if !hasPermission(member.Role, requiredRole) {
-		return fmt.Errorf("insufficient permissions: requires %s role", requiredRole)
+		return fmt.Errorf("%w: requires %s role", ErrOrgAccessDenied, requiredRole)
 	}
 	return nil
+}
+
+func (s *OrganizationService) requireRole(orgID, userID uuid.UUID, requiredRole string) error {
+	return requireOrgRole(s.orgRepo, orgID, userID, requiredRole)
 }
 
 func isValidRole(role string) bool {

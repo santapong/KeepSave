@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -8,6 +9,16 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
+
+// respondEnterpriseErr maps an org-access denial to 403 and routes anything
+// else through the standard error sink.
+func respondEnterpriseErr(c *gin.Context, err error) {
+	if errors.Is(err, service.ErrOrgAccessDenied) {
+		WrapError(c, ErrForbidden)
+		return
+	}
+	WrapError(c, err)
+}
 
 // EnterpriseHandler handles enterprise feature endpoints.
 type EnterpriseHandler struct {
@@ -47,9 +58,14 @@ func (h *EnterpriseHandler) ConfigureSSO(c *gin.Context) {
 		return
 	}
 
-	config, err := h.ssoService.ConfigureSSO(orgID, req.Provider, req.IssuerURL, req.ClientID, req.ClientSecret, req.Metadata)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	config, err := h.ssoService.ConfigureSSO(orgID, userID, req.Provider, req.IssuerURL, req.ClientID, req.ClientSecret, req.Metadata)
 	if err != nil {
-		WrapError(c, err)
+		respondEnterpriseErr(c, err)
 		return
 	}
 
@@ -64,9 +80,14 @@ func (h *EnterpriseHandler) ListSSOConfigs(c *gin.Context) {
 		return
 	}
 
-	configs, err := h.ssoService.ListSSOConfigs(orgID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	configs, err := h.ssoService.ListSSOConfigs(orgID, userID)
 	if err != nil {
-		WrapError(c, err)
+		respondEnterpriseErr(c, err)
 		return
 	}
 
@@ -82,8 +103,13 @@ func (h *EnterpriseHandler) DeleteSSOConfig(c *gin.Context) {
 	}
 	provider := c.Param("provider")
 
-	if err := h.ssoService.DeleteSSOConfig(orgID, provider); err != nil {
-		WrapError(c, err)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	if err := h.ssoService.DeleteSSOConfig(orgID, userID, provider); err != nil {
+		respondEnterpriseErr(c, err)
 		return
 	}
 
@@ -112,7 +138,7 @@ func (h *EnterpriseHandler) GenerateComplianceReport(c *gin.Context) {
 	}
 	report, err := h.complianceService.GenerateReport(orgID, userID, req.ReportType)
 	if err != nil {
-		WrapError(c, err)
+		respondEnterpriseErr(c, err)
 		return
 	}
 
@@ -127,9 +153,14 @@ func (h *EnterpriseHandler) ListComplianceReports(c *gin.Context) {
 		return
 	}
 
-	reports, err := h.complianceService.ListReports(orgID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	reports, err := h.complianceService.ListReports(orgID, userID)
 	if err != nil {
-		WrapError(c, err)
+		respondEnterpriseErr(c, err)
 		return
 	}
 

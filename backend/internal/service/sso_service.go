@@ -14,16 +14,21 @@ import (
 // SSOService handles SSO provider configuration.
 type SSOService struct {
 	ssoRepo   *repository.SSORepository
+	orgRepo   *repository.OrganizationRepository
 	cryptoSvc *crypto.Service
 }
 
 // NewSSOService creates a new SSO service.
-func NewSSOService(ssoRepo *repository.SSORepository, cryptoSvc *crypto.Service) *SSOService {
-	return &SSOService{ssoRepo: ssoRepo, cryptoSvc: cryptoSvc}
+func NewSSOService(ssoRepo *repository.SSORepository, orgRepo *repository.OrganizationRepository, cryptoSvc *crypto.Service) *SSOService {
+	return &SSOService{ssoRepo: ssoRepo, orgRepo: orgRepo, cryptoSvc: cryptoSvc}
 }
 
-// ConfigureSSO sets up an SSO provider for an organization.
-func (s *SSOService) ConfigureSSO(orgID uuid.UUID, provider, issuerURL, clientID, clientSecret string, metadata models.JSONMap) (*models.SSOConfig, error) {
+// ConfigureSSO sets up an SSO provider for an organization. Requires org admin:
+// repointing an org's IdP is a full account-takeover primitive (AUTH-03).
+func (s *SSOService) ConfigureSSO(orgID, userID uuid.UUID, provider, issuerURL, clientID, clientSecret string, metadata models.JSONMap) (*models.SSOConfig, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return nil, err
+	}
 	masterKey := s.cryptoSvc.GetMasterKey()
 	encrypted, nonce, err := crypto.Encrypt(masterKey, []byte(clientSecret))
 	if err != nil {
@@ -49,13 +54,20 @@ func (s *SSOService) GetSSOConfig(orgID uuid.UUID, provider string) (*models.SSO
 	return s.ssoRepo.GetByOrgAndProvider(orgID, provider)
 }
 
-// ListSSOConfigs returns all SSO configs for an organization.
-func (s *SSOService) ListSSOConfigs(orgID uuid.UUID) ([]models.SSOConfig, error) {
+// ListSSOConfigs returns all SSO configs for an organization. Requires org
+// membership (viewer+); the encrypted client secret is never returned.
+func (s *SSOService) ListSSOConfigs(orgID, userID uuid.UUID) ([]models.SSOConfig, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "viewer"); err != nil {
+		return nil, err
+	}
 	return s.ssoRepo.ListByOrg(orgID)
 }
 
-// DeleteSSOConfig removes an SSO configuration.
-func (s *SSOService) DeleteSSOConfig(orgID uuid.UUID, provider string) error {
+// DeleteSSOConfig removes an SSO configuration. Requires org admin.
+func (s *SSOService) DeleteSSOConfig(orgID, userID uuid.UUID, provider string) error {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return err
+	}
 	return s.ssoRepo.Delete(orgID, provider)
 }
 
@@ -71,8 +83,12 @@ func NewComplianceService(complianceRepo *repository.ComplianceRepository, audit
 	return &ComplianceService{complianceRepo: complianceRepo, auditRepo: auditRepo, orgRepo: orgRepo}
 }
 
-// GenerateReport creates a compliance report.
+// GenerateReport creates a compliance report. Requires org admin: the report
+// aggregates org-wide activity and is a sensitive, infrequent operation.
 func (s *ComplianceService) GenerateReport(orgID, userID uuid.UUID, reportType string) (*models.ComplianceReport, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return nil, err
+	}
 	report := &models.ComplianceReport{
 		OrganizationID: orgID,
 		ReportType:     reportType,
@@ -104,8 +120,12 @@ func (s *ComplianceService) GenerateReport(orgID, userID uuid.UUID, reportType s
 	return s.complianceRepo.Complete(created.ID, data)
 }
 
-// ListReports returns compliance reports for an organization.
-func (s *ComplianceService) ListReports(orgID uuid.UUID) ([]models.ComplianceReport, error) {
+// ListReports returns compliance reports for an organization. Requires org
+// membership (viewer+).
+func (s *ComplianceService) ListReports(orgID, userID uuid.UUID) ([]models.ComplianceReport, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "viewer"); err != nil {
+		return nil, err
+	}
 	return s.complianceRepo.ListByOrg(orgID)
 }
 
