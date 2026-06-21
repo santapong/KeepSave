@@ -235,6 +235,11 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		// Slowloris / slow-client protection (INF-3). The API has no streaming
+		// (SSE) endpoints, so a bounded WriteTimeout is safe.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 	if tlsEnabled {
 		srv.TLSConfig = buildTLSConfig(cfg.TLSCipherSuites)

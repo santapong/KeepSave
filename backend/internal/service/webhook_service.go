@@ -54,6 +54,14 @@ func NewWebhookService() *WebhookService {
 		configs: make(map[uuid.UUID][]WebhookConfig),
 		client: &http.Client{
 			Timeout: 10 * time.Second,
+			// Do not follow redirects (API-F05): a webhook target that 3xx's to
+			// an internal address (e.g. 169.254.169.254) would otherwise bypass
+			// the registration-time SSRF allow-policy. ErrUseLastResponse makes
+			// Do return the redirect response itself, which is treated as a
+			// non-2xx failed delivery.
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
 	}
 }
