@@ -130,4 +130,35 @@ describe('SecretsPanel', () => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
     });
   });
+
+  // FE-F04: revealed secrets must auto-hide when the tab is switched away.
+  it('re-masks revealed secrets when the document becomes hidden', async () => {
+    const user = userEvent.setup();
+    render(<SecretsPanel projectId="p1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('DATABASE_URL')).toBeInTheDocument();
+    });
+
+    const revealButtons = screen.getAllByTitle('Reveal value');
+    await user.click(revealButtons[0]);
+    expect(screen.getByText('postgres://localhost/db')).toBeInTheDocument();
+
+    // Simulate the tab going to the background.
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('postgres://localhost/db')).not.toBeInTheDocument();
+    });
+
+    // Restore for other tests.
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+  });
 });

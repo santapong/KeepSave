@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
 import { Page, PageHeader } from '@/components/cosmic/primitives';
+import { TypedConfirmModal } from '@/components/TypedConfirmModal';
 import { ArrowLeft, Plus, Copy, Check, Trash2 } from 'lucide-react';
 
 export function ApplicationSettingsPage() {
@@ -21,6 +22,7 @@ export function ApplicationSettingsPage() {
   const [newKeyScopes, setNewKeyScopes] = useState<string[]>(['read']);
   const [createdKey, setCreatedKey] = useState('');
   const [copied, setCopied] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<APIKey | null>(null);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -51,10 +53,11 @@ export function ApplicationSettingsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  // FE-F01/02/03: revoking a key is destructive — gate it behind a
+  // TypedConfirmModal (type the key name) instead of window.confirm.
+  const performRevoke = async (key: APIKey) => {
     try {
-      await api.deleteAPIKey(id);
+      await api.deleteAPIKey(key.id);
       toast({ title: 'API key revoked', description: 'The key has been permanently revoked.' });
       load();
     } catch {
@@ -178,7 +181,7 @@ export function ApplicationSettingsPage() {
                           {new Date(key.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(key.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => setRevokeTarget(key)}>
                             <Trash2 className="h-3.5 w-3.5 mr-1" />
                             Revoke
                           </Button>
@@ -222,6 +225,24 @@ curl -X POST \\
           </CardContent>
         </Card>
       </div>
+
+      <TypedConfirmModal
+        open={!!revokeTarget}
+        onOpenChange={(open) => {
+          if (!open) setRevokeTarget(null);
+        }}
+        title="Revoke API key"
+        description={
+          revokeTarget
+            ? `This permanently revokes the "${revokeTarget.name}" API key. Any client using it will immediately lose access. This action cannot be undone.`
+            : ''
+        }
+        confirmPhrase={revokeTarget?.name ?? ''}
+        confirmLabel="Revoke key"
+        onConfirm={() => {
+          if (revokeTarget) performRevoke(revokeTarget);
+        }}
+      />
     </Page>
   );
 }

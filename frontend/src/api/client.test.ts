@@ -11,6 +11,7 @@ function makeFakeJWT(expSeconds: number): string {
 describe('API Client Auth', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   it('isAuthenticated returns false when no token', () => {
@@ -21,7 +22,9 @@ describe('API Client Auth', () => {
     const token = makeFakeJWT(3600); // expires in 1 hour
     setToken(token);
     expect(isAuthenticated()).toBe(true);
-    expect(localStorage.getItem('keepsave_token')).toBe(token);
+    // Token is stored tab-scoped in sessionStorage, not persistent localStorage.
+    expect(sessionStorage.getItem('keepsave_token')).toBe(token);
+    expect(localStorage.getItem('keepsave_token')).toBeNull();
   });
 
   it('isAuthenticated returns false for expired JWT', () => {
@@ -35,19 +38,29 @@ describe('API Client Auth', () => {
     setToken(token);
     clearToken();
     expect(isAuthenticated()).toBe(false);
-    expect(localStorage.getItem('keepsave_token')).toBeNull();
+    expect(sessionStorage.getItem('keepsave_token')).toBeNull();
   });
 
   it('JWT_STORAGE_KEY is the canonical key', () => {
     expect(JWT_STORAGE_KEY).toBe('keepsave_token');
   });
 
-  it('migrateLegacyJWTKey copies legacy `jwt` value into canonical key', () => {
+  it('migrateLegacyJWTKey copies legacy `jwt` value into the session store', () => {
     const token = makeFakeJWT(3600);
     localStorage.setItem('jwt', token);
     migrateLegacyJWTKey();
-    expect(localStorage.getItem('keepsave_token')).toBe(token);
+    expect(sessionStorage.getItem('keepsave_token')).toBe(token);
     expect(localStorage.getItem('jwt')).toBeNull();
+  });
+
+  it('migrateLegacyJWTKey moves a persisted localStorage token into sessionStorage', () => {
+    const token = makeFakeJWT(3600);
+    // Simulate an already-signed-in user from the old localStorage scheme.
+    localStorage.setItem('keepsave_token', token);
+    migrateLegacyJWTKey();
+    expect(sessionStorage.getItem('keepsave_token')).toBe(token);
+    expect(localStorage.getItem('keepsave_token')).toBeNull();
+    expect(isAuthenticated()).toBe(true);
   });
 
   it('migrateLegacyJWTKey is a no-op when canonical key already exists', () => {
@@ -55,13 +68,14 @@ describe('API Client Auth', () => {
     setToken(token);
     localStorage.setItem('jwt', 'leftover');
     migrateLegacyJWTKey();
-    expect(localStorage.getItem('keepsave_token')).toBe(token);
+    expect(sessionStorage.getItem('keepsave_token')).toBe(token);
     // legacy key is still cleaned up to prevent confusion
     expect(localStorage.getItem('jwt')).toBeNull();
   });
 
   it('migrateLegacyJWTKey does nothing when no keys are set', () => {
     migrateLegacyJWTKey();
+    expect(sessionStorage.getItem('keepsave_token')).toBeNull();
     expect(localStorage.getItem('keepsave_token')).toBeNull();
   });
 });
@@ -69,6 +83,7 @@ describe('API Client Auth', () => {
 describe('API Client requests', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 

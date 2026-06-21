@@ -55,6 +55,7 @@ export class KeepSaveWidget extends HTMLElement {
 
   disconnectedCallback(): void {
     this.authHandshake?.destroy();
+    this.renderer?.destroy();
     this.initialized = false;
   }
 
@@ -98,6 +99,9 @@ export class KeepSaveWidget extends HTMLElement {
     if (!this.shadowRoot) return;
 
     this.authHandshake?.destroy();
+    // Tear down the previous renderer's global listeners before replacing it
+    // (attribute changes call setup() again).
+    this.renderer?.destroy();
 
     this.applyTheme();
 

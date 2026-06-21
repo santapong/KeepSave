@@ -9,6 +9,7 @@
     "build:widget": "tsc -b && vite build --config vite.embed.config.ts",
     "build:all": "npm run build && npm run build:widget",
     "preview": "vite preview",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -31,21 +32,24 @@
     "postcss": "^8.5.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0",
+    "react-router-dom": "^7.18.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.39.4",
     "jsdom": "^25.0.1",
     "typescript": "~5.8.0",
-    "vite": "^6.0.1",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^6.4.3",
     "vitest": "^4.1.6"
   }
 }

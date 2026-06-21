@@ -11,6 +11,8 @@ export default defineConfig({
     },
     outDir: 'dist-embed',
     emptyOutDir: true,
-    sourcemap: true,
+    // FE-F05: the embed widget is shipped to third-party integrators. Do NOT
+    // emit source maps for it — they would expose internal SDK source.
+    sourcemap: false,
   },
 });
