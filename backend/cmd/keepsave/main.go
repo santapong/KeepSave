@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"text/tabwriter"
 )
@@ -46,6 +47,8 @@ func main() {
 	switch os.Args[1] {
 	case "pull":
 		err = cli.cmdPull(os.Args[2:])
+	case "run":
+		err = cli.cmdRun(os.Args[2:])
 	case "push":
 		err = cli.cmdPush(os.Args[2:])
 	case "promote":
@@ -85,6 +88,7 @@ Usage:
 Commands:
   login                     Authenticate with the API server
   pull                      Pull secrets from a project environment
+  run                       Run a command with secrets injected as env vars
   push                      Push secrets from a .env file to a project environment
   promote                   Promote secrets between environments
   projects                  List projects
@@ -102,6 +106,7 @@ Environment Variables:
 Examples:
   keepsave login
   keepsave pull --project <id> --env alpha
+  keepsave run --project <id> --env alpha -- npm start
   keepsave push --project <id> --env alpha --file .env
   keepsave promote --project <id> --from alpha --to uat
   keepsave export --project <id> --env prod > .env.prod
@@ -203,6 +208,78 @@ func (c *CLI) cmdPull(args []string) error {
 	}
 
 	return nil
+}
+
+// cmdRun fetches a project environment's secrets and runs a child command with
+// them injected as environment variables (on top of the current environment).
+// Usage: keepsave run [--project <id>] [--env <name>] -- <cmd> [args...]
+func (c *CLI) cmdRun(args []string) error {
+	projectID, env := c.projectID, "alpha"
+	var cmdArgs []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			cmdArgs = args[i+1:]
+			break
+		}
+		switch args[i] {
+		case "--project", "-p":
+			i++
+			if i < len(args) {
+				projectID = args[i]
+			}
+		case "--env", "-e":
+			i++
+			if i < len(args) {
+				env = args[i]
+			}
+		}
+	}
+
+	if len(cmdArgs) == 0 {
+		return fmt.Errorf("no command given; usage: keepsave run [--project <id>] [--env <name>] -- <cmd> [args...]")
+	}
+	if projectID == "" {
+		return fmt.Errorf("project ID required (--project or KEEPSAVE_PROJECT_ID)")
+	}
+
+	resp, err := c.doRequest("GET", fmt.Sprintf("/api/v1/projects/%s/secrets?environment=%s", projectID, env), nil)
+	if err != nil {
+		return fmt.Errorf("fetching secrets: %w", err)
+	}
+	secrets, _ := resp["secrets"].([]interface{})
+
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd.Env = secretsToEnv(os.Environ(), secrets)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		// Propagate the child's exit code so callers/CI see the real status.
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return fmt.Errorf("running %q: %w", cmdArgs[0], err)
+	}
+	return nil
+}
+
+// secretsToEnv overlays the project's secrets (as KEY=VALUE) on top of base,
+// so a fetched secret shadows an inherited variable of the same name.
+func secretsToEnv(base []string, secrets []interface{}) []string {
+	env := append([]string(nil), base...)
+	for _, s := range secrets {
+		m, ok := s.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, _ := m["key"].(string)
+		value, _ := m["value"].(string)
+		if key == "" {
+			continue
+		}
+		env = append(env, key+"="+value)
+	}
+	return env
 }
 
 // cmdPush reads a .env file and pushes secrets to a project environment
