@@ -141,6 +141,18 @@ func main() {
 	leaseService := service.NewLeaseService(db, dialect, auditRepo)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
+	// Short-lived agent tokens + JWT denylist (ADR-0021). Seed the revocation
+	// cache from the table at boot, then attach it to the JWT verifier so
+	// agent-token (jti-bearing) validation consults it. User tokens carry no
+	// jti and skip the check entirely.
+	tokenDenylist := repository.NewTokenDenylistRepository(db, dialect)
+	if err := tokenDenylist.RefreshCache(); err != nil {
+		logger.Error("failed to seed token denylist cache", map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
+	}
+	jwtService.EnableDenylist(tokenDenylist)
+	agentTokenService := service.NewAgentTokenService(jwtService, leaseService, tokenDenylist, auditRepo)
+
 	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo, auditRepo)
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo, auditRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
@@ -176,7 +188,7 @@ func main() {
 	metricsHandler := api.NewMetricsHandler(appMetrics, tracer)
 	openAPIHandler := api.NewOpenAPIHandler()
 	enterpriseHandler := api.NewEnterpriseHandler(ssoService, complianceService, backupService, policyService)
-	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc)
+	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc, agentTokenService)
 	platformHandler := api.NewPlatformHandler(eventBus, pluginRegistry, accessPolicyRepo)
 	oauthHandler := api.NewOAuthHandler(oauthService, jwtKeystore)
 	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
@@ -243,6 +255,11 @@ func main() {
 
 	// DB pool gauges (audit B-L1). Polled every 15s; exits on shutdown.
 	go metrics.StartDBPoolUpdater(bgCtx, db, appMetrics)
+
+	// Token-denylist maintenance (ADR-0021): refresh the in-process revocation
+	// cache so explicit jti revokes from other instances propagate, and prune
+	// rows whose tokens have expired. Exits on shutdown.
+	go startTokenDenylistMaintainer(bgCtx, logger, tokenDenylist)
 
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
@@ -444,6 +461,31 @@ func startAuditLogPruner(ctx context.Context, logger *logging.Logger, repo *repo
 			return
 		case <-ticker.C:
 			prune()
+		}
+	}
+}
+
+// startTokenDenylistMaintainer refreshes the revocation cache and prunes expired
+// rows on a short interval (ADR-0021). The refresh interval bounds how long an
+// explicit jti revoke on one instance takes to propagate to others; lease-cascade
+// revocation is read live and is never stale.
+func startTokenDenylistMaintainer(ctx context.Context, logger *logging.Logger, repo *repository.TokenDenylistRepository) {
+	const interval = 30 * time.Second
+	logger.Info("token-denylist maintainer started", map[string]interface{}{"interval": interval.String()})
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("token-denylist maintainer stopping", nil)
+			return
+		case <-ticker.C:
+			if err := repo.RefreshCache(); err != nil {
+				logger.Error("token-denylist refresh failed", map[string]interface{}{"error": err.Error()})
+			}
+			if _, err := repo.DeleteExpired(); err != nil {
+				logger.Error("token-denylist prune failed", map[string]interface{}{"error": err.Error()})
+			}
 		}
 	}
 }

@@ -11,8 +11,30 @@ import (
 type Claims struct {
 	UserID uuid.UUID `json:"user_id"`
 	Email  string    `json:"email"`
+	// TokenType is "agent" for short-lived agent tokens (ADR-0021); empty for
+	// ordinary user tokens. LeaseID is set only on agent tokens and binds the
+	// token to the JIT lease it was minted from, enabling lease-cascade
+	// revocation. The jti (RegisteredClaims.ID) is the denylist key.
+	TokenType string     `json:"token_type,omitempty"`
+	LeaseID   *uuid.UUID `json:"lease_id,omitempty"`
 	jwt.RegisteredClaims
 }
+
+// Denylister reports whether an agent token has been revoked, either explicitly
+// by its jti or transitively because the lease it was minted from is no longer
+// active (ADR-0021). It is an interface so the auth package stays free of a
+// direct DB dependency (mirrors KeyStorage from ADR-0008).
+type Denylister interface {
+	IsTokenRevoked(jti string, leaseID *uuid.UUID) (bool, error)
+}
+
+// maxAgentTokenTTL caps the lifetime of a minted agent token regardless of the
+// requested duration or the lease's remaining lifetime (ADR-0021).
+const maxAgentTokenTTL = 15 * time.Minute
+
+// MaxAgentTokenTTL exposes the agent-token lifetime cap for callers that need a
+// conservative prune horizon (ADR-0021).
+func MaxAgentTokenTTL() time.Duration { return maxAgentTokenTTL }
 
 type JWTService struct {
 	secret     []byte
@@ -25,6 +47,10 @@ type JWTService struct {
 	// HS256-only (legacy behaviour).
 	keystore  *Keystore
 	algVerify map[string]bool
+
+	// denylist, when set, is consulted by ValidateToken for tokens that carry a
+	// jti (agent tokens, ADR-0021). User tokens have no jti and skip it.
+	denylist Denylister
 }
 
 func NewJWTService(secret string) *JWTService {
@@ -48,6 +74,12 @@ func (s *JWTService) EnableRS256(keystore *Keystore, verifyAlgs []string) {
 	}
 }
 
+// EnableDenylist attaches a revocation checker consulted by ValidateToken for
+// tokens carrying a jti (agent tokens, ADR-0021).
+func (s *JWTService) EnableDenylist(d Denylister) {
+	s.denylist = d
+}
+
 func (s *JWTService) GenerateToken(userID uuid.UUID, email string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
@@ -57,7 +89,44 @@ func (s *JWTService) GenerateToken(userID uuid.UUID, email string) (string, erro
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
+	return s.signClaims(claims)
+}
 
+// GenerateAgentToken mints a short-lived token bound to a JIT lease (ADR-0021).
+// ttl is capped at maxAgentTokenTTL and further clamped to leaseRemaining when
+// that is smaller and positive, so a token can never outlive its lease. It
+// returns the signed token, its jti (the denylist key) and the chosen expiry.
+func (s *JWTService) GenerateAgentToken(userID uuid.UUID, email string, leaseID uuid.UUID, ttl, leaseRemaining time.Duration) (string, string, time.Time, error) {
+	if ttl <= 0 || ttl > maxAgentTokenTTL {
+		ttl = maxAgentTokenTTL
+	}
+	if leaseRemaining > 0 && leaseRemaining < ttl {
+		ttl = leaseRemaining
+	}
+	jti := uuid.NewString()
+	leaseRef := leaseID
+	expiresAt := time.Now().Add(ttl)
+	claims := &Claims{
+		UserID:    userID,
+		Email:     email,
+		TokenType: "agent",
+		LeaseID:   &leaseRef,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	signed, err := s.signClaims(claims)
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	return signed, jti, expiresAt, nil
+}
+
+// signClaims signs claims with RS256 via the keystore when one is configured,
+// falling back to HS256 (legacy). Shared by GenerateToken/GenerateAgentToken.
+func (s *JWTService) signClaims(claims *Claims) (string, error) {
 	// Prefer RS256 via the keystore; fall back to HS256 when no keystore is set.
 	if s.keystore != nil {
 		kid, priv, err := s.keystore.SigningKey()
@@ -128,6 +197,19 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 	}
 	if !token.Valid {
 		return nil, fmt.Errorf("invalid token")
+	}
+
+	// Revocation check (ADR-0021): only agent tokens carry a jti, so user tokens
+	// skip the denylist entirely (no hot-path cost). A revoked jti or a
+	// revoked/expired owning lease invalidates the token.
+	if s.denylist != nil && claims.ID != "" {
+		revoked, derr := s.denylist.IsTokenRevoked(claims.ID, claims.LeaseID)
+		if derr != nil {
+			return nil, fmt.Errorf("checking token revocation: %w", derr)
+		}
+		if revoked {
+			return nil, fmt.Errorf("token revoked")
+		}
 	}
 	return claims, nil
 }

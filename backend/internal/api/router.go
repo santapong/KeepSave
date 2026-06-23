@@ -172,6 +172,14 @@ func SetupRouter(
 			ls.DELETE("/:leaseId", agentHandler.RevokeLease)
 		}
 
+		// Short-lived agent tokens minted from a lease (ADR-0021).
+		at := v1.Group("/projects/:id/agent-token")
+		at.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
+		{
+			at.POST("", agentHandler.MintAgentToken)
+			at.POST("/revoke", agentHandler.RevokeAgentToken)
+		}
+
 		rk := v1.Group("/rotate-keys")
 		rk.Use(JWTAuthMiddleware(jwtService))
 		{

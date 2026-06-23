@@ -12,13 +12,14 @@ import (
 
 // AgentHandler handles AI agent experience endpoints.
 type AgentHandler struct {
-	leaseService     *service.LeaseService
-	analyticsService *service.AgentAnalyticsService
+	leaseService      *service.LeaseService
+	analyticsService  *service.AgentAnalyticsService
+	agentTokenService *service.AgentTokenService
 }
 
 // NewAgentHandler creates a new agent handler.
-func NewAgentHandler(leaseService *service.LeaseService, analyticsService *service.AgentAnalyticsService) *AgentHandler {
-	return &AgentHandler{leaseService: leaseService, analyticsService: analyticsService}
+func NewAgentHandler(leaseService *service.LeaseService, analyticsService *service.AgentAnalyticsService, agentTokenService *service.AgentTokenService) *AgentHandler {
+	return &AgentHandler{leaseService: leaseService, analyticsService: analyticsService, agentTokenService: agentTokenService}
 }
 
 // CreateLease grants time-limited access to specific secrets.
@@ -66,6 +67,76 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"lease": lease})
+}
+
+// MintAgentToken exchanges an active lease for a short-lived, lease-bound agent
+// token (ADR-0021). The :id project is already authorized by
+// RequireProjectAccess; the lease must belong to that project.
+func (h *AgentHandler) MintAgentToken(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+	var req struct {
+		LeaseID     string `json:"lease_id" binding:"required"`
+		DurationMin int    `json:"duration_minutes"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		WrapError(c, Wrap(ErrInvalidInput, err))
+		return
+	}
+	leaseID, err := uuid.Parse(req.LeaseID)
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid lease ID")
+		return
+	}
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	ttl := time.Duration(req.DurationMin) * time.Minute
+
+	minted, err := h.agentTokenService.MintToken(userID, projectID, leaseID, ttl, c.ClientIP())
+	if err != nil {
+		if errors.Is(err, service.ErrLeaseNotActive) {
+			WrapError(c, ErrNotFound)
+			return
+		}
+		if errors.Is(err, service.ErrLeaseProjectMismatch) {
+			RespondError(c, http.StatusForbidden, "lease not authorized for this project")
+			return
+		}
+		WrapError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, minted)
+}
+
+// RevokeAgentToken adds an agent token's jti to the denylist (ADR-0021),
+// invalidating it before its natural expiry.
+func (h *AgentHandler) RevokeAgentToken(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+	var req struct {
+		JTI string `json:"jti" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		WrapError(c, Wrap(ErrInvalidInput, err))
+		return
+	}
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	if err := h.agentTokenService.RevokeToken(userID, projectID, req.JTI, c.ClientIP()); err != nil {
+		WrapError(c, Wrap(ErrInvalidInput, err))
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // ListLeases returns active leases for the current agent.

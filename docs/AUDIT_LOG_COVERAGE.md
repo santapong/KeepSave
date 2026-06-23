@@ -70,6 +70,8 @@ are NEVER placed in `details`.
 | Secret policy set        | `policy.set`                | `actor_id`, `project_id`, `max_age_days`, `require_rotation` |
 | Lease create            | `lease.created`             | `actor_id` (api key id), `project_id`, `environment`, `lease_id`, `secret_keys` |
 | Lease revoke            | `lease.revoked`             | `actor_id`, `lease_id` (no `project_id` — UPDATE is keyed by lease id alone) |
+| Agent token mint        | `agent.token.minted`        | `actor_id`, `project_id`, `lease_id`, `jti`, `expires_at` (ADR-0021) |
+| Agent token revoke      | `agent.token.revoked`       | `actor_id`, `project_id`, `jti` (ADR-0021) |
 | MCP server register     | `mcp.server_registered`     | `actor_id`, `mcp_server_id`, `name`                       |
 | MCP server update       | `mcp.server_updated`        | `actor_id`, `mcp_server_id`, `name`                       |
 | MCP server delete       | `mcp.server_deleted`        | `actor_id`, `mcp_server_id`                               |
