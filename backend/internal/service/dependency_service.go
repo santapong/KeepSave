@@ -160,6 +160,56 @@ type reference struct {
 	pattern string
 }
 
+// maxResolveDepth bounds transitive secret-reference resolution so a deep or
+// cyclic chain can never loop unbounded (ADR-0020).
+const maxResolveDepth = 16
+
+// ResolveEnvReferences resolves ${VAR}/$VAR/{{VAR}}/%VAR% references in each
+// value against the other keys in the same environment, transitively. Cycles,
+// unknown keys, and chains deeper than maxResolveDepth are left as the literal
+// token rather than erroring — resolution must never fail a read.
+func ResolveEnvReferences(raw map[string]string) map[string]string {
+	out := make(map[string]string, len(raw))
+	for key, val := range raw {
+		out[key] = resolveOne(val, raw, map[string]bool{key: true}, 0)
+	}
+	return out
+}
+
+func resolveOne(value string, raw map[string]string, stack map[string]bool, depth int) string {
+	if depth >= maxResolveDepth {
+		return value
+	}
+	return substituteRefs(value, func(refKey string) (string, bool) {
+		refVal, known := raw[refKey]
+		if !known || stack[refKey] {
+			return "", false // unknown key or cycle: keep the literal token
+		}
+		stack[refKey] = true
+		resolved := resolveOne(refVal, raw, stack, depth+1)
+		delete(stack, refKey)
+		return resolved, true
+	})
+}
+
+// substituteRefs replaces each reference token via lookup, leaving the literal
+// token when lookup reports the key is unresolvable (unknown or cyclic).
+func substituteRefs(value string, lookup func(key string) (string, bool)) string {
+	for _, re := range referencePatterns {
+		value = re.ReplaceAllStringFunc(value, func(match string) string {
+			sub := re.FindStringSubmatch(match)
+			if len(sub) < 2 {
+				return match
+			}
+			if v, ok := lookup(sub[1]); ok {
+				return v
+			}
+			return match
+		})
+	}
+	return value
+}
+
 func findReferences(value string) []reference {
 	seen := make(map[string]bool)
 	var refs []reference

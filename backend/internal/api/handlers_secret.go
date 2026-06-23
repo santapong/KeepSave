@@ -56,7 +56,14 @@ func (h *SecretHandler) List(c *gin.Context) {
 		return
 	}
 
-	secrets, err := h.secretService.List(projectID, envName)
+	// Opt-in secret-reference resolution (ADR-0020): ?resolve=true interpolates
+	// ${VAR}-style references against the same environment's keys.
+	var secrets []models.Secret
+	if c.Query("resolve") == "true" {
+		secrets, err = h.secretService.ListResolved(projectID, envName)
+	} else {
+		secrets, err = h.secretService.List(projectID, envName)
+	}
 	if err != nil {
 		WrapError(c, err)
 		return
