@@ -111,7 +111,7 @@ widget (FE-F05) · no CSP header (FE-F08) · 3 residual `window.confirm` (FE-F01
 
 | Roadmap claim | Reality | Action |
 |---------------|---------|--------|
-| Phase 12: "Secret references & interpolation resolved at read time" `[x]` | Only **detection** for the dependency graph exists; no `resolveReferences` in the read path. | Build it (feature WS-12) **or** correct the checkbox. |
+| Phase 12: "Secret references & interpolation resolved at read time" `[x]` | ~~Only **detection** for the dependency graph exists~~ → **Built (ADR-0020):** `ResolveEnvReferences` resolves references transitively (cycle/depth-capped) via `SecretService.ListResolved`, opt-in `?resolve=true`. | ✅ Done. |
 | Phase 12: multi-region active-passive replication / failover `[x]` | No replication code; ADR-0016 is single-region. | Correct the checkbox; defer per `ROADMAP_NOT.md`. |
 | Phase 10/14: "audit log integrity checksums (hash chain)" `[x]` | `audit_repo.go` stores plain rows. | Build hash chain (WS-8) or correct the claim. |
 | Phase 15 (AI Intelligence) | Services exist & are routed, but untested, violate `httperror` (`err.Error()` to client ×30), and LLM path is fallback-only. | Harden + test (WS-11) before claiming GA. |
