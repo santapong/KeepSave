@@ -56,16 +56,99 @@ func scopeForMethod(method string) string {
 	}
 }
 
-// apiKeyHasScope reports whether scopes grant the required scope. A "write"
-// scope also implies "delete" (operators commonly issue ["write"] expecting
-// full mutate access).
+// parseScope splits a scope token into its action and optional key glob
+// (ADR-0022). "read" → ("read",""); "read:DB_*" → ("read","DB_*"). An empty glob
+// means "all keys" (legacy semantics), so bare scopes are unchanged.
+func parseScope(s string) (action, keyGlob string) {
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		return s[:i], s[i+1:]
+	}
+	return s, ""
+}
+
+// actionGrants reports whether a scope's action grants the required action,
+// honouring the write⇒delete implication (operators commonly issue ["write"]
+// expecting full mutate access).
+func actionGrants(scopeAction, required string) bool {
+	return scopeAction == required || (required == "delete" && scopeAction == "write")
+}
+
+// apiKeyHasScope reports whether scopes grant the required action on at least
+// one key. It is the coarse action gate (used where the target key is not yet
+// known, e.g. list); per-key precision is apiKeyScopeAllowsKey.
 func apiKeyHasScope(scopes models.StringList, required string) bool {
 	for _, s := range scopes {
-		if s == required || (required == "delete" && s == "write") {
+		if a, _ := parseScope(s); actionGrants(a, required) {
 			return true
 		}
 	}
 	return false
+}
+
+// matchKeyGlob matches a secret key against a glob whose only metacharacter is
+// "*" (any run of characters, including empty). An empty pattern matches every
+// key (legacy bare-scope semantics).
+func matchKeyGlob(pattern, key string) bool {
+	if pattern == "" || pattern == "*" {
+		return true
+	}
+	parts := strings.Split(pattern, "*")
+	// No "*": exact match.
+	if len(parts) == 1 {
+		return pattern == key
+	}
+	// Anchor the first segment to the start.
+	if parts[0] != "" {
+		if !strings.HasPrefix(key, parts[0]) {
+			return false
+		}
+		key = key[len(parts[0]):]
+	}
+	// Anchor the last segment to the end.
+	last := parts[len(parts)-1]
+	if last != "" {
+		if !strings.HasSuffix(key, last) {
+			return false
+		}
+		key = key[:len(key)-len(last)]
+	}
+	// Middle segments must appear in order.
+	for _, seg := range parts[1 : len(parts)-1] {
+		if seg == "" {
+			continue
+		}
+		idx := strings.Index(key, seg)
+		if idx < 0 {
+			return false
+		}
+		key = key[idx+len(seg):]
+	}
+	return true
+}
+
+// apiKeyScopeAllowsKey reports whether scopes grant the required action on the
+// specific key (ADR-0022): some scope's action must grant the action AND its
+// key glob must match. A bare/`*` glob matches every key (back-compat).
+func apiKeyScopeAllowsKey(scopes models.StringList, action, key string) bool {
+	for _, s := range scopes {
+		a, glob := parseScope(s)
+		if actionGrants(a, action) && matchKeyGlob(glob, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// APIKeyScopeAllowsKey is the handler-facing per-key check (ADR-0022). It is a
+// no-op (returns true) for callers that are not API-key authenticated — JWT/user
+// callers carry no api_key_scopes and are unaffected.
+func APIKeyScopeAllowsKey(c *gin.Context, action, key string) bool {
+	scopesVal, ok := c.Get("api_key_scopes")
+	if !ok {
+		return true
+	}
+	scopes, _ := scopesVal.(models.StringList)
+	return apiKeyScopeAllowsKey(scopes, action, key)
 }
 
 // targetEnvironment best-effort extracts the environment a request targets,
