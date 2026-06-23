@@ -71,6 +71,17 @@ func main() {
 	logger.Info("master key resolved", map[string]interface{}{"provider": cfg.KeyProvider})
 
 	jwtService := auth.NewJWTService(cfg.JWTSecret)
+	// RS256/JWKS (ADR-0008): load or self-heal the signing key and switch token
+	// signing to RS256. JWT_ALG_VERIFY controls accepted verification algs during
+	// the HS256->RS256 cutover (default "RS256,HS256"; set "RS256" once HS256
+	// tokens have aged out).
+	jwtKeystore, err := auth.LoadOrInit(cryptoSvc, repository.NewJWTKeyRepository(db, dialect))
+	if err != nil {
+		logger.Error("failed to load JWT keystore", map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
+	}
+	jwtService.EnableRS256(jwtKeystore, parseAlgVerify(os.Getenv("JWT_ALG_VERIFY")))
+	logger.Info("JWT signing initialized", map[string]interface{}{"alg": "RS256", "jwks": true})
 
 	appMetrics := metrics.NewAppMetrics()
 	// Surface audit-emission outcomes to metrics (A-06) without coupling the
@@ -167,7 +178,7 @@ func main() {
 	enterpriseHandler := api.NewEnterpriseHandler(ssoService, complianceService, backupService, policyService)
 	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc)
 	platformHandler := api.NewPlatformHandler(eventBus, pluginRegistry, accessPolicyRepo)
-	oauthHandler := api.NewOAuthHandler(oauthService)
+	oauthHandler := api.NewOAuthHandler(oauthService, jwtKeystore)
 	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 	applicationHandler := api.NewApplicationHandler(appService)
@@ -297,6 +308,22 @@ func main() {
 		cancelBackground()
 		logger.Info("shutdown complete", nil)
 	}
+}
+
+// parseAlgVerify parses the JWT_ALG_VERIFY allowlist (comma-separated). Empty
+// defaults to the HS256->RS256 cutover set {RS256,HS256} (ADR-0008).
+func parseAlgVerify(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil // EnableRS256 defaults to {"RS256","HS256"}
+	}
+	var algs []string
+	for _, a := range strings.Split(raw, ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			algs = append(algs, a)
+		}
+	}
+	return algs
 }
 
 // resolveMasterKey sources the 32-byte master key from the configured
