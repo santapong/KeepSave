@@ -134,6 +134,12 @@ func decrypt(key, ciphertext, nonce []byte) ([]byte, error) {
 		return nil, fmt.Errorf("creating GCM: %w", err)
 	}
 
+	// GCM Open panics on a wrong-length nonce; guard so corrupt or
+	// attacker-supplied ciphertext yields an error, not a crash.
+	if len(nonce) != aead.NonceSize() {
+		return nil, fmt.Errorf("invalid nonce length: got %d, want %d", len(nonce), aead.NonceSize())
+	}
+
 	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, fmt.Errorf("decrypting: %w", err)
