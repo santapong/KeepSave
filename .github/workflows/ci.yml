@@ -50,7 +50,33 @@ jobs:
           go-version: '1.25.8'
       - name: Run tests
         working-directory: ./backend
-        run: go test -v -race -coverprofile=coverage.out ./...
+        # -shuffle=on surfaces test-order dependencies (FLAKY.md §8).
+        run: go test -v -race -shuffle=on -coverprofile=coverage.out ./...
+      - name: Coverage gate (crypto/auth)
+        working-directory: ./backend
+        # Ratchet on the security-critical packages so coverage can't regress
+        # (WS-11 / PYRAMID.md). Thresholds sit just below current coverage.
+        run: |
+          set -euo pipefail
+          gate() {
+            pkg="$1"; min="$2"
+            pct=$(go test -cover "$pkg" 2>/dev/null | sed -n 's/.*coverage: \([0-9.]*\)%.*/\1/p')
+            echo "$pkg coverage: ${pct:-0}% (min ${min}%)"
+            awk -v p="${pct:-0}" -v m="$min" 'BEGIN { exit (p+0 >= m) ? 0 : 1 }' \
+              || { echo "::error::$pkg coverage ${pct}% below ${min}%"; exit 1; }
+          }
+          gate ./internal/crypto 85
+          gate ./internal/auth 90
+      - name: Fuzz smoke (short)
+        working-directory: ./backend
+        # Run each fuzz target briefly to catch crashers without a long budget.
+        run: |
+          set -euo pipefail
+          go test ./internal/crypto/  -run=x -fuzz='FuzzEncryptDecryptRoundTrip$' -fuzztime=15s
+          go test ./internal/crypto/  -run=x -fuzz='FuzzDecryptNoPanic$'           -fuzztime=15s
+          go test ./internal/repository/ -run=x -fuzz='FuzzSplitSQLStatements$'    -fuzztime=15s
+          go test ./internal/repository/ -run=x -fuzz='FuzzCanonicalizeJSON$'      -fuzztime=15s
+          go test ./internal/api/     -run=x -fuzz='FuzzValidateMCPEntryCommand$'  -fuzztime=15s
       - name: Upload coverage
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
