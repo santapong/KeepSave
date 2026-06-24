@@ -224,33 +224,37 @@ func TestAnomalyService_EmitsAudit(t *testing.T) {
 	}
 	requireAuditRow(t, db, "anomaly.rule_created", creator)
 
+	// The mutations are now scoped to the caller's accessible projects; the
+	// rule/anomaly belong to pid, so pass it as the accessible set.
+	accessible := []uuid.UUID{pid}
+
 	editor := uuid.New()
-	if err := svc.UpdateRule(rule.ID, false, models.JSONMap{"threshold": 5}, editor, "10.9.9.9"); err != nil {
+	if err := svc.UpdateRule(rule.ID, false, models.JSONMap{"threshold": 5}, accessible, editor, "10.9.9.9"); err != nil {
 		t.Fatalf("UpdateRule: %v", err)
 	}
 	requireAuditRow(t, db, "anomaly.rule_updated", editor)
 
-	if err := svc.DeleteRule(rule.ID, editor, "10.9.9.9"); err != nil {
+	if err := svc.DeleteRule(rule.ID, accessible, editor, "10.9.9.9"); err != nil {
 		t.Fatalf("DeleteRule: %v", err)
 	}
 	requireAuditRow(t, db, "anomaly.rule_deleted", editor)
 
-	// Seed an anomaly row directly and ack/resolve it.
+	// Seed an anomaly row (in pid) directly and ack/resolve it.
 	anomalyID := uuid.New()
 	if _, err := db.Exec(
-		`INSERT INTO anomalies (id, anomaly_type, severity, description, details, status, detected_at) VALUES (?,?,?,?,?,?,?)`,
-		anomalyID.String(), "new_ip", "high", "d", `{}`, "open", time.Now(),
+		`INSERT INTO anomalies (id, project_id, anomaly_type, severity, description, details, status, detected_at) VALUES (?,?,?,?,?,?,?,?)`,
+		anomalyID.String(), pid.String(), "new_ip", "high", "d", `{}`, "open", time.Now(),
 	); err != nil {
 		t.Fatalf("seed anomaly: %v", err)
 	}
 
 	acker := uuid.New()
-	if err := svc.AcknowledgeAnomaly(anomalyID, acker, "10.9.9.9"); err != nil {
+	if err := svc.AcknowledgeAnomaly(anomalyID, accessible, acker, "10.9.9.9"); err != nil {
 		t.Fatalf("AcknowledgeAnomaly: %v", err)
 	}
 	requireAuditRow(t, db, "anomaly.acknowledged", acker)
 
-	if err := svc.ResolveAnomaly(anomalyID, acker, "10.9.9.9"); err != nil {
+	if err := svc.ResolveAnomaly(anomalyID, accessible, acker, "10.9.9.9"); err != nil {
 		t.Fatalf("ResolveAnomaly: %v", err)
 	}
 	requireAuditRow(t, db, "anomaly.resolved", acker)

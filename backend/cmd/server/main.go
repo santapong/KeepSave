@@ -195,7 +195,7 @@ func main() {
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 	applicationHandler := api.NewApplicationHandler(appService)
 
-	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr)
+	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr, projectRepo, orgService)
 	// ADR-0006: embed widget origin allow-list.
 	embedHandler := api.NewEmbedHandler(projectService)
 

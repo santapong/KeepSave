@@ -3,14 +3,39 @@ package service
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// ErrAnomalyNotFound / ErrRuleNotFound are returned when a mutation targets a
+// row that does not exist OR belongs to a project the caller cannot access —
+// the two are deliberately indistinguishable so a caller cannot enumerate
+// another tenant's anomaly/rule IDs (handlers map both to 404).
+var (
+	ErrAnomalyNotFound = errors.New("anomaly not found")
+	ErrRuleNotFound    = errors.New("rule not found")
+)
+
+// projectInClause builds a "$start,$start+1,..." placeholder list for an IN
+// (...) over the given project ids, plus the matching args. Callers gate on
+// len(ids)==0 first (an empty IN would match nothing and is clearer handled as
+// "no access"). Placeholders use $N (rebound per dialect by repository.Q).
+func projectInClause(start int, ids []uuid.UUID) (string, []interface{}) {
+	ph := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		ph[i] = fmt.Sprintf("$%d", start+i)
+		args[i] = id
+	}
+	return strings.Join(ph, ","), args
+}
 
 // AnomalyService detects anomalies in secret access patterns.
 type AnomalyService struct {
@@ -135,23 +160,24 @@ func (s *AnomalyService) storeAnomaly(a *models.Anomaly) {
 		a.ID, a.ProjectID, a.APIKeyID, a.AnomalyType, a.Severity, a.Description, string(details), a.Status, a.DetectedAt)
 }
 
-func (s *AnomalyService) ListAnomalies(projectID *uuid.UUID, status string) ([]models.Anomaly, error) {
-	query := `SELECT id, project_id, api_key_id, anomaly_type, severity, description, details, status, detected_at, acknowledged_at, resolved_at FROM anomalies WHERE 1=1`
-	var args []interface{}
-	argIdx := 1
-	if projectID != nil {
-		query += fmt.Sprintf(" AND project_id = $%d", argIdx)
-		args = append(args, *projectID)
-		argIdx++
+// ListAnomalies returns anomalies for the given projects only. projectIDs is the
+// caller's accessible-project set (a single requested project the caller can
+// reach, or all projects they can access) — never unbounded — so this can no
+// longer leak other tenants' anomalies (a NULL-project anomaly never matches an
+// IN list and is therefore never returned to a tenant).
+func (s *AnomalyService) ListAnomalies(projectIDs []uuid.UUID, status string) ([]models.Anomaly, error) {
+	if len(projectIDs) == 0 {
+		return []models.Anomaly{}, nil
 	}
+	inSQL, args := projectInClause(1, projectIDs)
+	query := `SELECT id, project_id, api_key_id, anomaly_type, severity, description, details, status, detected_at, acknowledged_at, resolved_at FROM anomalies WHERE project_id IN (` + inSQL + `)`
 	if status != "" {
-		query += fmt.Sprintf(" AND status = $%d", argIdx)
+		query += fmt.Sprintf(" AND status = $%d", len(args)+1)
 		args = append(args, status)
-		argIdx++
 	}
 	query += " ORDER BY detected_at DESC LIMIT 100"
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query(repository.Q(s.dialect, query), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -186,20 +212,45 @@ func (s *AnomalyService) ListAnomalies(projectID *uuid.UUID, status string) ([]m
 	return anomalies, nil
 }
 
-func (s *AnomalyService) AcknowledgeAnomaly(id, actorID uuid.UUID, ipAddr string) error {
-	_, err := s.db.Exec(`UPDATE anomalies SET status = 'acknowledged', acknowledged_at = $1 WHERE id = $2`, time.Now(), id)
+// AcknowledgeAnomaly marks an anomaly acknowledged. The UPDATE is bound to the
+// caller's accessible projects (accessibleProjectIDs), so a caller cannot
+// acknowledge — and thereby silence — another tenant's anomaly by its id. Zero
+// rows affected (wrong id, or an anomaly in an inaccessible project) is reported
+// as ErrAnomalyNotFound (anti-enumeration).
+func (s *AnomalyService) AcknowledgeAnomaly(id uuid.UUID, accessibleProjectIDs []uuid.UUID, actorID uuid.UUID, ipAddr string) error {
+	if len(accessibleProjectIDs) == 0 {
+		return ErrAnomalyNotFound
+	}
+	args := []interface{}{time.Now(), id}
+	inSQL, inArgs := projectInClause(3, accessibleProjectIDs)
+	args = append(args, inArgs...)
+	res, err := s.db.Exec(repository.Q(s.dialect, `UPDATE anomalies SET status = 'acknowledged', acknowledged_at = $1 WHERE id = $2 AND project_id IN (`+inSQL+`)`), args...)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrAnomalyNotFound
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "anomaly.acknowledged", "",
 		models.JSONMap{"anomaly_id": id.String()}, ipAddr)
 	return nil
 }
 
-func (s *AnomalyService) ResolveAnomaly(id, actorID uuid.UUID, ipAddr string) error {
-	_, err := s.db.Exec(`UPDATE anomalies SET status = 'resolved', resolved_at = $1 WHERE id = $2`, time.Now(), id)
+// ResolveAnomaly marks an anomaly resolved, scoped to the caller's accessible
+// projects exactly like AcknowledgeAnomaly.
+func (s *AnomalyService) ResolveAnomaly(id uuid.UUID, accessibleProjectIDs []uuid.UUID, actorID uuid.UUID, ipAddr string) error {
+	if len(accessibleProjectIDs) == 0 {
+		return ErrAnomalyNotFound
+	}
+	args := []interface{}{time.Now(), id}
+	inSQL, inArgs := projectInClause(3, accessibleProjectIDs)
+	args = append(args, inArgs...)
+	res, err := s.db.Exec(repository.Q(s.dialect, `UPDATE anomalies SET status = 'resolved', resolved_at = $1 WHERE id = $2 AND project_id IN (`+inSQL+`)`), args...)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrAnomalyNotFound
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "anomaly.resolved", "",
 		models.JSONMap{"anomaly_id": id.String()}, ipAddr)
@@ -226,16 +277,18 @@ func (s *AnomalyService) CreateRule(projectID *uuid.UUID, apiKeyID *uuid.UUID, r
 	return rule, nil
 }
 
-func (s *AnomalyService) ListRules(projectID *uuid.UUID) ([]models.AnomalyRule, error) {
-	query := `SELECT id, project_id, api_key_id, rule_type, config, enabled, created_by, created_at, updated_at FROM anomaly_rules`
-	var args []interface{}
-	if projectID != nil {
-		query += ` WHERE project_id = $1`
-		args = append(args, *projectID)
+// ListRules returns alert rules for the caller's accessible projects only
+// (projectIDs is the requested-and-allowed project, or all accessible). A
+// global/NULL-project rule never matches the IN list, so it is not leaked to a
+// tenant.
+func (s *AnomalyService) ListRules(projectIDs []uuid.UUID) ([]models.AnomalyRule, error) {
+	if len(projectIDs) == 0 {
+		return []models.AnomalyRule{}, nil
 	}
-	query += ` ORDER BY created_at DESC`
+	inSQL, args := projectInClause(1, projectIDs)
+	query := `SELECT id, project_id, api_key_id, rule_type, config, enabled, created_by, created_at, updated_at FROM anomaly_rules WHERE project_id IN (` + inSQL + `) ORDER BY created_at DESC`
 
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query(repository.Q(s.dialect, query), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,21 +316,43 @@ func (s *AnomalyService) ListRules(projectID *uuid.UUID) ([]models.AnomalyRule, 
 	return rules, nil
 }
 
-func (s *AnomalyService) UpdateRule(id uuid.UUID, enabled bool, config models.JSONMap, actorID uuid.UUID, ipAddr string) error {
+// UpdateRule toggles/reconfigures a rule, bound to the caller's accessible
+// projects so another tenant's alert rule cannot be disabled or rewritten by
+// its id. Zero rows affected → ErrRuleNotFound.
+func (s *AnomalyService) UpdateRule(id uuid.UUID, enabled bool, config models.JSONMap, accessibleProjectIDs []uuid.UUID, actorID uuid.UUID, ipAddr string) error {
+	if len(accessibleProjectIDs) == 0 {
+		return ErrRuleNotFound
+	}
 	configJSON, _ := json.Marshal(config)
-	_, err := s.db.Exec(`UPDATE anomaly_rules SET enabled = $1, config = $2, updated_at = $3 WHERE id = $4`, enabled, string(configJSON), time.Now(), id)
+	args := []interface{}{enabled, string(configJSON), time.Now(), id}
+	inSQL, inArgs := projectInClause(5, accessibleProjectIDs)
+	args = append(args, inArgs...)
+	res, err := s.db.Exec(repository.Q(s.dialect, `UPDATE anomaly_rules SET enabled = $1, config = $2, updated_at = $3 WHERE id = $4 AND project_id IN (`+inSQL+`)`), args...)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrRuleNotFound
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "anomaly.rule_updated", "",
 		models.JSONMap{"rule_id": id.String(), "enabled": enabled}, ipAddr)
 	return nil
 }
 
-func (s *AnomalyService) DeleteRule(id uuid.UUID, actorID uuid.UUID, ipAddr string) error {
-	_, err := s.db.Exec(`DELETE FROM anomaly_rules WHERE id = $1`, id)
+// DeleteRule removes a rule, bound to the caller's accessible projects.
+func (s *AnomalyService) DeleteRule(id uuid.UUID, accessibleProjectIDs []uuid.UUID, actorID uuid.UUID, ipAddr string) error {
+	if len(accessibleProjectIDs) == 0 {
+		return ErrRuleNotFound
+	}
+	args := []interface{}{id}
+	inSQL, inArgs := projectInClause(2, accessibleProjectIDs)
+	args = append(args, inArgs...)
+	res, err := s.db.Exec(repository.Q(s.dialect, `DELETE FROM anomaly_rules WHERE id = $1 AND project_id IN (`+inSQL+`)`), args...)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrRuleNotFound
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "anomaly.rule_deleted", "",
 		models.JSONMap{"rule_id": id.String()}, ipAddr)

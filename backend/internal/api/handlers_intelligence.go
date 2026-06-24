@@ -1,26 +1,71 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
 
 type IntelligenceHandler struct {
-	driftSvc   *service.DriftService
-	anomalySvc *service.AnomalyService
-	analytics  *service.UsageAnalyticsService
-	recommSvc  *service.RecommendationService
-	nlpSvc     *service.NLPQueryService
-	aiMgr      *service.AIProviderManager
+	driftSvc    *service.DriftService
+	anomalySvc  *service.AnomalyService
+	analytics   *service.UsageAnalyticsService
+	recommSvc   *service.RecommendationService
+	nlpSvc      *service.NLPQueryService
+	aiMgr       *service.AIProviderManager
+	projectRepo *repository.ProjectRepository
+	orgService  *service.OrganizationService
 }
 
-func NewIntelligenceHandler(driftSvc *service.DriftService, anomalySvc *service.AnomalyService, analytics *service.UsageAnalyticsService, recommSvc *service.RecommendationService, nlpSvc *service.NLPQueryService, aiMgr *service.AIProviderManager) *IntelligenceHandler {
-	return &IntelligenceHandler{driftSvc: driftSvc, anomalySvc: anomalySvc, analytics: analytics, recommSvc: recommSvc, nlpSvc: nlpSvc, aiMgr: aiMgr}
+func NewIntelligenceHandler(driftSvc *service.DriftService, anomalySvc *service.AnomalyService, analytics *service.UsageAnalyticsService, recommSvc *service.RecommendationService, nlpSvc *service.NLPQueryService, aiMgr *service.AIProviderManager, projectRepo *repository.ProjectRepository, orgService *service.OrganizationService) *IntelligenceHandler {
+	return &IntelligenceHandler{driftSvc: driftSvc, anomalySvc: anomalySvc, analytics: analytics, recommSvc: recommSvc, nlpSvc: nlpSvc, aiMgr: aiMgr, projectRepo: projectRepo, orgService: orgService}
+}
+
+// accessibleProjectIDs returns every project the caller can act on (owned or via
+// org membership). The global /ai/* endpoints have no :id and JWTAuth only, so
+// this is how they are scoped to the caller's tenant instead of all tenants.
+func (h *IntelligenceHandler) accessibleProjectIDs(c *gin.Context, uid uuid.UUID) ([]uuid.UUID, bool) {
+	ids, err := h.projectRepo.ListAccessibleProjectIDs(uid)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, "failed to resolve project access")
+		return nil, false
+	}
+	return ids, true
+}
+
+// listScope resolves which projects a global AI listing should cover: a single
+// ?project_id the caller can access, else all projects they can access. Aborts
+// (and returns ok=false) on an invalid id, denied access, or lookup error.
+func (h *IntelligenceHandler) listScope(c *gin.Context, uid uuid.UUID) ([]uuid.UUID, bool) {
+	if p := c.Query("project_id"); p != "" {
+		pid, err := uuid.Parse(p)
+		if err != nil {
+			RespondError(c, http.StatusBadRequest, "invalid project_id")
+			return nil, false
+		}
+		allowed, err := h.projectRepo.UserHasAccess(uid, pid)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				WrapError(c, ErrNotFound)
+				return nil, false
+			}
+			RespondError(c, http.StatusInternalServerError, "project access check failed")
+			return nil, false
+		}
+		if !allowed {
+			WrapError(c, ErrForbidden)
+			return nil, false
+		}
+		return []uuid.UUID{pid}, true
+	}
+	return h.accessibleProjectIDs(c, uid)
 }
 
 // --- Providers ---
@@ -111,6 +156,11 @@ func (h *IntelligenceHandler) ListDriftSchedules(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) UpdateDriftSchedule(c *gin.Context) {
+	pid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid project ID"})
+		return
+	}
 	id, err := uuid.Parse(c.Param("scheduleId"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid schedule ID"})
@@ -124,7 +174,13 @@ func (h *IntelligenceHandler) UpdateDriftSchedule(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.driftSvc.UpdateSchedule(id, req.Enabled, req.CronExpr); err != nil {
+	// Bind to :id (RequireProjectAccess already authorized it) so a schedule
+	// from another project cannot be updated by its id.
+	if err := h.driftSvc.UpdateSchedule(id, pid, req.Enabled, req.CronExpr); err != nil {
+		if errors.Is(err, service.ErrDriftScheduleNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -132,12 +188,21 @@ func (h *IntelligenceHandler) UpdateDriftSchedule(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) DeleteDriftSchedule(c *gin.Context) {
+	pid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid project ID"})
+		return
+	}
 	id, err := uuid.Parse(c.Param("scheduleId"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid schedule ID"})
 		return
 	}
-	if err := h.driftSvc.DeleteSchedule(id); err != nil {
+	if err := h.driftSvc.DeleteSchedule(id, pid); err != nil {
+		if errors.Is(err, service.ErrDriftScheduleNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -169,13 +234,15 @@ func (h *IntelligenceHandler) RunAnomalyDetection(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) ListAnomalies(c *gin.Context) {
-	var pid *uuid.UUID
-	if p := c.Query("project_id"); p != "" {
-		if parsed, err := uuid.Parse(p); err == nil {
-			pid = &parsed
-		}
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
 	}
-	anomalies, err := h.anomalySvc.ListAnomalies(pid, c.DefaultQuery("status", ""))
+	ids, ok := h.listScope(c, uid)
+	if !ok {
+		return
+	}
+	anomalies, err := h.anomalySvc.ListAnomalies(ids, c.DefaultQuery("status", ""))
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -193,7 +260,15 @@ func (h *IntelligenceHandler) AcknowledgeAnomaly(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.anomalySvc.AcknowledgeAnomaly(id, uid, c.ClientIP()); err != nil {
+	ids, ok := h.accessibleProjectIDs(c, uid)
+	if !ok {
+		return
+	}
+	if err := h.anomalySvc.AcknowledgeAnomaly(id, ids, uid, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrAnomalyNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -210,7 +285,15 @@ func (h *IntelligenceHandler) ResolveAnomaly(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.anomalySvc.ResolveAnomaly(id, uid, c.ClientIP()); err != nil {
+	ids, ok := h.accessibleProjectIDs(c, uid)
+	if !ok {
+		return
+	}
+	if err := h.anomalySvc.ResolveAnomaly(id, ids, uid, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrAnomalyNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -233,11 +316,33 @@ func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-	var pid, kid *uuid.UUID
-	if req.ProjectID != "" {
-		p, _ := uuid.Parse(req.ProjectID)
-		pid = &p
+	// A rule must belong to a project the caller can access. project_id is now
+	// required (a global, cross-tenant rule is not a normal-user capability) and
+	// access is enforced — closing the inject-rule-into-another-tenant hole.
+	if req.ProjectID == "" {
+		RespondError(c, http.StatusBadRequest, "project_id is required")
+		return
 	}
+	projID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project_id")
+		return
+	}
+	allowed, err := h.projectRepo.UserHasAccess(uid, projID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			WrapError(c, ErrNotFound)
+			return
+		}
+		RespondError(c, http.StatusInternalServerError, "project access check failed")
+		return
+	}
+	if !allowed {
+		WrapError(c, ErrForbidden)
+		return
+	}
+	pid := &projID
+	var kid *uuid.UUID
 	if req.APIKeyID != "" {
 		k, _ := uuid.Parse(req.APIKeyID)
 		kid = &k
@@ -251,13 +356,15 @@ func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) ListAlertRules(c *gin.Context) {
-	var pid *uuid.UUID
-	if p := c.Query("project_id"); p != "" {
-		if parsed, err := uuid.Parse(p); err == nil {
-			pid = &parsed
-		}
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
 	}
-	rules, err := h.anomalySvc.ListRules(pid)
+	ids, ok := h.listScope(c, uid)
+	if !ok {
+		return
+	}
+	rules, err := h.anomalySvc.ListRules(ids)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -283,7 +390,15 @@ func (h *IntelligenceHandler) UpdateAlertRule(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.anomalySvc.UpdateRule(id, req.Enabled, req.Config, uid, c.ClientIP()); err != nil {
+	ids, ok := h.accessibleProjectIDs(c, uid)
+	if !ok {
+		return
+	}
+	if err := h.anomalySvc.UpdateRule(id, req.Enabled, req.Config, ids, uid, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrRuleNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -300,7 +415,15 @@ func (h *IntelligenceHandler) DeleteAlertRule(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.anomalySvc.DeleteRule(id, uid, c.ClientIP()); err != nil {
+	ids, ok := h.accessibleProjectIDs(c, uid)
+	if !ok {
+		return
+	}
+	if err := h.anomalySvc.DeleteRule(id, ids, uid, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrRuleNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -383,6 +506,16 @@ func (h *IntelligenceHandler) GetQuota(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid org ID"})
 		return
 	}
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	// Reading an org's quota requires org membership (any role). Without this
+	// check any authenticated user could read any org's quota config.
+	if err := h.orgService.CheckProjectAccess(orgID, uid, "viewer"); err != nil {
+		WrapError(c, ErrForbidden)
+		return
+	}
 	q, err := h.analytics.GetQuota(orgID)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -395,6 +528,16 @@ func (h *IntelligenceHandler) SetQuota(c *gin.Context) {
 	orgID, err := uuid.Parse(c.Param("orgId"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid org ID"})
+		return
+	}
+	uid, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	// Writing quota is an admin action; without this check any authenticated
+	// user could overwrite any org's resource limits.
+	if err := h.orgService.CheckProjectAccess(orgID, uid, "admin"); err != nil {
+		WrapError(c, ErrForbidden)
 		return
 	}
 	var req struct {
@@ -449,12 +592,23 @@ func (h *IntelligenceHandler) ListRecommendations(c *gin.Context) {
 }
 
 func (h *IntelligenceHandler) DismissRecommendation(c *gin.Context) {
+	pid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid project ID"})
+		return
+	}
 	id, err := uuid.Parse(c.Param("recId"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid ID"})
 		return
 	}
-	if err := h.recommSvc.DismissRecommendation(id); err != nil {
+	// Bind to :id (already authorized by RequireProjectAccess) so another
+	// project's recommendation cannot be dismissed by its id.
+	if err := h.recommSvc.DismissRecommendation(id, pid); err != nil {
+		if errors.Is(err, service.ErrRecommendationNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}

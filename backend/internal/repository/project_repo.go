@@ -190,6 +190,41 @@ func (r *ProjectRepository) ListByOwner(ownerID uuid.UUID) ([]models.Project, er
 	return r.ListByOwnerID(ownerID)
 }
 
+// ListAccessibleProjectIDs returns the ids of every project userID can access —
+// owned directly OR via membership in the project's organization. It is the
+// set form of UserHasAccess, used to scope endpoints that operate across "all
+// my projects" (e.g. the global AI anomaly/rule listings) instead of a single
+// :id. Returns an empty slice (not nil error) when the user can access none.
+func (r *ProjectRepository) ListAccessibleProjectIDs(userID uuid.UUID) ([]uuid.UUID, error) {
+	// $1 owner, $2 org-member — mirrors UserHasAccess's predicate so the access
+	// model stays defined in exactly one place.
+	rows, err := r.db.Query(Q(r.dialect, `
+		SELECT p.id FROM projects p
+		WHERE p.owner_id = $1
+		   OR (
+			p.organization_id IS NOT NULL
+			AND EXISTS (
+				SELECT 1 FROM organization_members om
+				WHERE om.organization_id = p.organization_id
+				AND om.user_id = $2
+			)
+		)`), userID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing accessible projects: %w", err)
+	}
+	defer rows.Close()
+
+	ids := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning project id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // UserHasAccess returns (true, nil) when userID owns projectID OR is a
 // member of the organization the project belongs to. Returns (false, nil)
 // when the project exists but the user has no access path. Returns
