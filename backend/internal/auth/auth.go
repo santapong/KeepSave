@@ -17,6 +17,16 @@ type Claims struct {
 	// revocation. The jti (RegisteredClaims.ID) is the denylist key.
 	TokenType string     `json:"token_type,omitempty"`
 	LeaseID   *uuid.UUID `json:"lease_id,omitempty"`
+	// Agent-token scope (ADR-0021). For TokenType=="agent" these mirror the
+	// lease the token was minted from and are the ONLY authority the token
+	// carries: the consuming agent may read just SecretKeys, only in ProjectID
+	// and Environment. They are embedded at mint because the lease is immutable
+	// for its (≤15 min) lifetime; lease revocation/expiry is enforced
+	// independently by the denylist in ValidateToken. Empty for user tokens —
+	// a user token MUST NOT be treated as project/environment scoped.
+	ProjectID   *uuid.UUID `json:"project_id,omitempty"`
+	Environment string     `json:"env,omitempty"`
+	SecretKeys  []string   `json:"secret_keys,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -94,9 +104,12 @@ func (s *JWTService) GenerateToken(userID uuid.UUID, email string) (string, erro
 
 // GenerateAgentToken mints a short-lived token bound to a JIT lease (ADR-0021).
 // ttl is capped at maxAgentTokenTTL and further clamped to leaseRemaining when
-// that is smaller and positive, so a token can never outlive its lease. It
-// returns the signed token, its jti (the denylist key) and the chosen expiry.
-func (s *JWTService) GenerateAgentToken(userID uuid.UUID, email string, leaseID uuid.UUID, ttl, leaseRemaining time.Duration) (string, string, time.Time, error) {
+// that is smaller and positive, so a token can never outlive its lease. The
+// lease's project, environment and secret keys are embedded as the token's
+// scope — they are the only authority the token carries (it never inherits the
+// owning user's broader access). It returns the signed token, its jti (the
+// denylist key) and the chosen expiry.
+func (s *JWTService) GenerateAgentToken(userID uuid.UUID, email string, leaseID, projectID uuid.UUID, environment string, secretKeys []string, ttl, leaseRemaining time.Duration) (string, string, time.Time, error) {
 	if ttl <= 0 || ttl > maxAgentTokenTTL {
 		ttl = maxAgentTokenTTL
 	}
@@ -105,12 +118,16 @@ func (s *JWTService) GenerateAgentToken(userID uuid.UUID, email string, leaseID 
 	}
 	jti := uuid.NewString()
 	leaseRef := leaseID
+	projRef := projectID
 	expiresAt := time.Now().Add(ttl)
 	claims := &Claims{
-		UserID:    userID,
-		Email:     email,
-		TokenType: "agent",
-		LeaseID:   &leaseRef,
+		UserID:      userID,
+		Email:       email,
+		TokenType:   "agent",
+		LeaseID:     &leaseRef,
+		ProjectID:   &projRef,
+		Environment: environment,
+		SecretKeys:  secretKeys,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        jti,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),

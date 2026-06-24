@@ -81,9 +81,12 @@ path; the lease-state leg is a keyed lookup incurred only by agent tokens.
 - **Claims** gain `TokenType` (`"agent"`) and `LeaseID *uuid.UUID` (both
   `omitempty`); the `jti` is `RegisteredClaims.ID`, a random UUID set for agent
   tokens only.
-- **Mint**: `JWTService.GenerateAgentToken(userID, email, leaseID, ttl)` caps `ttl`
-  at `maxAgentTokenTTL` (15 min) and never exceeds the lease's remaining lifetime;
-  signs RS256 (ADR-0008); returns `(token, jti)` so the caller can audit the `jti`.
+- **Mint**: `JWTService.GenerateAgentToken(userID, email, leaseID, projectID,
+  environment, secretKeys, ttl, leaseRemaining)` caps `ttl` at `maxAgentTokenTTL`
+  (15 min) and never exceeds the lease's remaining lifetime; signs RS256
+  (ADR-0008); returns `(token, jti)` so the caller can audit the `jti`. The
+  lease's `projectID`, `environment` and `secretKeys` are **embedded in the
+  token claims** — they are the token's entire authority (see Amendment 2026-06-24).
 - **Denylist seam**: `auth.Denylister.IsTokenRevoked(jti string, leaseID *uuid.UUID)
   (bool, error)`; `JWTService.EnableDenylist(d)`. `ValidateToken` consults it iff
   `claims.ID != ""`.
@@ -117,6 +120,43 @@ path; the lease-state leg is a keyed lookup incurred only by agent tokens.
   **not** stale (read live). Acceptable because tokens are short-lived; a DB-backed
   pub/sub or per-request lookup is a documented follow-up if the window must shrink.
 - **Migration:** additive table; no change to existing tokens or rows.
+
+## Amendment 2026-06-24 — scope enforcement (security fix)
+
+The original implementation honored the *revocation* legs (Option C) but **not**
+the scope-narrowing invariant claimed above. `MintToken` minted a token whose
+`UserID` claim was the lease's owning user, and `JWTAuthMiddleware` set only
+`user_id`/`email` from it. Because nothing on the request path re-derived
+authority from the lease (Context noted "the secret-read path does not re-check
+the lease"), a presented agent token inherited the **owning user's full access** —
+every project, environment and secret the user could reach — directly
+contradicting "a bearer token of equal-or-lesser scope … it never widens scope."
+A scoped, environment-locked API key could thus mint a 15-minute token with
+strictly *greater* authority than the key itself (HIGH-severity privilege
+escalation).
+
+Fix (this PR):
+- **Embed the lease scope in the token.** `Claims` gains `ProjectID`,
+  `Environment`, `SecretKeys`; `GenerateAgentToken` records them. Safe to embed
+  because the lease is immutable for the token's ≤15-min life, and
+  revocation/expiry remain enforced by the denylist in `ValidateToken`.
+- **Default-deny confinement at the single chokepoint.** `JWTAuthMiddleware`
+  detects `TokenType=="agent"` and (a) rejects the request unless the matched
+  route is on a minimal allowlist — `GET /projects/:id/secrets[/:secretId]` only
+  (`agentTokenRouteAllowed`), which also blocks the lease/agent-token endpoints
+  themselves (no privilege re-delegation), promotion, org/admin, applications,
+  and every write method; (b) installs the lease scope as API-key-equivalent
+  context (`api_key_project_id`, `api_key_environment`, and `read:<key>` scopes
+  via `agentReadScopes`) plus an `is_agent_token` marker. Authorization is then
+  enforced by the **existing** `RequireProjectAccess` + `EnforceAPIKeyScope` +
+  `APIKeyScopeAllowsKey` path, so an agent token behaves as exactly a read-only,
+  environment-locked, key-globbed API key for its lease — never the user.
+
+Net effect: an agent token can do **no more** than read the specific secrets its
+lease names, in the lease's project and environment. This restores the
+equal-or-lesser-scope invariant. Covered by `agent_token_confine_test.go`
+(end-to-end cross-project/cross-environment/write/promotion denial) and the
+round-trip scope-claim assertions in `auth/agent_token_test.go`.
 
 ## Rollback plan
 Do not call `EnableDenylist` and do not mint agent tokens; `ValidateToken` then

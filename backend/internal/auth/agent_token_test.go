@@ -37,8 +37,9 @@ func TestAgentToken_RoundTripAndClaims(t *testing.T) {
 	dl := newFakeDenylist()
 	svc.EnableDenylist(dl)
 
-	uid, leaseID := uuid.New(), uuid.New()
-	tok, jti, exp, err := svc.GenerateAgentToken(uid, "", leaseID, 5*time.Minute, time.Hour)
+	uid, leaseID, projID := uuid.New(), uuid.New(), uuid.New()
+	keys := []string{"DB_URL", "API_KEY"}
+	tok, jti, exp, err := svc.GenerateAgentToken(uid, "", leaseID, projID, "alpha", keys, 5*time.Minute, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateAgentToken: %v", err)
 	}
@@ -61,12 +62,23 @@ func TestAgentToken_RoundTripAndClaims(t *testing.T) {
 	if claims.ID != jti {
 		t.Errorf("jti claim = %q, want %q", claims.ID, jti)
 	}
+	// ADR-0021: the lease scope must round-trip so the middleware can confine
+	// the token to exactly this project/environment/keys.
+	if claims.ProjectID == nil || *claims.ProjectID != projID {
+		t.Errorf("ProjectID = %v, want %v", claims.ProjectID, projID)
+	}
+	if claims.Environment != "alpha" {
+		t.Errorf("Environment = %q, want alpha", claims.Environment)
+	}
+	if len(claims.SecretKeys) != 2 || claims.SecretKeys[0] != "DB_URL" || claims.SecretKeys[1] != "API_KEY" {
+		t.Errorf("SecretKeys = %v, want [DB_URL API_KEY]", claims.SecretKeys)
+	}
 }
 
 func TestAgentToken_TTLCappedAtMax(t *testing.T) {
 	svc, _ := newRS256Service(t)
 	// Request 1h with a 1h lease remaining; the 15-min hard cap must win.
-	_, _, exp, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), time.Hour, time.Hour)
+	_, _, exp, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), uuid.New(), "alpha", nil, time.Hour, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateAgentToken: %v", err)
 	}
@@ -78,7 +90,7 @@ func TestAgentToken_TTLCappedAtMax(t *testing.T) {
 func TestAgentToken_TTLClampedToLeaseRemaining(t *testing.T) {
 	svc, _ := newRS256Service(t)
 	// Lease has only 2 min left; a 15-min request must clamp to ~2 min.
-	_, _, exp, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), 15*time.Minute, 2*time.Minute)
+	_, _, exp, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), uuid.New(), "alpha", nil, 15*time.Minute, 2*time.Minute)
 	if err != nil {
 		t.Fatalf("GenerateAgentToken: %v", err)
 	}
@@ -92,7 +104,7 @@ func TestAgentToken_RevokedByJTI(t *testing.T) {
 	dl := newFakeDenylist()
 	svc.EnableDenylist(dl)
 
-	tok, jti, _, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), time.Minute, time.Hour)
+	tok, jti, _, err := svc.GenerateAgentToken(uuid.New(), "", uuid.New(), uuid.New(), "alpha", nil, time.Minute, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateAgentToken: %v", err)
 	}
@@ -111,7 +123,7 @@ func TestAgentToken_RevokedByLeaseCascade(t *testing.T) {
 	svc.EnableDenylist(dl)
 
 	leaseID := uuid.New()
-	tok, _, _, err := svc.GenerateAgentToken(uuid.New(), "", leaseID, time.Minute, time.Hour)
+	tok, _, _, err := svc.GenerateAgentToken(uuid.New(), "", leaseID, uuid.New(), "alpha", nil, time.Minute, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateAgentToken: %v", err)
 	}

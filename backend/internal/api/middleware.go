@@ -353,10 +353,69 @@ func JWTAuthMiddleware(jwtService *auth.JWTService) gin.HandlerFunc {
 			return
 		}
 
+		// Agent tokens (ADR-0021) are a confined principal, NOT a general user
+		// credential. They may only READ the secrets their lease names, in the
+		// lease's project + environment. Default-deny: reject on any route
+		// outside the read-secret allowlist (this single chokepoint also blocks
+		// lease/token management, promotion, org/admin, applications, etc., and
+		// closes the privilege-escalation where a lease-minted token inherited
+		// the owning user's full access). Authorization is then re-derived from
+		// the embedded lease scope by reusing the API-key enforcement path
+		// (RequireProjectAccess + EnforceAPIKeyScope + APIKeyScopeAllowsKey).
+		if claims.TokenType == "agent" {
+			if !agentTokenRouteAllowed(c.Request.Method, c.FullPath()) {
+				RespondError(c, http.StatusForbidden, "agent token not permitted for this operation")
+				c.Abort()
+				return
+			}
+			c.Set("user_id", claims.UserID)
+			c.Set("email", claims.Email)
+			c.Set("is_agent_token", true)
+			if claims.ProjectID != nil {
+				c.Set("api_key_project_id", *claims.ProjectID)
+			}
+			c.Set("api_key_scopes", agentReadScopes(claims.SecretKeys))
+			if claims.Environment != "" {
+				c.Set("api_key_environment", claims.Environment)
+			}
+			c.Next()
+			return
+		}
+
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Next()
 	}
+}
+
+// agentTokenRouteAllowed is the allowlist of routes an ADR-0021 agent token may
+// reach. It is intentionally minimal — only reading secrets — because an agent
+// token is a lease-scoped read credential, never a management or write
+// credential. Matching is on gin's matched route pattern (c.FullPath()), not the
+// raw path, so it cannot be fooled by path tricks. Everything not listed here is
+// denied, including the lease/agent-token endpoints themselves (no privilege
+// re-delegation) and every write method on the secret routes.
+func agentTokenRouteAllowed(method, fullPath string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	switch fullPath {
+	case "/api/v1/projects/:id/secrets", "/api/v1/projects/:id/secrets/:secretId":
+		return true
+	default:
+		return false
+	}
+}
+
+// agentReadScopes turns a lease's secret keys into ADR-0022 read scopes
+// (read:<key>), so the existing per-key enforcement restricts an agent token to
+// exactly its leased keys and the coarse action gate forbids any write/delete.
+func agentReadScopes(keys []string) models.StringList {
+	scopes := make(models.StringList, 0, len(keys))
+	for _, k := range keys {
+		scopes = append(scopes, "read:"+k)
+	}
+	return scopes
 }
 
 func APIKeyAuthMiddleware(jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository) gin.HandlerFunc {

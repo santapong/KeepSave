@@ -58,7 +58,15 @@ func (s *AgentTokenService) MintToken(actorID, projectID, leaseID uuid.UUID, req
 		return nil, ErrLeaseNotActive
 	}
 
-	token, jti, expiresAt, err := s.jwt.GenerateAgentToken(lease.APIKeyID, "", leaseID, requestedTTL, remaining)
+	// Embed the lease's scope (project, environment, secret keys) in the token.
+	// This is the token's entire authority — it never widens to the owning
+	// user's access (ADR-0021). lease.APIKeyID is the lease's principal, used
+	// only for audit attribution; authorization downstream is keyed off the
+	// embedded lease scope, not this id.
+	token, jti, expiresAt, err := s.jwt.GenerateAgentToken(
+		lease.APIKeyID, "", leaseID, lease.ProjectID, lease.Environment, []string(lease.SecretKeys),
+		requestedTTL, remaining,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("minting agent token: %w", err)
 	}
