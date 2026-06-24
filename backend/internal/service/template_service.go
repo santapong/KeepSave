@@ -1,12 +1,23 @@
 package service
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+)
+
+// ErrTemplateNotFound is returned when a template does not exist or the caller
+// may not read/modify it (deliberately indistinguishable — handlers map it to
+// 404). ErrTemplateProjectAccess is returned by ApplyTemplate when the caller
+// lacks access to the target project (handlers map it to 403).
+var (
+	ErrTemplateNotFound      = errors.New("template not found")
+	ErrTemplateProjectAccess = errors.New("project access denied")
 )
 
 type TemplateService struct {
@@ -49,8 +60,18 @@ func (s *TemplateService) Create(name, description, stack string, keys models.JS
 	return tmpl, nil
 }
 
-func (s *TemplateService) GetByID(id uuid.UUID) (*models.SecretTemplate, error) {
-	return s.templateRepo.GetByID(id)
+// GetByID returns a template only if userID may read it (global, owned, or in
+// the user's org). Not-readable and not-existing both surface as
+// ErrTemplateNotFound.
+func (s *TemplateService) GetByID(id, userID uuid.UUID) (*models.SecretTemplate, error) {
+	tmpl, err := s.templateRepo.GetByIDForUser(id, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrTemplateNotFound
+		}
+		return nil, err
+	}
+	return tmpl, nil
 }
 
 func (s *TemplateService) List(userID uuid.UUID, orgID *uuid.UUID) ([]models.SecretTemplate, error) {
@@ -60,9 +81,14 @@ func (s *TemplateService) List(userID uuid.UUID, orgID *uuid.UUID) ([]models.Sec
 	return s.templateRepo.ListByUser(userID)
 }
 
+// Update mutates a template only when actorID owns it (created it). A non-owner
+// gets ErrTemplateNotFound and no mutation occurs.
 func (s *TemplateService) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap, actorID uuid.UUID, ipAddr string) (*models.SecretTemplate, error) {
-	tmpl, err := s.templateRepo.Update(id, name, description, stack, keys)
+	tmpl, err := s.templateRepo.Update(id, name, description, stack, keys, actorID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrTemplateNotFound
+		}
 		return nil, err
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "template.updated", "",
@@ -70,8 +96,12 @@ func (s *TemplateService) Update(id uuid.UUID, name, description, stack string, 
 	return tmpl, nil
 }
 
+// Delete removes a template only when actorID owns it.
 func (s *TemplateService) Delete(id uuid.UUID, actorID uuid.UUID, ipAddr string) error {
-	if err := s.templateRepo.Delete(id); err != nil {
+	if err := s.templateRepo.Delete(id, actorID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrTemplateNotFound
+		}
 		return err
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "template.deleted", "",
@@ -80,10 +110,19 @@ func (s *TemplateService) Delete(id uuid.UUID, actorID uuid.UUID, ipAddr string)
 }
 
 // ApplyTemplate creates secrets in a project environment based on a template.
-func (s *TemplateService) ApplyTemplate(templateID, projectID uuid.UUID, envName string) ([]models.Secret, error) {
-	tmpl, err := s.templateRepo.GetByID(templateID)
+// userID must have access to the target project (else ErrTemplateProjectAccess)
+// and be able to read the template (else ErrTemplateNotFound) — without these
+// checks any authenticated user could write CHANGEME secrets into another
+// tenant's project, or apply a template they cannot see.
+func (s *TemplateService) ApplyTemplate(templateID, projectID uuid.UUID, envName string, userID uuid.UUID) ([]models.Secret, error) {
+	allowed, err := s.projectRepo.UserHasAccess(userID, projectID)
+	if err != nil || !allowed {
+		return nil, ErrTemplateProjectAccess
+	}
+
+	tmpl, err := s.templateRepo.GetByIDForUser(templateID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("getting template: %w", err)
+		return nil, ErrTemplateNotFound
 	}
 
 	project, err := s.projectRepo.GetByID(projectID)

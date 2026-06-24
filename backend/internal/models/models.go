@@ -76,7 +76,11 @@ type AuditEntry struct {
 // JSONMap is a map that implements sql.Scanner and driver.Valuer for JSONB columns.
 type JSONMap map[string]interface{}
 
-func (j JSONMap) Value() (interface{}, error) {
+// Value implements driver.Valuer so a JSONMap can be passed directly as a query
+// argument (serialized to JSON). The return type must be driver.Value (not
+// interface{}) for database/sql to detect the Valuer — otherwise the driver
+// receives the raw map and rejects it ("unsupported type ... a map").
+func (j JSONMap) Value() (driver.Value, error) {
 	if j == nil {
 		return []byte("{}"), nil
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -82,7 +83,11 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 		return
 	}
 
-	tmpl, err := h.templateService.GetByID(templateID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	tmpl, err := h.templateService.GetByID(templateID, userID)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "template not found")
 		return
@@ -111,6 +116,10 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 
 	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys, userID, c.ClientIP())
 	if err != nil {
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}
@@ -131,6 +140,10 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.templateService.Delete(templateID, userID, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}
@@ -157,8 +170,20 @@ func (h *TemplateHandler) Apply(c *gin.Context) {
 		return
 	}
 
-	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrTemplateProjectAccess) {
+			WrapError(c, ErrForbidden)
+			return
+		}
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}

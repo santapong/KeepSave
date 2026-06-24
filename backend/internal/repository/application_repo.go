@@ -46,6 +46,23 @@ func (r *ApplicationRepository) GetByID(id uuid.UUID) (*models.Application, erro
 	return app, nil
 }
 
+// GetByOwner is the access-checked read: it returns the application only when
+// ownerID owns it (WHERE owner_id), so a caller cannot read another user's
+// application by id. Bare GetByID is for trusted internal callers only.
+func (r *ApplicationRepository) GetByOwner(id, ownerID uuid.UUID) (*models.Application, error) {
+	app := &models.Application{}
+	query := Q(r.dialect, `SELECT id, name, url, description, icon, category, owner_id, created_at, updated_at
+		FROM applications WHERE id = $1 AND owner_id = $2`)
+	err := r.db.QueryRow(query, id, ownerID).Scan(
+		&app.ID, &app.Name, &app.URL, &app.Description, &app.Icon, &app.Category, &app.OwnerID,
+		&app.CreatedAt, &app.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting application: %w", err)
+	}
+	return app, nil
+}
+
 func (r *ApplicationRepository) ListByOwner(ownerID uuid.UUID, search, category string, limit, offset int) ([]models.Application, int, error) {
 	whereClause := ` WHERE owner_id = $1`
 	args := []interface{}{ownerID}

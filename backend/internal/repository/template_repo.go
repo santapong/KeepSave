@@ -59,6 +59,31 @@ func (r *TemplateRepository) GetByID(id uuid.UUID) (*models.SecretTemplate, erro
 	return t, nil
 }
 
+// GetByIDForUser returns a template only if userID may read it: it is global,
+// owned by the user, or scoped to an organization the user belongs to. This is
+// the access-checked read used by request handlers; bare GetByID is for
+// trusted internal callers only. Returns sql.ErrNoRows when no readable
+// template matches (same as not-existing — anti-enumeration).
+func (r *TemplateRepository) GetByIDForUser(id, userID uuid.UUID) (*models.SecretTemplate, error) {
+	t := &models.SecretTemplate{}
+	err := r.db.QueryRow(
+		Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at
+		 FROM secret_templates
+		 WHERE id = $1 AND (
+			is_global = `+r.dialect.BoolLiteral(true)+`
+			OR created_by = $2
+			OR (organization_id IS NOT NULL AND EXISTS (
+				SELECT 1 FROM organization_members om
+				WHERE om.organization_id = secret_templates.organization_id AND om.user_id = $3))
+		 )`),
+		id, userID, userID,
+	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
 func (r *TemplateRepository) ListGlobal() ([]models.SecretTemplate, error) {
 	rows, err := r.db.Query(
 		Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at
@@ -97,37 +122,36 @@ func (r *TemplateRepository) ListByUser(userID uuid.UUID) ([]models.SecretTempla
 	return r.scanTemplates(rows)
 }
 
-func (r *TemplateRepository) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap) (*models.SecretTemplate, error) {
+// Update mutates a template only when ownerID created it (the WHERE binds
+// created_by). A non-owner — even one who can read the template — affects zero
+// rows and gets sql.ErrNoRows, closing the write-IDOR. (Uniform ExecQ +
+// rows-affected across dialects so the ownership gate cannot be bypassed by the
+// RETURNING path.)
+func (r *TemplateRepository) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap, ownerID uuid.UUID) (*models.SecretTemplate, error) {
+	res, err := ExecQ(r.db, r.dialect, `UPDATE secret_templates SET name = $2, description = $3, stack = $4, keys = $5, updated_at = `+r.dialect.Now()+` WHERE id = $1 AND created_by = $6`, id, name, description, stack, keys, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("updating template: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, sql.ErrNoRows
+	}
 	t := &models.SecretTemplate{}
-
-	if r.dialect.SupportsReturning() {
-		err := r.db.QueryRow(
-			Q(r.dialect, `UPDATE secret_templates SET name = $2, description = $3, stack = $4, keys = $5, updated_at = NOW()
-			 WHERE id = $1
-			 RETURNING id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at`),
-			id, name, description, stack, keys,
-		).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("updating template: %w", err)
-		}
-	} else {
-		_, err := ExecQ(r.db, r.dialect, `UPDATE secret_templates SET name = $2, description = $3, stack = $4, keys = $5, updated_at = `+r.dialect.Now()+` WHERE id = $1`, id, name, description, stack, keys)
-		if err != nil {
-			return nil, fmt.Errorf("updating template: %w", err)
-		}
-		selectQ := Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at FROM secret_templates WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("reading updated template: %w", err)
-		}
+	selectQ := Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at FROM secret_templates WHERE id = $1`)
+	if err := r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("reading updated template: %w", err)
 	}
 	return t, nil
 }
 
-func (r *TemplateRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM secret_templates WHERE id = $1`), id)
+// Delete removes a template only when ownerID created it. Zero rows affected
+// (not owner / not found) → sql.ErrNoRows.
+func (r *TemplateRepository) Delete(id, ownerID uuid.UUID) error {
+	res, err := ExecQ(r.db, r.dialect, `DELETE FROM secret_templates WHERE id = $1 AND created_by = $2`, id, ownerID)
 	if err != nil {
 		return fmt.Errorf("deleting template: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
 	}
 	return nil
 }

@@ -48,8 +48,10 @@ func (s *ApplicationService) Create(name, url, description, icon, category strin
 	return app, nil
 }
 
-func (s *ApplicationService) Get(id uuid.UUID) (*models.Application, error) {
-	return s.appRepo.GetByID(id)
+// Get returns an application only when ownerID owns it, closing the read-IDOR
+// where any authenticated user could fetch any application by id.
+func (s *ApplicationService) Get(id, ownerID uuid.UUID) (*models.Application, error) {
+	return s.appRepo.GetByOwner(id, ownerID)
 }
 
 func (s *ApplicationService) List(ownerID uuid.UUID, search, category string, limit, offset int) ([]models.Application, int, error) {

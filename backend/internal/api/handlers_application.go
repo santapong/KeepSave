@@ -111,7 +111,11 @@ func (h *ApplicationHandler) Get(c *gin.Context) {
 		return
 	}
 
-	app, err := h.appService.Get(appID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	app, err := h.appService.Get(appID, userID)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "application not found")
 		return
