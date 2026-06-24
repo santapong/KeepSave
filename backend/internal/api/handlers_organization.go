@@ -28,7 +28,7 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	org, err := h.orgService.Create(req.Name, userID)
+	org, err := h.orgService.Create(req.Name, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -90,7 +90,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	org, err := h.orgService.Update(orgID, userID, req.Name)
+	org, err := h.orgService.Update(orgID, userID, req.Name, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrForbidden, err))
 		return
@@ -110,7 +110,7 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.Delete(orgID, userID); err != nil {
+	if err := h.orgService.Delete(orgID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}
@@ -141,7 +141,7 @@ func (h *OrganizationHandler) AddMember(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	member, err := h.orgService.AddMember(orgID, userID, targetUserID, req.Role)
+	member, err := h.orgService.AddMember(orgID, userID, targetUserID, req.Role, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrForbidden, err))
 		return
@@ -196,7 +196,7 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	member, err := h.orgService.UpdateMemberRole(orgID, userID, memberUserID, req.Role)
+	member, err := h.orgService.UpdateMemberRole(orgID, userID, memberUserID, req.Role, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrForbidden, err))
 		return
@@ -222,7 +222,7 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.RemoveMember(orgID, userID, memberUserID); err != nil {
+	if err := h.orgService.RemoveMember(orgID, userID, memberUserID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrForbidden, err))
 		return
 	}

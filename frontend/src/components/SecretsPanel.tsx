@@ -13,6 +13,8 @@ import { TypedConfirmModal } from './TypedConfirmModal';
 
 /** FU 0i: auto-hide revealed secrets after this many seconds. */
 const REVEAL_TIMEOUT_SECONDS = 30;
+/** Clear a copied secret from the clipboard after this many ms (best-effort). */
+const CLIPBOARD_CLEAR_MS = 20000;
 import {
   Table,
   TableBody,
@@ -83,6 +85,9 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<Secret | null>(null);
   const { toast } = useToast();
   const tickRef = useRef<number | null>(null);
+  // Tracks the pending best-effort clipboard wipe + the value we wrote, so we
+  // only clear the clipboard if it still holds the secret we copied.
+  const clipboardClearRef = useRef<{ timer: number; value: string } | null>(null);
 
   const loadSecrets = useCallback(async () => {
     setLoading(true);
@@ -158,7 +163,25 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
         window.clearInterval(tickRef.current);
         tickRef.current = null;
       }
+      if (clipboardClearRef.current !== null) {
+        window.clearTimeout(clipboardClearRef.current.timer);
+        clipboardClearRef.current = null;
+      }
     };
+  }, []);
+
+  // FE-F04: revealed secrets must never persist visible across a tab switch.
+  // When the document becomes hidden, immediately re-mask every revealed value
+  // and clear the auto-hide countdowns.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden') {
+        setRevealed((prev) => (prev.size > 0 ? new Set() : prev));
+        setRevealRemaining((prev) => (Object.keys(prev).length > 0 ? {} : prev));
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const filteredSecrets = secrets.filter((s) =>
@@ -236,13 +259,43 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
     }
   }
 
+  // Best-effort: wipe the secret from the clipboard after a delay, but only if
+  // the clipboard still contains the value we wrote (don't clobber whatever the
+  // user copied since). Reads can reject without focus/permission — that's fine,
+  // we just overwrite optimistically in that case.
+  function scheduleClipboardClear(value: string) {
+    if (clipboardClearRef.current) {
+      window.clearTimeout(clipboardClearRef.current.timer);
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        let stillOurs = true;
+        try {
+          const current = await navigator.clipboard.readText();
+          stillOurs = current === value;
+        } catch {
+          // Can't read (no permission/focus); overwrite anyway to be safe.
+        }
+        if (stillOurs) {
+          await navigator.clipboard.writeText('');
+        }
+      } catch {
+        // Clipboard unavailable; nothing more we can do.
+      } finally {
+        clipboardClearRef.current = null;
+      }
+    }, CLIPBOARD_CLEAR_MS);
+    clipboardClearRef.current = { timer, value };
+  }
+
   async function copyToClipboard(secretId: string, value: string | undefined) {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
       setCopiedId(secretId);
-      toast({ title: 'Copied', description: 'Secret value copied to clipboard' });
+      toast({ title: 'Copied', description: 'Secret copied — clipboard auto-clears in 20s' });
       setTimeout(() => setCopiedId(null), 2000);
+      scheduleClipboardClear(value);
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = value;
@@ -254,6 +307,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
       document.body.removeChild(textarea);
       setCopiedId(secretId);
       setTimeout(() => setCopiedId(null), 2000);
+      scheduleClipboardClear(value);
     }
   }
 

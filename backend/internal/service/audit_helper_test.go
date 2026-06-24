@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -59,4 +60,56 @@ func TestEmitAudit_WritesRow(t *testing.T) {
 func TestEmitAudit_NilRepoIsNoOp(t *testing.T) {
 	// Must not panic, must not error - simply does nothing.
 	emitAudit(nil, nil, nil, "noop", "", nil, "")
+}
+
+// TestEmitAudit_ObserverRecordsOutcome pins A-06: every emit notifies the
+// observer with the action and whether the write succeeded, so the audit
+// metrics can count attempts and failures.
+func TestEmitAudit_ObserverRecordsOutcome(t *testing.T) {
+	type rec struct {
+		action string
+		ok     bool
+	}
+	var mu sync.Mutex
+	var got []rec
+	SetAuditObserver(func(action string, ok bool) {
+		mu.Lock()
+		got = append(got, rec{action, ok})
+		mu.Unlock()
+	})
+	t.Cleanup(func() { SetAuditObserver(nil) })
+
+	// Success: a working repo.
+	okRepo, _ := newAuditTestRepo(t)
+	emitAudit(okRepo, nil, nil, "secret.created", "", nil, "")
+
+	// Failure: a repo whose DB has no audit_log table, so Create errors.
+	failDB, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = failDB.Close() })
+	failRepo := repository.NewAuditRepository(failDB, repository.NewDialect(repository.DBTypeSQLite))
+	emitAudit(failRepo, nil, nil, "secret.deleted", "", nil, "")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("observer calls = %d, want 2: %+v", len(got), got)
+	}
+	var sawOK, sawFail bool
+	for _, r := range got {
+		if r.action == "secret.created" && r.ok {
+			sawOK = true
+		}
+		if r.action == "secret.deleted" && !r.ok {
+			sawFail = true
+		}
+	}
+	if !sawOK {
+		t.Error("missing success observation for secret.created")
+	}
+	if !sawFail {
+		t.Error("missing failure observation for secret.deleted")
+	}
 }

@@ -108,29 +108,81 @@ func (r *PromotionRepository) ListByProjectID(projectID uuid.UUID) ([]models.Pro
 	return promotions, rows.Err()
 }
 
+// WithTx runs fn inside a single transaction, committing on success and rolling
+// back on any error. Every promotion write (claim, snapshots, upserts, terminal
+// status) runs through one tx so a partial failure leaves no half-promoted
+// state (ADR-0017, P-01).
+func (r *PromotionRepository) WithTx(fn func(*sql.Tx) error) error {
+	return runInTx(r.db, fn)
+}
+
+// UpdateStatus sets a promotion's status unconditionally — used for the non-prod
+// immediate path and for marking a failed promotion rejected.
 func (r *PromotionRepository) UpdateStatus(id uuid.UUID, status string, approvedBy *uuid.UUID) error {
+	_, err := r.setStatus(r.db, id, status, approvedBy, "")
+	return err
+}
+
+// CompareAndSetStatusTx atomically transitions a promotion from `from` to `to`
+// inside tx, returning true only if exactly one row matched. This is the
+// execution claim that closes the approve TOCTOU (ADR-0017, P-02): the loser of
+// a concurrent approve sees false and rolls back.
+func (r *PromotionRepository) CompareAndSetStatusTx(tx *sql.Tx, id uuid.UUID, from, to string, approvedBy *uuid.UUID) (bool, error) {
+	n, err := r.setStatus(tx, id, to, approvedBy, from)
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
+// MarkRolledBackTx transitions completed -> rolled_back inside tx without
+// touching approved_by or completed_at (those record the original completion).
+// Returns false if the promotion was not `completed` (idempotency guard).
+func (r *PromotionRepository) MarkRolledBackTx(tx *sql.Tx, id uuid.UUID) (bool, error) {
+	res, err := ExecQ(tx, r.dialect, `UPDATE promotion_requests SET status = 'rolled_back' WHERE id = $1 AND status = 'completed'`, id)
+	if err != nil {
+		return false, fmt.Errorf("marking promotion rolled back: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rolled-back rows affected: %w", err)
+	}
+	return n == 1, nil
+}
+
+// setStatus performs the status UPDATE over db (a *sql.DB or *sql.Tx). When
+// requireFrom is non-empty it adds an `AND status = requireFrom` guard, and the
+// returned count tells the caller whether the row matched.
+func (r *PromotionRepository) setStatus(db dbtx, id uuid.UUID, status string, approvedBy *uuid.UUID, requireFrom string) (int64, error) {
 	var completedAt *time.Time
 	if status == "completed" || status == "rejected" {
 		now := time.Now()
 		completedAt = &now
 	}
-
-	_, err := r.db.Exec(
-		Q(r.dialect, `UPDATE promotion_requests SET status = $2, approved_by = $3, completed_at = $4 WHERE id = $1`),
-		id, status, approvedBy, completedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("updating promotion status: %w", err)
+	query := `UPDATE promotion_requests SET status = $2, approved_by = $3, completed_at = $4 WHERE id = $1`
+	args := []interface{}{id, status, approvedBy, completedAt}
+	if requireFrom != "" {
+		query += ` AND status = $5`
+		args = append(args, requireFrom)
 	}
-	return nil
+	res, err := ExecQ(db, r.dialect, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("updating promotion status: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("promotion status rows affected: %w", err)
+	}
+	return n, nil
 }
 
-func (r *PromotionRepository) CreateSnapshot(promotionID, environmentID uuid.UUID, key string, encryptedValue, valueNonce []byte) error {
-	_, err := r.db.Exec(
-		Q(r.dialect, `INSERT INTO secret_snapshots (promotion_id, environment_id, key, encrypted_value, value_nonce)
-		 VALUES ($1, $2, $3, $4, $5)`),
-		promotionID, environmentID, key, encryptedValue, valueNonce,
-	)
+// CreateSnapshotTx records the prior state of a target key inside tx.
+// priorExisted is true for an overwritten value (rollback restores it) and
+// false for an added key (rollback deletes it) — see ADR-0017.
+func (r *PromotionRepository) CreateSnapshotTx(tx *sql.Tx, promotionID, environmentID uuid.UUID, key string, encryptedValue, valueNonce []byte, priorExisted bool) error {
+	id := uuid.New()
+	_, err := ExecQ(tx, r.dialect, `INSERT INTO secret_snapshots (id, promotion_id, environment_id, key, encrypted_value, value_nonce, prior_existed)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`, id, promotionID, environmentID, key, encryptedValue, valueNonce, priorExisted)
 	if err != nil {
 		return fmt.Errorf("creating secret snapshot: %w", err)
 	}
@@ -139,7 +191,7 @@ func (r *PromotionRepository) CreateSnapshot(promotionID, environmentID uuid.UUI
 
 func (r *PromotionRepository) GetSnapshotsByPromotionID(promotionID uuid.UUID) ([]models.SecretSnapshot, error) {
 	rows, err := r.db.Query(
-		Q(r.dialect, `SELECT id, promotion_id, environment_id, key, encrypted_value, value_nonce, created_at
+		Q(r.dialect, `SELECT id, promotion_id, environment_id, key, encrypted_value, value_nonce, prior_existed, created_at
 		 FROM secret_snapshots WHERE promotion_id = $1 ORDER BY key`),
 		promotionID,
 	)
@@ -151,7 +203,7 @@ func (r *PromotionRepository) GetSnapshotsByPromotionID(promotionID uuid.UUID) (
 	var snapshots []models.SecretSnapshot
 	for rows.Next() {
 		var s models.SecretSnapshot
-		if err := rows.Scan(&s.ID, &s.PromotionID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PromotionID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.PriorExisted, &s.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning snapshot: %w", err)
 		}
 		snapshots = append(snapshots, s)

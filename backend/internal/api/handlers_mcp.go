@@ -49,7 +49,7 @@ func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 
 	server, err := h.mcpService.RegisterServer(
 		req.Name, req.Description, userID, req.GitHubURL, req.GitHubBranch,
-		req.EntryCommand, req.Transport, req.IconURL, req.Version, envMappings, req.IsPublic,
+		req.EntryCommand, req.Transport, req.IconURL, req.Version, envMappings, req.IsPublic, c.ClientIP(),
 	)
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
@@ -129,6 +129,16 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 		return
 	}
 
+	// Re-validate the entry command on update, not just at registration
+	// (API-F02): without this, an authenticated owner could swap a vetted
+	// command for an arbitrary one and reach the exec path — authenticated RCE.
+	if req.EntryCommand != "" {
+		if _, err := validateMCPEntryCommand(req.EntryCommand); err != nil {
+			WrapError(c, Wrap(ErrInvalidInput, err))
+			return
+		}
+	}
+
 	server := &models.MCPServer{
 		ID:           serverID,
 		OwnerID:      userID,
@@ -145,7 +155,7 @@ func (h *MCPHubHandler) UpdateServer(c *gin.Context) {
 		server.EnvMappings = req.EnvMappings
 	}
 
-	if err := h.mcpService.UpdateServer(server); err != nil {
+	if err := h.mcpService.UpdateServer(server, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
@@ -165,7 +175,7 @@ func (h *MCPHubHandler) DeleteServer(c *gin.Context) {
 		return
 	}
 
-	if err := h.mcpService.DeleteServer(serverID, userID); err != nil {
+	if err := h.mcpService.DeleteServer(serverID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
@@ -222,7 +232,7 @@ func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 		config = req.Config
 	}
 
-	inst, err := h.mcpService.InstallServer(userID, mcpServerID, projectID, config)
+	inst, err := h.mcpService.InstallServer(userID, mcpServerID, projectID, config, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -263,7 +273,12 @@ func (h *MCPHubHandler) UpdateInstallation(c *gin.Context) {
 		return
 	}
 
-	if err := h.mcpService.UpdateInstallation(instID, req.Enabled, req.Config); err != nil {
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	if err := h.mcpService.UpdateInstallation(instID, req.Enabled, req.Config, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}

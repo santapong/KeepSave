@@ -288,5 +288,83 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
       flex: 1;
       margin: 0 12px;
     }
+
+    .ks-add-toggle {
+      margin-bottom: 12px;
+    }
+
+    /* FE-F01/02/03: typed-confirmation modal (replaces window.confirm). */
+    .ks-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2147483647;
+    }
+
+    .ks-modal {
+      background: var(--ks-color-surface);
+      border: 1px solid var(--ks-color-border);
+      border-radius: 8px;
+      padding: 20px;
+      width: 90%;
+      max-width: 420px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .ks-modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ks-color-text);
+      margin-bottom: 8px;
+    }
+
+    .ks-modal-desc {
+      font-size: 13px;
+      color: var(--ks-color-text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .ks-modal-hint {
+      font-size: 12px;
+      color: var(--ks-color-text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .ks-modal-hint code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      background: var(--ks-color-mask-bg);
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: var(--ks-color-text);
+    }
+
+    .ks-modal .ks-input {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+
+    .ks-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .ks-btn-modal {
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+
+    .ks-btn-danger:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .ks-btn-danger:disabled:hover {
+      background: var(--ks-color-surface);
+      color: var(--ks-color-danger);
+    }
   `;
 }

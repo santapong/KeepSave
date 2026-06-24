@@ -71,8 +71,27 @@ func main() {
 	logger.Info("master key resolved", map[string]interface{}{"provider": cfg.KeyProvider})
 
 	jwtService := auth.NewJWTService(cfg.JWTSecret)
+	// RS256/JWKS (ADR-0008): load or self-heal the signing key and switch token
+	// signing to RS256. JWT_ALG_VERIFY controls accepted verification algs during
+	// the HS256->RS256 cutover (default "RS256,HS256"; set "RS256" once HS256
+	// tokens have aged out).
+	jwtKeystore, err := auth.LoadOrInit(cryptoSvc, repository.NewJWTKeyRepository(db, dialect))
+	if err != nil {
+		logger.Error("failed to load JWT keystore", map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
+	}
+	jwtService.EnableRS256(jwtKeystore, parseAlgVerify(os.Getenv("JWT_ALG_VERIFY")))
+	logger.Info("JWT signing initialized", map[string]interface{}{"alg": "RS256", "jwks": true})
 
 	appMetrics := metrics.NewAppMetrics()
+	// Surface audit-emission outcomes to metrics (A-06) without coupling the
+	// service layer to the metrics package.
+	service.SetAuditObserver(func(action string, ok bool) {
+		appMetrics.AuditEventsTotal.Inc(action)
+		if !ok {
+			appMetrics.AuditEmitFailures.Inc(action)
+		}
+	})
 	tracer := tracing.NewTracer("keepsave-api")
 
 	eventBus := events.NewBus(db, dialect)
@@ -84,6 +103,9 @@ func main() {
 	secretRepo := repository.NewSecretRepository(db, dialect)
 	apikeyRepo := repository.NewAPIKeyRepository(db, dialect)
 	auditRepo := repository.NewAuditRepository(db, dialect)
+	// Enable the tamper-evident audit hash chain (ADR-0019). The key is derived
+	// from the master key and never leaves internal/crypto.
+	auditRepo.SetChainKey(cryptoSvc.DeriveAuditChainKey())
 	promotionRepo := repository.NewPromotionRepository(db, dialect)
 	_ = repository.NewSecretVersionRepository(db, dialect)
 	orgRepo := repository.NewOrganizationRepository(db, dialect)
@@ -105,25 +127,37 @@ func main() {
 	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo, auditRepo)
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, auditRepo, cryptoSvc)
-	webhookService := service.NewWebhookService()
-	orgService := service.NewOrganizationService(orgRepo)
-	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
-	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, cryptoSvc)
+	webhookService := service.NewWebhookService(auditRepo)
+	orgService := service.NewOrganizationService(orgRepo, auditRepo)
+	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
+	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
-	ssoService := service.NewSSOService(ssoRepo, cryptoSvc)
+	ssoService := service.NewSSOService(ssoRepo, orgRepo, auditRepo, cryptoSvc)
 	complianceService := service.NewComplianceService(complianceRepo, auditRepo, orgRepo)
-	backupService := service.NewBackupService(backupRepo, secretRepo, cryptoSvc)
-	policyService := service.NewSecretPolicyService(db, dialect)
+	backupService := service.NewBackupService(backupRepo, secretRepo, auditRepo, cryptoSvc)
+	policyService := service.NewSecretPolicyService(db, dialect, auditRepo)
 
-	leaseService := service.NewLeaseService(db, dialect)
+	leaseService := service.NewLeaseService(db, dialect, auditRepo)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
-	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo)
-	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo)
+	// Short-lived agent tokens + JWT denylist (ADR-0021). Seed the revocation
+	// cache from the table at boot, then attach it to the JWT verifier so
+	// agent-token (jti-bearing) validation consults it. User tokens carry no
+	// jti and skip the check entirely.
+	tokenDenylist := repository.NewTokenDenylistRepository(db, dialect)
+	if err := tokenDenylist.RefreshCache(); err != nil {
+		logger.Error("failed to seed token denylist cache", map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
+	}
+	jwtService.EnableDenylist(tokenDenylist)
+	agentTokenService := service.NewAgentTokenService(jwtService, leaseService, tokenDenylist, auditRepo)
+
+	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo, auditRepo)
+	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo, auditRepo)
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
-	appService := service.NewApplicationService(appRepo)
+	appService := service.NewApplicationService(appRepo, auditRepo)
 
 	aiMgr := service.NewAIProviderManager()
 	if aiMgr.HasProvider() {
@@ -132,7 +166,7 @@ func main() {
 		logger.Info("no AI providers configured (Phase 15 features will use fallback mode)", nil)
 	}
 	driftService := service.NewDriftService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
-	anomalyService := service.NewAnomalyService(db, dialect, aiMgr)
+	anomalyService := service.NewAnomalyService(db, dialect, aiMgr, auditRepo)
 	usageAnalyticsSvc := service.NewUsageAnalyticsService(db, dialect)
 	recommService := service.NewRecommendationService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
 	nlpService := service.NewNLPQueryService(db, dialect, projectRepo, envRepo, secretRepo, aiMgr)
@@ -143,7 +177,7 @@ func main() {
 	apikeyHandler := api.NewAPIKeyHandler(apikeyService)
 	promotionHandler := api.NewPromotionHandler(promotionService)
 	keyRotationHandler := api.NewKeyRotationHandler(keyRotationService)
-	webhookHandler := api.NewWebhookHandler(webhookService)
+	webhookHandler := api.NewWebhookHandler(webhookService, projectRepo)
 	versionHandler := api.NewVersionHandler(repository.NewSecretVersionRepository(db, dialect), secretRepo, projectRepo, cryptoSvc)
 	healthHandler := api.NewHealthHandler(db)
 	orgHandler := api.NewOrganizationHandler(orgService)
@@ -154,24 +188,28 @@ func main() {
 	metricsHandler := api.NewMetricsHandler(appMetrics, tracer)
 	openAPIHandler := api.NewOpenAPIHandler()
 	enterpriseHandler := api.NewEnterpriseHandler(ssoService, complianceService, backupService, policyService)
-	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc)
+	agentHandler := api.NewAgentHandler(leaseService, agentAnalyticsSvc, agentTokenService)
 	platformHandler := api.NewPlatformHandler(eventBus, pluginRegistry, accessPolicyRepo)
-	oauthHandler := api.NewOAuthHandler(oauthService)
+	oauthHandler := api.NewOAuthHandler(oauthService, jwtKeystore)
 	mcpHubHandler := api.NewMCPHubHandler(mcpService, mcpBuilderService)
 	mcpGatewayHandler := api.NewMCPGatewayHandler(mcpService, mcpBuilderService, mcpRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 	applicationHandler := api.NewApplicationHandler(appService)
 
-	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr)
+	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr, projectRepo, orgService)
 	// ADR-0006: embed widget origin allow-list.
 	embedHandler := api.NewEmbedHandler(projectService)
 
 	if !cfg.PromotionsEnabled {
 		logger.Info("promotions disabled by kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false); /promote and /approve will return 503", nil)
 	}
+	if len(cfg.PlatformAdminEmails) == 0 {
+		logger.Warn("KEEPSAVE_PLATFORM_ADMIN_EMAILS is empty; /admin endpoints will reject all callers (fail-closed)", nil)
+	}
 
 	router := api.SetupRouter(
 		cfg.CORSOrigins,
 		cfg.PromotionsEnabled,
+		cfg.PlatformAdminEmails,
 		jwtService,
 		apikeyRepo,
 		projectRepo,
@@ -218,6 +256,11 @@ func main() {
 	// DB pool gauges (audit B-L1). Polled every 15s; exits on shutdown.
 	go metrics.StartDBPoolUpdater(bgCtx, db, appMetrics)
 
+	// Token-denylist maintenance (ADR-0021): refresh the in-process revocation
+	// cache so explicit jti revokes from other instances propagate, and prune
+	// rows whose tokens have expired. Exits on shutdown.
+	go startTokenDenylistMaintainer(bgCtx, logger, tokenDenylist)
+
 	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	logger.Info("starting server", map[string]interface{}{
 		"version":  version.Version,
@@ -231,6 +274,11 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		// Slowloris / slow-client protection (INF-3). The API has no streaming
+		// (SSE) endpoints, so a bounded WriteTimeout is safe.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 	if tlsEnabled {
 		srv.TLSConfig = buildTLSConfig(cfg.TLSCipherSuites)
@@ -277,6 +325,22 @@ func main() {
 		cancelBackground()
 		logger.Info("shutdown complete", nil)
 	}
+}
+
+// parseAlgVerify parses the JWT_ALG_VERIFY allowlist (comma-separated). Empty
+// defaults to the HS256->RS256 cutover set {RS256,HS256} (ADR-0008).
+func parseAlgVerify(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil // EnableRS256 defaults to {"RS256","HS256"}
+	}
+	var algs []string
+	for _, a := range strings.Split(raw, ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			algs = append(algs, a)
+		}
+	}
+	return algs
 }
 
 // resolveMasterKey sources the 32-byte master key from the configured
@@ -397,6 +461,31 @@ func startAuditLogPruner(ctx context.Context, logger *logging.Logger, repo *repo
 			return
 		case <-ticker.C:
 			prune()
+		}
+	}
+}
+
+// startTokenDenylistMaintainer refreshes the revocation cache and prunes expired
+// rows on a short interval (ADR-0021). The refresh interval bounds how long an
+// explicit jti revoke on one instance takes to propagate to others; lease-cascade
+// revocation is read live and is never stale.
+func startTokenDenylistMaintainer(ctx context.Context, logger *logging.Logger, repo *repository.TokenDenylistRepository) {
+	const interval = 30 * time.Second
+	logger.Info("token-denylist maintainer started", map[string]interface{}{"interval": interval.String()})
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("token-denylist maintainer stopping", nil)
+			return
+		case <-ticker.C:
+			if err := repo.RefreshCache(); err != nil {
+				logger.Error("token-denylist refresh failed", map[string]interface{}{"error": err.Error()})
+			}
+			if _, err := repo.DeleteExpired(); err != nil {
+				logger.Error("token-denylist prune failed", map[string]interface{}{"error": err.Error()})
+			}
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +39,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 		orgID = &id
 	}
 
-	tmpl, err := h.templateService.Create(req.Name, req.Description, req.Stack, req.Keys, userID, orgID, req.IsGlobal)
+	tmpl, err := h.templateService.Create(req.Name, req.Description, req.Stack, req.Keys, userID, orgID, req.IsGlobal, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -82,7 +83,11 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 		return
 	}
 
-	tmpl, err := h.templateService.GetByID(templateID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	tmpl, err := h.templateService.GetByID(templateID, userID)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "template not found")
 		return
@@ -104,8 +109,17 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 		return
 	}
 
-	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys, userID, c.ClientIP())
 	if err != nil {
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}
@@ -120,7 +134,16 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.templateService.Delete(templateID); err != nil {
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	if err := h.templateService.Delete(templateID, userID, c.ClientIP()); err != nil {
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}
@@ -147,8 +170,20 @@ func (h *TemplateHandler) Apply(c *gin.Context) {
 		return
 	}
 
-	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrTemplateProjectAccess) {
+			WrapError(c, ErrForbidden)
+			return
+		}
+		if errors.Is(err, service.ErrTemplateNotFound) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}

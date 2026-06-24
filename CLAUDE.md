@@ -95,6 +95,7 @@ docker-compose up --build                  # Run everything
 | `PORT`                | API server port (default: 8080)          |
 | `CORS_ORIGINS`        | Allowed origins for embed widget         |
 | `KEEPSAVE_PROMOTIONS_ENABLED` | Promotion kill switch (default: true). `false` makes `/promote` + `/approve` return 503; see `docs/RUNBOOK.md` §8 |
+| `KEEPSAVE_PLATFORM_ADMIN_EMAILS` | Comma-separated allowlist of user emails permitted to reach the cross-tenant `/admin` endpoints (dashboard, traces). Empty (default) ⇒ `/admin` rejects everyone (fail-closed) |
 
 ## Coding Conventions
 

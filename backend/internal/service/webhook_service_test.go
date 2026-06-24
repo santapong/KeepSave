@@ -13,7 +13,7 @@ import (
 )
 
 func TestWebhookServiceRegisterAndList(t *testing.T) {
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	config := WebhookConfig{
@@ -22,7 +22,7 @@ func TestWebhookServiceRegisterAndList(t *testing.T) {
 		Events: []string{"promotion.completed"},
 	}
 
-	_ = ws.RegisterWebhook(projectID, config)
+	_ = ws.RegisterWebhook(projectID, config, uuid.Nil, "")
 
 	configs := ws.ListWebhooks(projectID)
 	if len(configs) != 1 {
@@ -37,11 +37,11 @@ func TestWebhookServiceRegisterAndList(t *testing.T) {
 }
 
 func TestWebhookServiceRemove(t *testing.T) {
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
-	_ = ws.RegisterWebhook(projectID, WebhookConfig{URL: "https://example.com/hook"})
-	ws.RemoveWebhooks(projectID)
+	_ = ws.RegisterWebhook(projectID, WebhookConfig{URL: "https://example.com/hook"}, uuid.Nil, "")
+	ws.RemoveWebhooks(projectID, uuid.Nil, "")
 
 	configs := ws.ListWebhooks(projectID)
 	if len(configs) != 0 {
@@ -50,7 +50,7 @@ func TestWebhookServiceRemove(t *testing.T) {
 }
 
 func TestWebhookServiceListEmpty(t *testing.T) {
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	configs := ws.ListWebhooks(uuid.New())
 	if configs != nil {
 		t.Errorf("expected nil for unknown project, got %v", configs)
@@ -87,13 +87,13 @@ func TestWebhookServiceNotify(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"promotion.completed"},
-	})
+	}, uuid.Nil, "")
 
 	ws.Notify(projectID, "promotion.completed", map[string]interface{}{
 		"source": "alpha",
@@ -137,13 +137,13 @@ func TestWebhookServiceEventFilter(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"promotion.completed"},
-	})
+	}, uuid.Nil, "")
 
 	// This event type should NOT be delivered
 	ws.Notify(projectID, "promotion.requested", map[string]interface{}{})
@@ -164,13 +164,13 @@ func TestWebhookServiceWildcardEvents(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"*"},
-	})
+	}, uuid.Nil, "")
 
 	ws.Notify(projectID, "any.event.type", map[string]interface{}{})
 
@@ -193,14 +193,14 @@ func TestWebhookServiceHMACSignature(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Secret: "webhook-secret-key",
 		Events: []string{"*"},
-	})
+	}, uuid.Nil, "")
 
 	ws.Notify(projectID, "test.event", map[string]interface{}{"key": "value"})
 
@@ -227,23 +227,30 @@ func TestWebhookServiceDeliveryLog(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ws := NewWebhookService()
+	ws := NewWebhookService(nil)
 	projectID := uuid.New()
 
 	_ = ws.RegisterWebhook(projectID, WebhookConfig{
 		URL:    server.URL,
 		Events: []string{"*"},
-	})
+	}, uuid.Nil, "")
 
 	ws.Notify(projectID, "test.event", map[string]interface{}{})
 	time.Sleep(200 * time.Millisecond)
 
-	deliveries := ws.GetDeliveries()
+	deliveries := ws.GetDeliveries([]uuid.UUID{projectID})
 	if len(deliveries) != 1 {
 		t.Fatalf("expected 1 delivery record, got %d", len(deliveries))
 	}
 	if !deliveries[0].Success {
 		t.Error("delivery should be successful")
+	}
+	if deliveries[0].ProjectID != projectID {
+		t.Errorf("delivery ProjectID = %v, want %v", deliveries[0].ProjectID, projectID)
+	}
+	// Deliveries are tenant-scoped: another project sees none of these records.
+	if other := ws.GetDeliveries([]uuid.UUID{uuid.New()}); len(other) != 0 {
+		t.Errorf("cross-tenant GetDeliveries returned %d records, want 0", len(other))
 	}
 }
 

@@ -142,6 +142,28 @@ func (s *SecretService) List(projectID uuid.UUID, envName string) ([]models.Secr
 	return secrets, nil
 }
 
+// ListResolved is List with secret-reference interpolation applied (ADR-0020):
+// ${VAR} and the other supported tokens are replaced with the referenced key's
+// value within the same environment, transitively. It is opt-in (the raw List
+// is unchanged) and is deliberately NOT used by the promotion/diff path, which
+// must operate on the stored (raw) ciphertext so resolution can't leak a
+// referenced value across an environment boundary.
+func (s *SecretService) ListResolved(projectID uuid.UUID, envName string) ([]models.Secret, error) {
+	secrets, err := s.List(projectID, envName)
+	if err != nil {
+		return nil, err
+	}
+	raw := make(map[string]string, len(secrets))
+	for _, sec := range secrets {
+		raw[sec.Key] = sec.Value
+	}
+	resolved := ResolveEnvReferences(raw)
+	for i := range secrets {
+		secrets[i].Value = resolved[secrets[i].Key]
+	}
+	return secrets, nil
+}
+
 func (s *SecretService) Update(projectID, secretID uuid.UUID, value string, actorID uuid.UUID, ipAddr string) (*models.Secret, error) {
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {

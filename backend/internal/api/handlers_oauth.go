@@ -6,16 +6,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
 
 type OAuthHandler struct {
 	oauthService *service.OAuthService
+	keystore     *auth.Keystore
 }
 
-func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
-	return &OAuthHandler{oauthService: oauthService}
+func NewOAuthHandler(oauthService *service.OAuthService, keystore *auth.Keystore) *OAuthHandler {
+	return &OAuthHandler{oauthService: oauthService, keystore: keystore}
 }
 
 func (h *OAuthHandler) RegisterClient(c *gin.Context) {
@@ -28,7 +30,7 @@ func (h *OAuthHandler) RegisterClient(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic)
+	client, rawSecret, err := h.oauthService.RegisterClient(req.Name, req.Description, userID, req.RedirectURIs, req.Scopes, req.GrantTypes, req.LogoURL, req.HomepageURL, req.IsPublic, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
@@ -62,7 +64,7 @@ func (h *OAuthHandler) DeleteClient(c *gin.Context) {
 		RespondError(c, http.StatusBadRequest, "invalid client id")
 		return
 	}
-	if err := h.oauthService.DeleteClient(clientID, userID); err != nil {
+	if err := h.oauthService.DeleteClient(clientID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
@@ -226,7 +228,12 @@ func (h *OAuthHandler) Revoke(c *gin.Context) {
 }
 
 func (h *OAuthHandler) JWKS(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"keys": []interface{}{}, "note": "KeepSave currently uses HS256 for JWT signing. JWKS with RS256 support is planned."})
+	if h.keystore == nil {
+		c.JSON(http.StatusOK, gin.H{"keys": []interface{}{}})
+		return
+	}
+	// RFC 7517 JWK Set of the active (signing + verifying) RS256 public keys.
+	c.JSON(http.StatusOK, gin.H{"keys": h.keystore.PublicKeySet()})
 }
 
 func (h *OAuthHandler) OpenIDConfiguration(c *gin.Context) {

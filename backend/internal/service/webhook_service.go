@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
 // WebhookEvent represents an event that triggers a webhook.
@@ -32,15 +34,19 @@ type WebhookConfig struct {
 
 // WebhookService manages webhook notifications.
 type WebhookService struct {
-	mu       sync.RWMutex
-	configs  map[uuid.UUID][]WebhookConfig // project_id -> configs
-	client   *http.Client
-	eventLog []WebhookDelivery
+	mu        sync.RWMutex
+	configs   map[uuid.UUID][]WebhookConfig // project_id -> configs
+	client    *http.Client
+	eventLog  []WebhookDelivery
+	auditRepo *repository.AuditRepository
 }
 
-// WebhookDelivery records a webhook delivery attempt.
+// WebhookDelivery records a webhook delivery attempt. ProjectID scopes the
+// record to its tenant so the delivery log (a process-global slice) can be
+// filtered per caller instead of exposing every tenant's target URLs.
 type WebhookDelivery struct {
 	EventID     string    `json:"event_id"`
+	ProjectID   uuid.UUID `json:"project_id"`
 	URL         string    `json:"url"`
 	StatusCode  int       `json:"status_code"`
 	Success     bool      `json:"success"`
@@ -49,12 +55,21 @@ type WebhookDelivery struct {
 }
 
 // NewWebhookService creates a new webhook service.
-func NewWebhookService() *WebhookService {
+func NewWebhookService(auditRepo *repository.AuditRepository) *WebhookService {
 	return &WebhookService{
 		configs: make(map[uuid.UUID][]WebhookConfig),
 		client: &http.Client{
 			Timeout: 10 * time.Second,
+			// Do not follow redirects (API-F05): a webhook target that 3xx's to
+			// an internal address (e.g. 169.254.169.254) would otherwise bypass
+			// the registration-time SSRF allow-policy. ErrUseLastResponse makes
+			// Do return the redirect response itself, which is treated as a
+			// non-2xx failed delivery.
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
+		auditRepo: auditRepo,
 	}
 }
 
@@ -64,21 +79,29 @@ func NewWebhookService() *WebhookService {
 // it later via a state-mutating call. Delivery does NOT re-validate -
 // re-resolving on every call costs latency and only protects against DNS
 // rebinding, which we accept as out-of-scope for this round.
-func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig) error {
+func (ws *WebhookService) RegisterWebhook(projectID uuid.UUID, config WebhookConfig, actorID uuid.UUID, ipAddr string) error {
 	if err := ValidateWebhookURL(config.URL); err != nil {
 		return err
 	}
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
 	ws.configs[projectID] = append(ws.configs[projectID], config)
+	ws.mu.Unlock()
+
+	// Never log the webhook secret; the URL/events are non-sensitive metadata.
+	emitAudit(ws.auditRepo, &actorID, &projectID, "webhook.registered", "",
+		models.JSONMap{"project_id": projectID.String(), "url": config.URL, "events": config.Events}, ipAddr)
 	return nil
 }
 
 // RemoveWebhooks removes all webhooks for a project.
-func (ws *WebhookService) RemoveWebhooks(projectID uuid.UUID) {
+func (ws *WebhookService) RemoveWebhooks(projectID uuid.UUID, actorID uuid.UUID, ipAddr string) {
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
+	removed := len(ws.configs[projectID])
 	delete(ws.configs, projectID)
+	ws.mu.Unlock()
+
+	emitAudit(ws.auditRepo, &actorID, &projectID, "webhook.removed", "",
+		models.JSONMap{"project_id": projectID.String(), "removed_count": removed}, ipAddr)
 }
 
 // ListWebhooks returns all webhook configs for a project.
@@ -88,12 +111,22 @@ func (ws *WebhookService) ListWebhooks(projectID uuid.UUID) []WebhookConfig {
 	return ws.configs[projectID]
 }
 
-// GetDeliveries returns recent webhook delivery records.
-func (ws *WebhookService) GetDeliveries() []WebhookDelivery {
+// GetDeliveries returns recent webhook delivery records for the given projects
+// only (the caller's accessible set). Passing no projects returns nothing — a
+// caller never sees another tenant's delivery records.
+func (ws *WebhookService) GetDeliveries(projectIDs []uuid.UUID) []WebhookDelivery {
 	ws.mu.RLock()
 	defer ws.mu.RUnlock()
-	result := make([]WebhookDelivery, len(ws.eventLog))
-	copy(result, ws.eventLog)
+	allow := make(map[uuid.UUID]bool, len(projectIDs))
+	for _, id := range projectIDs {
+		allow[id] = true
+	}
+	result := make([]WebhookDelivery, 0)
+	for _, d := range ws.eventLog {
+		if allow[d.ProjectID] {
+			result = append(result, d)
+		}
+	}
 	return result
 }
 
@@ -138,13 +171,13 @@ func (ws *WebhookService) shouldDeliver(config WebhookConfig, eventType string) 
 func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 	payload, err := json.Marshal(event)
 	if err != nil {
-		ws.recordDelivery(event.ID, config.URL, 0, false, err.Error())
+		ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, err.Error())
 		return
 	}
 
 	req, err := http.NewRequest("POST", config.URL, bytes.NewReader(payload))
 	if err != nil {
-		ws.recordDelivery(event.ID, config.URL, 0, false, err.Error())
+		ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, err.Error())
 		return
 	}
 
@@ -172,7 +205,7 @@ func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 		resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			ws.recordDelivery(event.ID, config.URL, resp.StatusCode, true, "")
+			ws.recordDelivery(event.ID, event.ProjectID, config.URL, resp.StatusCode, true, "")
 			return
 		}
 		lastErr = fmt.Errorf("webhook returned status %d", resp.StatusCode)
@@ -182,14 +215,15 @@ func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 	if lastErr != nil {
 		errMsg = lastErr.Error()
 	}
-	ws.recordDelivery(event.ID, config.URL, 0, false, errMsg)
+	ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, errMsg)
 }
 
-func (ws *WebhookService) recordDelivery(eventID, url string, statusCode int, success bool, errMsg string) {
+func (ws *WebhookService) recordDelivery(eventID string, projectID uuid.UUID, url string, statusCode int, success bool, errMsg string) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.eventLog = append(ws.eventLog, WebhookDelivery{
 		EventID:     eventID,
+		ProjectID:   projectID,
 		URL:         url,
 		StatusCode:  statusCode,
 		Success:     success,

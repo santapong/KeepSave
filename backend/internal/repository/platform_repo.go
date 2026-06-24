@@ -68,10 +68,17 @@ func (r *AccessPolicyRepository) CreatePolicy(policy *models.AccessPolicy) (*mod
 	return policy, nil
 }
 
-func (r *AccessPolicyRepository) DeletePolicy(policyID uuid.UUID) error {
-	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM access_policies WHERE id = $1`), policyID)
+// DeletePolicy removes an access policy, bound to projectID (the route's :id,
+// already access-checked) so a caller cannot delete another project's policy —
+// and thereby lift its IP/geo/time restrictions — by guessing its id. Zero rows
+// affected → sql.ErrNoRows (handler maps to 404).
+func (r *AccessPolicyRepository) DeletePolicy(policyID, projectID uuid.UUID) error {
+	res, err := ExecQ(r.db, r.dialect, `DELETE FROM access_policies WHERE id = $1 AND project_id = $2`, policyID, projectID)
 	if err != nil {
 		return fmt.Errorf("deleting access policy: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
 	}
 	return nil
 }

@@ -41,7 +41,67 @@ Reviewers reject PRs that fail either.
 | Key rotation (DEK)| `key.dek_rotated`         | `project_id`, `actor_id`, `secrets_rotated`, `environments` — emitted by `keyrotation_service.go::RotateProjectKey` (one row per project; bulk rotation emits per-project rows) |
 | Origin allow-list update | `embed.origins_updated` | `project_id`, `actor_id`, `added[]`, `removed[]` — once allow-list lands       |
 
-Event names use `entity.action` form. The full list lives in `backend/internal/events/events.go` as constants — handlers reference the constants, never bare strings.
+### A-02 sweep — previously-uncovered service mutations (added 2026-06)
+
+These 13 service groups performed state mutations but emitted no audit event.
+The A-02 sweep wired `auditRepo` into each and now emits one row per successful
+mutation. All events use the `entity.action` form. `actor_id` is the audit row's
+`user_id`; `ip` is `ip_address`. Secret values, client secrets and SSO secrets
+are NEVER placed in `details`.
+
+| Action                  | Event name                  | Required metadata fields                                  |
+|-------------------------|-----------------------------|-----------------------------------------------------------|
+| Org create              | `org.created`               | `actor_id`, `organization_id`, `name`                     |
+| Org update              | `org.updated`               | `actor_id`, `organization_id`, `name`                     |
+| Org delete              | `org.deleted`               | `actor_id`, `organization_id`, `name`                     |
+| Org member add          | `org.member_added`          | `actor_id`, `organization_id`, `target_user_id`, `role`   |
+| Org member role update  | `org.member_role_updated`   | `actor_id`, `organization_id`, `target_user_id`, `role`   |
+| Org member remove       | `org.member_removed`        | `actor_id`, `organization_id`, `target_user_id`           |
+| Webhook register        | `webhook.registered`        | `actor_id`, `project_id`, `url`, `events`                 |
+| Webhook remove          | `webhook.removed`           | `actor_id`, `project_id`, `removed_count`                 |
+| Template create         | `template.created`          | `actor_id`, `template_id`, `name`                         |
+| Template update         | `template.updated`          | `actor_id`, `template_id`, `name`                         |
+| Template delete         | `template.deleted`          | `actor_id`, `template_id`                                 |
+| Env-file import         | `envfile.imported`          | `actor_id`, `project_id`, `environment`, `created_count`, `updated_count`, `skipped_count` |
+| SSO configure           | `sso.configured`            | `actor_id`, `organization_id`, `provider`                 |
+| SSO delete              | `sso.deleted`               | `actor_id`, `organization_id`, `provider`                 |
+| Compliance report       | `compliance.generated`      | `actor_id`, `organization_id`, `report_id`, `report_type` |
+| Backup create           | `backup.created`            | `actor_id`, `project_id`, `backup_id`, `type`, `secret_count` |
+| Secret policy set        | `policy.set`                | `actor_id`, `project_id`, `max_age_days`, `require_rotation` |
+| Lease create            | `lease.created`             | `actor_id` (api key id), `project_id`, `environment`, `lease_id`, `secret_keys` |
+| Lease revoke            | `lease.revoked`             | `actor_id`, `lease_id` (no `project_id` — UPDATE is keyed by lease id alone) |
+| Agent token mint        | `agent.token.minted`        | `actor_id`, `project_id`, `lease_id`, `jti`, `expires_at` (ADR-0021) |
+| Agent token revoke      | `agent.token.revoked`       | `actor_id`, `project_id`, `jti` (ADR-0021) |
+| MCP server register     | `mcp.server_registered`     | `actor_id`, `mcp_server_id`, `name`                       |
+| MCP server update       | `mcp.server_updated`        | `actor_id`, `mcp_server_id`, `name`                       |
+| MCP server delete       | `mcp.server_deleted`        | `actor_id`, `mcp_server_id`                               |
+| MCP server install      | `mcp.server_installed`      | `actor_id`, `mcp_server_id`, `installation_id`, `project_id` (nullable) |
+| MCP installation update | `mcp.installation_updated`  | `actor_id`, `installation_id`, `enabled`                  |
+| OAuth client register   | `oauth.client_registered`   | `actor_id`, `oauth_client_id`, `client_id`, `name`        |
+| OAuth client delete     | `oauth.client_deleted`      | `actor_id`, `oauth_client_id`                             |
+| Application create      | `application.created`       | `actor_id`, `application_id`, `name`                      |
+| Application update      | `application.updated`       | `actor_id`, `application_id`, `name`                      |
+| Application delete      | `application.deleted`       | `actor_id`, `application_id`                              |
+| Anomaly rule create     | `anomaly.rule_created`      | `actor_id`, `rule_id`, `rule_type`, `project_id` (nullable) |
+| Anomaly rule update     | `anomaly.rule_updated`      | `actor_id`, `rule_id`, `enabled`                          |
+| Anomaly rule delete     | `anomaly.rule_deleted`      | `actor_id`, `rule_id`                                     |
+| Anomaly acknowledge     | `anomaly.acknowledged`      | `actor_id`, `anomaly_id`                                  |
+| Anomaly resolve         | `anomaly.resolved`          | `actor_id`, `anomaly_id`                                  |
+
+### Naming convention
+
+Event names use the `entity.action` form: a dotted `entity` and a snake_case
+sub-action (e.g. `key.dek_rotated`, `auth.login_failed`, `org.member_added`).
+The five `promotion_*` events (`promotion_requested`, `promotion_approved`,
+`promotion_completed`, `promotion_rejected`, `promotion_rollback`) predate this
+convention and use a flat `promotion_<action>` form; they are **legacy** and are
+kept as-is for compatibility. New events MUST use `entity.action`.
+
+Events are currently emitted as string literals via the `emitAudit` helper in
+`backend/internal/service/audit_helper.go` (e.g.
+`emitAudit(s.auditRepo, &actor, &project, "org.created", env, details, ip)`).
+A shared `backend/internal/events/events.go` constants file is a tracked
+follow-up; until it lands, the canonical spelling is the one in the tables above.
 
 ## Implementation pattern
 

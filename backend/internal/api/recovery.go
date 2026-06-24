@@ -22,7 +22,10 @@ func PanicRecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("panic recovered method=%s path=%s remote=%s panic=%v\nstack=%s",
+				// Log the panic TYPE, not its value (A-09): a panic value can
+				// carry a decrypted secret or other sensitive payload that must
+				// not reach logs. The stack trace pinpoints the location.
+				log.Printf("panic recovered method=%s path=%s remote=%s panic_type=%T\nstack=%s",
 					c.Request.Method, c.FullPath(), c.ClientIP(), r, debug.Stack())
 				if !c.Writer.Written() {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{

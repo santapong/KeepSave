@@ -189,6 +189,14 @@ func splitSQLStatements(content string) []string {
 		}
 
 		if c == ';' {
+			// Preserve semicolons *inside* a CREATE TRIGGER ... BEGIN ... END
+			// body; only the `;` after the closing END terminates the trigger
+			// statement. Without this, a trigger would be split into broken
+			// fragments and the migration would fail.
+			if isUnterminatedTrigger(current.String()) {
+				current.WriteByte(';')
+				continue
+			}
 			stmt := strings.TrimSpace(current.String())
 			if stmt != "" {
 				stmts = append(stmts, stmt)
@@ -207,4 +215,34 @@ func splitSQLStatements(content string) []string {
 	}
 
 	return stmts
+}
+
+// isUnterminatedTrigger reports whether buf is a CREATE TRIGGER statement whose
+// BEGIN...END body has not yet closed. SQLite trigger bodies carry their own
+// statement-terminating semicolons; the naive splitter would cut the trigger in
+// half, so those inner `;` must be preserved until the closing END.
+func isUnterminatedTrigger(buf string) bool {
+	up := strings.ToUpper(buf)
+	if !strings.Contains(up, "CREATE TRIGGER") {
+		return false
+	}
+	return !endsWithEndKeyword(up)
+}
+
+// endsWithEndKeyword reports whether the trimmed, upper-cased buffer ends with
+// the word END — the token that closes a trigger body.
+func endsWithEndKeyword(up string) bool {
+	trimmed := strings.TrimRight(up, " \t\r\n")
+	if !strings.HasSuffix(trimmed, "END") {
+		return false
+	}
+	if len(trimmed) == 3 {
+		return true
+	}
+	switch trimmed[len(trimmed)-4] {
+	case ' ', '\t', '\n', '\r':
+		return true
+	default:
+		return false
+	}
 }

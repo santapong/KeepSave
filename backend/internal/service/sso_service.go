@@ -14,18 +14,23 @@ import (
 // SSOService handles SSO provider configuration.
 type SSOService struct {
 	ssoRepo   *repository.SSORepository
+	orgRepo   *repository.OrganizationRepository
+	auditRepo *repository.AuditRepository
 	cryptoSvc *crypto.Service
 }
 
 // NewSSOService creates a new SSO service.
-func NewSSOService(ssoRepo *repository.SSORepository, cryptoSvc *crypto.Service) *SSOService {
-	return &SSOService{ssoRepo: ssoRepo, cryptoSvc: cryptoSvc}
+func NewSSOService(ssoRepo *repository.SSORepository, orgRepo *repository.OrganizationRepository, auditRepo *repository.AuditRepository, cryptoSvc *crypto.Service) *SSOService {
+	return &SSOService{ssoRepo: ssoRepo, orgRepo: orgRepo, auditRepo: auditRepo, cryptoSvc: cryptoSvc}
 }
 
-// ConfigureSSO sets up an SSO provider for an organization.
-func (s *SSOService) ConfigureSSO(orgID uuid.UUID, provider, issuerURL, clientID, clientSecret string, metadata models.JSONMap) (*models.SSOConfig, error) {
-	masterKey := s.cryptoSvc.GetMasterKey()
-	encrypted, nonce, err := crypto.Encrypt(masterKey, []byte(clientSecret))
+// ConfigureSSO sets up an SSO provider for an organization. Requires org admin:
+// repointing an org's IdP is a full account-takeover primitive (AUTH-03).
+func (s *SSOService) ConfigureSSO(orgID, userID uuid.UUID, provider, issuerURL, clientID, clientSecret string, metadata models.JSONMap, ipAddr string) (*models.SSOConfig, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return nil, err
+	}
+	encrypted, nonce, err := s.cryptoSvc.EncryptServiceSecret([]byte(clientSecret))
 	if err != nil {
 		return nil, fmt.Errorf("encrypting client secret: %w", err)
 	}
@@ -41,7 +46,15 @@ func (s *SSOService) ConfigureSSO(orgID uuid.UUID, provider, issuerURL, clientID
 		Enabled:               true,
 	}
 
-	return s.ssoRepo.Upsert(config)
+	saved, err := s.ssoRepo.Upsert(config)
+	if err != nil {
+		return nil, err
+	}
+	// SSO config is org-scoped, not project-scoped: projectID is nil. Never log
+	// the client secret.
+	emitAudit(s.auditRepo, &userID, nil, "sso.configured", "",
+		models.JSONMap{"organization_id": orgID.String(), "provider": provider}, ipAddr)
+	return saved, nil
 }
 
 // GetSSOConfig returns the SSO config for an organization.
@@ -49,14 +62,26 @@ func (s *SSOService) GetSSOConfig(orgID uuid.UUID, provider string) (*models.SSO
 	return s.ssoRepo.GetByOrgAndProvider(orgID, provider)
 }
 
-// ListSSOConfigs returns all SSO configs for an organization.
-func (s *SSOService) ListSSOConfigs(orgID uuid.UUID) ([]models.SSOConfig, error) {
+// ListSSOConfigs returns all SSO configs for an organization. Requires org
+// membership (viewer+); the encrypted client secret is never returned.
+func (s *SSOService) ListSSOConfigs(orgID, userID uuid.UUID) ([]models.SSOConfig, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "viewer"); err != nil {
+		return nil, err
+	}
 	return s.ssoRepo.ListByOrg(orgID)
 }
 
-// DeleteSSOConfig removes an SSO configuration.
-func (s *SSOService) DeleteSSOConfig(orgID uuid.UUID, provider string) error {
-	return s.ssoRepo.Delete(orgID, provider)
+// DeleteSSOConfig removes an SSO configuration. Requires org admin.
+func (s *SSOService) DeleteSSOConfig(orgID, userID uuid.UUID, provider, ipAddr string) error {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return err
+	}
+	if err := s.ssoRepo.Delete(orgID, provider); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "sso.deleted", "",
+		models.JSONMap{"organization_id": orgID.String(), "provider": provider}, ipAddr)
+	return nil
 }
 
 // ComplianceService generates compliance reports.
@@ -71,8 +96,12 @@ func NewComplianceService(complianceRepo *repository.ComplianceRepository, audit
 	return &ComplianceService{complianceRepo: complianceRepo, auditRepo: auditRepo, orgRepo: orgRepo}
 }
 
-// GenerateReport creates a compliance report.
-func (s *ComplianceService) GenerateReport(orgID, userID uuid.UUID, reportType string) (*models.ComplianceReport, error) {
+// GenerateReport creates a compliance report. Requires org admin: the report
+// aggregates org-wide activity and is a sensitive, infrequent operation.
+func (s *ComplianceService) GenerateReport(orgID, userID uuid.UUID, reportType, ipAddr string) (*models.ComplianceReport, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "admin"); err != nil {
+		return nil, err
+	}
 	report := &models.ComplianceReport{
 		OrganizationID: orgID,
 		ReportType:     reportType,
@@ -101,11 +130,21 @@ func (s *ComplianceService) GenerateReport(orgID, userID uuid.UUID, reportType s
 		},
 	}
 
-	return s.complianceRepo.Complete(created.ID, data)
+	completed, err := s.complianceRepo.Complete(created.ID, data)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "compliance.generated", "",
+		models.JSONMap{"organization_id": orgID.String(), "report_id": created.ID.String(), "report_type": reportType}, ipAddr)
+	return completed, nil
 }
 
-// ListReports returns compliance reports for an organization.
-func (s *ComplianceService) ListReports(orgID uuid.UUID) ([]models.ComplianceReport, error) {
+// ListReports returns compliance reports for an organization. Requires org
+// membership (viewer+).
+func (s *ComplianceService) ListReports(orgID, userID uuid.UUID) ([]models.ComplianceReport, error) {
+	if err := requireOrgRole(s.orgRepo, orgID, userID, "viewer"); err != nil {
+		return nil, err
+	}
 	return s.complianceRepo.ListByOrg(orgID)
 }
 
@@ -113,16 +152,17 @@ func (s *ComplianceService) ListReports(orgID uuid.UUID) ([]models.ComplianceRep
 type BackupService struct {
 	backupRepo *repository.BackupRepository
 	secretRepo *repository.SecretRepository
+	auditRepo  *repository.AuditRepository
 	cryptoSvc  *crypto.Service
 }
 
 // NewBackupService creates a new backup service.
-func NewBackupService(backupRepo *repository.BackupRepository, secretRepo *repository.SecretRepository, cryptoSvc *crypto.Service) *BackupService {
-	return &BackupService{backupRepo: backupRepo, secretRepo: secretRepo, cryptoSvc: cryptoSvc}
+func NewBackupService(backupRepo *repository.BackupRepository, secretRepo *repository.SecretRepository, auditRepo *repository.AuditRepository, cryptoSvc *crypto.Service) *BackupService {
+	return &BackupService{backupRepo: backupRepo, secretRepo: secretRepo, auditRepo: auditRepo, cryptoSvc: cryptoSvc}
 }
 
 // CreateBackup creates an encrypted backup of project secrets.
-func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType string) (*models.BackupSnapshot, error) {
+func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType, ipAddr string) (*models.BackupSnapshot, error) {
 	secrets, err := s.secretRepo.ListByProject(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("listing secrets for backup: %w", err)
@@ -144,8 +184,7 @@ func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType s
 		return nil, fmt.Errorf("unexpected data type from Value()")
 	}
 
-	masterKey := s.cryptoSvc.GetMasterKey()
-	encrypted, nonce, err := crypto.Encrypt(masterKey, dataStr)
+	encrypted, nonce, err := s.cryptoSvc.EncryptServiceSecret(dataStr)
 	if err != nil {
 		return nil, fmt.Errorf("encrypting backup: %w", err)
 	}
@@ -159,7 +198,13 @@ func (s *BackupService) CreateBackup(projectID, userID uuid.UUID, snapshotType s
 		CreatedBy:     userID,
 	}
 
-	return s.backupRepo.Create(snapshot)
+	saved, err := s.backupRepo.Create(snapshot)
+	if err != nil {
+		return nil, err
+	}
+	emitAudit(s.auditRepo, &userID, &projectID, "backup.created", "",
+		models.JSONMap{"project_id": projectID.String(), "backup_id": saved.ID.String(), "type": snapshotType, "secret_count": len(secrets)}, ipAddr)
+	return saved, nil
 }
 
 // ListBackups returns backups for a project.
@@ -242,13 +287,14 @@ func (s *IPAllowlistService) CheckIPAllowed(projectID *uuid.UUID, orgID *uuid.UU
 
 // SecretPolicyService manages secret lifecycle policies.
 type SecretPolicyService struct {
-	db      *sql.DB
-	dialect repository.Dialect
+	db        *sql.DB
+	dialect   repository.Dialect
+	auditRepo *repository.AuditRepository
 }
 
 // NewSecretPolicyService creates a new secret policy service.
-func NewSecretPolicyService(db *sql.DB, dialect repository.Dialect) *SecretPolicyService {
-	return &SecretPolicyService{db: db, dialect: dialect}
+func NewSecretPolicyService(db *sql.DB, dialect repository.Dialect, auditRepo *repository.AuditRepository) *SecretPolicyService {
+	return &SecretPolicyService{db: db, dialect: dialect, auditRepo: auditRepo}
 }
 
 // GetPolicy returns the policy for a project.
@@ -266,7 +312,7 @@ func (s *SecretPolicyService) GetPolicy(projectID uuid.UUID) (*models.SecretPoli
 }
 
 // SetPolicy creates or updates a project's secret policy.
-func (s *SecretPolicyService) SetPolicy(projectID uuid.UUID, maxAgeDays, reminderDays int, requireRotation bool) (*models.SecretPolicy, error) {
+func (s *SecretPolicyService) SetPolicy(projectID uuid.UUID, maxAgeDays, reminderDays int, requireRotation bool, actorID uuid.UUID, ipAddr string) (*models.SecretPolicy, error) {
 	policy := &models.SecretPolicy{}
 	id := uuid.New()
 
@@ -298,5 +344,7 @@ func (s *SecretPolicyService) SetPolicy(projectID uuid.UUID, maxAgeDays, reminde
 			return nil, fmt.Errorf("reading upserted secret policy: %w", err)
 		}
 	}
+	emitAudit(s.auditRepo, &actorID, &projectID, "policy.set", "",
+		models.JSONMap{"project_id": projectID.String(), "max_age_days": maxAgeDays, "require_rotation": requireRotation}, ipAddr)
 	return policy, nil
 }

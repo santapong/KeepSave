@@ -3,6 +3,7 @@ package service
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,10 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// ErrRecommendationNotFound is returned when a dismiss targets a recommendation
+// id that does not exist in the given project. Handlers map it to 404.
+var ErrRecommendationNotFound = errors.New("recommendation not found")
 
 type RecommendationService struct {
 	db          *sql.DB
@@ -158,9 +163,18 @@ func (s *RecommendationService) ListRecommendations(projectID uuid.UUID, status 
 	return recs, nil
 }
 
-func (s *RecommendationService) DismissRecommendation(id uuid.UUID) error {
-	_, err := s.db.Exec(`UPDATE secret_recommendations SET status = 'dismissed' WHERE id = $1`, id)
-	return err
+// DismissRecommendation marks a recommendation dismissed, bound to projectID
+// (the route's :id, already access-checked) so a caller cannot dismiss another
+// project's recommendation by id. Zero rows affected → ErrRecommendationNotFound.
+func (s *RecommendationService) DismissRecommendation(id, projectID uuid.UUID) error {
+	res, err := s.db.Exec(repository.Q(s.dialect, `UPDATE secret_recommendations SET status = 'dismissed' WHERE id = $1 AND project_id = $2`), id, projectID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrRecommendationNotFound
+	}
+	return nil
 }
 
 func isSimilarKey(a, b string) bool {

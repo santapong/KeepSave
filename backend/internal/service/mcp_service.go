@@ -13,20 +13,22 @@ type MCPService struct {
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 }
 
-func NewMCPService(mcpRepo *repository.MCPRepository, secretRepo *repository.SecretRepository, projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository) *MCPService {
+func NewMCPService(mcpRepo *repository.MCPRepository, secretRepo *repository.SecretRepository, projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository, auditRepo *repository.AuditRepository) *MCPService {
 	return &MCPService{
 		mcpRepo:     mcpRepo,
 		secretRepo:  secretRepo,
 		projectRepo: projectRepo,
 		envRepo:     envRepo,
+		auditRepo:   auditRepo,
 	}
 }
 
 // Server Management
 
-func (s *MCPService) RegisterServer(name, description string, ownerID uuid.UUID, githubURL, githubBranch, entryCommand, transport, iconURL, version string, envMappings models.JSONMap, isPublic bool) (*models.MCPServer, error) {
+func (s *MCPService) RegisterServer(name, description string, ownerID uuid.UUID, githubURL, githubBranch, entryCommand, transport, iconURL, version string, envMappings models.JSONMap, isPublic bool, ipAddr string) (*models.MCPServer, error) {
 	if transport == "" {
 		transport = "stdio"
 	}
@@ -56,6 +58,9 @@ func (s *MCPService) RegisterServer(name, description string, ownerID uuid.UUID,
 		return nil, fmt.Errorf("creating mcp server: %w", err)
 	}
 
+	// MCP servers are user-owned, not project-scoped: projectID is nil.
+	emitAudit(s.auditRepo, &ownerID, nil, "mcp.server_registered", "",
+		models.JSONMap{"mcp_server_id": server.ID.String(), "name": name}, ipAddr)
 	return server, nil
 }
 
@@ -71,12 +76,23 @@ func (s *MCPService) ListMyServers(ownerID uuid.UUID) ([]models.MCPServer, error
 	return s.mcpRepo.ListServersByOwner(ownerID)
 }
 
-func (s *MCPService) UpdateServer(server *models.MCPServer) error {
-	return s.mcpRepo.UpdateServer(server)
+func (s *MCPService) UpdateServer(server *models.MCPServer, ipAddr string) error {
+	if err := s.mcpRepo.UpdateServer(server); err != nil {
+		return err
+	}
+	actor := server.OwnerID
+	emitAudit(s.auditRepo, &actor, nil, "mcp.server_updated", "",
+		models.JSONMap{"mcp_server_id": server.ID.String(), "name": server.Name}, ipAddr)
+	return nil
 }
 
-func (s *MCPService) DeleteServer(id, ownerID uuid.UUID) error {
-	return s.mcpRepo.DeleteServer(id, ownerID)
+func (s *MCPService) DeleteServer(id, ownerID uuid.UUID, ipAddr string) error {
+	if err := s.mcpRepo.DeleteServer(id, ownerID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &ownerID, nil, "mcp.server_deleted", "",
+		models.JSONMap{"mcp_server_id": id.String()}, ipAddr)
+	return nil
 }
 
 func (s *MCPService) UpdateServerStatus(id uuid.UUID, status, buildLog string) error {
@@ -89,7 +105,7 @@ func (s *MCPService) SyncServerTools(id uuid.UUID, toolDefs models.JSONMap) erro
 
 // Installation Management
 
-func (s *MCPService) InstallServer(userID, mcpServerID uuid.UUID, projectID *uuid.UUID, config models.JSONMap) (*models.MCPInstallation, error) {
+func (s *MCPService) InstallServer(userID, mcpServerID uuid.UUID, projectID *uuid.UUID, config models.JSONMap, ipAddr string) (*models.MCPInstallation, error) {
 	// Verify server exists and is ready
 	server, err := s.mcpRepo.GetServer(mcpServerID)
 	if err != nil {
@@ -113,6 +129,8 @@ func (s *MCPService) InstallServer(userID, mcpServerID uuid.UUID, projectID *uui
 
 	s.mcpRepo.IncrementInstallCount(mcpServerID)
 
+	emitAudit(s.auditRepo, &userID, projectID, "mcp.server_installed", "",
+		models.JSONMap{"mcp_server_id": mcpServerID.String(), "installation_id": inst.ID.String()}, ipAddr)
 	return inst, nil
 }
 
@@ -120,8 +138,13 @@ func (s *MCPService) ListInstallations(userID uuid.UUID) ([]models.MCPInstallati
 	return s.mcpRepo.ListInstallationsByUser(userID)
 }
 
-func (s *MCPService) UpdateInstallation(id uuid.UUID, enabled bool, config models.JSONMap) error {
-	return s.mcpRepo.UpdateInstallation(id, enabled, config)
+func (s *MCPService) UpdateInstallation(id uuid.UUID, enabled bool, config models.JSONMap, actorID uuid.UUID, ipAddr string) error {
+	if err := s.mcpRepo.UpdateInstallation(id, enabled, config); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &actorID, nil, "mcp.installation_updated", "",
+		models.JSONMap{"installation_id": id.String(), "enabled": enabled}, ipAddr)
+	return nil
 }
 
 func (s *MCPService) UninstallServer(id, userID uuid.UUID) error {

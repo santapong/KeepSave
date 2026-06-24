@@ -3,6 +3,7 @@ package service
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
+
+// ErrDriftScheduleNotFound is returned when an update/delete targets a schedule
+// id that does not exist in the given project (so a caller cannot mutate
+// another project's schedule by id). Handlers map it to 404.
+var ErrDriftScheduleNotFound = errors.New("drift schedule not found")
 
 type DriftService struct {
 	db          *sql.DB
@@ -183,14 +189,32 @@ func (s *DriftService) ListSchedules(projectID uuid.UUID) ([]models.DriftSchedul
 	return out, nil
 }
 
-func (s *DriftService) UpdateSchedule(id uuid.UUID, enabled bool, cronExpr string) error {
-	_, err := s.db.Exec(`UPDATE drift_schedules SET enabled = $1, cron_expr = $2, updated_at = $3 WHERE id = $4`, enabled, cronExpr, time.Now(), id)
-	return err
+// UpdateSchedule toggles/reschedules a drift schedule. The mutation is bound to
+// projectID (the route's :id, already access-checked by RequireProjectAccess)
+// so a caller with access to one project cannot update a schedule belonging to
+// another by guessing its id. Zero rows affected → ErrDriftScheduleNotFound.
+func (s *DriftService) UpdateSchedule(id, projectID uuid.UUID, enabled bool, cronExpr string) error {
+	res, err := s.db.Exec(repository.Q(s.dialect, `UPDATE drift_schedules SET enabled = $1, cron_expr = $2, updated_at = $3 WHERE id = $4 AND project_id = $5`), enabled, cronExpr, time.Now(), id, projectID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrDriftScheduleNotFound
+	}
+	return nil
 }
 
-func (s *DriftService) DeleteSchedule(id uuid.UUID) error {
-	_, err := s.db.Exec(`DELETE FROM drift_schedules WHERE id = $1`, id)
-	return err
+// DeleteSchedule removes a drift schedule, bound to projectID exactly like
+// UpdateSchedule.
+func (s *DriftService) DeleteSchedule(id, projectID uuid.UUID) error {
+	res, err := s.db.Exec(repository.Q(s.dialect, `DELETE FROM drift_schedules WHERE id = $1 AND project_id = $2`), id, projectID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrDriftScheduleNotFound
+	}
+	return nil
 }
 
 func (s *DriftService) RunScheduledChecks() (int, error) {

@@ -302,6 +302,12 @@ type AppMetrics struct {
 	ActiveAPIKeys     *Gauge
 	WebhookDeliveries *Counter
 	RateLimitHits     *Counter
+	// Audit emission counters (A-06). AuditEventsTotal counts every audit
+	// write attempt and AuditEmitFailures the subset that failed, both labelled
+	// by action. The audit log is the product's load-bearing control, so a
+	// rising failure rate must be alertable.
+	AuditEventsTotal  *Counter
+	AuditEmitFailures *Counter
 	// DB pool gauges - polled by StartDBStatsUpdater per audit B-L1.
 	// They let operators alert when the pool saturates (in_use approaches
 	// max_open) or when Neon's idle-connection eviction shows up as
@@ -329,6 +335,8 @@ func NewAppMetrics() *AppMetrics {
 		ActiveAPIKeys:      c.NewGauge("keepsave_active_api_keys", "Current active API keys"),
 		WebhookDeliveries:  c.NewCounter("keepsave_webhook_deliveries_total", "Total webhook deliveries"),
 		RateLimitHits:      c.NewCounter("keepsave_rate_limit_hits_total", "Total rate limit rejections"),
+		AuditEventsTotal:   c.NewCounter("keepsave_audit_events_total", "Total audit write attempts, by action"),
+		AuditEmitFailures:  c.NewCounter("keepsave_audit_emit_failed_total", "Total audit writes that failed, by action"),
 		DBOpenConnections:  c.NewGauge("keepsave_db_open_connections", "sql.DB Stats: total established connections"),
 		DBInUseConnections: c.NewGauge("keepsave_db_in_use_connections", "sql.DB Stats: connections currently in use"),
 		DBIdleConnections:  c.NewGauge("keepsave_db_idle_connections", "sql.DB Stats: idle connections in the pool"),

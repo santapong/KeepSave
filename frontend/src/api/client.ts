@@ -30,12 +30,19 @@ import type {
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 /**
- * The canonical localStorage key for the auth JWT.
+ * The canonical storage key for the auth JWT.
  *
  * FU 0h (docs/FOLLOWUPS.md): historical inconsistency — HelpPage's embed-widget
  * code example previously suggested `localStorage('jwt')`, while the dashboard
- * has always used `keepsave_token`. `keepsave_token` is the standard. The
- * migration below copies any legacy `jwt` value into the canonical key on boot.
+ * has always used `keepsave_token`. `keepsave_token` is the standard.
+ *
+ * FE (token storage / EMBED_STATE.md §"Dashboard storage debt"): the JWT now
+ * lives in `sessionStorage`, not `localStorage`. This keeps the token
+ * tab-scoped (survives reloads, not browser restarts) and off persistent disk,
+ * shrinking the theft window for an XSS or shared-machine attacker while
+ * preserving refresh-without-relogin within a session. The migration below
+ * moves any pre-existing localStorage token (canonical or legacy key) into
+ * sessionStorage on boot so already-signed-in users aren't logged out.
  */
 export const JWT_STORAGE_KEY = 'keepsave_token';
 
@@ -43,40 +50,112 @@ export const JWT_STORAGE_KEY = 'keepsave_token';
 const LEGACY_JWT_KEYS = ['jwt', 'auth_token'] as const;
 
 /**
- * One-time migration: copy any legacy JWT value into the canonical key and
- * delete the legacy entries. Idempotent. Call once at app boot.
+ * The store backing the JWT. `sessionStorage` when available; falls back to
+ * `localStorage` only if sessionStorage is unavailable (e.g. some privacy
+ * modes), and finally to a no-op so SSR/tests never crash.
+ */
+function tokenStore(): Storage | null {
+  try {
+    if (typeof sessionStorage !== 'undefined') return sessionStorage;
+  } catch {
+    // sessionStorage access can throw in sandboxed iframes.
+  }
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/**
+ * One-time migration: move any JWT held in localStorage (under the canonical or
+ * a legacy key) into sessionStorage, then strip the localStorage copies.
+ * Idempotent. Call once at app boot.
  */
 export function migrateLegacyJWTKey(): void {
-  if (typeof localStorage === 'undefined') return;
-  if (localStorage.getItem(JWT_STORAGE_KEY)) {
-    // Canonical key already populated — just clean up any stragglers.
-    for (const legacy of LEGACY_JWT_KEYS) {
-      if (localStorage.getItem(legacy) !== null) {
-        localStorage.removeItem(legacy);
+  const session = tokenStore();
+  if (!session) return;
+
+  // 1. Move a canonical-key token off localStorage onto the session store.
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const fromLocalCanonical = localStorage.getItem(JWT_STORAGE_KEY);
+      if (fromLocalCanonical && session !== localStorage && !session.getItem(JWT_STORAGE_KEY)) {
+        session.setItem(JWT_STORAGE_KEY, fromLocalCanonical);
+      }
+      if (session !== localStorage) {
+        localStorage.removeItem(JWT_STORAGE_KEY);
       }
     }
+  } catch {
+    // ignore storage access errors
+  }
+
+  // 2. If we already have a canonical token, just clean up legacy stragglers.
+  if (session.getItem(JWT_STORAGE_KEY)) {
+    clearLegacyKeys();
     return;
   }
+
+  // 3. Otherwise promote the first legacy token we find (from either store).
   for (const legacy of LEGACY_JWT_KEYS) {
-    const value = localStorage.getItem(legacy);
+    const value = readFromAnyStore(legacy);
     if (value) {
-      localStorage.setItem(JWT_STORAGE_KEY, value);
-      localStorage.removeItem(legacy);
+      session.setItem(JWT_STORAGE_KEY, value);
+      clearLegacyKeys();
       return;
     }
   }
 }
 
+function readFromAnyStore(key: string): string | null {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const v = sessionStorage.getItem(key);
+      if (v) return v;
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage.getItem(key);
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function clearLegacyKeys(): void {
+  for (const legacy of LEGACY_JWT_KEYS) {
+    try {
+      sessionStorage?.removeItem(legacy);
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage?.removeItem(legacy);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function getToken(): string | null {
-  return localStorage.getItem(JWT_STORAGE_KEY);
+  return tokenStore()?.getItem(JWT_STORAGE_KEY) ?? null;
+}
+
+/** Public accessor for the current auth token (read from sessionStorage). */
+export function getAuthToken(): string | null {
+  return getToken();
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem(JWT_STORAGE_KEY, token);
+  tokenStore()?.setItem(JWT_STORAGE_KEY, token);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(JWT_STORAGE_KEY);
+  tokenStore()?.removeItem(JWT_STORAGE_KEY);
 }
 
 function parseJWTExpiry(token: string): number | null {

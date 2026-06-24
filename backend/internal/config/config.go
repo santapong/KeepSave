@@ -62,6 +62,12 @@ type Config struct {
 	// so operators can drain the queue mid-incident. Toggled via
 	// KEEPSAVE_PROMOTIONS_ENABLED; absent/empty means enabled.
 	PromotionsEnabled bool
+
+	// PlatformAdminEmails is the allowlist of user emails permitted to reach
+	// the cross-tenant /admin endpoints (dashboard, traces, security events).
+	// Sourced from KEEPSAVE_PLATFORM_ADMIN_EMAILS (comma-separated, lowercased).
+	// Empty means nobody — /admin fails closed (DB-06).
+	PlatformAdminEmails []string
 }
 
 func Load() (*Config, error) {
@@ -157,6 +163,7 @@ func Load() (*Config, error) {
 		TLSCipherSuites:       os.Getenv("TLS_CIPHER_SUITES"),
 		AuditLogRetentionDays: retention,
 		PromotionsEnabled:     promotionsEnabled,
+		PlatformAdminEmails:   parseCommaList(os.Getenv("KEEPSAVE_PLATFORM_ADMIN_EMAILS")),
 	}, nil
 }
 
@@ -165,4 +172,26 @@ func getenvOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// parseCommaList splits a comma-separated env value into a trimmed, lowercased,
+// de-duplicated slice, dropping empty entries.
+func parseCommaList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		v := strings.ToLower(strings.TrimSpace(part))
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }

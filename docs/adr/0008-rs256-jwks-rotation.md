@@ -1,6 +1,6 @@
 # ADR-0008: RS256 JWT signing with JWKS + `kid` rotation
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented 2026-06-21; private key wrapped via the ADR-0018 service sub-key — `EncryptServiceSecret` — since `GetMasterKey` was removed; migration is `013_jwt_keys.sql`, not 009)
 - **Date:** 2026-05-15
 - **Authors:** ADR Drafter (with Self-Hosted Auth Analyst dossier input)
 - **Reviewers required:** Tech Lead; Security Engineer (Type-1, auth + crypto-adjacent — veto applies per `docs/ROLES.md` §3)

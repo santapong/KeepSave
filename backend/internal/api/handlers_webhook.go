@@ -5,17 +5,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
 
 // WebhookHandler handles webhook management endpoints.
 type WebhookHandler struct {
 	webhookService *service.WebhookService
+	projectRepo    *repository.ProjectRepository
 }
 
 // NewWebhookHandler creates a new webhook handler.
-func NewWebhookHandler(webhookService *service.WebhookService) *WebhookHandler {
-	return &WebhookHandler{webhookService: webhookService}
+func NewWebhookHandler(webhookService *service.WebhookService, projectRepo *repository.ProjectRepository) *WebhookHandler {
+	return &WebhookHandler{webhookService: webhookService, projectRepo: projectRepo}
 }
 
 type registerWebhookRequest struct {
@@ -38,13 +40,18 @@ func (h *WebhookHandler) Register(c *gin.Context) {
 		return
 	}
 
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
 	config := service.WebhookConfig{
 		URL:    req.URL,
 		Secret: req.Secret,
 		Events: req.Events,
 	}
 
-	if err := h.webhookService.RegisterWebhook(projectID, config); err != nil {
+	if err := h.webhookService.RegisterWebhook(projectID, config, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
@@ -78,12 +85,28 @@ func (h *WebhookHandler) Remove(c *gin.Context) {
 		return
 	}
 
-	h.webhookService.RemoveWebhooks(projectID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+
+	h.webhookService.RemoveWebhooks(projectID, userID, c.ClientIP())
 	c.Status(http.StatusNoContent)
 }
 
-// Deliveries returns recent webhook delivery records.
+// Deliveries returns recent webhook delivery records for the caller's
+// accessible projects only — the process-global delivery log is filtered by
+// tenant so a caller never sees another tenant's webhook target URLs/metadata.
 func (h *WebhookHandler) Deliveries(c *gin.Context) {
-	deliveries := h.webhookService.GetDeliveries()
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	projectIDs, err := h.projectRepo.ListAccessibleProjectIDs(userID)
+	if err != nil {
+		RespondError(c, http.StatusInternalServerError, "failed to resolve project access")
+		return
+	}
+	deliveries := h.webhookService.GetDeliveries(projectIDs)
 	c.JSON(http.StatusOK, deliveries)
 }

@@ -1,0 +1,28 @@
+# CODEOWNERS — required reviewers for security-sensitive paths (#0g).
+#
+# Per docs/ROLES.md the Security Engineer has veto power over internal/crypto,
+# internal/auth, and the promotion engine; CLAUDE.md requires review before
+# changes that touch crypto, auth, or promotion. CODEOWNERS makes that
+# enforceable: a PR touching these paths cannot merge without an owner review
+# (pair with branch protection: "Require review from Code Owners" on `main`).
+#
+# @santapong is the repo-owner placeholder; replace with the security team
+# handle/group when one exists.
+
+# --- Cryptography & key management (Type-1; Security veto) ---
+/backend/internal/crypto/                       @santapong
+
+# --- Authentication / authorization (Type-1; Security veto) ---
+/backend/internal/auth/                         @santapong
+
+# --- Promotion engine (Type-1; Security veto). No single package: the engine
+#     spans these files across api/service/repository. ---
+/backend/internal/service/promotion_service.go  @santapong
+/backend/internal/repository/promotion_repo.go  @santapong
+/backend/internal/api/handlers_promotion.go     @santapong
+/backend/internal/api/promotion_gate.go         @santapong
+
+# --- CI/CD supply chain. Workflows run with repo credentials; changes here can
+#     alter what executes against `main`. ---
+/.github/workflows/                             @santapong
+/.github/CODEOWNERS                             @santapong

@@ -8,12 +8,13 @@ import type {
   SecretRecommendation,
   NLPQueryResult,
 } from '../types/ai';
-import { JWT_STORAGE_KEY } from './client';
+import { getAuthToken } from './client';
 
 const BASE_URL = '/api/v1';
 
 function getToken(): string | null {
-  return localStorage.getItem(JWT_STORAGE_KEY);
+  // Token lives in sessionStorage (see client.ts); use the shared accessor.
+  return getAuthToken();
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

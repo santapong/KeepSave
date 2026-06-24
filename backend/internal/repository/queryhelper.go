@@ -46,6 +46,52 @@ func Q(dialect Dialect, query string) string {
 	return query
 }
 
+// dbtx is satisfied by both *sql.DB and *sql.Tx, so repository helpers can run
+// either standalone or inside a caller-managed transaction.
+type dbtx interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+}
+
+// ExecQ rebinds a PostgreSQL-style ($1,$2,…) statement for the active dialect
+// AND reorders the args to match placeholder *appearance* order before
+// executing it. This is mandatory for any statement whose placeholders are not
+// in strict 1..N positional order (e.g. `SET col=$2 WHERE id=$1`): Q() alone
+// rewrites $N→? textually only, so on MySQL/SQLite the anonymous `?` bind
+// positionally and the args mis-align — a silent no-op UPDATE (DB-12). For
+// PostgreSQL, both Q and rebindArgs are passthroughs.
+func ExecQ(db dbtx, dialect Dialect, query string, args ...interface{}) (sql.Result, error) {
+	return db.Exec(Q(dialect, query), rebindArgs(dialect, query, args)...)
+}
+
+// QueryRowQ is the QueryRow counterpart of ExecQ (placeholder + arg rebinding).
+func QueryRowQ(db dbtx, dialect Dialect, query string, args ...interface{}) *sql.Row {
+	return db.QueryRow(Q(dialect, query), rebindArgs(dialect, query, args)...)
+}
+
+// QueryQ is the Query counterpart of ExecQ (placeholder + arg rebinding).
+func QueryQ(db dbtx, dialect Dialect, query string, args ...interface{}) (*sql.Rows, error) {
+	return db.Query(Q(dialect, query), rebindArgs(dialect, query, args)...)
+}
+
+// runInTx runs fn inside a transaction on db, committing on success and rolling
+// back on any error. Shared by the repositories that expose a WithTx entry point.
+func runInTx(db *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+	return nil
+}
+
 // InsertReturning executes an INSERT statement and scans the returned row.
 // For PostgreSQL, it uses RETURNING clause.
 // For MySQL/SQLite, it executes the INSERT then SELECTs by the given ID.

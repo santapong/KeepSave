@@ -108,28 +108,45 @@ func (h *PromotionHandler) ListPromotions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"promotions": promotions})
 }
 
-// GetPromotion handles GET /api/v1/projects/:id/promotions/:promotionId
-func (h *PromotionHandler) GetPromotion(c *gin.Context) {
+// resolveScopedPromotion parses the :id (project) and :promotionId path params,
+// loads the promotion, and verifies it belongs to that project. The
+// /projects/:id route group already proves the caller may access project :id
+// (RequireProjectAccess); this additionally prevents acting on another
+// project's promotion by its UUID. On any failure it writes a 404
+// (anti-enumeration: a promotion the caller may not see is indistinguishable
+// from one that does not exist) and returns ok=false.
+func (h *PromotionHandler) resolveScopedPromotion(c *gin.Context) (*models.PromotionRequest, bool) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project id")
+		return nil, false
+	}
 	promotionID, err := uuid.Parse(c.Param("promotionId"))
 	if err != nil {
 		RespondError(c, http.StatusBadRequest, "invalid promotion id")
-		return
+		return nil, false
 	}
-
 	promotion, err := h.promotionService.GetPromotion(promotionID)
-	if err != nil {
-		RespondError(c, http.StatusNotFound, "promotion not found")
+	if err != nil || promotion.ProjectID != projectID {
+		WrapError(c, ErrNotFound)
+		return nil, false
+	}
+	return promotion, true
+}
+
+// GetPromotion handles GET /api/v1/projects/:id/promotions/:promotionId
+func (h *PromotionHandler) GetPromotion(c *gin.Context) {
+	promotion, ok := h.resolveScopedPromotion(c)
+	if !ok {
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"promotion": promotion})
 }
 
 // ApprovePromotion handles POST /api/v1/projects/:id/promotions/:promotionId/approve
 func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
-	promotionID, err := uuid.Parse(c.Param("promotionId"))
-	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid promotion id")
+	promotion, ok := h.resolveScopedPromotion(c)
+	if !ok {
 		return
 	}
 
@@ -138,20 +155,19 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 		return
 	}
 
-	promotion, err := h.promotionService.ApprovePromotion(promotionID, userID, c.ClientIP())
+	updated, err := h.promotionService.ApprovePromotion(promotion.ID, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"promotion": promotion})
+	c.JSON(http.StatusOK, gin.H{"promotion": updated})
 }
 
 // RejectPromotion handles POST /api/v1/projects/:id/promotions/:promotionId/reject
 func (h *PromotionHandler) RejectPromotion(c *gin.Context) {
-	promotionID, err := uuid.Parse(c.Param("promotionId"))
-	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid promotion id")
+	promotion, ok := h.resolveScopedPromotion(c)
+	if !ok {
 		return
 	}
 
@@ -160,20 +176,19 @@ func (h *PromotionHandler) RejectPromotion(c *gin.Context) {
 		return
 	}
 
-	promotion, err := h.promotionService.RejectPromotion(promotionID, userID, c.ClientIP())
+	updated, err := h.promotionService.RejectPromotion(promotion.ID, userID, c.ClientIP())
 	if err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"promotion": promotion})
+	c.JSON(http.StatusOK, gin.H{"promotion": updated})
 }
 
 // Rollback handles POST /api/v1/projects/:id/promotions/:promotionId/rollback
 func (h *PromotionHandler) Rollback(c *gin.Context) {
-	promotionID, err := uuid.Parse(c.Param("promotionId"))
-	if err != nil {
-		RespondError(c, http.StatusBadRequest, "invalid promotion id")
+	promotion, ok := h.resolveScopedPromotion(c)
+	if !ok {
 		return
 	}
 
@@ -182,7 +197,7 @@ func (h *PromotionHandler) Rollback(c *gin.Context) {
 		return
 	}
 
-	if err := h.promotionService.Rollback(promotionID, userID, c.ClientIP()); err != nil {
+	if err := h.promotionService.Rollback(promotion.ID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
@@ -203,6 +218,11 @@ func (h *PromotionHandler) AuditLog(c *gin.Context) {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
 			limit = parsed
 		}
+	}
+	// Cap to bound the DB scan / response size (AUTH-10).
+	const maxAuditLimit = 500
+	if limit > maxAuditLimit {
+		limit = maxAuditLimit
 	}
 
 	entries, err := h.promotionService.ListAuditLog(projectID, limit)

@@ -76,7 +76,11 @@ type AuditEntry struct {
 // JSONMap is a map that implements sql.Scanner and driver.Valuer for JSONB columns.
 type JSONMap map[string]interface{}
 
-func (j JSONMap) Value() (interface{}, error) {
+// Value implements driver.Valuer so a JSONMap can be passed directly as a query
+// argument (serialized to JSON). The return type must be driver.Value (not
+// interface{}) for database/sql to detect the Valuer — otherwise the driver
+// receives the raw map and rejects it ("unsupported type ... a map").
+func (j JSONMap) Value() (driver.Value, error) {
 	if j == nil {
 		return []byte("{}"), nil
 	}
@@ -124,7 +128,11 @@ type SecretSnapshot struct {
 	Key            string    `json:"key"`
 	EncryptedValue []byte    `json:"-"`
 	ValueNonce     []byte    `json:"-"`
-	CreatedAt      time.Time `json:"created_at"`
+	// PriorExisted is true when the snapshot captures a value the promotion
+	// overwrote (rollback restores it) and false when the promotion added the
+	// key (rollback deletes it). See ADR-0017.
+	PriorExisted bool      `json:"prior_existed"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // SecretVersion stores a historical version of a secret value.

@@ -149,8 +149,7 @@ func (r *ComplianceRepository) Complete(id uuid.UUID, data models.JSONMap) (*mod
 			return nil, fmt.Errorf("completing compliance report: %w", err)
 		}
 	} else {
-		updateQ := Q(r.dialect, `UPDATE compliance_reports SET status = 'completed', data = $2, completed_at = `+r.dialect.Now()+` WHERE id = $1`)
-		_, err := r.db.Exec(updateQ, id, data)
+		_, err := ExecQ(r.db, r.dialect, `UPDATE compliance_reports SET status = 'completed', data = $2, completed_at = `+r.dialect.Now()+` WHERE id = $1`, id, data)
 		if err != nil {
 			return nil, fmt.Errorf("completing compliance report: %w", err)
 		}

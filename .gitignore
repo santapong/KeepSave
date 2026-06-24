@@ -30,3 +30,6 @@ Thumbs.db
 
 # MCP build artifacts
 /tmp/keepsave-mcp-builds/
+
+# Claude Code transient agent worktrees
+.claude/worktrees/

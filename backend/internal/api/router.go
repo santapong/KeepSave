@@ -13,7 +13,7 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string, promotionsEnabled bool, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
@@ -102,7 +102,7 @@ func SetupRouter(
 		}
 
 		sec := v1.Group("/projects/:id/secrets")
-		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
+		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
 		{
 			sec.POST("", secretHandler.Create)
 			sec.GET("", secretHandler.List)
@@ -165,11 +165,19 @@ func SetupRouter(
 		}
 
 		ls := v1.Group("/projects/:id/leases")
-		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo))
+		ls.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
 		{
 			ls.POST("", agentHandler.CreateLease)
 			ls.GET("", agentHandler.ListLeases)
 			ls.DELETE("/:leaseId", agentHandler.RevokeLease)
+		}
+
+		// Short-lived agent tokens minted from a lease (ADR-0021).
+		at := v1.Group("/projects/:id/agent-token")
+		at.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
+		{
+			at.POST("", agentHandler.MintAgentToken)
+			at.POST("/revoke", agentHandler.RevokeAgentToken)
 		}
 
 		rk := v1.Group("/rotate-keys")
@@ -228,8 +236,10 @@ func SetupRouter(
 			tpl.POST("/:templateId/apply", templateHandler.Apply)
 		}
 
+		// /admin exposes cross-tenant operational data (security events,
+		// traces), so it is gated by a platform-admin allowlist on top of JWT.
 		adm := v1.Group("/admin")
-		adm.Use(JWTAuthMiddleware(jwtService))
+		adm.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
 		{
 			adm.GET("/dashboard", metricsHandler.AdminDashboard)
 			adm.GET("/traces", metricsHandler.Traces)
@@ -241,8 +251,14 @@ func SetupRouter(
 			ag.GET("/activity", agentHandler.GetActivitySummary)
 		}
 
+		// /platform is a cross-tenant control plane (global event log + the
+		// plugin registry that gates secret-value validators). It is gated by the
+		// platform-admin allowlist on top of JWT, like /admin — any authenticated
+		// user could otherwise register/overwrite or disable a global plugin
+		// (e.g. a security validator) or read the global event log. Fail-closed:
+		// an empty allowlist denies everyone.
 		pl := v1.Group("/platform")
-		pl.Use(JWTAuthMiddleware(jwtService))
+		pl.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
 		{
 			pl.GET("/events", platformHandler.ListEvents)
 			pl.POST("/events/replay", platformHandler.ReplayEvents)
