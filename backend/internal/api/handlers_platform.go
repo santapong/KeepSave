@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"time"
 
@@ -21,7 +23,7 @@ type PlatformHandler struct {
 type policyStore interface {
 	GetPolicies(projectID uuid.UUID) ([]models.AccessPolicy, error)
 	CreatePolicy(policy *models.AccessPolicy) (*models.AccessPolicy, error)
-	DeletePolicy(policyID uuid.UUID) error
+	DeletePolicy(policyID, projectID uuid.UUID) error
 }
 
 // NewPlatformHandler creates a new platform handler.
@@ -170,15 +172,26 @@ func (h *PlatformHandler) CreateAccessPolicy(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"policy": created})
 }
 
-// DeleteAccessPolicy removes an access policy.
+// DeleteAccessPolicy removes an access policy. It is bound to the route's :id
+// project (already authorized by RequireProjectAccess) so a caller cannot
+// delete another project's policy by its id.
 func (h *PlatformHandler) DeleteAccessPolicy(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		RespondError(c, http.StatusBadRequest, "invalid project ID")
+		return
+	}
 	policyID, err := uuid.Parse(c.Param("policyId"))
 	if err != nil {
 		RespondError(c, http.StatusBadRequest, "invalid policy ID")
 		return
 	}
 
-	if err := h.policyDB.DeletePolicy(policyID); err != nil {
+	if err := h.policyDB.DeletePolicy(policyID, projectID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			WrapError(c, ErrNotFound)
+			return
+		}
 		WrapError(c, err)
 		return
 	}

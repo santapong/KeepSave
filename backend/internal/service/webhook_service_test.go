@@ -238,12 +238,19 @@ func TestWebhookServiceDeliveryLog(t *testing.T) {
 	ws.Notify(projectID, "test.event", map[string]interface{}{})
 	time.Sleep(200 * time.Millisecond)
 
-	deliveries := ws.GetDeliveries()
+	deliveries := ws.GetDeliveries([]uuid.UUID{projectID})
 	if len(deliveries) != 1 {
 		t.Fatalf("expected 1 delivery record, got %d", len(deliveries))
 	}
 	if !deliveries[0].Success {
 		t.Error("delivery should be successful")
+	}
+	if deliveries[0].ProjectID != projectID {
+		t.Errorf("delivery ProjectID = %v, want %v", deliveries[0].ProjectID, projectID)
+	}
+	// Deliveries are tenant-scoped: another project sees none of these records.
+	if other := ws.GetDeliveries([]uuid.UUID{uuid.New()}); len(other) != 0 {
+		t.Errorf("cross-tenant GetDeliveries returned %d records, want 0", len(other))
 	}
 }
 

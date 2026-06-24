@@ -251,8 +251,14 @@ func SetupRouter(
 			ag.GET("/activity", agentHandler.GetActivitySummary)
 		}
 
+		// /platform is a cross-tenant control plane (global event log + the
+		// plugin registry that gates secret-value validators). It is gated by the
+		// platform-admin allowlist on top of JWT, like /admin — any authenticated
+		// user could otherwise register/overwrite or disable a global plugin
+		// (e.g. a security validator) or read the global event log. Fail-closed:
+		// an empty allowlist denies everyone.
 		pl := v1.Group("/platform")
-		pl.Use(JWTAuthMiddleware(jwtService))
+		pl.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
 		{
 			pl.GET("/events", platformHandler.ListEvents)
 			pl.POST("/events/replay", platformHandler.ReplayEvents)

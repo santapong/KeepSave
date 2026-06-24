@@ -177,7 +177,7 @@ func main() {
 	apikeyHandler := api.NewAPIKeyHandler(apikeyService)
 	promotionHandler := api.NewPromotionHandler(promotionService)
 	keyRotationHandler := api.NewKeyRotationHandler(keyRotationService)
-	webhookHandler := api.NewWebhookHandler(webhookService)
+	webhookHandler := api.NewWebhookHandler(webhookService, projectRepo)
 	versionHandler := api.NewVersionHandler(repository.NewSecretVersionRepository(db, dialect), secretRepo, projectRepo, cryptoSvc)
 	healthHandler := api.NewHealthHandler(db)
 	orgHandler := api.NewOrganizationHandler(orgService)

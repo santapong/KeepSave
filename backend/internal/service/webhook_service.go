@@ -41,9 +41,12 @@ type WebhookService struct {
 	auditRepo *repository.AuditRepository
 }
 
-// WebhookDelivery records a webhook delivery attempt.
+// WebhookDelivery records a webhook delivery attempt. ProjectID scopes the
+// record to its tenant so the delivery log (a process-global slice) can be
+// filtered per caller instead of exposing every tenant's target URLs.
 type WebhookDelivery struct {
 	EventID     string    `json:"event_id"`
+	ProjectID   uuid.UUID `json:"project_id"`
 	URL         string    `json:"url"`
 	StatusCode  int       `json:"status_code"`
 	Success     bool      `json:"success"`
@@ -108,12 +111,22 @@ func (ws *WebhookService) ListWebhooks(projectID uuid.UUID) []WebhookConfig {
 	return ws.configs[projectID]
 }
 
-// GetDeliveries returns recent webhook delivery records.
-func (ws *WebhookService) GetDeliveries() []WebhookDelivery {
+// GetDeliveries returns recent webhook delivery records for the given projects
+// only (the caller's accessible set). Passing no projects returns nothing — a
+// caller never sees another tenant's delivery records.
+func (ws *WebhookService) GetDeliveries(projectIDs []uuid.UUID) []WebhookDelivery {
 	ws.mu.RLock()
 	defer ws.mu.RUnlock()
-	result := make([]WebhookDelivery, len(ws.eventLog))
-	copy(result, ws.eventLog)
+	allow := make(map[uuid.UUID]bool, len(projectIDs))
+	for _, id := range projectIDs {
+		allow[id] = true
+	}
+	result := make([]WebhookDelivery, 0)
+	for _, d := range ws.eventLog {
+		if allow[d.ProjectID] {
+			result = append(result, d)
+		}
+	}
 	return result
 }
 
@@ -158,13 +171,13 @@ func (ws *WebhookService) shouldDeliver(config WebhookConfig, eventType string) 
 func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 	payload, err := json.Marshal(event)
 	if err != nil {
-		ws.recordDelivery(event.ID, config.URL, 0, false, err.Error())
+		ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, err.Error())
 		return
 	}
 
 	req, err := http.NewRequest("POST", config.URL, bytes.NewReader(payload))
 	if err != nil {
-		ws.recordDelivery(event.ID, config.URL, 0, false, err.Error())
+		ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, err.Error())
 		return
 	}
 
@@ -192,7 +205,7 @@ func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 		resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			ws.recordDelivery(event.ID, config.URL, resp.StatusCode, true, "")
+			ws.recordDelivery(event.ID, event.ProjectID, config.URL, resp.StatusCode, true, "")
 			return
 		}
 		lastErr = fmt.Errorf("webhook returned status %d", resp.StatusCode)
@@ -202,14 +215,15 @@ func (ws *WebhookService) deliver(event WebhookEvent, config WebhookConfig) {
 	if lastErr != nil {
 		errMsg = lastErr.Error()
 	}
-	ws.recordDelivery(event.ID, config.URL, 0, false, errMsg)
+	ws.recordDelivery(event.ID, event.ProjectID, config.URL, 0, false, errMsg)
 }
 
-func (ws *WebhookService) recordDelivery(eventID, url string, statusCode int, success bool, errMsg string) {
+func (ws *WebhookService) recordDelivery(eventID string, projectID uuid.UUID, url string, statusCode int, success bool, errMsg string) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.eventLog = append(ws.eventLog, WebhookDelivery{
 		EventID:     eventID,
+		ProjectID:   projectID,
 		URL:         url,
 		StatusCode:  statusCode,
 		Success:     success,
