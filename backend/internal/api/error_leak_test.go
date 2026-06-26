@@ -41,20 +41,29 @@ func TestNoRespondErrorWithErrError(t *testing.T) {
 			t.Fatalf("parse %s: %v", path, err)
 		}
 		ast.Inspect(f, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			callee := calleeName(call.Fun)
-			switch callee {
-			case "RespondError":
-				// RespondError(c, code, message) - message is index 2
-				if len(call.Args) >= 3 && isErrError(call.Args[2]) {
-					offenders = append(offenders, formatOffender(fset, call, "RespondError(_, _, err.Error())"))
+			switch node := n.(type) {
+			case *ast.CallExpr:
+				switch calleeName(node.Fun) {
+				case "RespondError":
+					// RespondError(c, code, message) - message is index 2
+					if len(node.Args) >= 3 && isErrError(node.Args[2]) {
+						offenders = append(offenders, formatOffender(fset, node, "RespondError(_, _, err.Error())"))
+					}
+				case "AbortWithError":
+					// c.AbortWithError(status, err) inlines err.Error() in the body
+					offenders = append(offenders, formatOffender(fset, node, "AbortWithError - use WrapError instead"))
 				}
-			case "AbortWithError":
-				// c.AbortWithError(status, err) inlines err.Error() in the body
-				offenders = append(offenders, formatOffender(fset, call, "AbortWithError - use WrapError instead"))
+			case *ast.CompositeLit:
+				// gin.H{... : err.Error()} - an error string placed in a response
+				// map value reaches the client body just as surely as RespondError.
+				// Use WrapError + a typed sentinel so the cause is logged, not sent.
+				if isGinH(node.Type) {
+					for _, el := range node.Elts {
+						if kv, ok := el.(*ast.KeyValueExpr); ok && isErrError(kv.Value) {
+							offenders = append(offenders, formatOffender(fset, kv, `gin.H{...: err.Error()} - use WrapError instead`))
+						}
+					}
+				}
 			}
 			return true
 		})
@@ -77,6 +86,17 @@ func calleeName(fun ast.Expr) string {
 		return f.Sel.Name
 	}
 	return ""
+}
+
+// isGinH reports whether a composite-literal type denotes gin.H - the map shape
+// used for ad-hoc JSON response bodies. Matched on the selector name so an
+// aliased gin import is still caught.
+func isGinH(expr ast.Expr) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	return sel.Sel.Name == "H"
 }
 
 // isErrError matches expressions like `err.Error()` or `e.Error()` regardless
