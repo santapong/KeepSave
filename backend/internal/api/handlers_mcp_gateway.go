@@ -200,10 +200,14 @@ func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
 	})
 
 	if err != nil {
+		// Do not leak internal exec/runtime detail (including crypto and
+		// secret-resolution errors) to the caller. Log the cause server-side and
+		// return a static JSON-RPC error message. docs/ERROR_HANDLING_STANDARD.md.
+		log.Printf("mcp gateway tool call failed path=%s tool=%s cause=%v", c.FullPath(), toolName, err)
 		c.JSON(http.StatusOK, models.MCPGatewayResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Error:   &models.MCPError{Code: -32603, Message: err.Error()},
+			Error:   &models.MCPError{Code: -32603, Message: "tool execution failed"},
 		})
 		return
 	}
