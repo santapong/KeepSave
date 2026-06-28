@@ -16,7 +16,7 @@ RUN npm run build
 # Digest-pinned to the 1.27-alpine release (INF-2). The unprivileged image
 # already runs as non-root; readOnlyRootFilesystem in Helm is satisfied by
 # the emptyDir mounts declared in deployment-frontend.yaml.
-FROM nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
+FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:054e14f543eb688809d59ec2ad1644d1a61678e247c87a318ad605977eb37eaf
 # tag: nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
