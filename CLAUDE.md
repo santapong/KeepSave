@@ -116,6 +116,11 @@ This project has explicit operating rules. Before opening a PR that touches cryp
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with file:line refs. Update in the same PR if the change widens any trust boundary.
 - [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — known tracked work; pick from here before inventing new tasks.
 - [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — current phase action plan per role.
+- [`docs/ADLC.md`](docs/ADLC.md) — **AI-Assisted Development Life Cycle.** If an AI agent is doing the work, this is the pipeline it follows: intake → classify → threat delta → design → harness plan → build → verify → review → land → post-merge, with a human gate at every irreversible or secret-touching step. No agent lands a Type-1 or a `main`/PROD change alone.
+
+### AI-assisted development
+
+When development is driven by an AI agent (Claude Code or similar), the work is sequenced by [`docs/ADLC.md`](docs/ADLC.md) and executed with the harness described in [`docs/HARNESS_ENGINEERING.md`](docs/HARNESS_ENGINEERING.md). For a non-trivial or security-sensitive task, drive it through the [`/workflow`](.claude/skills/workflow/SKILL.md) skill, which compiles the ADLC gates (classify → threat → build → adversarial-verify → review) and KeepSave's invariants (never surface plaintext, audit-log assertion, Security-Engineer veto on crypto/auth/promotion) into a runnable, fail-closed Workflow. The ADLC never overrides a gate — it only orders them; when it conflicts with `docs/ROLES.md` or an ADR, those win.
 
 ### Decision classes (`docs/ROLES.md` §3.1)
 
@@ -144,3 +149,6 @@ When in doubt, treat as the next class up. Misclassification is itself a bug.
 | Embed origin / postMessage policy          | [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) |
 | UX state per screen                        | [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) |
 | CI runner permissions                      | [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md)        |
+| How AI agents develop here (lifecycle)     | [`docs/ADLC.md`](docs/ADLC.md)                            |
+| Engineering the agent harness / workflows  | [`docs/HARNESS_ENGINEERING.md`](docs/HARNESS_ENGINEERING.md) |
+| Running a task as a gated workflow         | [`.claude/skills/workflow/SKILL.md`](.claude/skills/workflow/SKILL.md) |

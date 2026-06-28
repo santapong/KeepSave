@@ -54,7 +54,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 	var detected []models.Anomaly
 
 	// 1. Frequency spike detection (Z-score)
-	rows, err := s.db.Query(`SELECT api_key_id, COUNT(*) as cnt FROM agent_activities WHERE project_id = $1 AND created_at > $2 GROUP BY api_key_id`, projectID, time.Now().Add(-1*time.Hour))
+	rows, err := repository.QueryQ(s.db, s.dialect, `SELECT api_key_id, COUNT(*) as cnt FROM agent_activities WHERE project_id = $1 AND created_at > $2 GROUP BY api_key_id`, projectID, time.Now().Add(-1*time.Hour))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,15 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 			continue
 		}
 		var avgCount, stddev float64
-		s.db.QueryRow(`SELECT COALESCE(AVG(hourly_count),0), COALESCE(MAX(hourly_count)-MIN(hourly_count),1) FROM (SELECT COUNT(*) as hourly_count FROM agent_activities WHERE project_id = $1 AND api_key_id = $2 AND created_at > $3 GROUP BY strftime('%Y-%m-%d %H', created_at)) sub`, projectID, keyID, time.Now().Add(-7*24*time.Hour)).Scan(&avgCount, &stddev)
+		// Group by hour via the dialect layer. The previous literal strftime()
+		// is SQLite-only and silently errored on Postgres (prod), leaving the
+		// stats zero-valued so frequency-spike detection never fired. Capture
+		// the error instead of masking it.
+		hourBucket := s.dialect.DateTrunc("hour", "created_at")
+		zQuery := fmt.Sprintf(`SELECT COALESCE(AVG(hourly_count),0), COALESCE(MAX(hourly_count)-MIN(hourly_count),1) FROM (SELECT COUNT(*) as hourly_count FROM agent_activities WHERE project_id = $1 AND api_key_id = $2 AND created_at > $3 GROUP BY %s) sub`, hourBucket)
+		if err := repository.QueryRowQ(s.db, s.dialect, zQuery, projectID, keyID, time.Now().Add(-7*24*time.Hour)).Scan(&avgCount, &stddev); err != nil {
+			continue
+		}
 		if stddev == 0 {
 			continue
 		}
@@ -95,7 +103,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 	hour := time.Now().Hour()
 	if hour >= 22 || hour < 6 {
 		var offHourCount int
-		s.db.QueryRow(`SELECT COUNT(*) FROM agent_activities WHERE project_id = $1 AND created_at > $2`, projectID, time.Now().Add(-1*time.Hour)).Scan(&offHourCount)
+		repository.QueryRowQ(s.db, s.dialect, `SELECT COUNT(*) FROM agent_activities WHERE project_id = $1 AND created_at > $2`, projectID, time.Now().Add(-1*time.Hour)).Scan(&offHourCount)
 		if offHourCount > 5 {
 			a := models.Anomaly{
 				ID: uuid.New(), ProjectID: &projectID,
@@ -110,7 +118,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 	}
 
 	// 3. New IP detection: IPs seen in last hour that never appeared before
-	ipRows, err := s.db.Query(`SELECT DISTINCT ip_address FROM agent_activities WHERE project_id = $1 AND created_at > $2 AND ip_address NOT IN (SELECT DISTINCT ip_address FROM agent_activities WHERE project_id = $1 AND created_at <= $2)`, projectID, time.Now().Add(-1*time.Hour))
+	ipRows, err := repository.QueryQ(s.db, s.dialect, `SELECT DISTINCT ip_address FROM agent_activities WHERE project_id = $1 AND created_at > $2 AND ip_address NOT IN (SELECT DISTINCT ip_address FROM agent_activities WHERE project_id = $1 AND created_at <= $2)`, projectID, time.Now().Add(-1*time.Hour))
 	if err == nil {
 		defer ipRows.Close()
 		for ipRows.Next() {
@@ -131,7 +139,7 @@ func (s *AnomalyService) RunDetection(projectID uuid.UUID) ([]models.Anomaly, er
 	}
 
 	// 4. Unusual key access: keys accessed in last hour that were never accessed before by this project's agents
-	keyRows, err := s.db.Query(`SELECT DISTINCT secret_key FROM agent_activities WHERE project_id = $1 AND created_at > $2 AND secret_key != '' AND secret_key NOT IN (SELECT DISTINCT secret_key FROM agent_activities WHERE project_id = $1 AND created_at <= $2 AND secret_key != '')`, projectID, time.Now().Add(-1*time.Hour))
+	keyRows, err := repository.QueryQ(s.db, s.dialect, `SELECT DISTINCT secret_key FROM agent_activities WHERE project_id = $1 AND created_at > $2 AND secret_key != '' AND secret_key NOT IN (SELECT DISTINCT secret_key FROM agent_activities WHERE project_id = $1 AND created_at <= $2 AND secret_key != '')`, projectID, time.Now().Add(-1*time.Hour))
 	if err == nil {
 		defer keyRows.Close()
 		for keyRows.Next() {

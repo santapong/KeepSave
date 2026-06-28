@@ -89,12 +89,12 @@ func (h *IntelligenceHandler) DetectDrift(c *gin.Context) {
 		TargetEnv string `json:"target_env" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	check, err := h.driftSvc.DetectDrift(pid, uid, req.SourceEnv, req.TargetEnv)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"drift_check": check})
@@ -108,7 +108,7 @@ func (h *IntelligenceHandler) ListDriftChecks(c *gin.Context) {
 	}
 	checks, err := h.driftSvc.ListDriftChecks(pid)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"drift_checks": checks})
@@ -127,7 +127,7 @@ func (h *IntelligenceHandler) CreateDriftSchedule(c *gin.Context) {
 		CronExpr  string `json:"cron_expr"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	if req.CronExpr == "" {
@@ -135,7 +135,7 @@ func (h *IntelligenceHandler) CreateDriftSchedule(c *gin.Context) {
 	}
 	sch, err := h.driftSvc.CreateSchedule(pid, req.SourceEnv, req.TargetEnv, req.CronExpr)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(201, gin.H{"schedule": sch})
@@ -149,7 +149,7 @@ func (h *IntelligenceHandler) ListDriftSchedules(c *gin.Context) {
 	}
 	schedules, err := h.driftSvc.ListSchedules(pid)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"schedules": schedules})
@@ -171,7 +171,7 @@ func (h *IntelligenceHandler) UpdateDriftSchedule(c *gin.Context) {
 		CronExpr string `json:"cron_expr"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	// Bind to :id (RequireProjectAccess already authorized it) so a schedule
@@ -181,7 +181,7 @@ func (h *IntelligenceHandler) UpdateDriftSchedule(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "updated"})
@@ -203,7 +203,7 @@ func (h *IntelligenceHandler) DeleteDriftSchedule(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "deleted"})
@@ -212,7 +212,7 @@ func (h *IntelligenceHandler) DeleteDriftSchedule(c *gin.Context) {
 func (h *IntelligenceHandler) RunScheduledDriftChecks(c *gin.Context) {
 	count, err := h.driftSvc.RunScheduledChecks()
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"ran": count})
@@ -227,7 +227,7 @@ func (h *IntelligenceHandler) RunAnomalyDetection(c *gin.Context) {
 	}
 	anomalies, err := h.anomalySvc.RunDetection(pid)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"anomalies": anomalies, "count": len(anomalies)})
@@ -244,7 +244,7 @@ func (h *IntelligenceHandler) ListAnomalies(c *gin.Context) {
 	}
 	anomalies, err := h.anomalySvc.ListAnomalies(ids, c.DefaultQuery("status", ""))
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"anomalies": anomalies})
@@ -269,7 +269,7 @@ func (h *IntelligenceHandler) AcknowledgeAnomaly(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "acknowledged"})
@@ -294,7 +294,7 @@ func (h *IntelligenceHandler) ResolveAnomaly(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "resolved"})
@@ -313,7 +313,7 @@ func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
 		Config    models.JSONMap `json:"config" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	// A rule must belong to a project the caller can access. project_id is now
@@ -349,7 +349,7 @@ func (h *IntelligenceHandler) CreateAlertRule(c *gin.Context) {
 	}
 	rule, err := h.anomalySvc.CreateRule(pid, kid, req.RuleType, req.Config, uid, c.ClientIP())
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(201, gin.H{"rule": rule})
@@ -366,7 +366,7 @@ func (h *IntelligenceHandler) ListAlertRules(c *gin.Context) {
 	}
 	rules, err := h.anomalySvc.ListRules(ids)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"rules": rules})
@@ -383,7 +383,7 @@ func (h *IntelligenceHandler) UpdateAlertRule(c *gin.Context) {
 		Config  models.JSONMap `json:"config"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	uid, authedOK := getUserID(c)
@@ -399,7 +399,7 @@ func (h *IntelligenceHandler) UpdateAlertRule(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "updated"})
@@ -424,7 +424,7 @@ func (h *IntelligenceHandler) DeleteAlertRule(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "deleted"})
@@ -444,7 +444,7 @@ func (h *IntelligenceHandler) GetUsageTrends(c *gin.Context) {
 	}
 	trends, err := h.analytics.GetTrends(pid, period, days)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"trends": trends, "period": period})
@@ -462,7 +462,7 @@ func (h *IntelligenceHandler) GetUsageForecast(c *gin.Context) {
 	}
 	forecasts, err := h.analytics.Forecast(pid, days)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"forecasts": forecasts})
@@ -483,7 +483,7 @@ func (h *IntelligenceHandler) ExportAnalyticsCSV(c *gin.Context) {
 	if format == "json" {
 		trends, err := h.analytics.GetTrends(pid, period, days)
 		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
+			WrapError(c, Wrap(ErrInternal, err))
 			return
 		}
 		c.JSON(200, gin.H{"trends": trends})
@@ -491,7 +491,7 @@ func (h *IntelligenceHandler) ExportAnalyticsCSV(c *gin.Context) {
 	}
 	csv, err := h.analytics.ExportCSV(pid, period, days)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.Header("Content-Type", "text/csv")
@@ -518,7 +518,7 @@ func (h *IntelligenceHandler) GetQuota(c *gin.Context) {
 	}
 	q, err := h.analytics.GetQuota(orgID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"quota": q})
@@ -547,12 +547,12 @@ func (h *IntelligenceHandler) SetQuota(c *gin.Context) {
 		MaxRequestsPerDay int `json:"max_requests_per_day"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	q, err := h.analytics.SetQuota(orgID, req.MaxSecrets, req.MaxProjects, req.MaxAPIKeys, req.MaxRequestsPerDay)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"quota": q})
@@ -571,7 +571,7 @@ func (h *IntelligenceHandler) GenerateRecommendations(c *gin.Context) {
 	}
 	recs, err := h.recommSvc.GenerateRecommendations(pid, uid)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"recommendations": recs})
@@ -585,7 +585,7 @@ func (h *IntelligenceHandler) ListRecommendations(c *gin.Context) {
 	}
 	recs, err := h.recommSvc.ListRecommendations(pid, c.DefaultQuery("status", ""))
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"recommendations": recs})
@@ -609,7 +609,7 @@ func (h *IntelligenceHandler) DismissRecommendation(c *gin.Context) {
 			WrapError(c, ErrNotFound)
 			return
 		}
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"status": "dismissed"})
@@ -625,12 +625,12 @@ func (h *IntelligenceHandler) NLPQuery(c *gin.Context) {
 		Query string `json:"query" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	result, err := h.nlpSvc.Query(uid, req.Query)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"result": result})
@@ -645,12 +645,12 @@ func (h *IntelligenceHandler) NLPConverse(c *gin.Context) {
 		Messages []models.ConversationMessage `json:"messages" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
 	result, err := h.nlpSvc.Converse(uid, req.Messages)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		WrapError(c, Wrap(ErrInternal, err))
 		return
 	}
 	c.JSON(200, gin.H{"result": result})
