@@ -1,0 +1,7 @@
+# KeepSave Robot Framework acceptance suite — pinned deps.
+# Versions resolved and dry-run-verified 2026-06-28. Bump deliberately.
+robotframework==7.4.2
+robotframework-requests==0.9.7
+# Browser (Playwright) tier — also requires a one-time `rfbrowser init`
+# to download the browser binaries (not needed for the API tier or --dryrun).
+robotframework-browser==20.0.0

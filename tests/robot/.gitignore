@@ -1,0 +1,8 @@
+# Robot Framework run artifacts
+results/
+output.xml
+log.html
+report.html
+*.pyc
+__pycache__/
+.venv/

@@ -356,3 +356,20 @@ jobs:
         run: |
           cosign attest --yes --type spdxjson \
             --predicate sbom-backend.spdx.json "${IMAGE}@${IMAGE_DIGEST}"
+
+  robot-acceptance:
+    name: Robot Acceptance (dry-run)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Dry-run API acceptance suites
+        # Parses every API suite and resolves every keyword with no running
+        # stack and no HTTP calls. The full docker-compose execution
+        # (tests/robot/docker-compose.e2e.yml) is the follow-up once CI has a
+        # service stack — see tests/robot/README.md. A venv avoids PEP-668.
+        run: |
+          python3 -m venv /tmp/rfvenv
+          /tmp/rfvenv/bin/pip install -q robotframework==7.4.2 robotframework-requests==0.9.7
+          /tmp/rfvenv/bin/robot --dryrun --include api --outputdir tests/robot/results tests/robot/tests
