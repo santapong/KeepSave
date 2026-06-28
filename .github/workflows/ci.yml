@@ -78,7 +78,7 @@ jobs:
           go test ./internal/repository/ -run=x -fuzz='FuzzCanonicalizeJSON$'      -fuzztime=15s
           go test ./internal/api/     -run=x -fuzz='FuzzValidateMCPEntryCommand$'  -fuzztime=15s
       - name: Upload coverage
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backend-coverage
           path: backend/coverage.out
@@ -195,7 +195,7 @@ jobs:
           govulncheck -show verbose ./... 2>&1 | tee reports/govulncheck-report.txt
       - name: Upload security report
         if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: security-report
           path: backend/reports/govulncheck-report.txt
@@ -311,7 +311,7 @@ jobs:
           output-file: sbom-frontend.spdx.json
       - name: Upload SBOMs
         if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sboms
           path: |
