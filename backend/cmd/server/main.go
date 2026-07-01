@@ -248,6 +248,10 @@ func main() {
 	bgCtx, cancelBackground := context.WithCancel(context.Background())
 	defer cancelBackground()
 
+	// Bind MCP builds to the shutdown context so SIGTERM cancels in-flight
+	// clone/install subprocesses instead of orphaning them.
+	mcpBuilderService.SetBaseContext(bgCtx)
+
 	// Audit-log retention: delete rows older than AUDIT_LOG_RETENTION_DAYS
 	// once on startup and every 24h thereafter. The goroutine exits when
 	// the context is cancelled or when retention is disabled (days <= 0).

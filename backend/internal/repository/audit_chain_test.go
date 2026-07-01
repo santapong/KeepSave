@@ -120,10 +120,77 @@ func TestAuditChain_DetectsDeletion(t *testing.T) {
 	}
 }
 
-func TestAuditChain_DeleteOlderThanDisabledWhenKeyed(t *testing.T) {
+// TestAuditChain_PruneReanchorsWhenKeyed proves the chain-aware retention prune:
+// with the hash chain active, DeleteOlderThan deletes the oldest rows AND
+// re-anchors the chain from the new earliest survivor, so VerifyChain still
+// holds and the new genesis has an empty prev_hash. (Replaces the former
+// "disabled while keyed" behaviour.)
+func TestAuditChain_PruneReanchorsWhenKeyed(t *testing.T) {
+	repo, db := newChainAuditRepo(t)
+	auditRow(t, repo, "secret.created", 0)
+	auditRow(t, repo, "secret.updated", 1)
+	auditRow(t, repo, "secret.deleted", 2)
+
+	// Age the two oldest rows well past a 30-day cutoff; keep the newest recent.
+	// rowid ordering matches insertion order for this table.
+	if _, err := db.Exec(`UPDATE audit_log SET created_at = datetime('now','-100 days')
+		WHERE rowid IN (SELECT rowid FROM audit_log ORDER BY rowid ASC LIMIT 2)`); err != nil {
+		t.Fatalf("age rows: %v", err)
+	}
+
+	deleted, err := repo.DeleteOlderThan(30)
+	if err != nil {
+		t.Fatalf("DeleteOlderThan under chain: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("deleted = %d, want 2", deleted)
+	}
+
+	var remaining int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM audit_log`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 1 {
+		t.Fatalf("remaining rows = %d, want 1", remaining)
+	}
+
+	// The sole survivor is the new genesis: prev_hash must be empty.
+	var prev sql.NullString
+	if err := db.QueryRow(`SELECT prev_hash FROM audit_log`).Scan(&prev); err != nil {
+		t.Fatal(err)
+	}
+	if prev.String != "" {
+		t.Errorf("new genesis prev_hash = %q, want empty", prev.String)
+	}
+
+	// Chain still verifies from the new anchor.
+	if broken, verr := repo.VerifyChain(); verr != nil || broken != nil {
+		t.Errorf("VerifyChain after prune = %v, %v; want nil, nil", broken, verr)
+	}
+
+	// A subsequent append links onto the re-anchored tip and still verifies.
+	auditRow(t, repo, "secret.created", 3)
+	if broken, verr := repo.VerifyChain(); verr != nil || broken != nil {
+		t.Errorf("VerifyChain after post-prune append = %v, %v; want nil, nil", broken, verr)
+	}
+}
+
+// TestAuditChain_PruneNoopWhenNothingOld verifies the prune is a no-op (and does
+// not disturb the chain) when no row is older than the cutoff.
+func TestAuditChain_PruneNoopWhenNothingOld(t *testing.T) {
 	repo, _ := newChainAuditRepo(t)
-	if _, err := repo.DeleteOlderThan(30); err == nil {
-		t.Error("DeleteOlderThan should error while the chain is active")
+	auditRow(t, repo, "a", 0)
+	auditRow(t, repo, "b", 1)
+
+	deleted, err := repo.DeleteOlderThan(30)
+	if err != nil {
+		t.Fatalf("DeleteOlderThan: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("deleted = %d, want 0", deleted)
+	}
+	if broken, verr := repo.VerifyChain(); verr != nil || broken != nil {
+		t.Errorf("VerifyChain = %v, %v; want nil, nil", broken, verr)
 	}
 }
 

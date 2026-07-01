@@ -302,3 +302,41 @@ func TestSecretPolicyService_SetEmitsAudit(t *testing.T) {
 	}
 	requireAuditRow(t, db, "policy.set", actor)
 }
+
+// TestProjectService_UpdateEmbedConfigEmitsAudit covers NEW-11:
+// UpdateEmbedConfig now emits one embed.origins_updated row attributed to the
+// project owner, with the new allow-list plus the added/removed diff in details.
+func TestProjectService_UpdateEmbedConfigEmitsAudit(t *testing.T) {
+	db, dialect := newA02TestDB(t, ddlProjects, ddlEnvironments, ddlSecrets)
+	cs := newCryptoSvc(t)
+	owner := uuid.New()
+	pid, _ := seedRealProjectWithEnv(t, db, cs, owner, "alpha")
+
+	// Seed a prior allow-list so the added/removed diff is non-trivial.
+	if _, err := db.Exec(`UPDATE projects SET allowed_origins = '["https://old.example"]' WHERE id = ?`, pid.String()); err != nil {
+		t.Fatalf("seed origins: %v", err)
+	}
+
+	svc := NewProjectService(
+		repository.NewProjectRepository(db, dialect),
+		repository.NewEnvironmentRepository(db, dialect),
+		repository.NewAuditRepository(db, dialect),
+		cs,
+	)
+
+	if err := svc.UpdateEmbedConfig(pid, owner, []string{"https://new.example"}, true, "10.6.6.6"); err != nil {
+		t.Fatalf("UpdateEmbedConfig: %v", err)
+	}
+	requireAuditRow(t, db, "embed.origins_updated", owner)
+
+	// The new allow-list and the added/removed diff should be captured.
+	var details string
+	if err := db.QueryRow(`SELECT details FROM audit_log WHERE action = 'embed.origins_updated'`).Scan(&details); err != nil {
+		t.Fatalf("read details: %v", err)
+	}
+	for _, want := range []string{"https://new.example", "https://old.example"} {
+		if !strings.Contains(details, want) {
+			t.Errorf("details %q missing %q", details, want)
+		}
+	}
+}

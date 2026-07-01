@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -43,6 +44,48 @@ const mcpExecTimeout = 30 * time.Second
 // maxMCPOutput caps a single tool call's stdout so a runaway or malicious MCP
 // server cannot exhaust the API process's memory (ADR-0010 part B).
 const maxMCPOutput = 4 << 20 // 4 MiB
+
+// mcpRedactionToken replaces any decrypted secret value that a subprocess
+// echoes back on stdout (NEW-9). Secrets are injected into the child env, so a
+// server that prints its environment would otherwise leak plaintext to the
+// caller; scrubSecrets rewrites every occurrence before the response is
+// returned.
+const mcpRedactionToken = "[REDACTED]"
+
+// errNonConformingToolOutput is returned when a tool's (already-scrubbed)
+// stdout does not parse as the expected JSON-RPC object. The gateway refuses
+// to pass arbitrary tool bytes through to the caller (NEW-9 structured-output
+// validation); HandleToolCall maps this to the static "tool execution failed"
+// JSON-RPC error, so no tool-controlled bytes ever reach the client.
+var errNonConformingToolOutput = errors.New("mcp gateway: tool returned non-conforming (non-JSON-RPC) output")
+
+// secretValuesFromEnvVars extracts the plaintext VALUE side of each
+// "NAME=value" env-var string built by resolveSecretEnvVars. These are the
+// values scrubSecrets must redact from subprocess output.
+func secretValuesFromEnvVars(envVars []string) []string {
+	values := make([]string, 0, len(envVars))
+	for _, kv := range envVars {
+		// Split on the first '=' only; a secret value may itself contain '='.
+		if i := strings.IndexByte(kv, '='); i >= 0 {
+			values = append(values, kv[i+1:])
+		}
+	}
+	return values
+}
+
+// scrubSecrets replaces every non-empty secret value occurrence in b with the
+// redaction token, so plaintext secrets injected into a subprocess env can
+// never round-trip back to the HTTP caller (NEW-9). Empty values are ignored
+// (redacting "" would corrupt all output).
+func scrubSecrets(b []byte, secretValues []string) []byte {
+	for _, v := range secretValues {
+		if v == "" {
+			continue
+		}
+		b = []byte(strings.ReplaceAll(string(b), v, mcpRedactionToken))
+	}
+	return b
+}
 
 // validateMCPEntryCommand parses and vets a server.EntryCommand string. It
 // returns the argv slice if safe, or a typed error otherwise. The validation
@@ -461,14 +504,26 @@ func (h *MCPGatewayHandler) executeMCPToolCall(server *models.MCPServerWithTools
 		return nil, fmt.Errorf("executing tool: %w", err)
 	}
 
-	// Parse the MCP response
+	// Scrub any injected secret value the subprocess echoed back BEFORE parsing
+	// or returning, so plaintext secrets never reach the caller — whether via
+	// the plain-text fallback branch or a parsed structured result (NEW-9).
+	output = scrubSecrets(output, secretValuesFromEnvVars(envVars))
+
+	return parseToolOutput(output)
+}
+
+// parseToolOutput applies NEW-9 structured-output validation (defense-in-depth
+// beyond scrubbing). Tool stdout is untrusted: a conforming MCP server returns
+// a JSON-RPC object; anything else — arbitrary text, a JSON array, a bare
+// literal — must NOT be passed through verbatim, because raw tool stdout is
+// exactly the channel a buggy/malicious server would use to smuggle data (or a
+// scrubber-evading representation of a secret) back to the caller. On any
+// parse/shape failure it returns errNonConformingToolOutput and never the
+// tool's own bytes. Callers must have already scrubbed the buffer.
+func parseToolOutput(output []byte) (interface{}, error) {
 	var response map[string]interface{}
 	if err := json.Unmarshal(output, &response); err != nil {
-		return map[string]interface{}{
-			"content": []map[string]interface{}{
-				{"type": "text", "text": string(output)},
-			},
-		}, nil
+		return nil, errNonConformingToolOutput
 	}
 
 	if result, ok := response["result"]; ok {

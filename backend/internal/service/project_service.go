@@ -153,7 +153,7 @@ func (s *ProjectService) GetEmbedConfig(projectID uuid.UUID) (EmbedConfig, error
 // UpdateEmbedConfig sets a project's embed allow-list. Rejects the wildcard
 // sentinel per ADR-0006 §Open-Q #2. Callers (handlers) MUST verify the
 // requester owns the project.
-func (s *ProjectService) UpdateEmbedConfig(id, ownerID uuid.UUID, allowedOrigins []string, embedPolicyEnabled bool) error {
+func (s *ProjectService) UpdateEmbedConfig(id, ownerID uuid.UUID, allowedOrigins []string, embedPolicyEnabled bool, ipAddr string) error {
 	project, err := s.projectRepo.GetByID(id)
 	if err != nil {
 		return fmt.Errorf("getting project: %w", err)
@@ -166,7 +166,36 @@ func (s *ProjectService) UpdateEmbedConfig(id, ownerID uuid.UUID, allowedOrigins
 			return ErrWildcardOriginNotPermitted
 		}
 	}
-	return s.projectRepo.UpdateEmbedConfig(id, allowedOrigins, embedPolicyEnabled)
+	if err := s.projectRepo.UpdateEmbedConfig(id, allowedOrigins, embedPolicyEnabled); err != nil {
+		return err
+	}
+
+	// Compute the added/removed diff versus the prior allow-list so the audit
+	// row records exactly what changed (docs/AUDIT_LOG_COVERAGE.md:42).
+	oldSet := make(map[string]bool, len(project.AllowedOrigins))
+	for _, o := range project.AllowedOrigins {
+		oldSet[o] = true
+	}
+	newSet := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		newSet[o] = true
+	}
+	added := make([]string, 0)
+	for _, o := range allowedOrigins {
+		if !oldSet[o] {
+			added = append(added, o)
+		}
+	}
+	removed := make([]string, 0)
+	for _, o := range project.AllowedOrigins {
+		if !newSet[o] {
+			removed = append(removed, o)
+		}
+	}
+
+	emitAudit(s.auditRepo, &ownerID, &id, "embed.origins_updated", "",
+		models.JSONMap{"allowed_origins": allowedOrigins, "added": added, "removed": removed}, ipAddr)
+	return nil
 }
 
 func (s *ProjectService) Delete(id, ownerID uuid.UUID, ipAddr string) error {

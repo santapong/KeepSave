@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -157,6 +158,13 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 
 	updated, err := h.promotionService.ApprovePromotion(promotion.ID, userID, c.ClientIP())
 	if err != nil {
+		// Four-eyes invariant (ADR-0003 / NEGATIVE_AUTH_PLAN A10): the requester
+		// approving their own promotion is an authorization failure, not a
+		// malformed request — surface it as 403 FORBIDDEN.
+		if errors.Is(err, service.ErrSelfApproval) {
+			WrapError(c, Wrap(ErrForbidden, err))
+			return
+		}
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}

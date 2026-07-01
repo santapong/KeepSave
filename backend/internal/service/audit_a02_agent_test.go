@@ -177,6 +177,11 @@ func TestMCPService_EmitsAudit(t *testing.T) {
 	}
 	requireAuditRow(t, db, "mcp.installation_updated", editor)
 
+	if err := svc.UninstallServer(inst.ID, installer, "10.8.8.8"); err != nil {
+		t.Fatalf("UninstallServer: %v", err)
+	}
+	requireAuditRow(t, db, "mcp.installation_deleted", installer)
+
 	if err := svc.DeleteServer(server.ID, owner, "10.8.8.8"); err != nil {
 		t.Fatalf("DeleteServer: %v", err)
 	}

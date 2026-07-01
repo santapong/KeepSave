@@ -147,8 +147,13 @@ func (s *MCPService) UpdateInstallation(id uuid.UUID, enabled bool, config model
 	return nil
 }
 
-func (s *MCPService) UninstallServer(id, userID uuid.UUID) error {
-	return s.mcpRepo.DeleteInstallation(id, userID)
+func (s *MCPService) UninstallServer(id, userID uuid.UUID, ipAddr string) error {
+	if err := s.mcpRepo.DeleteInstallation(id, userID); err != nil {
+		return err
+	}
+	emitAudit(s.auditRepo, &userID, nil, "mcp.installation_deleted", "",
+		models.JSONMap{"installation_id": id.String()}, ipAddr)
+	return nil
 }
 
 // Gateway Operations
