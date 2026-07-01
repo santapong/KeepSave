@@ -11,10 +11,15 @@ code. Files/lines below are from that verification.
 
 ## P0-1 — MCP gateway returns subprocess stdout unscrubbed (NEW-9) — HIGH
 
-**Status: implemented (egress scrubbing).** `scrubSecrets` in
+**Status: implemented (egress scrubbing + structured-output validation).** `scrubSecrets` in
 `backend/internal/api/handlers_mcp_gateway.go` redacts every injected secret value from the
-subprocess `output` before it is parsed or returned (fix option 1 below); the structured-output
-hardening (option 2) and off-env delivery (option 3 / ADR-0010 Phase B) remain tracked follow-ups.
+subprocess `output` before it is parsed or returned (fix option 1 below). Structured-output
+validation (option 2) is now **also implemented**: `parseToolOutput` requires the (already-scrubbed)
+stdout to be a well-formed JSON-RPC object and returns the typed `errNonConformingToolOutput`
+instead of passing arbitrary tool bytes through the former plain-text fallback branch — the handler
+maps that to the static "tool execution failed" JSON-RPC error, so no tool-controlled bytes reach the
+caller. Scrubbing remains the first layer; validation is the second (defense-in-depth). Off-env
+delivery (option 3 / ADR-0010 Phase B, unix-socket) remains the tracked follow-up.
 
 Resolves the open question **ADR-0010 §OQ-2** (secret-in-output handling).
 

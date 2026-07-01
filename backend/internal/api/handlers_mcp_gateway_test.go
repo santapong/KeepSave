@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 
@@ -229,6 +230,66 @@ func TestScrubSecrets(t *testing.T) {
 			got := string(scrubSecrets([]byte(tc.input), tc.secretValues))
 			if got != tc.want {
 				t.Fatalf("scrubSecrets() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseToolOutput covers NEW-9 structured-output validation: a conforming
+// JSON-RPC object is parsed and its result returned, while non-conforming tool
+// stdout (arbitrary text, JSON array, bare literal, empty) is rejected with a
+// typed error and NEVER returned verbatim — so a tool cannot smuggle arbitrary
+// bytes past the gateway even if they survived scrubbing.
+func TestParseToolOutput(t *testing.T) {
+	t.Run("well-formed result passes through", func(t *testing.T) {
+		out := []byte(`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"ok"}]}}`)
+		got, err := parseToolOutput(out)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		m, ok := got.(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map result, got %T", got)
+		}
+		if _, ok := m["content"]; !ok {
+			t.Fatalf("expected result content preserved, got %v", got)
+		}
+	})
+
+	t.Run("json object without result returns whole object", func(t *testing.T) {
+		out := []byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"boom"}}`)
+		got, err := parseToolOutput(out)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, ok := got.(map[string]interface{}); !ok {
+			t.Fatalf("expected map, got %T", got)
+		}
+	})
+
+	nonConforming := []struct {
+		name string
+		out  string
+	}{
+		{"arbitrary text", "API_KEY=hunter2 leaked to stdout"},
+		{"json array not object", `["not","an","object"]`},
+		{"bare string literal", `"just a string"`},
+		{"bare number", `42`},
+		{"empty output", ``},
+		{"partial json", `{"result":`},
+	}
+	for _, tc := range nonConforming {
+		t.Run("rejects "+tc.name, func(t *testing.T) {
+			got, err := parseToolOutput([]byte(tc.out))
+			if !errors.Is(err, errNonConformingToolOutput) {
+				t.Fatalf("expected errNonConformingToolOutput, got err=%v", err)
+			}
+			if got != nil {
+				t.Fatalf("non-conforming output must not be returned; got %v", got)
+			}
+			// The tool's own bytes must never appear in what we hand back.
+			if strings.Contains(errNonConformingToolOutput.Error(), tc.out) && tc.out != "" {
+				t.Fatalf("error text leaked tool output")
 			}
 		})
 	}

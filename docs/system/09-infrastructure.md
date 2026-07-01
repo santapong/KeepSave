@@ -179,7 +179,13 @@ The authoritative parser is `backend/internal/config/config.go` (`config.Load`).
 | `AUDIT_LOG_RETENTION_DAYS` | no | `365` | positive integer; drives the pruner goroutine |
 | `KEEPSAVE_KMS_KEY_ID` / `KEEPSAVE_KMS_CIPHERTEXT` | KMS providers | — | parsed into `Config`; adapter wiring deferred (see below) |
 | `VAULT_ADDR` / `VAULT_TOKEN` / `KEEPSAVE_VAULT_KEY_NAME` / `KEEPSAVE_VAULT_CIPHERTEXT` | `vault` provider | — | Vault Transit unwrap at boot |
+| `KEEPSAVE_VAULT_MAX_ATTEMPTS` | no | `4` | max Vault Transit unwrap attempts before boot fails closed (transient blips only; ≥1) |
+| `KEEPSAVE_VAULT_RETRY_BASE_DELAY` | no | `200ms` | base of the exponential backoff between unwrap retries (Go duration) |
+| `KEEPSAVE_VAULT_RETRY_MAX_DELAY` | no | `5s` | cap on any single backoff sleep (Go duration) |
+| `KEEPSAVE_VAULT_RETRY_BUDGET` | no | `20s` | total wall-clock budget across all unwrap attempts; bounds boot hang (Go duration) |
 | `TLS_CERT_FILE` / `TLS_KEY_FILE` / `TLS_REDIRECT` / `TLS_CIPHER_SUITES` | no | — | in-app TLS (TLS 1.2+); when both cert+key set, server serves HTTPS |
+
+> **Vault unwrap is retried, not fail-hard.** The `vault` provider wraps the Transit decrypt in a bounded exponential backoff with full jitter (defaults above) inside a total time budget, so a transient Vault blip (network reset, 5xx, 429) no longer hard-crashes the process at boot. A clear auth failure (401/403) is **not** retried. After exhausting the attempts/budget the boot still fails closed with a wrapped error (a real outage is not masked). The master key is never logged. See `backend/internal/crypto/keyprovider/vault.go`.
 
 > **Important — KMS adapters are deferred.** `resolveMasterKey` in `backend/cmd/server/main.go` wires `env` and `vault` only; `awskms`/`gcpkms` return a clear "not wired in this build" error (deferred per [ADR-0016](../adr/0016-deployment-topology.md), tracked as `FOLLOWUPS #1`). So although `values.yaml` defaults `KEEPSAVE_KEY_PROVIDER=awskms`, the binary today supports `env` (dev) and `vault` (UAT/early-PROD). See [operations](./10-operations.md) and [ADR-0012](../adr/0012-kms-auto-unseal.md).
 

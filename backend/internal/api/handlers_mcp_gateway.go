@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -50,6 +51,13 @@ const maxMCPOutput = 4 << 20 // 4 MiB
 // caller; scrubSecrets rewrites every occurrence before the response is
 // returned.
 const mcpRedactionToken = "[REDACTED]"
+
+// errNonConformingToolOutput is returned when a tool's (already-scrubbed)
+// stdout does not parse as the expected JSON-RPC object. The gateway refuses
+// to pass arbitrary tool bytes through to the caller (NEW-9 structured-output
+// validation); HandleToolCall maps this to the static "tool execution failed"
+// JSON-RPC error, so no tool-controlled bytes ever reach the client.
+var errNonConformingToolOutput = errors.New("mcp gateway: tool returned non-conforming (non-JSON-RPC) output")
 
 // secretValuesFromEnvVars extracts the plaintext VALUE side of each
 // "NAME=value" env-var string built by resolveSecretEnvVars. These are the
@@ -501,14 +509,21 @@ func (h *MCPGatewayHandler) executeMCPToolCall(server *models.MCPServerWithTools
 	// the plain-text fallback branch or a parsed structured result (NEW-9).
 	output = scrubSecrets(output, secretValuesFromEnvVars(envVars))
 
-	// Parse the MCP response
+	return parseToolOutput(output)
+}
+
+// parseToolOutput applies NEW-9 structured-output validation (defense-in-depth
+// beyond scrubbing). Tool stdout is untrusted: a conforming MCP server returns
+// a JSON-RPC object; anything else — arbitrary text, a JSON array, a bare
+// literal — must NOT be passed through verbatim, because raw tool stdout is
+// exactly the channel a buggy/malicious server would use to smuggle data (or a
+// scrubber-evading representation of a secret) back to the caller. On any
+// parse/shape failure it returns errNonConformingToolOutput and never the
+// tool's own bytes. Callers must have already scrubbed the buffer.
+func parseToolOutput(output []byte) (interface{}, error) {
 	var response map[string]interface{}
 	if err := json.Unmarshal(output, &response); err != nil {
-		return map[string]interface{}{
-			"content": []map[string]interface{}{
-				{"type": "text", "text": string(output)},
-			},
-		}, nil
+		return nil, errNonConformingToolOutput
 	}
 
 	if result, ok := response["result"]; ok {
