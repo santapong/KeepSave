@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -56,8 +57,18 @@ func (h *MCPHubHandler) RegisterServer(c *gin.Context) {
 		return
 	}
 
-	// Trigger build asynchronously
-	go h.builderService.BuildServer(server.ID)
+	// Trigger the build on the bounded builder. The server row is already
+	// persisted; if the concurrency limit is saturated we return 429 so the
+	// caller retries (or later hits rebuild) rather than spawning an unbounded
+	// goroutine/subprocess. The server stays registered in the "pending" state.
+	if err := h.builderService.EnqueueBuild(server.ID); err != nil {
+		if errors.Is(err, service.ErrBuildQueueFull) {
+			RespondError(c, http.StatusTooManyRequests, "build queue is full; the server was registered — retry the build shortly")
+			return
+		}
+		WrapError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{"server": server})
 }
@@ -191,8 +202,17 @@ func (h *MCPHubHandler) RebuildServer(c *gin.Context) {
 		return
 	}
 
-	// Trigger rebuild asynchronously
-	go h.builderService.RebuildServer(serverID)
+	// Trigger the rebuild on the bounded builder. 429 when the concurrency
+	// limit is saturated so an authenticated caller cannot spawn unbounded
+	// rebuild goroutines/subprocesses.
+	if err := h.builderService.EnqueueRebuild(serverID); err != nil {
+		if errors.Is(err, service.ErrBuildQueueFull) {
+			RespondError(c, http.StatusTooManyRequests, "build queue is full; retry the rebuild shortly")
+			return
+		}
+		WrapError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{"message": "rebuild started"})
 }

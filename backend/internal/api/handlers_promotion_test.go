@@ -209,3 +209,21 @@ func TestPromotion_AuditLogCapsLimit(t *testing.T) {
 		t.Errorf("limit=10 returned %d rows, want 10", n)
 	}
 }
+
+// TestNegAuth_SelfApproval_Returns403 covers NEGATIVE_AUTH_PLAN A10 (the
+// four-eyes invariant, ADR-0003): the user who REQUESTED a promotion cannot
+// approve it themselves. The service returns ErrSelfApproval; the handler must
+// surface that as 403 FORBIDDEN (an authorization failure), not 400.
+func TestNegAuth_SelfApproval_Returns403(t *testing.T) {
+	env := newPromotionTestEnv(t)
+	owner := uuid.New()
+	project := env.seedProject(t, owner)
+	// The promotion is requested BY the owner; owner then tries to approve it.
+	prom := env.seedPromotion(t, project, owner)
+
+	code, body := env.do(t, "POST",
+		"/projects/"+project.String()+"/promotions/"+prom.String()+"/approve", owner)
+	if code != http.StatusForbidden {
+		t.Errorf("self-approval status = %d, want 403 (body=%s)", code, body)
+	}
+}

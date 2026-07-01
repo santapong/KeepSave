@@ -137,22 +137,29 @@ func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]mod
 	return entries, rows.Err()
 }
 
-// DeleteOlderThan removes audit_log rows older than the retention window. While
-// the hash chain is active it returns an error instead: deleting rows would
-// orphan the chain, and the checkpoint reconciliation (ADR-0019) is not yet
-// implemented. The cutoff is computed in Go (UTC) so the WHERE clause is
-// dialect-independent.
+// DeleteOlderThan removes audit_log rows older than the retention window. The
+// cutoff is computed in Go (UTC) so the WHERE clause is dialect-independent.
+//
+// When the hash chain is active (ADR-0019) a plain DELETE would orphan the
+// chain and make VerifyChain report a break at the deletion boundary. Instead
+// this performs a chain-aware prune + re-anchor (see pruneChained): it deletes
+// the oldest rows and RE-ANCHORS the chain from the new earliest surviving row
+// so integrity still verifies from that anchor forward. Pruned rows are gone by
+// design (retention = intended data loss); tamper-evidence holds from the
+// retained anchor onward, not before it (which no longer exists).
 func (r *AuditRepository) DeleteOlderThan(days int) (int64, error) {
 	if days <= 0 {
 		return 0, fmt.Errorf("days must be a positive integer, got %d", days)
 	}
-	r.mu.Lock()
-	keyed := r.chainKey != nil
-	r.mu.Unlock()
-	if keyed {
-		return 0, fmt.Errorf("audit retention pruning is disabled while the hash chain is active (ADR-0019 checkpoint reconciliation pending)")
-	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -days)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.chainKey != nil {
+		return r.pruneChained(cutoff)
+	}
+
 	res, err := r.db.Exec(
 		Q(r.dialect, `DELETE FROM audit_log WHERE created_at < $1`),
 		cutoff,
@@ -165,6 +172,113 @@ func (r *AuditRepository) DeleteOlderThan(days int) (int64, error) {
 		return 0, fmt.Errorf("counting pruned rows: %w", err)
 	}
 	return rows, nil
+}
+
+// pruneChained deletes chained rows older than cutoff and re-anchors the chain
+// from the new earliest surviving row, so VerifyChain still holds. It MUST be
+// called with r.mu held. It walks the chain from genesis (prev_hash=="") in
+// link order, deletes the leading run of rows whose created_at < cutoff, sets
+// the first surviving row's prev_hash to "" (new genesis), and recomputes
+// entry_hash for every surviving row forward — updating r.lastEntryHash to the
+// new tip so subsequent appends stay contiguous.
+func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
+	rows, err := r.db.Query(Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash, created_at
+		 FROM audit_log WHERE entry_hash IS NOT NULL`))
+	if err != nil {
+		return 0, fmt.Errorf("reading audit chain for prune: %w", err)
+	}
+
+	type chainRow struct {
+		id                             uuid.UUID
+		userID, projectID, environment string
+		action, ipAddress              string
+		prevHash, entryHash            string
+		details                        []byte
+		createdAt                      time.Time
+	}
+	byPrev := map[string]*chainRow{}
+	for rows.Next() {
+		var id uuid.UUID
+		var userID, projectID, environment, prevHash, entryHash sql.NullString
+		var action, ipAddress string
+		var detailsRaw []byte
+		var createdAt time.Time
+		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash, &createdAt); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scanning audit chain row for prune: %w", err)
+		}
+		byPrev[prevHash.String] = &chainRow{
+			id: id, userID: userID.String, projectID: projectID.String,
+			environment: environment.String, action: action, ipAddress: ipAddress,
+			prevHash: prevHash.String, entryHash: entryHash.String,
+			details: detailsRaw, createdAt: createdAt,
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	// Materialize the chain in link order from genesis.
+	var ordered []*chainRow
+	cur := ""
+	for {
+		row, ok := byPrev[cur]
+		if !ok {
+			break
+		}
+		ordered = append(ordered, row)
+		cur = row.entryHash
+	}
+
+	// The delete set is the leading run older than cutoff. Audit is append-only
+	// so the oldest rows are the earliest links; stop at the first survivor.
+	deleteCount := 0
+	for _, row := range ordered {
+		if row.createdAt.UTC().Before(cutoff) {
+			deleteCount++
+		} else {
+			break
+		}
+	}
+	if deleteCount == 0 {
+		return 0, nil
+	}
+
+	// Delete the old prefix AND re-anchor the survivors ATOMICALLY: a partial
+	// prune would leave the tamper-evident chain broken (VerifyChain failing at
+	// the boundary). r.lastEntryHash is updated only after the tx commits, so the
+	// in-memory tip can never diverge from the persisted chain.
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin prune tx: %w", err)
+	}
+	for _, row := range ordered[:deleteCount] {
+		if _, err := tx.Exec(Q(r.dialect, `DELETE FROM audit_log WHERE id = $1`), row.id); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("deleting pruned audit row: %w", err)
+		}
+	}
+
+	// Re-anchor: recompute prev_hash/entry_hash for every surviving row, starting
+	// the new genesis at prev_hash="". No survivors => empty chain, new tip "".
+	prev := ""
+	for _, row := range ordered[deleteCount:] {
+		entry := computeEntryHash(r.chainKey, prev, row.userID, row.projectID, row.action, row.environment, canonicalizeJSON(row.details), row.ipAddress)
+		if _, err := tx.Exec(
+			Q(r.dialect, `UPDATE audit_log SET prev_hash = $1, entry_hash = $2 WHERE id = $3`),
+			prev, entry, row.id,
+		); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("re-anchoring audit row: %w", err)
+		}
+		prev = entry
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit prune tx: %w", err)
+	}
+	r.lastEntryHash = prev
+	return int64(deleteCount), nil
 }
 
 // VerifyChain follows the prev_hash links from genesis and recomputes each
