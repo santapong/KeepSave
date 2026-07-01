@@ -301,10 +301,10 @@ func (r *AuditRepository) VerifyChain() (*uuid.UUID, error) {
 	defer rows.Close()
 
 	type chainRow struct {
-		id                              uuid.UUID
-		userID, projectID, environment  string
-		action, ipAddress, entryHash    string
-		details                         []byte
+		id                             uuid.UUID
+		userID, projectID, environment string
+		action, ipAddress, entryHash   string
+		details                        []byte
 	}
 	byPrev := map[string]chainRow{}
 	for rows.Next() {
