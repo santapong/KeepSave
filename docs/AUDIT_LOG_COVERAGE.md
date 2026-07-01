@@ -77,6 +77,7 @@ are NEVER placed in `details`.
 | MCP server delete       | `mcp.server_deleted`        | `actor_id`, `mcp_server_id`                               |
 | MCP server install      | `mcp.server_installed`      | `actor_id`, `mcp_server_id`, `installation_id`, `project_id` (nullable) |
 | MCP installation update | `mcp.installation_updated`  | `actor_id`, `installation_id`, `enabled`                  |
+| MCP installation uninstall | `mcp.installation_deleted` | `actor_id`, `installation_id` |
 | OAuth client register   | `oauth.client_registered`   | `actor_id`, `oauth_client_id`, `client_id`, `name`        |
 | OAuth client delete     | `oauth.client_deleted`      | `actor_id`, `oauth_client_id`                             |
 | Application create      | `application.created`       | `actor_id`, `application_id`, `name`                      |

@@ -91,7 +91,7 @@ func (h *EmbedHandler) UpdateEmbedConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.projectService.UpdateEmbedConfig(projectID, userID, req.AllowedOrigins, req.EmbedPolicyEnabled); err != nil {
+	if err := h.projectService.UpdateEmbedConfig(projectID, userID, req.AllowedOrigins, req.EmbedPolicyEnabled, c.ClientIP()); err != nil {
 		if errors.Is(err, service.ErrWildcardOriginNotPermitted) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{
 				"error":  "wildcard_origin_not_permitted",

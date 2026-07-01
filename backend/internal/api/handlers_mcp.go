@@ -298,7 +298,7 @@ func (h *MCPHubHandler) UninstallServer(c *gin.Context) {
 		return
 	}
 
-	if err := h.mcpService.UninstallServer(instID, userID); err != nil {
+	if err := h.mcpService.UninstallServer(instID, userID, c.ClientIP()); err != nil {
 		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}

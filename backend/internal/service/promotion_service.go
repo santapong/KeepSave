@@ -113,6 +113,7 @@ func (s *PromotionService) Diff(projectID uuid.UUID, sourceEnv, targetEnv string
 	if err != nil {
 		return nil, err
 	}
+	defer crypto.SecureZero(dek)
 
 	srcSecrets, err := s.secretRepo.ListByProjectAndEnv(projectID, srcEnv.ID)
 	if err != nil {
@@ -153,6 +154,7 @@ func (s *PromotionService) Diff(projectID uuid.UUID, sourceEnv, targetEnv string
 			SourceHash:   hashSecretForDiff(dek, srcValue),
 			SourceExists: true,
 		}
+		crypto.SecureZero(srcValue)
 
 		if tgtSec, exists := tgtMap[srcSec.Key]; exists {
 			tgtValue, err := crypto.Decrypt(dek, tgtSec.EncryptedValue, tgtSec.ValueNonce)
@@ -161,6 +163,7 @@ func (s *PromotionService) Diff(projectID uuid.UUID, sourceEnv, targetEnv string
 			}
 			entry.TargetHash = hashSecretForDiff(dek, tgtValue)
 			entry.TargetExists = true
+			crypto.SecureZero(tgtValue)
 
 			// Equality via constant-time compare on the same-keyed HMAC is
 			// equivalent to plaintext equality without revealing either value.
@@ -345,6 +348,7 @@ func (s *PromotionService) runPromotion(promotion *models.PromotionRequest, exec
 	if err != nil {
 		return err
 	}
+	defer crypto.SecureZero(dek)
 
 	srcSecrets, err := s.secretRepo.ListByProjectAndEnv(promotion.ProjectID, srcEnv.ID)
 	if err != nil {
@@ -401,6 +405,7 @@ func (s *PromotionService) runPromotion(promotion *models.PromotionRequest, exec
 				return fmt.Errorf("decrypting source secret %s: %w", srcSec.Key, err)
 			}
 			newEncrypted, newNonce, err := crypto.Encrypt(dek, srcValue)
+			crypto.SecureZero(srcValue)
 			if err != nil {
 				return fmt.Errorf("encrypting secret %s for target: %w", srcSec.Key, err)
 			}
