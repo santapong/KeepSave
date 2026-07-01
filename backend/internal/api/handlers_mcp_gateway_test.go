@@ -164,3 +164,104 @@ func TestResolveSecretEnvVars_SkipsUnauthorizedProject(t *testing.T) {
 		t.Errorf("owner B did not resolve their own secret; got %v", ownerVars)
 	}
 }
+
+// TestScrubSecrets covers NEW-9: any decrypted secret value a subprocess echoes
+// back on stdout must be redacted before the response reaches the caller.
+func TestScrubSecrets(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		secretValues []string
+		want         string
+	}{
+		{
+			name:         "no secrets configured",
+			input:        "hello world",
+			secretValues: nil,
+			want:         "hello world",
+		},
+		{
+			name:         "single secret redacted",
+			input:        "token is s3cr3t here",
+			secretValues: []string{"s3cr3t"},
+			want:         "token is [REDACTED] here",
+		},
+		{
+			name:         "multiple secrets redacted",
+			input:        "a=alpha b=bravo",
+			secretValues: []string{"alpha", "bravo"},
+			want:         "a=[REDACTED] b=[REDACTED]",
+		},
+		{
+			name:         "overlapping substring values both redacted",
+			input:        "supersecret and secret",
+			secretValues: []string{"supersecret", "secret"},
+			want:         "[REDACTED] and [REDACTED]",
+		},
+		{
+			name:         "empty value ignored",
+			input:        "unchanged output",
+			secretValues: []string{""},
+			want:         "unchanged output",
+		},
+		{
+			name:         "empty value mixed with real secret",
+			input:        "leak PA55 here",
+			secretValues: []string{"", "PA55"},
+			want:         "leak [REDACTED] here",
+		},
+		{
+			name:         "value appearing in JSON field is redacted",
+			input:        `{"result":{"content":[{"type":"text","text":"API_KEY=hunter2"}]}}`,
+			secretValues: []string{"hunter2"},
+			want:         `{"result":{"content":[{"type":"text","text":"API_KEY=[REDACTED]"}]}}`,
+		},
+		{
+			name:         "repeated occurrences all redacted",
+			input:        "pw pw pw",
+			secretValues: []string{"pw"},
+			want:         "[REDACTED] [REDACTED] [REDACTED]",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := string(scrubSecrets([]byte(tc.input), tc.secretValues))
+			if got != tc.want {
+				t.Fatalf("scrubSecrets() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSecretValuesFromEnvVars asserts the VALUE side is extracted from each
+// "NAME=value" env string that resolveSecretEnvVars builds, including values
+// that themselves contain '='.
+func TestSecretValuesFromEnvVars(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVars []string
+		want    []string
+	}{
+		{"empty", nil, []string{}},
+		{"simple", []string{"NAME=value"}, []string{"value"}},
+		{"value contains equals", []string{"TOKEN=a=b=c"}, []string{"a=b=c"}},
+		{"multiple", []string{"A=1", "B=2"}, []string{"1", "2"}},
+		{"empty value preserved", []string{"EMPTY="}, []string{""}},
+		{"no equals skipped", []string{"MALFORMED"}, []string{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := secretValuesFromEnvVars(tc.envVars)
+			if len(got) != len(tc.want) {
+				t.Fatalf("secretValuesFromEnvVars() = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("secretValuesFromEnvVars()[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}

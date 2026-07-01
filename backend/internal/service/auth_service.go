@@ -49,8 +49,8 @@ type AuthResponse struct {
 }
 
 func (s *AuthService) Register(email, password string) (*AuthResponse, error) {
-	if len(password) < 8 {
-		return nil, fmt.Errorf("password must be at least 8 characters")
+	if err := auth.DefaultPasswordPolicy().Validate(password); err != nil {
+		return nil, err
 	}
 
 	hash, err := auth.HashPassword(password)

@@ -11,6 +11,11 @@ code. Files/lines below are from that verification.
 
 ## P0-1 — MCP gateway returns subprocess stdout unscrubbed (NEW-9) — HIGH
 
+**Status: implemented (egress scrubbing).** `scrubSecrets` in
+`backend/internal/api/handlers_mcp_gateway.go` redacts every injected secret value from the
+subprocess `output` before it is parsed or returned (fix option 1 below); the structured-output
+hardening (option 2) and off-env delivery (option 3 / ADR-0010 Phase B) remain tracked follow-ups.
+
 Resolves the open question **ADR-0010 §OQ-2** (secret-in-output handling).
 
 **Defect.** Decrypted secrets are injected into the MCP subprocess env and the subprocess's stdout

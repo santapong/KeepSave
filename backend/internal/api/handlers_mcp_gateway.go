@@ -44,6 +44,41 @@ const mcpExecTimeout = 30 * time.Second
 // server cannot exhaust the API process's memory (ADR-0010 part B).
 const maxMCPOutput = 4 << 20 // 4 MiB
 
+// mcpRedactionToken replaces any decrypted secret value that a subprocess
+// echoes back on stdout (NEW-9). Secrets are injected into the child env, so a
+// server that prints its environment would otherwise leak plaintext to the
+// caller; scrubSecrets rewrites every occurrence before the response is
+// returned.
+const mcpRedactionToken = "[REDACTED]"
+
+// secretValuesFromEnvVars extracts the plaintext VALUE side of each
+// "NAME=value" env-var string built by resolveSecretEnvVars. These are the
+// values scrubSecrets must redact from subprocess output.
+func secretValuesFromEnvVars(envVars []string) []string {
+	values := make([]string, 0, len(envVars))
+	for _, kv := range envVars {
+		// Split on the first '=' only; a secret value may itself contain '='.
+		if i := strings.IndexByte(kv, '='); i >= 0 {
+			values = append(values, kv[i+1:])
+		}
+	}
+	return values
+}
+
+// scrubSecrets replaces every non-empty secret value occurrence in b with the
+// redaction token, so plaintext secrets injected into a subprocess env can
+// never round-trip back to the HTTP caller (NEW-9). Empty values are ignored
+// (redacting "" would corrupt all output).
+func scrubSecrets(b []byte, secretValues []string) []byte {
+	for _, v := range secretValues {
+		if v == "" {
+			continue
+		}
+		b = []byte(strings.ReplaceAll(string(b), v, mcpRedactionToken))
+	}
+	return b
+}
+
 // validateMCPEntryCommand parses and vets a server.EntryCommand string. It
 // returns the argv slice if safe, or a typed error otherwise. The validation
 // is intentionally strict: an allowed binary name with no path separators,
@@ -460,6 +495,11 @@ func (h *MCPGatewayHandler) executeMCPToolCall(server *models.MCPServerWithTools
 	if err := cmd.Wait(); err != nil && !truncated {
 		return nil, fmt.Errorf("executing tool: %w", err)
 	}
+
+	// Scrub any injected secret value the subprocess echoed back BEFORE parsing
+	// or returning, so plaintext secrets never reach the caller — whether via
+	// the plain-text fallback branch or a parsed structured result (NEW-9).
+	output = scrubSecrets(output, secretValuesFromEnvVars(envVars))
 
 	// Parse the MCP response
 	var response map[string]interface{}
