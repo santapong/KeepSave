@@ -13,7 +13,7 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, trustedProxies []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
@@ -23,11 +23,22 @@ func SetupRouter(
 	agentHandler *AgentHandler, platformHandler *PlatformHandler, openAPIHandler *OpenAPIHandler,
 	oauthHandler *OAuthHandler, mcpHubHandler *MCPHubHandler, mcpGatewayHandler *MCPGatewayHandler,
 	applicationHandler *ApplicationHandler, intelligenceHandler *IntelligenceHandler,
-	embedHandler *EmbedHandler,
+	embedHandler *EmbedHandler, feedbackHandler *FeedbackHandler,
 	appMetrics *metrics.AppMetrics, tracer *tracing.Tracer, db *sql.DB, logger *logging.Logger,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// CWE-348: constrain which upstream proxies may set X-Forwarded-For/X-Real-IP.
+	// gin trusts ALL proxies by default, so without this an attacker could spoof
+	// c.ClientIP() (and thus the rate-limit key and audit IP) with a forged XFF
+	// header. When TRUSTED_PROXIES is unset, trustedProxies is nil ⇒ trust none,
+	// so ClientIP() returns the direct peer. An invalid CIDR fails closed (nil).
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		if logger != nil {
+			logger.Error("invalid TRUSTED_PROXIES; trusting no proxy", map[string]interface{}{"error": err.Error()})
+		}
+		_ = r.SetTrustedProxies(nil)
+	}
 	// Custom recovery replaces gin.Recovery() so a panic produces the
 	// same {"error":{...}} shape as a returned error - per audit B-M1.
 	r.Use(PanicRecoveryMiddleware())
@@ -323,6 +334,16 @@ func SetupRouter(
 			mcp.GET("/gateway/tools", mcpGatewayHandler.ListTools)
 			mcp.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
 			mcp.GET("/config", mcpGatewayHandler.MCPConfig)
+		}
+
+		// In-app feedback (feature-flagged by FEEDBACK_GITHUB_TOKEN; 503 when
+		// off). Dedicated tight per-IP limiter — every accepted request files
+		// a GitHub issue, so the budget is deliberately small (5/min, burst 5),
+		// mirroring the embed-limiter precedent above.
+		fb := v1.Group("/feedback")
+		fb.Use(JWTAuthMiddleware(jwtService))
+		{
+			fb.POST("", RateLimitMiddleware(NewRateLimiter(5, time.Minute, 5)), feedbackHandler.Submit)
 		}
 
 		app := v1.Group("/applications")

@@ -96,6 +96,7 @@ docker-compose up --build                  # Run everything
 | `CORS_ORIGINS`        | Allowed origins for embed widget         |
 | `KEEPSAVE_PROMOTIONS_ENABLED` | Promotion kill switch (default: true). `false` makes `/promote` + `/approve` return 503; see `docs/RUNBOOK.md` §8 |
 | `KEEPSAVE_PLATFORM_ADMIN_EMAILS` | Comma-separated allowlist of user emails permitted to reach the cross-tenant `/admin` endpoints (dashboard, traces). Empty (default) ⇒ `/admin` rejects everyone (fail-closed) |
+| `TRUSTED_PROXIES` | Comma-separated reverse-proxy CIDRs whose `X-Forwarded-For`/`X-Real-IP` headers are trusted when deriving the client IP (rate-limit key + audit IP). Empty (default) ⇒ trust NO proxy, so a forged `X-Forwarded-For` cannot spoof the client IP (CWE-348) |
 
 ## Coding Conventions
 

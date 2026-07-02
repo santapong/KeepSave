@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FeedbackButton } from './components/FeedbackButton';
 import { Toaster } from './components/ui/toaster';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -76,6 +77,7 @@ export default function App() {
           </Suspense>
         </ErrorBoundary>
       </Layout>
+      <FeedbackButton />
       <Toaster />
     </BrowserRouter>
   );

@@ -369,7 +369,11 @@ export class WidgetRenderer {
         el('button', {
           className: 'ks-btn ks-btn-sm',
           text: 'Edit',
-          dataset: { action: 'edit', id: secret.id, value: secret.value || '' },
+          // CWE-200: NEVER put the plaintext value in a DOM attribute. The shadow
+          // root is `mode: 'open'`, so any host-page script could read every
+          // secret via el.shadowRoot.querySelectorAll('[data-value]'). The edit
+          // handler resolves the value from in-memory state instead.
+          dataset: { action: 'edit', id: secret.id },
         })
       );
       actions.appendChild(
@@ -443,7 +447,9 @@ export class WidgetRenderer {
           case 'edit':
             if (id) {
               this.state.editingId = id;
-              this.state.editingValue = btn.dataset.value || '';
+              // CWE-200: resolve the plaintext from in-memory state, never from a
+              // DOM attribute — see renderSecretItem's Edit button comment.
+              this.state.editingValue = this.state.secrets.find((s) => s.id === id)?.value || '';
               this.render();
             }
             break;

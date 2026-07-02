@@ -326,3 +326,28 @@ func TestSecretValuesFromEnvVars(t *testing.T) {
 		})
 	}
 }
+
+// TestRedactedArgKeys proves the CWE-312 fix: the persisted gateway-log payload
+// keeps the argument KEY names but never the VALUES, which may hold credentials.
+func TestRedactedArgKeys(t *testing.T) {
+	args := map[string]interface{}{
+		"token":    "super-secret-token",
+		"password": "hunter2",
+		"limit":    50,
+	}
+	got := redactedArgKeys(args)
+	if len(got) != len(args) {
+		t.Fatalf("redactedArgKeys len = %d, want %d", len(got), len(args))
+	}
+	for k := range args {
+		if got[k] != "[redacted]" {
+			t.Errorf("redactedArgKeys[%q] = %v, want [redacted]", k, got[k])
+		}
+	}
+	// No original plaintext value survives anywhere in the redacted map.
+	for _, v := range got {
+		if v == "super-secret-token" || v == "hunter2" {
+			t.Errorf("redacted map still contains a plaintext value: %v", v)
+		}
+	}
+}

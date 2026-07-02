@@ -88,6 +88,8 @@ are NEVER placed in `details`.
 | Anomaly rule delete     | `anomaly.rule_deleted`      | `actor_id`, `rule_id`                                     |
 | Anomaly acknowledge     | `anomaly.acknowledged`      | `actor_id`, `anomaly_id`                                  |
 | Anomaly resolve         | `anomaly.resolved`          | `actor_id`, `anomaly_id`                                  |
+| Feedback submit         | `feedback.submitted`        | `actor_id`, `category`, `issue_number`, `repo` — the feedback message text is NEVER placed in `details` |
+| Drift detect            | `drift.detected`            | `actor_id`, `project_id`, `drift_check_id`, `source_env`, `target_env`, `total_keys`, `drifted_keys`, `missing_in_source`, `missing_in_target` — DetectDrift decrypts every secret in both envs, so it MUST audit; decrypted secret keys/values are NEVER placed in `details` |
 
 ### Naming convention
 

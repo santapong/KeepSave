@@ -68,6 +68,21 @@ type Config struct {
 	// Sourced from KEEPSAVE_PLATFORM_ADMIN_EMAILS (comma-separated, lowercased).
 	// Empty means nobody — /admin fails closed (DB-06).
 	PlatformAdminEmails []string
+
+	// FeedbackGitHubToken enables the in-app feedback endpoint. When empty
+	// (default), POST /feedback returns 503. Sourced from FEEDBACK_GITHUB_TOKEN.
+	FeedbackGitHubToken string
+
+	// FeedbackGitHubRepo is the "owner/repo" that feedback issues are filed
+	// against. Sourced from FEEDBACK_GITHUB_REPO.
+	FeedbackGitHubRepo string
+
+	// TrustedProxies is the allow-list of reverse-proxy CIDRs (comma-separated
+	// in TRUSTED_PROXIES) whose X-Forwarded-For / X-Real-IP headers gin will
+	// honour when deriving the client IP. Empty (default) ⇒ gin trusts NO proxy,
+	// so c.ClientIP() returns the direct peer and a forged XFF header cannot
+	// spoof the rate-limit key or the audit IP (CWE-348).
+	TrustedProxies []string
 }
 
 func Load() (*Config, error) {
@@ -164,6 +179,9 @@ func Load() (*Config, error) {
 		AuditLogRetentionDays: retention,
 		PromotionsEnabled:     promotionsEnabled,
 		PlatformAdminEmails:   parseCommaList(os.Getenv("KEEPSAVE_PLATFORM_ADMIN_EMAILS")),
+		FeedbackGitHubToken:   os.Getenv("FEEDBACK_GITHUB_TOKEN"),
+		FeedbackGitHubRepo:    getenvOr("FEEDBACK_GITHUB_REPO", "santapong/KeepSave"),
+		TrustedProxies:        parseCommaList(os.Getenv("TRUSTED_PROXIES")),
 	}, nil
 }
 

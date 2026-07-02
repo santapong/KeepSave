@@ -8,9 +8,7 @@ import type {
   SecretRecommendation,
   NLPQueryResult,
 } from '../types/ai';
-import { getAuthToken } from './client';
-
-const BASE_URL = '/api/v1';
+import { getAuthToken, BASE_URL } from './client';
 
 function getToken(): string | null {
   // Token lives in sessionStorage (see client.ts); use the shared accessor.

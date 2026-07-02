@@ -254,6 +254,8 @@ func (h *OAuthHandler) OpenIDConfiguration(c *gin.Context) {
 		"grant_types_supported":                 []string{"authorization_code", "client_credentials", "refresh_token"},
 		"scopes_supported":                      []string{"read", "write", "delete", "promote", "admin", "mcp"},
 		"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic"},
-		"code_challenge_methods_supported":      []string{"S256", "plain"},
+		// verifyPKCE accepts ONLY S256 (the "plain" method was removed); advertise
+		// accordingly so clients never negotiate a method the server rejects.
+		"code_challenge_methods_supported": []string{"S256"},
 	})
 }
