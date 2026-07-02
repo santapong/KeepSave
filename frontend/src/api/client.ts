@@ -27,7 +27,7 @@ import type {
 //   - Local dev: leave VITE_API_BASE_URL unset so requests go to "/api/v1"
 //     and Vite's dev proxy (vite.config.ts) forwards them to localhost:8080.
 // See docs/DEPLOYMENT_PLAN.md sec 4.3.
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
 
 /**
  * The canonical storage key for the auth JWT.
