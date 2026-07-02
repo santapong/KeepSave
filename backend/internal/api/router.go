@@ -13,7 +13,7 @@ import (
 )
 
 func SetupRouter(
-	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
+	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, trustedProxies []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
 	authHandler *AuthHandler, projectHandler *ProjectHandler, secretHandler *SecretHandler,
 	apikeyHandler *APIKeyHandler, promotionHandler *PromotionHandler, keyRotationHandler *KeyRotationHandler,
@@ -28,6 +28,17 @@ func SetupRouter(
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// CWE-348: constrain which upstream proxies may set X-Forwarded-For/X-Real-IP.
+	// gin trusts ALL proxies by default, so without this an attacker could spoof
+	// c.ClientIP() (and thus the rate-limit key and audit IP) with a forged XFF
+	// header. When TRUSTED_PROXIES is unset, trustedProxies is nil ⇒ trust none,
+	// so ClientIP() returns the direct peer. An invalid CIDR fails closed (nil).
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		if logger != nil {
+			logger.Error("invalid TRUSTED_PROXIES; trusting no proxy", map[string]interface{}{"error": err.Error()})
+		}
+		_ = r.SetTrustedProxies(nil)
+	}
 	// Custom recovery replaces gin.Recovery() so a panic produces the
 	// same {"error":{...}} shape as a returned error - per audit B-M1.
 	r.Use(PanicRecoveryMiddleware())

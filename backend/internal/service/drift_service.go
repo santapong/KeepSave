@@ -24,12 +24,13 @@ type DriftService struct {
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
+	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
 	aiMgr       *AIProviderManager
 }
 
-func NewDriftService(db *sql.DB, dialect repository.Dialect, secretRepo *repository.SecretRepository, projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository, cryptoSvc *crypto.Service, aiMgr *AIProviderManager) *DriftService {
-	return &DriftService{db: db, dialect: dialect, secretRepo: secretRepo, projectRepo: projectRepo, envRepo: envRepo, cryptoSvc: cryptoSvc, aiMgr: aiMgr}
+func NewDriftService(db *sql.DB, dialect repository.Dialect, secretRepo *repository.SecretRepository, projectRepo *repository.ProjectRepository, envRepo *repository.EnvironmentRepository, auditRepo *repository.AuditRepository, cryptoSvc *crypto.Service, aiMgr *AIProviderManager) *DriftService {
+	return &DriftService{db: db, dialect: dialect, secretRepo: secretRepo, projectRepo: projectRepo, envRepo: envRepo, auditRepo: auditRepo, cryptoSvc: cryptoSvc, aiMgr: aiMgr}
 }
 
 func (s *DriftService) DetectDrift(projectID, userID uuid.UUID, sourceEnv, targetEnv string) (*models.DriftCheck, error) {
@@ -129,6 +130,23 @@ func (s *DriftService) DetectDrift(projectID, userID uuid.UUID, sourceEnv, targe
 	if err != nil {
 		return nil, fmt.Errorf("storing drift check: %w", err)
 	}
+
+	// Audit the drift detection (CWE-778 / CLAUDE.md audit hard-gate). DetectDrift
+	// decrypts every secret in both environments, so the run MUST leave an audit
+	// trail. Record only project/env/counts and the check id — NEVER any decrypted
+	// secret key or value.
+	actor := userID
+	proj := projectID
+	emitAudit(s.auditRepo, &actor, &proj, "drift.detected", targetEnv, models.JSONMap{
+		"drift_check_id":    check.ID.String(),
+		"source_env":        sourceEnv,
+		"target_env":        targetEnv,
+		"total_keys":        len(allKeys),
+		"drifted_keys":      drifted,
+		"missing_in_source": missingSrc,
+		"missing_in_target": missingTgt,
+	}, "")
+
 	return check, nil
 }
 

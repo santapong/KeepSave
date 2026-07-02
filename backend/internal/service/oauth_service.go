@@ -103,6 +103,14 @@ func (s *OAuthService) Authorize(clientID string, userID uuid.UUID, redirectURI 
 			return "", fmt.Errorf("public clients require code_challenge_method=S256")
 		}
 	}
+	// CWE-269/863 (RFC 6749 §3.3): never issue a scope the client was not
+	// registered for. Narrow the request to requested ∩ client.Scopes; an empty
+	// request defaults to the client's full registered set. A non-empty request
+	// that grants nothing the client owns is rejected as invalid_scope.
+	scopes, err = grantedScopes(scopes, client.Scopes)
+	if err != nil {
+		return "", err
+	}
 	code := generateAuthCode()
 	authCode := &models.OAuthAuthorizationCode{
 		Code: code, ClientID: client.ID, UserID: userID, RedirectURI: redirectURI,
@@ -170,8 +178,12 @@ func (s *OAuthService) ClientCredentialsGrant(clientID, clientSecret string, sco
 	if !hasGrant {
 		return nil, fmt.Errorf("client_credentials grant not allowed for this client")
 	}
-	if len(scopes) == 0 {
-		scopes = client.Scopes
+	// CWE-269/863 (RFC 6749 §3.3): constrain issued scopes to the client's
+	// registered set. An empty request defaults to the full registered set; a
+	// non-empty request that grants nothing owned is rejected as invalid_scope.
+	scopes, err = grantedScopes(scopes, client.Scopes)
+	if err != nil {
+		return nil, err
 	}
 	return s.issueTokens(client.ID, nil, scopes)
 }
@@ -314,6 +326,31 @@ func (s *OAuthService) verifyPKCE(challenge, method, verifier string) bool {
 	h := sha256.Sum256([]byte(verifier))
 	computed := base64.RawURLEncoding.EncodeToString(h[:])
 	return subtle.ConstantTimeCompare([]byte(challenge), []byte(computed)) == 1
+}
+
+// grantedScopes narrows a requested scope list to the intersection with the
+// client's registered scopes (RFC 6749 §3.3), preserving the client's declared
+// order. An empty request defaults to the full registered set. A non-empty
+// request whose intersection is empty is an error (invalid_scope) so a client
+// can never escalate to a scope it was not registered for (CWE-269/863).
+func grantedScopes(requested, registered []string) ([]string, error) {
+	if len(requested) == 0 {
+		return registered, nil
+	}
+	allowed := make(map[string]struct{}, len(registered))
+	for _, s := range registered {
+		allowed[s] = struct{}{}
+	}
+	var out []string
+	for _, s := range requested {
+		if _, ok := allowed[s]; ok {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("invalid_scope: requested scope exceeds the client's registered scopes")
+	}
+	return out, nil
 }
 
 func generateClientID() string {

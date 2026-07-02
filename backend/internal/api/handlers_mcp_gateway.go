@@ -87,6 +87,19 @@ func scrubSecrets(b []byte, secretValues []string) []byte {
 	return b
 }
 
+// redactedArgKeys returns a JSONMap that preserves the tool-argument KEY names
+// but replaces every VALUE with a static token, so the persisted gateway log
+// (mcp_gateway_log.request_payload) never stores plaintext argument values —
+// which may contain credentials (CWE-312). Only the stored log payload is
+// affected; the value passed to the tool is untouched.
+func redactedArgKeys(args map[string]interface{}) models.JSONMap {
+	redacted := make(models.JSONMap, len(args))
+	for k := range args {
+		redacted[k] = "[redacted]"
+	}
+	return redacted
+}
+
 // validateMCPEntryCommand parses and vets a server.EntryCommand string. It
 // returns the argv slice if safe, or a typed error otherwise. The validation
 // is intentionally strict: an allowed binary name with no path separators,
@@ -237,7 +250,7 @@ func (h *MCPGatewayHandler) HandleToolCall(c *gin.Context) {
 		UserID:         &userID,
 		MCPServerID:    &targetServer.ID,
 		ToolName:       toolName,
-		RequestPayload: models.JSONMap{"arguments": toolArgs},
+		RequestPayload: models.JSONMap{"arguments": redactedArgKeys(toolArgs)},
 		ResponseStatus: status,
 		DurationMs:     int(duration.Milliseconds()),
 	})

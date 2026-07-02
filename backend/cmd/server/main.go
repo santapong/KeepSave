@@ -166,7 +166,7 @@ func main() {
 	} else {
 		logger.Info("no AI providers configured (Phase 15 features will use fallback mode)", nil)
 	}
-	driftService := service.NewDriftService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
+	driftService := service.NewDriftService(db, dialect, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc, aiMgr)
 	anomalyService := service.NewAnomalyService(db, dialect, aiMgr, auditRepo)
 	usageAnalyticsSvc := service.NewUsageAnalyticsService(db, dialect)
 	recommService := service.NewRecommendationService(db, dialect, secretRepo, projectRepo, envRepo, cryptoSvc, aiMgr)
@@ -215,6 +215,7 @@ func main() {
 		cfg.CORSOrigins,
 		cfg.PromotionsEnabled,
 		cfg.PlatformAdminEmails,
+		cfg.TrustedProxies,
 		jwtService,
 		apikeyRepo,
 		projectRepo,

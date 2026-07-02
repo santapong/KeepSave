@@ -209,21 +209,18 @@ func EnforceAPIKeyScope() gin.HandlerFunc {
 	}
 }
 
-// TrustedProxyMiddleware extracts the real client IP from reverse proxy headers
-// (X-Forwarded-For, X-Real-IP) and sets X-Forwarded-Proto awareness.
-// This allows KeepSave to work correctly behind nginx, Traefik, Kong, etc.
+// TrustedProxyMiddleware records the client IP (for the rate limiter and audit)
+// and sets X-Forwarded-Proto awareness. This allows KeepSave to work correctly
+// behind nginx, Traefik, Kong, etc.
 func TrustedProxyMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Prefer X-Real-IP (set by nginx), then X-Forwarded-For (first IP in chain)
-		if realIP := c.GetHeader("X-Real-IP"); realIP != "" {
-			c.Set("client_ip", realIP)
-		} else if forwarded := c.GetHeader("X-Forwarded-For"); forwarded != "" {
-			// X-Forwarded-For may contain comma-separated list; first is the client
-			parts := strings.SplitN(forwarded, ",", 2)
-			c.Set("client_ip", strings.TrimSpace(parts[0]))
-		} else {
-			c.Set("client_ip", c.ClientIP())
-		}
+		// CWE-348: derive the client IP from gin's c.ClientIP(), which honours
+		// X-Forwarded-For/X-Real-IP ONLY when the direct peer is a configured
+		// trusted proxy (SetTrustedProxies in the composition root). With no
+		// trusted proxies configured it returns the direct peer, so a forged XFF
+		// header cannot spoof the rate-limit key or the audit IP. Both the rate
+		// limiter and audit consume this same value, so they always agree.
+		c.Set("client_ip", c.ClientIP())
 
 		// Set scheme awareness for redirect URLs (OAuth flows, etc.)
 		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {

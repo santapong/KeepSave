@@ -149,6 +149,32 @@ describe('WidgetRenderer DOM construction (FE-F06)', () => {
     renderer.destroy();
   });
 
+  // CWE-200: no secret plaintext may be written to any DOM attribute, because
+  // the shadow root is open and readable by host-page scripts.
+  it('never writes secret plaintext into a data-value (or any) attribute', async () => {
+    const api = makeApi(sampleSecrets);
+    const renderer = new WidgetRenderer(root, api, 'p1', 'readwrite');
+    renderer.initialRender();
+    await renderer.loadSecrets();
+
+    // No element carries the plaintext in a data-value attribute...
+    expect(root.querySelectorAll('[data-value]').length).toBe(0);
+    // ...and the plaintext appears in NO attribute of ANY element (only as
+    // masked text content until explicitly revealed).
+    for (const elm of Array.from(root.querySelectorAll('*'))) {
+      for (const attr of Array.from(elm.attributes)) {
+        expect(attr.value).not.toContain('super-secret-value');
+      }
+    }
+
+    // Edit still works: clicking Edit resolves the value from in-memory state.
+    root.querySelector<HTMLButtonElement>('[data-action="edit"]')!.click();
+    const editInput = root.querySelector<HTMLInputElement>('[data-input="edit-value"]');
+    expect(editInput?.value).toBe('super-secret-value');
+
+    renderer.destroy();
+  });
+
   it('removes the visibilitychange listener on destroy', async () => {
     const removeSpy = vi.spyOn(document, 'removeEventListener');
     const api = makeApi(sampleSecrets);
