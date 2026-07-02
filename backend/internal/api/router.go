@@ -23,7 +23,7 @@ func SetupRouter(
 	agentHandler *AgentHandler, platformHandler *PlatformHandler, openAPIHandler *OpenAPIHandler,
 	oauthHandler *OAuthHandler, mcpHubHandler *MCPHubHandler, mcpGatewayHandler *MCPGatewayHandler,
 	applicationHandler *ApplicationHandler, intelligenceHandler *IntelligenceHandler,
-	embedHandler *EmbedHandler,
+	embedHandler *EmbedHandler, feedbackHandler *FeedbackHandler,
 	appMetrics *metrics.AppMetrics, tracer *tracing.Tracer, db *sql.DB, logger *logging.Logger,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
@@ -323,6 +323,16 @@ func SetupRouter(
 			mcp.GET("/gateway/tools", mcpGatewayHandler.ListTools)
 			mcp.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
 			mcp.GET("/config", mcpGatewayHandler.MCPConfig)
+		}
+
+		// In-app feedback (feature-flagged by FEEDBACK_GITHUB_TOKEN; 503 when
+		// off). Dedicated tight per-IP limiter — every accepted request files
+		// a GitHub issue, so the budget is deliberately small (5/min, burst 5),
+		// mirroring the embed-limiter precedent above.
+		fb := v1.Group("/feedback")
+		fb.Use(JWTAuthMiddleware(jwtService))
+		{
+			fb.POST("", RateLimitMiddleware(NewRateLimiter(5, time.Minute, 5)), feedbackHandler.Submit)
 		}
 
 		app := v1.Group("/applications")

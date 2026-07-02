@@ -46,7 +46,7 @@ export function AppChatbot({ applications }: AppChatbotProps) {
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 left-6 z-[200] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer text-xl flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+        className="fixed bottom-24 left-6 z-[200] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer text-xl flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
         title="App Assistant"
       >
         {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
@@ -54,7 +54,7 @@ export function AppChatbot({ applications }: AppChatbotProps) {
 
       {/* Chat Panel */}
       {isOpen && (
-        <div className="fixed bottom-20 left-6 w-[360px] max-h-[480px] z-[200] bg-card border border-border rounded-2xl flex flex-col shadow-lg overflow-hidden">
+        <div className="fixed bottom-40 left-6 w-[360px] max-h-[480px] z-[200] bg-card border border-border rounded-2xl flex flex-col shadow-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex justify-between items-center">
             <span className="font-bold text-sm text-foreground">App Assistant</span>
             <span className="text-xs text-muted-foreground">

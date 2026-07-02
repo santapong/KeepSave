@@ -158,6 +158,7 @@ func main() {
 	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
 
 	appService := service.NewApplicationService(appRepo, auditRepo)
+	feedbackService := service.NewFeedbackService(cfg.FeedbackGitHubToken, cfg.FeedbackGitHubRepo, auditRepo)
 
 	aiMgr := service.NewAIProviderManager()
 	if aiMgr.HasProvider() {
@@ -198,9 +199,13 @@ func main() {
 	intelligenceHandler := api.NewIntelligenceHandler(driftService, anomalyService, usageAnalyticsSvc, recommService, nlpService, aiMgr, projectRepo, orgService)
 	// ADR-0006: embed widget origin allow-list.
 	embedHandler := api.NewEmbedHandler(projectService)
+	feedbackHandler := api.NewFeedbackHandler(feedbackService)
 
 	if !cfg.PromotionsEnabled {
 		logger.Info("promotions disabled by kill switch (KEEPSAVE_PROMOTIONS_ENABLED=false); /promote and /approve will return 503", nil)
+	}
+	if !feedbackService.Enabled() {
+		logger.Info("feedback disabled (FEEDBACK_GITHUB_TOKEN empty); POST /feedback will return 503", nil)
 	}
 	if len(cfg.PlatformAdminEmails) == 0 {
 		logger.Warn("KEEPSAVE_PLATFORM_ADMIN_EMAILS is empty; /admin endpoints will reject all callers (fail-closed)", nil)
@@ -237,6 +242,7 @@ func main() {
 		applicationHandler,
 		intelligenceHandler,
 		embedHandler,
+		feedbackHandler,
 		appMetrics,
 		tracer,
 		db,

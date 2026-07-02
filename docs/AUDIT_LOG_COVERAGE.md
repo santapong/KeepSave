@@ -88,6 +88,7 @@ are NEVER placed in `details`.
 | Anomaly rule delete     | `anomaly.rule_deleted`      | `actor_id`, `rule_id`                                     |
 | Anomaly acknowledge     | `anomaly.acknowledged`      | `actor_id`, `anomaly_id`                                  |
 | Anomaly resolve         | `anomaly.resolved`          | `actor_id`, `anomaly_id`                                  |
+| Feedback submit         | `feedback.submitted`        | `actor_id`, `category`, `issue_number`, `repo` — the feedback message text is NEVER placed in `details` |
 
 ### Naming convention
 
