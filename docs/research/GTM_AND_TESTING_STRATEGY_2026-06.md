@@ -1,6 +1,6 @@
 # KeepSave — Go-To-Market & Testing Strategy (2026-06)
 
-> **How this was produced:** the [`/workflow`](../../.claude/skills/workflow/SKILL.md) skill ran a loop-engineered research harness ([`docs/HARNESS_ENGINEERING.md`](../HARNESS_ENGINEERING.md)) — **37 agents · 16 research streams · 16 claims fact-checked**, in three phases (Research → Verify → Synthesize), opus for judgement/synthesis and sonnet for breadth-gathering. Research streams read the in-repo competitor dossiers (`docs/research/competitors/`) and the codebase, then web-searched for current data.
+> **How this was produced:** the [`/workflow`](../../.claude/skills/loop-engine/SKILL.md) skill (since replaced by `/loop-engine`) ran a loop-engineered research harness ([`docs/HARNESS_ENGINEERING.md`](../HARNESS_ENGINEERING.md)) — **37 agents · 16 research streams · 16 claims fact-checked**, in three phases (Research → Verify → Synthesize), opus for judgement/synthesis and sonnet for breadth-gathering. Research streams read the in-repo competitor dossiers (`docs/research/competitors/`) and the codebase, then web-searched for current data.
 >
 > **Classification:** Type-3 (research/strategy). No code changed by this document. Any recommendation touching crypto/auth/promotion/embed remains gated by the [ADLC](../ADLC.md).
 >

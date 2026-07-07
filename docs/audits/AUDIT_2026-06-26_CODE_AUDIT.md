@@ -4,7 +4,7 @@ Performance / bug / refactoring audit run through the [ADLC](../ADLC.md) as a ga
 
 ## Method
 
-- **Harness:** loop-until-dry discovery (critic-driven rounds) → lens-diverse adversarial verification (default-deny) → synthesis. Authored/run via the [`/workflow`](../../.claude/skills/workflow/SKILL.md) skill.
+- **Harness:** loop-until-dry discovery (critic-driven rounds) → lens-diverse adversarial verification (default-deny) → synthesis. Authored/run via the [`/workflow`](../../.claude/skills/loop-engine/SKILL.md) skill (since replaced by `/loop-engine`).
 - **Scale:** 81 agents · ~3.4M tokens · 2 rounds · ~63 min.
 - **Funnel:** **143** findings discovered (R1: 100, R2: 43) → top **16** by severity sent to verification (3 lenses each: *is-it-real*, *impact-significant*, *not-intended-design*; majority-upholds, default-deny) → **11 confirmed**, 5 refuted/uncertain.
 - **Synthesis caveat:** the automated synthesis agent returned a malformed stub; the prioritization below was done by hand from the verified findings and spot-checked against live code (`SetTrustedProxies` absent in `backend/`; `gin.H{"error": err.Error()}` ×34 in `handlers_intelligence.go`; `IPAllowlistService`/`GetSSOConfig:61`/`DetectDrift:77` attributions confirmed).

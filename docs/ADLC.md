@@ -6,7 +6,7 @@ This document defines the lifecycle KeepSave uses **when an AI agent participate
 
 Companion docs:
 - [`docs/HARNESS_ENGINEERING.md`](HARNESS_ENGINEERING.md) — *how* the agent harness executes each stage (agents, skills, workflows, verification patterns).
-- [`.claude/skills/workflow/SKILL.md`](../.claude/skills/workflow/SKILL.md) — the `/workflow` skill that turns a single task into a runnable, gated harness.
+- [`.claude/skills/loop-engine/SKILL.md`](../.claude/skills/loop-engine/SKILL.md) — the `/loop-engine` skill that turns a single task into a runnable, gated harness; run it with `--framework keepsave` ([`.claude/skills/loop-engine/frameworks/keepsave.md`](../.claude/skills/loop-engine/frameworks/keepsave.md)) so this lifecycle's gates govern the run.
 
 ---
 
@@ -65,7 +65,7 @@ Each stage has an **entry condition**, an **exit/gate**, a **human owner** (role
 
 ### Stage 4 — Harness plan
 - **Entry:** the work is approved to build (Type-3 trivial, accepted Type-2, or Accepted-ADR Type-1).
-- **Agent's job:** decide *how* the harness will execute and verify the work — solo edit vs. subagent vs. `/workflow`; which phases; which verification pattern; model/effort/budget; whether parallel edits need worktree isolation. This is the entire subject of [`docs/HARNESS_ENGINEERING.md`](HARNESS_ENGINEERING.md). For trivial work the plan is one sentence; for a multi-file or cross-package change it is a short phase list.
+- **Agent's job:** decide *how* the harness will execute and verify the work — solo edit vs. subagent vs. `/loop-engine --framework keepsave`; which phases; which verification pattern; model/effort/budget; whether parallel edits need worktree isolation. This is the entire subject of [`docs/HARNESS_ENGINEERING.md`](HARNESS_ENGINEERING.md). For trivial work the plan is one sentence; for a multi-file or cross-package change it is a short phase list.
 - **Gate:** the plan names a **verification step for every security-relevant claim** the change makes. No verification plan → no build.
 - **Owner:** the engineer driving the agent (Tech Lead / Backend / Frontend per subsystem).
 

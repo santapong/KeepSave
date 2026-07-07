@@ -121,7 +121,7 @@ This project has explicit operating rules. Before opening a PR that touches cryp
 
 ### AI-assisted development
 
-When development is driven by an AI agent (Claude Code or similar), the work is sequenced by [`docs/ADLC.md`](docs/ADLC.md) and executed with the harness described in [`docs/HARNESS_ENGINEERING.md`](docs/HARNESS_ENGINEERING.md). For a non-trivial or security-sensitive task, drive it through the [`/workflow`](.claude/skills/workflow/SKILL.md) skill, which compiles the ADLC gates (classify → threat → build → adversarial-verify → review) and KeepSave's invariants (never surface plaintext, audit-log assertion, Security-Engineer veto on crypto/auth/promotion) into a runnable, fail-closed Workflow. The ADLC never overrides a gate — it only orders them; when it conflicts with `docs/ROLES.md` or an ADR, those win.
+When development is driven by an AI agent (Claude Code or similar), the work is sequenced by [`docs/ADLC.md`](docs/ADLC.md) and executed with the harness described in [`docs/HARNESS_ENGINEERING.md`](docs/HARNESS_ENGINEERING.md). For a non-trivial or security-sensitive task, drive it through the [`/loop-engine`](.claude/skills/loop-engine/SKILL.md) skill with the KeepSave framework (`/loop-engine <task> --framework keepsave`, defined in [`.claude/skills/loop-engine/frameworks/keepsave.md`](.claude/skills/loop-engine/frameworks/keepsave.md)), which compiles the ADLC gates (classify → threat → build → adversarial-verify → review) and KeepSave's invariants (never surface plaintext, audit-log assertion, Security-Engineer veto on crypto/auth/promotion) into a runnable, fail-closed Workflow. The `loop-*` skill suite is vendored under `.claude/skills/` from [santapong/TheLoopSkill](https://github.com/santapong/TheLoopSkill) and also enabled as the `theloopskill@theloopskill` plugin in `.claude/settings.json` — update by re-copying from upstream or via the plugin marketplace. The ADLC never overrides a gate — it only orders them; when it conflicts with `docs/ROLES.md` or an ADR, those win.
 
 ### Decision classes (`docs/ROLES.md` §3.1)
 
@@ -152,4 +152,5 @@ When in doubt, treat as the next class up. Misclassification is itself a bug.
 | CI runner permissions                      | [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md)        |
 | How AI agents develop here (lifecycle)     | [`docs/ADLC.md`](docs/ADLC.md)                            |
 | Engineering the agent harness / workflows  | [`docs/HARNESS_ENGINEERING.md`](docs/HARNESS_ENGINEERING.md) |
-| Running a task as a gated workflow         | [`.claude/skills/workflow/SKILL.md`](.claude/skills/workflow/SKILL.md) |
+| Running a task as a gated workflow         | [`.claude/skills/loop-engine/SKILL.md`](.claude/skills/loop-engine/SKILL.md) (`--framework keepsave`) |
+| KeepSave gates as a pluggable framework    | [`.claude/skills/loop-engine/frameworks/keepsave.md`](.claude/skills/loop-engine/frameworks/keepsave.md) |

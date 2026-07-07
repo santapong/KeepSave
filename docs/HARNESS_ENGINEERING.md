@@ -15,7 +15,7 @@ The KeepSave harness is assembled from five primitives, smallest to largest:
 | Primitive | What it is | Reach for it when |
 |-----------|------------|-------------------|
 | **Tools** | `Read`, `Edit`, `Grep`, `Bash`, MCP tools (GitHub, etc.) | Always — the base layer. |
-| **Skills** | Packaged procedures in `.claude/skills/` (`/code-review`, `/security-review`, `/verify`, `/simplify`, `/workflow`) | A recurring procedure with a known shape. |
+| **Skills** | Packaged procedures in `.claude/skills/` (`/code-review`, `/security-review`, `/verify`, `/simplify`, `/loop-engine`, and the other `loop-*` skills) | A recurring procedure with a known shape. |
 | **Subagents** (`Agent` tool) | A fresh context window doing one scoped job, returning a conclusion | A search/read/verify that would flood the main context, or independent work to parallelize. |
 | **Workflows** (`Workflow` tool) | A deterministic JS script orchestrating many subagents — `pipeline`, `parallel`, loops | Fan-out, multi-stage pipelines, or scale one context can't hold. |
 | **Agent team** | The lean core in `.claude/skills/` (`project-manager`, `agent-designer`, `general-worker`) + recruited specialists | A long-lived, multi-phase effort needing persistent roles and state. |
@@ -39,7 +39,7 @@ When unsure, scout inline first (list the files, scope the diff), *then* pick th
 
 ## 2. Mapping ADLC stages to harness phases
 
-A `/workflow` run for a non-trivial KeepSave task mirrors the [ADLC](ADLC.md). Not every stage is a separate agent — cheap stages collapse into the driver's own context; expensive or parallelizable ones become subagents.
+A `/loop-engine --framework keepsave` run for a non-trivial KeepSave task mirrors the [ADLC](ADLC.md). Not every stage is a separate agent — cheap stages collapse into the driver's own context; expensive or parallelizable ones become subagents.
 
 | ADLC stage | Harness realization |
 |------------|---------------------|
@@ -157,6 +157,6 @@ Workflows themselves are resumable: a killed or edited run relaunches with `resu
 ## 9. See also
 
 - [`docs/ADLC.md`](ADLC.md) — the lifecycle these patterns execute.
-- [`.claude/skills/workflow/SKILL.md`](../.claude/skills/workflow/SKILL.md) — the `/workflow` skill that turns a task into one of these harnesses.
+- [`.claude/skills/loop-engine/SKILL.md`](../.claude/skills/loop-engine/SKILL.md) — the `/loop-engine` skill that turns a task into one of these harnesses (use `--framework keepsave`; the framework file is [`.claude/skills/loop-engine/frameworks/keepsave.md`](../.claude/skills/loop-engine/frameworks/keepsave.md)).
 - [`.claude/skills/SKILL.md`](../.claude/skills/SKILL.md) — multi-agent team planner (lean core + recruit-on-demand).
 - [`docs/ROLES.md`](ROLES.md) — the human gates the harness reports to.
