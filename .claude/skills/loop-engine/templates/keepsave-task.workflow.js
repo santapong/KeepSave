@@ -1,4 +1,4 @@
-// KeepSave task workflow — starter template for the `/workflow` skill.
+// KeepSave task workflow — starter template for `/loop-engine --framework keepsave`.
 //
 // Executes the AI-Assisted Development Life Cycle (docs/ADLC.md) as gated
 // Workflow phases, using the patterns in docs/HARNESS_ENGINEERING.md:
