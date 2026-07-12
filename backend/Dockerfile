@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server ./cmd/server
 # - No shell, no package manager, no libc beyond what a static Go binary needs.
 # - Ships CA certificates and /etc/passwd with a `nonroot` (uid/gid 65532) user.
 # - Already runs as non-root by default; we make it explicit below.
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:b7bb25d9f7c31d2bdd1982feb4dafcaf137703c7075dbe2febb41c24212b946f
 # tag: gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
