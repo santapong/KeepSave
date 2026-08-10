@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The login and register screens now use the ray-traced `Singularity`
+  instead of the CSS `EventHorizon`, so every black hole in the product is
+  the same physically-derived object. `EventHorizon` survives as the
+  no-WebGL fallback and in small empty-state slots.
+
+### Fixed — WebGL performance
+
+- The geodesic march was far too expensive on integrated graphics: **15
+  fps** on the landing hero and **9 fps** on the auth screens, which run a
+  second WebGL context. Both now hold **~60 fps** on Intel UHD. Three
+  changes, in order of impact:
+  - an impact-parameter early-out — a ray passing wider than the disk, or
+    already heading away from the mass, can neither be lensed into it nor
+    hit the shadow, so it skips the march and samples the sky directly.
+    Most of the frame is empty sky, so this is the bulk of the saving;
+  - march steps 150 -> 110, and default resolution scale 0.7 -> 0.55;
+  - both WebGL loops capped at 30fps. The disk turns slowly enough that 30
+    and 60 are indistinguishable, and it halves GPU cost.
+- `Singularity` no longer drives a renderer when its host has zero size —
+  the auth aside is `display:none` below 1100px, and it was marching a 0x0
+  buffer there.
+
 ---
 
 ## [1.2.0] - 2026-08-10

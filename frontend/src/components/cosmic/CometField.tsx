@@ -380,13 +380,20 @@ export function CometField({ className }: CometFieldProps) {
       renderer.render(scene, camera);
 
       if (!motionOff()) {
+        // Capped at ~30fps to match <Singularity>, which shares the page on
+        // the auth screens. Two uncapped WebGL loops drop integrated
+        // graphics to single-digit frame rates.
+        const FRAME_MS = 1000 / 30;
         let last = performance.now();
+        let lastDraw = 0;
         const loop = () => {
           raf = requestAnimationFrame(loop);
+          if (!onScreen) return;
           const now = performance.now();
+          if (now - lastDraw < FRAME_MS) return;
+          lastDraw = now;
           const dt = Math.min((now - last) / 1000, 1 / 20); // clamp after a tab switch
           last = now;
-          if (!onScreen) return;
           step(dt);
           renderer.render(scene, camera);
         };
