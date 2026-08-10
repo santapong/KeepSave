@@ -474,7 +474,16 @@
    ============================================================ */
 .cz-login-root { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; position: relative; }
 .cz-login-aside { position: relative; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--cz-rule); overflow: hidden; }
-.cz-login-aside-bg { position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; opacity: 0.9; }
+/* Holds the ray-traced <Singularity>. Dimmer and edge-feathered than the
+   CSS event horizon it replaced: the real accretion disk has a genuinely
+   blown-out Doppler limb, which at full strength cuts straight through the
+   hero copy and the ledger figures sitting on top of it. */
+.cz-login-aside-bg {
+  position: absolute; inset: 0; z-index: 0;
+  display: grid; place-items: center;
+  opacity: 0.5;
+  mask-image: radial-gradient(72% 62% at 50% 50%, #000 42%, transparent 100%);
+}
 .cz-login-aside-head, .cz-login-aside-body, .cz-login-aside-foot { position: relative; z-index: 1; }
 .cz-login-aside-head { display: flex; align-items: center; justify-content: space-between; }
 .cz-login-title { font-family: var(--cz-sans); font-weight: 300; font-size: clamp(40px, 4.5vw, 60px); line-height: 0.98; letter-spacing: -0.04em; margin-top: 18px; color: var(--cz-ink); }

@@ -50,11 +50,17 @@ import { prefersReducedMotion } from '@/lib/motion';
 interface SingularityProps {
   /** Square size for the CSS <EventHorizon> fallback only. */
   size?: number;
+  /**
+   * Fraction of CSS pixels actually rendered, upscaled by CSS. The march is
+   * fill-rate bound and the subject is all glow, so the softness is free.
+   * Lower it where a second WebGL context shares the page — the auth
+   * screens also run <CometField>.
+   */
+  resolutionScale?: number;
   className?: string;
 }
 
-/** Fraction of CSS pixels actually rendered. */
-const RESOLUTION_SCALE = 0.7;
+const DEFAULT_RESOLUTION_SCALE = 0.55;
 
 const QUAD_VERT = /* glsl */ `
   void main() {
@@ -76,10 +82,15 @@ const LENS_FRAG = /* glsl */ `
   uniform vec3  uPlasma;     // outer, violet
   uniform float uExposure;
 
-  const int   STEPS   = 150;
+  const int   STEPS   = 110;
   const float HORIZON = 1.0;   // rs
   const float M       = 0.5;   // rs = 2M
   const float ESCAPE  = 60.0;
+  /* Rays whose closest approach to the mass exceeds this are neither
+     lensed appreciably nor able to reach the disk (outer edge 9), so they
+     skip the march entirely and just sample the sky. Most of the frame is
+     empty sky, which makes this the single biggest saving available. */
+  const float B_MAX   = 17.0;
 
   float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -175,6 +186,18 @@ const LENS_FRAG = /* glsl */ `
     vec3  hvec = cross(pos, vel);
     float h2   = dot(hvec, hvec);
 
+    // |r x v| with v normalised IS the impact parameter. Bail out early for
+    // rays that pass wide of the mass, and for any ray already heading away
+    // from it — neither can be deflected into the disk or the shadow.
+    float b = sqrt(h2);
+    if (b > B_MAX || dot(pos, vel) > 0.0) {
+      vec3 far = sky(normalize(vel));
+      float farLum = dot(far, vec3(0.2126, 0.7152, 0.0722));
+      far = far / (far + vec3(0.85));
+      gl_FragColor = vec4(pow(max(far, 0.0), vec3(0.85)), clamp(farLum * 1.5, 0.0, 1.0));
+      return;
+    }
+
     vec3  acc      = vec3(0.0);
     float prevY    = pos.y;
     bool  captured = false;
@@ -233,7 +256,11 @@ const LENS_FRAG = /* glsl */ `
 `;
 
 
-export function Singularity({ size = 560, className }: SingularityProps) {
+export function Singularity({
+  size = 560,
+  resolutionScale = DEFAULT_RESOLUTION_SCALE,
+  className,
+}: SingularityProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
 
@@ -272,7 +299,7 @@ export function Singularity({ size = 560, className }: SingularityProps) {
       }
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      renderer.setPixelRatio(dpr * RESOLUTION_SCALE);
+      renderer.setPixelRatio(dpr * resolutionScale);
       renderer.setClearColor(0x000000, 0);
 
       const measure = () => {
@@ -345,6 +372,11 @@ export function Singularity({ size = 560, className }: SingularityProps) {
       const worldUp = new THREE.Vector3(0, 1, 0);
 
       const draw = (t: number) => {
+        // The host can legitimately have no size — on the auth screens the
+        // aside is display:none below 1100px. Marching a 0x0 buffer is pure
+        // waste, so skip until the ResizeObserver reports real dimensions.
+        if (uniforms.uRes.value.x < 1 || uniforms.uRes.value.y < 1) return;
+
         uniforms.uTime.value = t;
 
         yaw += (targetYaw - yaw) * 0.045;
@@ -380,8 +412,14 @@ export function Singularity({ size = 560, className }: SingularityProps) {
 
       const ro = new ResizeObserver(() => {
         const { w, h } = measure();
+        const wasHidden = uniforms.uRes.value.x < 1 || uniforms.uRes.value.y < 1;
         renderer.setSize(w, h, false);
+        // No camera aspect to update: this is a fullscreen quad on an
+        // orthographic camera, and the shader derives aspect from uRes.
         syncResolution();
+        // Became visible (breakpoint crossed): paint immediately rather than
+        // waiting for the next frame, which never comes under reduced motion.
+        if (wasHidden) draw(3.2);
       });
       ro.observe(host);
 
@@ -398,10 +436,18 @@ export function Singularity({ size = 560, className }: SingularityProps) {
       draw(3.2);
 
       if (!still) {
+        // Cap at ~30fps. The disk turns slowly enough that 30 and 60 are
+        // indistinguishable, and this halves GPU cost — which matters:
+        // the march runs at 15fps uncapped on Intel integrated graphics.
+        const FRAME_MS = 1000 / 30;
+        let lastDraw = 0;
         const loop = () => {
           raf = requestAnimationFrame(loop);
           if (!onScreen) return;
-          draw((performance.now() - started) / 1000);
+          const now = performance.now();
+          if (now - lastDraw < FRAME_MS) return;
+          lastDraw = now;
+          draw((now - started) / 1000);
         };
         raf = requestAnimationFrame(loop);
       }
@@ -425,7 +471,7 @@ export function Singularity({ size = 560, className }: SingularityProps) {
       disposed = true;
       cleanup?.();
     };
-  }, []);
+  }, [resolutionScale]);
 
   if (failed) return <EventHorizon size={size} className={className} />;
 

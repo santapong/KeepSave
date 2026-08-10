@@ -15,9 +15,10 @@ import { KsMark } from '../components/cosmic/KsMark';
  * primitives from cosmic.css directly (.cz-btn, .cz-pill, .cz-card,
  * .cz-eyebrow, .cz-num, .cz-dot) so nothing here forks the design system.
  *
- * The hero is anchored by <Singularity>, a three.js/WebGL black hole —
- * the 3D sibling of the CSS <EventHorizon> on the login page. It falls
- * back to that CSS version if WebGL is unavailable.
+ * The hero is anchored by <Singularity>, a three.js/WebGL black hole that
+ * ray-traces null geodesics. The auth screens use the same component, so
+ * the CSS <EventHorizon> now survives only as its no-WebGL fallback and in
+ * small empty-state slots.
  *
  * Motion is anime.js: one entrance timeline for the hero, then per-section
  * reveals triggered by IntersectionObserver. Everything is gated on

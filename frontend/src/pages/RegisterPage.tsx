@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
-import { EventHorizon } from '../components/cosmic/EventHorizon';
+import { Singularity } from '../components/cosmic/Singularity';
 import { KsMark } from '../components/cosmic/KsMark';
 import { Starfield } from '../components/cosmic/Starfield';
 import { CometField } from '../components/cosmic/CometField';
@@ -57,7 +57,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
       {/* Hero pane */}
       <aside className="cz-login-aside">
         <div className="cz-login-aside-bg" aria-hidden="true">
-          <EventHorizon size={560} />
+          <Singularity size={560} resolutionScale={0.5} />
         </div>
 
         <div className="cz-login-aside-head">
