@@ -256,6 +256,95 @@ const LENS_FRAG = /* glsl */ `
 `;
 
 
+/* ── Relativistic jets ────────────────────────────────────────────────
+   What turns an accreting black hole into a quasar is a pair of collimated
+   jets along the spin axis, launched at a good fraction of c.
+
+   The visual signature is relativistic beaming. Emission from material
+   moving at speed beta toward the observer is boosted by the Doppler factor
+
+       d = 1 / (gamma * (1 - beta*cos(theta)))     theta = angle to the line of sight
+
+   and observed intensity goes as d^3 for a continuous jet. Because the
+   exponent is cubed, a modest difference in angle produces an enormous
+   brightness ratio between the approaching and receding jet — which is why
+   real images of M87 and Cygnus A show one jet and at most a hint of the
+   counter-jet. The asymmetry is computed per fragment, so as the camera
+   orbits, the bright jet genuinely swaps sides.
+
+   The geometry is an open-ended cone drawn double-sided with additive
+   blending. Front and back surfaces both contribute, so the silhouette
+   edges accumulate more emission than the centre — which reproduces the
+   limb-brightened hollow sheath real jets have, for free. */
+const JET_VERT = /* glsl */ `
+  varying vec3  vWorld;
+  varying vec3  vNormalW;
+  varying float vH;      // 0 at the base, 1 at the tip
+  void main() {
+    vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vH = uv.y;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const JET_FRAG = /* glsl */ `
+  precision mediump float;
+
+  uniform vec3  uCamPos;
+  uniform float uSign;    // +1 for the north jet, -1 for the south
+  uniform float uBeta;    // bulk speed, fraction of c
+  uniform float uTime;
+  uniform vec3  uCore;
+  uniform vec3  uEdge;
+
+  varying vec3  vWorld;
+  varying vec3  vNormalW;
+  varying float vH;
+
+  float hash11(float p) { return fract(sin(p * 127.1) * 43758.5453); }
+  float noise1(float x) {
+    float i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(hash11(i), hash11(i + 1.0), f);
+  }
+
+  void main() {
+    // direction from the emitting material to the observer
+    vec3 toEye = normalize(uCamPos - vWorld);
+    float cosTheta = dot(vec3(0.0, uSign, 0.0), toEye);
+
+    // Doppler factor relative to transverse viewing, cubed for a
+    // continuous jet. This is the whole reason one jet dominates.
+    float dop = 1.0 / max(0.06, 1.0 - uBeta * cosTheta);
+    float boost = clamp(pow(dop, 3.0) * 0.55, 0.02, 8.0);
+
+    // knots: shocks travelling outward along the jet
+    float knots = 0.55 + 0.75 * noise1(vH * 7.0 - uTime * 0.35);
+
+    // the jet fades and decollimates with distance
+    float fade = pow(max(0.0, 1.0 - vH), 1.35) * smoothstep(0.0, 0.06, vH);
+
+    // Limb brightening. A jet is a hollow sheath, not a solid beam: the
+    // line of sight is longest where it grazes the wall, so the edges are
+    // bright and the middle is comparatively empty. Without this the cone
+    // renders as a flat translucent wedge, which is what a searchlight
+    // looks like, not a jet.
+    float limb = pow(1.0 - abs(dot(normalize(vNormalW), toEye)), 1.7);
+    limb = 0.34 + 0.66 * limb;
+
+    vec3 col = mix(uCore, uEdge, vH) * boost * knots * limb;
+    // Note the viewing geometry: the camera sits near the equatorial
+    // plane, so both jets are seen close to transverse and neither gets
+    // much boost. That is correct — the spectacular one-sided jet needs a
+    // line of sight near the axis (a blazar). The asymmetry here is real
+    // but subtle, so the base emission has to carry the visibility.
+    float a = fade * boost * knots * limb * 1.05;
+
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+  }
+`;
+
 export function Singularity({
   size = 560,
   resolutionScale = DEFAULT_RESOLUTION_SCALE,
@@ -343,6 +432,51 @@ export function Singularity({
       quad.frustumCulled = false;
       scene.add(quad);
 
+      /* --- quasar jets ------------------------------------------
+         Drawn in a second pass with a perspective camera matching the
+         raymarch's own framing, over the same buffer. The march builds its
+         rays as basis * vec3(uv, 1.1), i.e. a half-angle of atan(0.5/1.1),
+         so the vertical fov here must be 2*atan(0.5/1.1) or the jets will
+         not line up with the disk they are launched from. */
+      const JET_FOV = (2 * Math.atan(0.5 / 1.1) * 180) / Math.PI;
+      const jetScene = new THREE.Scene();
+      const jetCam = new THREE.PerspectiveCamera(JET_FOV, first.w / Math.max(1, first.h), 0.1, 400);
+
+      const jetGeo = new THREE.CylinderGeometry(1.95, 0.2, 22, 56, 1, true);
+      // base just outside the horizon rather than at the origin
+      jetGeo.translate(0, 11.6, 0);
+
+      const makeJet = (sign: number) => {
+        const mat = new THREE.ShaderMaterial({
+          uniforms: {
+            uCamPos: { value: new THREE.Vector3() },
+            uSign: { value: sign },
+            uBeta: { value: 0.93 },
+            uTime: { value: 0 },
+            uCore: { value: new THREE.Color('#bcd8ff') },
+            uEdge: { value: new THREE.Color('#8b5cf6') },
+          },
+          vertexShader: JET_VERT,
+          fragmentShader: JET_FRAG,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.CustomBlending,
+          blendSrc: THREE.SrcAlphaFactor,
+          blendDst: THREE.OneFactor,
+          blendSrcAlpha: THREE.OneFactor,
+          blendDstAlpha: THREE.OneFactor,
+        });
+        const mesh = new THREE.Mesh(jetGeo, mat);
+        if (sign < 0) mesh.scale.y = -1;
+        mesh.frustumCulled = false;
+        jetScene.add(mesh);
+        return mat;
+      };
+      const jetMats = [makeJet(1), makeJet(-1)];
+      const bufSize = new THREE.Vector2();
+
       const syncResolution = () => {
         const buf = new THREE.Vector2();
         renderer.getDrawingBufferSize(buf);
@@ -401,7 +535,23 @@ export function Singularity({
           right.z, up.z, forward.z,
         );
 
+        // Background pass: the lensed hole on the fullscreen quad.
+        renderer.autoClear = false;
+        renderer.clear();
         renderer.render(scene, camera);
+
+        // Foreground pass: the jets, in real 3D, sharing the same buffer.
+        jetCam.position.copy(uniforms.uCam.value);
+        jetCam.up.set(0, 1, 0);
+        jetCam.lookAt(0, 0, 0);
+        renderer.getDrawingBufferSize(bufSize);
+        jetCam.aspect = bufSize.x / Math.max(1, bufSize.y);
+        jetCam.updateProjectionMatrix();
+        for (const m of jetMats) {
+          (m.uniforms.uCamPos.value as THREE_NS.Vector3).copy(uniforms.uCam.value);
+          m.uniforms.uTime.value = t;
+        }
+        renderer.render(jetScene, jetCam);
       };
 
       let onScreen = true;
@@ -460,6 +610,8 @@ export function Singularity({
         el.removeEventListener('webglcontextlost', onLost);
         quad.geometry.dispose();
         material.dispose();
+        jetGeo.dispose();
+        for (const m of jetMats) m.dispose();
         renderer.dispose();
         if (el.parentNode === host) host.removeChild(el);
       };

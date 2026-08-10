@@ -8,6 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — auth screens: real comets, properly modelled
+
+- `CometField` now runs **four** comets instead of thirty, each modelled
+  rather than drawn.
+  - **Orbits from orbital elements.** Each nucleus is defined by the six
+    Keplerian elements an astronomer would quote (a, e, i, Ω, ω, M₀), not
+    a hand-picked velocity. Converting them to a state vector means
+    solving Kepler's equation `M = E − e·sin E`, which has no closed form
+    — done here by Newton–Raphson, which converges even at the high
+    eccentricities real comets have (0.55–0.86 here; Halley is 0.967).
+  - **Tails from Finson–Probstein dust dynamics.** A dust grain feels
+    radiation pressure outward against gravity inward; the ratio is β, set
+    by grain size, so the grain moves under *reduced* gravity
+    `a = −GM(1−β)r̂/r²` — its own Keplerian orbit around the same mass.
+    Integrating a population with a spread of β, released continuously
+    along the nucleus's path, *is* the standard model of cometary dust.
+    The curved dust tail and the straight ion tail are no longer two
+    drawn shapes: they are one mechanism at two ends of the β range.
+  - Emission scales as 1/r², so a comet is bare far out and blooms
+    through perihelion.
+
+### Added — quasar jets on the landing hero
+
+- The landing black hole now launches a pair of collimated relativistic
+  jets along its spin axis, which is what makes an accreting black hole a
+  quasar. Emission is beamed by the Doppler factor
+  `δ = 1/(Γ(1 − β·cos θ))` and scales as δ³, computed per fragment — so
+  the brightness ratio between the approaching and receding jet is real,
+  and the bright jet swaps sides as the camera orbits. The cone is drawn
+  double-sided so the silhouette accumulates more emission than the
+  centre, reproducing the limb-brightened hollow sheath real jets have.
+- Note the geometry is honest about itself: viewed near the equatorial
+  plane, as here, both jets are close to transverse and neither gets much
+  boost. The spectacular one-sided jet needs a line of sight near the
+  axis — that is a blazar, not this.
+
 ---
 
 ## [1.2.1] - 2026-08-10
