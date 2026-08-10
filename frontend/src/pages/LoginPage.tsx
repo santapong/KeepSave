@@ -51,14 +51,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="cz-login-root" ref={rootRef}>
       <Starfield />
+      {/* Centred on the viewport, not on the left pane: <CometField/> is a
+          full-viewport canvas whose comets orbit the origin, which maps to
+          the centre of the screen. With the hole drawn in the aside the
+          comets were orbiting a point where nothing was rendered. */}
+      <div className="cz-cosmos-hole" aria-hidden="true">
+        <Singularity size={560} resolutionScale={0.5} />
+      </div>
       <CometField />
 
       {/* Hero pane */}
       <aside className="cz-login-aside">
-        <div className="cz-login-aside-bg" aria-hidden="true">
-          <Singularity size={560} resolutionScale={0.5} />
-        </div>
-
         <div className="cz-login-aside-head">
           <span className="cz-pill cz-pill-go">
             <span className="cz-dot cz-dot-go" /> eu-west-1 · healthy

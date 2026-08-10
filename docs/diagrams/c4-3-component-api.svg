@@ -1,65 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-label="KeepSave — C4 Level 3: REST API components">
 <title>KeepSave — C4 Level 3: REST API components</title>
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b87a3"/></marker></defs>
-<rect width="960" height="600" fill="#fbfaff"/>
-<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#1e1b2e" text-anchor="start">C4 · Level 3 — Components inside the REST API</text>
-<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#5b5772" text-anchor="start">Handler -&gt; service -&gt; repository. The crypto layer is reached only through services.</text>
-<rect x="40" y="76" width="880" height="440" rx="12" fill="none" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="7 5"/>
-<text x="56" y="96" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="600" fill="#5b21b6" text-anchor="start">REST API container</text>
-<rect x="64" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="128.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Auth</text>
-<text x="128.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="207" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="271.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Projects</text>
-<text x="271.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="350" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="414.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Secrets</text>
-<text x="414.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="493" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="557.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Promotion</text>
-<text x="557.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="636" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="700.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">OAuth</text>
-<text x="700.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="779" y="116" width="128" height="52" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="843.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCP Hub</text>
-<text x="843.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">handler</text>
-<rect x="64" y="210" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="196.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">AuthService</text>
-<text x="196.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">JWT + API keys</text>
-<rect x="352" y="210" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="484.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">SecretService</text>
-<text x="484.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">seal / reveal</text>
-<rect x="640" y="210" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="772.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">PromotionService</text>
-<text x="772.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">diff + approve</text>
-<rect x="64" y="294" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="196.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">OAuthService</text>
-<text x="196.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">4 grant flows</text>
-<rect x="352" y="294" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="484.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCPService</text>
-<text x="484.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">registry + proxy</text>
-<rect x="640" y="294" width="264" height="66" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
-<text x="772.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">AuditService</text>
-<text x="772.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">event taxonomy</text>
-<rect x="64" y="400" width="400" height="62" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="264.0" y="427.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#5b21b6" text-anchor="middle">Crypto Layer</text>
-<text x="264.0" y="444.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">AES-256-GCM · per-project DEK · master key from KMS</text>
-<rect x="496" y="400" width="360" height="62" rx="6" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="676.0" y="427.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Repository Layer</text>
-<text x="676.0" y="444.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">SQL, driver-agnostic</text>
-<path d="M480 168 L480 206" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="452.6" y="178.0" width="54.8" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="480.0" y="190.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">dispatch</text>
-<path d="M260 342 L260 398" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="218.6" y="361.0" width="82.8" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="260.0" y="373.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">seal / unseal</text>
-<path d="M660 342 L660 398" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="635.4" y="361.0" width="49.199999999999996" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="660.0" y="373.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">persist</text>
-<path d="M464 431 L494 431" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="432.0" y="422.0" width="94.0" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="479.0" y="434.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">ciphertext only</text>
-<text x="64" y="496" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#5b21b6" text-anchor="start">Invariant: no handler touches the crypto layer or returns a plaintext secret value directly.</text>
-<text x="64" y="540" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="500" fill="#5b5772" text-anchor="start">Every state-mutating handler emits an audit event from the canonical taxonomy (docs/AUDIT_LOG_COVERAGE.md).</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a4560"/></marker></defs>
+<rect width="960" height="600" fill="#0b0a12"/>
+<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#eeecf3" text-anchor="start">C4 · Level 3 — Components inside the REST API</text>
+<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#928da0" text-anchor="start">Handler -&gt; service -&gt; repository. The crypto layer is reached only through services.</text>
+<rect x="40" y="76" width="880" height="440" rx="12" fill="none" stroke="#a78bfa" stroke-width="1.4" stroke-dasharray="7 5"/>
+<text x="56" y="96" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="600" fill="#c4a3ff" text-anchor="start">REST API container</text>
+<rect x="64" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="128.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Auth</text>
+<text x="128.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="207" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="271.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Projects</text>
+<text x="271.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="350" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="414.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Secrets</text>
+<text x="414.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="493" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="557.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Promotion</text>
+<text x="557.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="636" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="700.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">OAuth</text>
+<text x="700.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="779" y="116" width="128" height="52" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="843.0" y="138.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCP Hub</text>
+<text x="843.0" y="155.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">handler</text>
+<rect x="64" y="210" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="196.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">AuthService</text>
+<text x="196.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">JWT + API keys</text>
+<rect x="352" y="210" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="484.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">SecretService</text>
+<text x="484.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">seal / reveal</text>
+<rect x="640" y="210" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="772.0" y="239.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">PromotionService</text>
+<text x="772.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">diff + approve</text>
+<rect x="64" y="294" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="196.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">OAuthService</text>
+<text x="196.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">4 grant flows</text>
+<rect x="352" y="294" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="484.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCPService</text>
+<text x="484.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">registry + proxy</text>
+<rect x="640" y="294" width="264" height="66" rx="6" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
+<text x="772.0" y="323.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">AuditService</text>
+<text x="772.0" y="340.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">event taxonomy</text>
+<rect x="64" y="400" width="400" height="62" rx="6" fill="#251d3d" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="264.0" y="427.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#c4a3ff" text-anchor="middle">Crypto Layer</text>
+<text x="264.0" y="444.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#a9a3bb" text-anchor="middle">AES-256-GCM · per-project DEK · master key from KMS</text>
+<rect x="496" y="400" width="360" height="62" rx="6" fill="#141220" stroke="#6d5bb0" stroke-width="1.5"/>
+<text x="676.0" y="427.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Repository Layer</text>
+<text x="676.0" y="444.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">SQL, driver-agnostic</text>
+<path d="M480 168 L480 206" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="452.6" y="178.0" width="54.8" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="480.0" y="190.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">dispatch</text>
+<path d="M260 342 L260 398" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="218.6" y="361.0" width="82.8" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="260.0" y="373.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">seal / unseal</text>
+<path d="M660 342 L660 398" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="635.4" y="361.0" width="49.199999999999996" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="660.0" y="373.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">persist</text>
+<path d="M464 431 L494 431" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="432.0" y="422.0" width="94.0" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="479.0" y="434.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">ciphertext only</text>
+<text x="64" y="496" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#c4a3ff" text-anchor="start">Invariant: no handler touches the crypto layer or returns a plaintext secret value directly.</text>
+<text x="64" y="540" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="500" fill="#928da0" text-anchor="start">Every state-mutating handler emits an audit event from the canonical taxonomy (docs/AUDIT_LOG_COVERAGE.md).</text>
 </svg>

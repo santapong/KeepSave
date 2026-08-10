@@ -1,34 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="940" height="430" viewBox="0 0 940 430" role="img" aria-label="KeepSave — OAuth 2.0 authorization code flow">
 <title>KeepSave — OAuth 2.0 authorization code flow</title>
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b87a3"/></marker></defs>
-<rect width="940" height="430" fill="#fbfaff"/>
-<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#1e1b2e" text-anchor="start">Flow — OAuth 2.0 authorization code</text>
-<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#5b5772" text-anchor="start">KeepSave acts as the identity provider. PKCE, client credentials and refresh token are also supported.</text>
-<rect x="60" y="88" width="190" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="155.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Client App</text>
-<path d="M155 134 L155 388" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
-<rect x="350" y="88" width="190" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="445.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">KeepSave OAuth IdP</text>
-<path d="M445 134 L445 388" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
-<rect x="690" y="88" width="190" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="785.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Resource Server</text>
-<path d="M785 134 L785 388" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
-<path d="M155 176 L445 176" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="135.4" y="163.0" width="329.2" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="300.0" y="175.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">1  GET /oauth/authorize  (client_id, redirect_uri, scope)</text>
-<path d="M445 218 L155 218" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="236.2" y="205.0" width="127.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="300.0" y="217.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">2  authorization code</text>
-<path d="M155 260 L445 260" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="143.8" y="247.0" width="312.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="300.0" y="259.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">3  POST /oauth/token  (code, client_id, client_secret)</text>
-<path d="M445 302 L155 302" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="208.2" y="289.0" width="183.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="300.0" y="301.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">4  access token + refresh token</text>
-<path d="M155 344 L785 344" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="381.0" y="331.0" width="178.0" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="470.0" y="343.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">5  API request  (Bearer token)</text>
-<path d="M785 386 L155 386" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="434.2" y="373.0" width="71.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="470.0" y="385.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">6  response</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a4560"/></marker></defs>
+<rect width="940" height="430" fill="#0b0a12"/>
+<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#eeecf3" text-anchor="start">Flow — OAuth 2.0 authorization code</text>
+<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#928da0" text-anchor="start">KeepSave acts as the identity provider. PKCE, client credentials and refresh token are also supported.</text>
+<rect x="60" y="88" width="190" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="155.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Client App</text>
+<path d="M155 134 L155 388" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="350" y="88" width="190" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="445.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">KeepSave OAuth IdP</text>
+<path d="M445 134 L445 388" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="690" y="88" width="190" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="785.0" y="114.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Resource Server</text>
+<path d="M785 134 L785 388" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M155 176 L445 176" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="135.4" y="163.0" width="329.2" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="300.0" y="175.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">1  GET /oauth/authorize  (client_id, redirect_uri, scope)</text>
+<path d="M445 218 L155 218" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="236.2" y="205.0" width="127.6" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="300.0" y="217.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">2  authorization code</text>
+<path d="M155 260 L445 260" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="143.8" y="247.0" width="312.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="300.0" y="259.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">3  POST /oauth/token  (code, client_id, client_secret)</text>
+<path d="M445 302 L155 302" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="208.2" y="289.0" width="183.6" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="300.0" y="301.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">4  access token + refresh token</text>
+<path d="M155 344 L785 344" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="381.0" y="331.0" width="178.0" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="470.0" y="343.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">5  API request  (Bearer token)</text>
+<path d="M785 386 L155 386" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="434.2" y="373.0" width="71.6" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="470.0" y="385.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">6  response</text>
 </svg>

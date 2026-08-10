@@ -13,10 +13,16 @@ All diagrams are checked-in SVG under [`diagrams/`](diagrams/). They are
 generated rather than drawn by hand, so they stay consistent; see
 [Regenerating](#regenerating) below.
 
-> **A note on the palette.** GitHub sanitises SVG and does not reliably
-> honour `prefers-color-scheme` inside `<img>`, so these use a fixed
-> light canvas with explicit colours. That way one asset reads correctly
-> in both GitHub themes rather than becoming invisible in one of them.
+> **A note on the palette.** These use the frontend's own Event Horizon
+> tokens — deep-space void ground, periwinkle-violet accent, aurora teal
+> for healthy state, Geist and Geist Mono — so the documentation and the
+> product look like one thing.
+>
+> The values are hard-coded hex rather than `oklch()` or
+> `prefers-color-scheme`. GitHub sanitises SVG and honours neither
+> reliably inside `<img>`, so a theme-reactive asset would render
+> incorrectly, or vanish, depending on where it was viewed. A fixed dark
+> canvas reads correctly everywhere.
 
 ---
 

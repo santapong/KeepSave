@@ -134,11 +134,16 @@ interface Elements {
 
 /* Four comets, each on a distinctly eccentric orbit so they visibly swing
    through perihelion and bloom. Perihelion q = a(1−e), aphelion Q = a(1+e). */
+/* Perihelion q = a(1-e) must stay OUTSIDE the black hole's apparent
+   shadow, or comets visibly dive through it. The shadow subtends roughly
+   2.6 geometric units in <Singularity>'s frame, which works out near 3
+   units in this field's scale — so every q below is kept comfortably
+   above that while staying eccentric enough to bloom at perihelion. */
 const ORBITS: Elements[] = [
   { a: 10.5, e: 0.62, i: 0.22, raan: 0.4, argp: 1.1, m0: 0.0 },  // q 4.0  Q 17.0
-  { a: 9.0, e: 0.78, i: -0.35, raan: 2.1, argp: 2.6, m0: 2.3 },  // q 2.0  Q 16.0
+  { a: 9.0, e: 0.66, i: -0.35, raan: 2.1, argp: 2.6, m0: 2.3 },  // q 3.1  Q 14.9
   { a: 12.5, e: 0.55, i: 0.14, raan: 4.0, argp: 0.3, m0: 4.1 },  // q 5.6  Q 19.4
-  { a: 8.0, e: 0.86, i: 0.45, raan: 5.2, argp: 3.9, m0: 1.2 },   // q 1.1  Q 14.9
+  { a: 8.0, e: 0.62, i: 0.45, raan: 5.2, argp: 3.9, m0: 1.2 },   // q 3.0  Q 13.0
 ];
 const COMETS = ORBITS.length;
 const POINTS = COMETS * (1 + GRAINS);
