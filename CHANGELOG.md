@@ -8,10 +8,116 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-**Project governance and 30-day plan execution.** Docs-only work plus
-one CI hardening change; no API or behavior changes. Establishes the
-roles, decision-making process, and artifacts the team needs to keep
-shipping KeepSave with the rigor a secrets product demands.
+---
+
+## [1.2.0] - 2026-08-10
+
+**Public landing page and the Event Horizon design refresh**, on top of
+the project governance and 30-day plan execution. No API, crypto, auth
+or promotion-engine changes — this release is frontend and docs only.
+
+### Added — public landing page
+
+- **`frontend/src/pages/LandingPage.tsx`** - the public front door at
+  `/`. Sections: hero, an interactive environment-promotion diff panel,
+  an MCP-gateway / OAuth / SDK-reach bento, a border-connected
+  guarantees grid, and a close. Its *structure* comes from the Eventide
+  design system; its *skin* is Event Horizon, reusing the existing
+  `cz-*` primitives rather than forking them. Every claim on the page
+  is drawn from the repository — no invented customers, logos or
+  benchmarks, and the promotion panel is labelled illustrative product
+  UI rather than measured telemetry.
+- **`frontend/src/components/cosmic/Singularity.tsx`** - a ray-traced
+  Schwarzschild black hole anchoring the hero. Each pixel integrates a
+  null geodesic (`d²u/dφ² + u = 3Mu²` in Cartesian form), so the
+  gravitational lensing, photon ring and Einstein ring emerge from the
+  physics instead of being drawn on. Disk shading uses Keplerian
+  orbital velocity, relativistic Doppler beaming at `g³`, and
+  gravitational redshift. Geometric units, `rs = 1`, disk inner edge at
+  the ISCO.
+- **`frontend/src/styles/landing.css`** - page-level layout only
+  (`ks-*`); defines no colours or type of its own.
+- **`frontend/public/keepsave.svg`** + `KsMark` - a real brand mark
+  (an event horizon drawn far-disk → core → photon ring → near-disk in
+  front). The same artwork serves as the favicon, replacing Vite's
+  default.
+
+### Added — architecture documentation
+
+- **`docs/ARCHITECTURE_VIEWS.md`** + **`docs/diagrams/`** - ten checked-in
+  SVG diagrams replacing the ASCII art in `README.md`: C4 levels 1-3
+  (context, container, component) and the 4+1 views (logical, process,
+  development, physical, and a scenarios view of an agent tool call with
+  secret injection), plus OAuth and promotion flow diagrams.
+- **`scripts/gen_diagrams.py`** - generates the whole set, so geometry,
+  palette and type stay consistent. Edit the script, not the SVG.
+- `docs/ARCHITECTURE.md` keeps its annotated package-dependency map as
+  text — the inline annotations are its whole value — and now
+  cross-references the view set.
+
+### Added — cosmic auth screens
+
+- **`frontend/src/components/cosmic/CometField.tsx`** - WebGL backdrop for
+  the login and register screens, and the companion piece to the landing
+  page's `Singularity`: the landing shows the hole, this shows what falls
+  into it. Orbits integrate `a = -(GM/r³)·r·(1 + 3h²/c²r²)` — Newtonian
+  gravity plus the first post-Newtonian correction, so the ellipses
+  precess — using velocity Verlet, which is symplectic and therefore does
+  not let orbital energy drift the way forward Euler does on a screen left
+  open. Each comet renders the two tails real comets have: a straight
+  anti-radial ion tail and a curved, lagging dust tail, both scaled by
+  outgassing proportional to 1/r². Tails point *away from the mass*, not
+  backwards along the path — a trail of past positions is a trajectory,
+  not a tail.
+- **`frontend/src/hooks/useCosmicEntrance.ts`** - shared anime.js staggered
+  entrance for both auth screens.
+- **`frontend/src/lib/motion.ts`** - one feature-detected
+  `prefersReducedMotion()`, replacing four duplicated copies that called
+  `window.matchMedia` unguarded. It is absent in jsdom and some embedded
+  webviews, which broke the LoginPage test suite.
+
+### Fixed
+
+- The auth-screen entrance could leave the form **permanently invisible**.
+  anime.js v4 drives animations through the Web Animations API, which
+  composites over the inline style rather than replacing it, so the
+  resting value underneath stayed `opacity: 0`. The hook now clears the
+  inline hiding styles on completion, with a timer as a backstop.
+
+### Changed — design system
+
+- **Typography** is now Geist + Geist Mono, replacing Space Grotesk +
+  JetBrains Mono. Display weights moved 300 → 400 with tightened
+  tracking, since Geist runs lighter at the same nominal weight.
+  `font-feature-settings` reduced to `tnum` — `ss01`/`cv01`/`cv11` were
+  Space Grotesk features with no meaning for Geist.
+- **Surfaces** gained a three-step elevation ladder (`--cz-elev-1`
+  cards, `--cz-elev-2` + `.cz-float` for dialogs and the command
+  palette, `.cz-flat` for in-page panels), a `--cz-rim` top-edge light,
+  and a grain overlay so large glass panels stop banding. Light theme
+  gets its own shorter, violet-tinted shadows. Login and the whole app
+  shell inherit all of this.
+- **Routing**: logged-out `/` now renders the landing page and the
+  login form moved to `/login`. Any other logged-out path still falls
+  through to login, so deep links keep working.
+
+### Removed
+
+- `frontend/src/components/cosmic/EhMark.tsx` and its `.cz-eh-mark`
+  styles, superseded by `KsMark`. The old mark was CSS-only, so it
+  could not be used as a favicon and blurred below ~20px.
+
+### Notes — landing page
+
+- `three` and `animejs` are bundled, not CDN-loaded, so the existing
+  `script-src 'self'` CSP needs no new rules. three.js is code-split
+  into its own lazy chunk (~190 kB gzip) fetched only when the hero
+  mounts.
+- Motion is gated on `prefers-reduced-motion` and `data-motion="off"`
+  throughout; the singularity renders a single static frame and falls
+  back to the CSS `EventHorizon` when WebGL is unavailable.
+- Verified at ~492px viewport width; the desktop breakpoints have not
+  been visually confirmed.
 
 ### Added — governance artifacts
 
@@ -116,10 +222,10 @@ list:
 - Backend deps: bumped `x/net`, `x/crypto`, `x/text`, `x/sys`,
   `protobuf`, `gin`, `validator`, `lib/pq`, `mysql`, `sqlite3`.
 
-### Notes
+### Notes — governance work
 
-- All changes are docs and one workflow line; no API or runtime
-  behavior changes.
+- The governance changes above are docs and one workflow line; no API
+  or runtime behavior changes.
 - CI was blocked on a GitHub Actions quota during development; the
   changes have been verified locally (`go vet`, `gofmt`, `go test`,
   `npm test`, `npm audit`, `tsc --noEmit`, `npm run build`).

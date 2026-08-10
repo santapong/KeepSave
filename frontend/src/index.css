@@ -1,4 +1,5 @@
 @import "./styles/cosmic.css";
+@import "./styles/landing.css";
 @import "tailwindcss";
 
 @custom-variant dark (&:is([data-theme="dark"] *));
@@ -55,10 +56,11 @@
   --color-hot:    oklch(0.86 0.16 78);
   --color-photon: oklch(0.93 0.10 200);
 
-  /* Type: Space Grotesk for display/UI, JetBrains Mono for data/code.
-     Drives the `font-sans` / `font-mono` Tailwind utilities. */
-  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* Type: Geist for display/UI, Geist Mono for data/code.
+     Drives the `font-sans` / `font-mono` Tailwind utilities, and flows
+     through to --cz-sans / --cz-mono in cosmic.css. */
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -70,10 +72,13 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    /* Event Horizon: Space Grotesk for UI; data/code opt into .font-mono */
+    /* Event Horizon: Geist for UI; data/code opt into .font-mono.
+       'tnum' only — ss01/cv01/cv11 were Space Grotesk features and mean
+       nothing to Geist. Tabular figures matter here: secret tables, diffs
+       and audit rows must not jitter as digits change. */
     font-family: var(--font-sans);
     line-height: 1.55;
-    font-feature-settings: 'ss01', 'cv01', 'cv11', 'tnum';
+    font-feature-settings: 'tnum';
   }
 
   button {
