@@ -1,0 +1,537 @@
+/* ============================================================
+   KEEPSAVE — LANDING · Event Horizon
+
+   The public front door, in the same cosmic language as the login
+   screen and the app shell. It reuses the `cz-*` primitives from
+   cosmic.css wherever one exists — .cz-btn, .cz-pill, .cz-card,
+   .cz-display, .cz-eyebrow, .cz-num, .cz-dot — and only adds the
+   page-level layout on top, namespaced `ks-`.
+
+   Structure (sections, order, the interactive promotion panel and the
+   border-connected metric grid) came from the Eventide design system;
+   the skin is entirely Event Horizon: 14px glass panels, 99px pill
+   buttons, periwinkle violet, starfield ground.
+
+   Motion is orchestrated by anime.js in LandingPage.tsx. Elements
+   start hidden via .ks-rise and are revealed on intersection; the
+   `prefers-reduced-motion` block at the bottom makes them visible
+   immediately instead.
+   ============================================================ */
+
+.ks-landing {
+  position: relative;
+  min-height: 100svh;
+  color: var(--cz-ink);
+  font-family: var(--cz-sans);
+  overflow-x: clip;
+
+  --ks-pad-x: 56px;
+  --ks-section-y: 132px;
+  --ks-max: 1280px;
+}
+
+.ks-landing *,
+.ks-landing *::before,
+.ks-landing *::after { box-sizing: border-box; }
+
+/* ------------------------------------------------------------
+   1 · TYPE
+   ------------------------------------------------------------ */
+.ks-h1 {
+  font-family: var(--cz-sans);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.97;
+  font-size: clamp(40px, 6.4vw, 84px);
+  color: var(--cz-ink);
+  margin: 0;
+  text-wrap: balance;
+}
+.ks-h1 em { font-style: normal; color: var(--cz-accent-hi); }
+
+.ks-h2 {
+  font-family: var(--cz-sans);
+  font-weight: 400;
+  letter-spacing: -0.038em;
+  line-height: 1.02;
+  font-size: clamp(30px, 3.9vw, 52px);
+  color: var(--cz-ink);
+  margin: 0;
+  text-wrap: balance;
+}
+.ks-h2 em { font-style: normal; color: var(--cz-accent-hi); }
+
+.ks-h3 {
+  font-family: var(--cz-sans);
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--cz-ink);
+  margin: 0;
+}
+
+.ks-lede {
+  font-size: 16px;
+  line-height: 1.62;
+  color: var(--cz-ink-dim);
+  margin: 0;
+}
+
+.ks-fine {
+  font-family: var(--cz-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cz-ink-faint);
+}
+
+/* ------------------------------------------------------------
+   2 · LAYOUT
+   ------------------------------------------------------------ */
+.ks-section { padding: var(--ks-section-y) var(--ks-pad-x); position: relative; }
+.ks-section--tight { padding-top: 0; }
+.ks-shell { max-width: var(--ks-max); margin: 0 auto; }
+
+.ks-head { max-width: 660px; margin-bottom: 44px; }
+.ks-head .ks-eyebrow-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.ks-head .ks-lede { margin-top: 16px; max-width: 580px; }
+
+.ks-ix {
+  font-family: var(--cz-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--cz-ink-faint);
+}
+
+/* ------------------------------------------------------------
+   3 · HEADER
+   ------------------------------------------------------------ */
+.ks-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px var(--ks-pad-x);
+  background: oklch(0.10 0.022 280 / 0.55);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.ks-header.ks-stuck { border-bottom-color: var(--cz-rule); background: oklch(0.10 0.022 280 / 0.82); }
+[data-theme='light'] .ks-header { background: oklch(0.98 0.008 280 / 0.6); }
+[data-theme='light'] .ks-header.ks-stuck { background: oklch(0.98 0.008 280 / 0.88); }
+
+.ks-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.ks-brand .ks-mk {
+  font-family: var(--cz-sans);
+  font-weight: 500;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  color: var(--cz-ink);
+}
+.ks-brand .ks-mk em { font-style: normal; color: var(--cz-accent-hi); }
+
+.ks-nav { display: flex; align-items: center; gap: 30px; }
+.ks-nav a {
+  font-family: var(--cz-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cz-ink-mute);
+  text-decoration: none;
+  transition: color 160ms;
+}
+.ks-nav a:hover { color: var(--cz-accent-hi); }
+
+.ks-header-actions { display: flex; align-items: center; gap: 10px; }
+.ks-menu-btn { display: none; }
+
+.ks-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: oklch(0.10 0.022 280 / 0.97);
+  backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px var(--ks-pad-x) 40px;
+}
+[data-theme='light'] .ks-menu { background: oklch(0.98 0.008 280 / 0.97); }
+.ks-menu-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+.ks-menu nav { display: flex; flex-direction: column; }
+.ks-menu nav a {
+  font-family: var(--cz-sans);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.036em;
+  color: var(--cz-ink);
+  text-decoration: none;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--cz-rule);
+}
+.ks-menu nav a:hover { color: var(--cz-accent-hi); }
+.ks-menu-foot { margin-top: auto; display: flex; gap: 10px; }
+
+/* ------------------------------------------------------------
+   4 · HERO — the singularity
+   ------------------------------------------------------------ */
+.ks-hero {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 150px var(--ks-pad-x) 132px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* the WebGL canvas sits behind the copy, bleeding off the top */
+.ks-hero-stage {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: -2;
+  width: min(146vmin, 1180px);
+  aspect-ratio: 1;
+  pointer-events: none;
+  /* feather the square canvas into the page — no visible edge */
+  mask-image: radial-gradient(closest-side, #000 62%, transparent 100%);
+}
+
+/* a soft violet gravity well under the copy so text stays legible
+   over the disk without a flat scrim plate */
+.ks-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(42% 30% at 50% 56%, oklch(0.10 0.022 280 / 0.78) 0%, oklch(0.10 0.022 280 / 0) 100%);
+  pointer-events: none;
+}
+[data-theme='light'] .ks-hero::after {
+  background: radial-gradient(42% 30% at 50% 56%, oklch(0.98 0.008 280 / 0.82) 0%, oklch(0.98 0.008 280 / 0) 100%);
+}
+
+.ks-hero-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 940px;
+}
+.ks-hero .ks-h1 { margin-top: 22px; }
+.ks-hero .ks-lede { margin-top: 22px; max-width: 620px; }
+.ks-hero-cta { margin-top: 34px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.ks-hero-foot { margin-top: 30px; }
+
+.ks-scroll-hint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ks-scroll-rail {
+  width: 1px;
+  height: 46px;
+  background: linear-gradient(to bottom, var(--cz-accent-dim), transparent);
+}
+
+/* ------------------------------------------------------------
+   5 · PROMOTION PANEL
+   ------------------------------------------------------------ */
+.ks-panel { overflow: hidden; }
+
+.ks-panel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--cz-rule);
+  flex-wrap: wrap;
+}
+.ks-panel-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ks-panel-body { display: flex; align-items: stretch; }
+
+.ks-panel-side {
+  width: 248px;
+  flex: none;
+  border-right: 1px solid var(--cz-rule);
+  max-height: 352px;
+  overflow-y: auto;
+}
+
+.ks-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--cz-rule-soft);
+  cursor: pointer;
+  font-family: var(--cz-mono);
+  font-size: 12px;
+  color: var(--cz-ink-mute);
+  transition: background 160ms, color 160ms;
+}
+.ks-run:hover { background: oklch(0.22 0.03 285 / 0.4); color: var(--cz-ink); }
+.ks-run[aria-selected='true'] {
+  background: var(--cz-accent-bg);
+  color: var(--cz-accent-hi);
+  box-shadow: inset 2px 0 0 var(--cz-accent);
+}
+.ks-run-to { margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cz-ink-faint); }
+
+.ks-panel-main { flex: 1; min-width: 0; padding: 6px 20px 16px; overflow-x: auto; }
+
+.ks-drow {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.5fr) 1fr 92px;
+  gap: 18px;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--cz-rule-soft);
+}
+.ks-drow:last-child { border-bottom: none; }
+.ks-dhead {
+  font-family: var(--cz-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cz-ink-faint);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--cz-rule);
+}
+.ks-dkey {
+  font-family: var(--cz-mono);
+  font-size: 12.5px;
+  color: var(--cz-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ks-dstate {
+  text-align: right;
+  font-family: var(--cz-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cz-ink-faint);
+}
+.ks-dstate.is-added { color: var(--cz-go); }
+.ks-dstate.is-changed { color: var(--cz-accent-hi); }
+
+/* three env segments: alpha · uat · prod */
+.ks-track { position: relative; height: 6px; width: 100%; }
+.ks-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 99px;
+  background: oklch(0.32 0.03 285);
+  transition: background 240ms, box-shadow 240ms;
+}
+.ks-seg.is-added { background: var(--cz-go); box-shadow: 0 0 10px oklch(0.82 0.15 168 / 0.5); }
+.ks-seg.is-changed { background: var(--cz-accent); box-shadow: 0 0 10px oklch(0.70 0.17 287 / 0.55); }
+
+/* ------------------------------------------------------------
+   6 · BENTO
+   ------------------------------------------------------------ */
+.ks-bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.ks-bento article { padding: 26px; display: flex; flex-direction: column; }
+.ks-bento .ks-h3 { margin-top: 14px; }
+.ks-bento p { margin: 12px 0 0; font-size: 14px; line-height: 1.6; color: var(--cz-ink-mute); }
+
+.ks-codeblock {
+  margin-top: 20px;
+  border-radius: var(--cz-r-sm);
+  border: 1px solid var(--cz-rule);
+  background: oklch(0.11 0.02 283 / 0.85);
+  padding: 15px;
+  font-family: var(--cz-mono);
+  font-size: 11.5px;
+  line-height: 1.8;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--cz-ink-mute);
+}
+[data-theme='light'] .ks-codeblock { background: oklch(0.96 0.008 283 / 0.85); }
+.ks-codeblock .a { color: var(--cz-accent-hi); }
+.ks-codeblock .g { color: var(--cz-go); }
+.ks-codeblock .i { color: var(--cz-ink); }
+
+.ks-pillrow { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+.ks-kv { margin-top: 20px; }
+.ks-kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--cz-rule-soft);
+  font-family: var(--cz-mono);
+  font-size: 12px;
+}
+.ks-kv-row:last-child { border-bottom: none; }
+.ks-kv-row span:first-child { color: var(--cz-ink); letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+.ks-kv-row span:last-child { color: var(--cz-ink-mute); }
+
+/* ------------------------------------------------------------
+   7 · METRICS — border-connected, not gapped cards
+   ------------------------------------------------------------ */
+.ks-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--cz-rule);
+  border: 1px solid var(--cz-rule);
+  border-radius: var(--cz-r);
+  overflow: hidden;
+}
+.ks-metric {
+  background: linear-gradient(180deg, oklch(0.16 0.028 284 / 0.72), oklch(0.12 0.022 282 / 0.62));
+  backdrop-filter: blur(10px);
+  padding: 34px 26px;
+}
+[data-theme='light'] .ks-metric { background: oklch(0.99 0.006 280 / 0.7); }
+
+.ks-metric-value {
+  font-family: var(--cz-sans);
+  font-weight: 400;
+  font-size: clamp(40px, 4.6vw, 62px);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ks-metric-unit {
+  font-family: var(--cz-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cz-accent-hi);
+  margin-left: 8px;
+}
+.ks-metric-label { margin-top: 16px; font-size: 13.5px; line-height: 1.55; color: var(--cz-ink-mute); }
+
+/* ------------------------------------------------------------
+   8 · CLOSE + FOOTER
+   ------------------------------------------------------------ */
+.ks-close {
+  position: relative;
+  margin: 0 var(--ks-pad-x) var(--ks-section-y);
+  border-radius: var(--cz-r);
+  border: 1px solid var(--cz-rule);
+  padding: 96px 40px;
+  text-align: center;
+  overflow: hidden;
+  background: radial-gradient(120% 130% at 50% 118%, oklch(0.26 0.10 288 / 0.55), oklch(0.11 0.02 282 / 0.6));
+}
+[data-theme='light'] .ks-close {
+  background: radial-gradient(120% 130% at 50% 118%, oklch(0.92 0.06 287 / 0.7), oklch(0.98 0.01 282 / 0.75));
+}
+.ks-close .ks-lede { margin: 18px auto 0; max-width: 560px; }
+.ks-close-cta { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+.ks-footer {
+  border-top: 1px solid var(--cz-rule);
+  padding: 34px var(--ks-pad-x);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ks-footer-links { display: flex; gap: 26px; flex-wrap: wrap; }
+.ks-footer-links a {
+  font-family: var(--cz-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cz-ink-faint);
+  text-decoration: none;
+  transition: color 160ms;
+}
+.ks-footer-links a:hover { color: var(--cz-accent-hi); }
+
+/* ------------------------------------------------------------
+   9 · REVEAL — initial states for the anime.js timeline
+   ------------------------------------------------------------ */
+/* Deliberately scoped under .ks-anim, which LandingPage adds in a layout
+   effect only once it is actually going to animate. If anime.js fails to
+   load, or the effect never runs, nothing is ever hidden and the page
+   degrades to a plain static landing rather than a blank one. */
+.ks-landing.ks-anim .ks-rise { opacity: 0; will-change: transform, opacity; }
+
+/* ------------------------------------------------------------
+   10 · RESPONSIVE
+   ------------------------------------------------------------ */
+@media (max-width: 1100px) {
+  .ks-bento { grid-template-columns: 1fr; }
+  .ks-metrics { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .ks-landing { --ks-pad-x: 22px; --ks-section-y: 88px; }
+  .ks-nav { display: none; }
+  .ks-header-actions .ks-hide-sm { display: none; }
+  .ks-menu-btn { display: inline-flex; }
+  .ks-panel-body { flex-direction: column; }
+  .ks-panel-side {
+    width: 100%;
+    max-height: none;
+    display: flex;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--cz-rule);
+  }
+  .ks-run { width: auto; flex: none; border-bottom: none; }
+  .ks-run[aria-selected='true'] { box-shadow: inset 0 -2px 0 var(--cz-accent); }
+  .ks-run-to { display: none; }
+}
+
+@media (max-width: 620px) {
+  .ks-metrics { grid-template-columns: 1fr; }
+  .ks-drow { grid-template-columns: minmax(120px, 1fr) 84px; gap: 12px; }
+  /* the env track is dropped here, so drop its column header with it —
+     otherwise the third label wraps onto a line of its own */
+  .ks-drow .ks-track,
+  .ks-dhead span:nth-child(2) { display: none; }
+  .ks-close { padding: 64px 24px; }
+}
+
+/* ------------------------------------------------------------
+   11 · REDUCED MOTION — reveals resolve instantly
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .ks-rise { opacity: 1 !important; transform: none !important; }
+  .ks-landing *,
+  .ks-landing *::before,
+  .ks-landing *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+[data-motion='off'] .ks-rise { opacity: 1 !important; transform: none !important; }

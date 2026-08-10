@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import { EhMark } from './cosmic/EhMark';
+import { KsMark } from './cosmic/KsMark';
 
 interface SidebarProps {
   user: { email: string } | null;
@@ -83,7 +83,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   return (
     <aside className="cz-rail">
       <Link to="/" className="cz-wordmark">
-        <EhMark />
+        <KsMark />
         <span className="cz-mk">
           Keep<em>save</em>
         </span>

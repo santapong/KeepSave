@@ -8,10 +8,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-**Project governance and 30-day plan execution.** Docs-only work plus
-one CI hardening change; no API or behavior changes. Establishes the
-roles, decision-making process, and artifacts the team needs to keep
-shipping KeepSave with the rigor a secrets product demands.
+---
+
+## [1.2.0] - 2026-08-10
+
+**Public landing page and the Event Horizon design refresh**, on top of
+the project governance and 30-day plan execution. No API, crypto, auth
+or promotion-engine changes — this release is frontend and docs only.
+
+### Added — public landing page
+
+- **`frontend/src/pages/LandingPage.tsx`** - the public front door at
+  `/`. Sections: hero, an interactive environment-promotion diff panel,
+  an MCP-gateway / OAuth / SDK-reach bento, a border-connected
+  guarantees grid, and a close. Its *structure* comes from the Eventide
+  design system; its *skin* is Event Horizon, reusing the existing
+  `cz-*` primitives rather than forking them. Every claim on the page
+  is drawn from the repository — no invented customers, logos or
+  benchmarks, and the promotion panel is labelled illustrative product
+  UI rather than measured telemetry.
+- **`frontend/src/components/cosmic/Singularity.tsx`** - a ray-traced
+  Schwarzschild black hole anchoring the hero. Each pixel integrates a
+  null geodesic (`d²u/dφ² + u = 3Mu²` in Cartesian form), so the
+  gravitational lensing, photon ring and Einstein ring emerge from the
+  physics instead of being drawn on. Disk shading uses Keplerian
+  orbital velocity, relativistic Doppler beaming at `g³`, and
+  gravitational redshift. Geometric units, `rs = 1`, disk inner edge at
+  the ISCO.
+- **`frontend/src/styles/landing.css`** - page-level layout only
+  (`ks-*`); defines no colours or type of its own.
+- **`frontend/public/keepsave.svg`** + `KsMark` - a real brand mark
+  (an event horizon drawn far-disk → core → photon ring → near-disk in
+  front). The same artwork serves as the favicon, replacing Vite's
+  default.
+
+### Changed — design system
+
+- **Typography** is now Geist + Geist Mono, replacing Space Grotesk +
+  JetBrains Mono. Display weights moved 300 → 400 with tightened
+  tracking, since Geist runs lighter at the same nominal weight.
+  `font-feature-settings` reduced to `tnum` — `ss01`/`cv01`/`cv11` were
+  Space Grotesk features with no meaning for Geist.
+- **Surfaces** gained a three-step elevation ladder (`--cz-elev-1`
+  cards, `--cz-elev-2` + `.cz-float` for dialogs and the command
+  palette, `.cz-flat` for in-page panels), a `--cz-rim` top-edge light,
+  and a grain overlay so large glass panels stop banding. Light theme
+  gets its own shorter, violet-tinted shadows. Login and the whole app
+  shell inherit all of this.
+- **Routing**: logged-out `/` now renders the landing page and the
+  login form moved to `/login`. Any other logged-out path still falls
+  through to login, so deep links keep working.
+
+### Removed
+
+- `frontend/src/components/cosmic/EhMark.tsx` and its `.cz-eh-mark`
+  styles, superseded by `KsMark`. The old mark was CSS-only, so it
+  could not be used as a favicon and blurred below ~20px.
+
+### Notes — landing page
+
+- `three` and `animejs` are bundled, not CDN-loaded, so the existing
+  `script-src 'self'` CSP needs no new rules. three.js is code-split
+  into its own lazy chunk (~190 kB gzip) fetched only when the hero
+  mounts.
+- Motion is gated on `prefers-reduced-motion` and `data-motion="off"`
+  throughout; the singularity renders a single static frame and falls
+  back to the CSS `EventHorizon` when WebGL is unavailable.
+- Verified at ~492px viewport width; the desktop breakpoints have not
+  been visually confirmed.
 
 ### Added — governance artifacts
 
@@ -116,10 +180,10 @@ list:
 - Backend deps: bumped `x/net`, `x/crypto`, `x/text`, `x/sys`,
   `protobuf`, `gin`, `validator`, `lib/pq`, `mysql`, `sqlite3`.
 
-### Notes
+### Notes — governance work
 
-- All changes are docs and one workflow line; no API or runtime
-  behavior changes.
+- The governance changes above are docs and one workflow line; no API
+  or runtime behavior changes.
 - CI was blocked on a GitHub Actions quota during development; the
   changes have been verified locally (`go vet`, `gofmt`, `go test`,
   `npm test`, `npm audit`, `tsc --noEmit`, `npm run build`).

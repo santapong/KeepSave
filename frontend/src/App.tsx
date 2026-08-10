@@ -6,12 +6,14 @@ import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackButton } from './components/FeedbackButton';
 import { Toaster } from './components/ui/toaster';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 
 // Authenticated routes are code-split so heavy pages (and recharts, which
 // only the admin dashboard uses) load on demand instead of in the initial
-// bundle. Login/Register stay eager — they are the logged-out first paint.
+// bundle. Landing/Login/Register stay eager — Landing is the logged-out
+// first paint and sign-in is one click from it.
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })));
 const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })));
@@ -46,6 +48,11 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          {/* Public front door. Anything else a logged-out visitor asks for
+              still falls through to the login form, so deep links keep
+              working and land on sign-in rather than marketing. */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
           <Route path="/register" element={<RegisterPage onLogin={auth.login} />} />
           <Route path="*" element={<LoginPage onLogin={auth.login} />} />
         </Routes>

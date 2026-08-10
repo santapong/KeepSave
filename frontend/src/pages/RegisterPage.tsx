@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
 import { EventHorizon } from '../components/cosmic/EventHorizon';
-import { EhMark } from '../components/cosmic/EhMark';
+import { KsMark } from '../components/cosmic/KsMark';
 import { Starfield } from '../components/cosmic/Starfield';
 import type { User } from '../types';
 
@@ -96,7 +96,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
         <div className="cz-login-card">
           <div className="cz-login-card-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <EhMark />
+              <KsMark />
               <span className="cz-mk" style={{ fontWeight: 500, fontSize: 20 }}>
                 Keep<em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>save</em>
               </span>
