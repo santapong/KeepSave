@@ -14,13 +14,18 @@ import { prefersReducedMotion as motionOff } from '@/lib/motion';
  * ── Orbits ────────────────────────────────────────────────────────────
  * Acceleration carries both terms:
  *
- *     a = −GM·r̂/r²  −  3·GM·h²·r̂/r⁴
- *         └ Newton ┘    └ relativistic correction ┘
+ *     a = −(GM/r³)·r·(1 + 3h²/(c²r²))
+ *            └ Newton ┘  └ relativistic correction ┘
  *
  * where h = |r × v| is the specific angular momentum. The second term is
  * the same post-Newtonian correction that bends light on the landing page,
  * and it makes the orbits *precess* — the ellipse slowly rotates instead
  * of closing on itself, which is the Mercury-perihelion effect.
+ *
+ * The c² denominator is not decoration. Drop it and the "correction"
+ * evaluates to roughly 12x the Newtonian term at these radii, the orbits
+ * degenerate into noise, and the field renders as a near-empty screen.
+ * See C2 below for why c must sit well above orbital speed.
  *
  * Integration is velocity Verlet, not forward Euler. Verlet is symplectic,
  * so orbital energy stays bounded instead of drifting; with Euler these
