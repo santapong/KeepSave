@@ -3,29 +3,49 @@ import type * as THREE_NS from 'three';
 import { prefersReducedMotion as motionOff } from '@/lib/motion';
 
 /**
- * CometField — the WebGL backdrop for the login and register screens.
+ * CometField — physically-modelled comets falling toward an unseen mass.
  *
- * Companion piece to <Singularity> on the landing page. The landing shows
- * the hole itself; this shows what falls into it, which is the product's
- * own line: secrets fall past the horizon and nothing escapes.
+ * The WebGL backdrop for the login and register screens, and the companion
+ * to the landing page's <Singularity>. That one ray-traces null geodesics
+ * to show the hole itself; this one integrates *matter* orbits to show what
+ * falls into it — the product's own line: secrets fall past the horizon and
+ * nothing escapes.
  *
- * Physics note: unlike the landing's geodesic tracer, these are *matter*
- * trajectories, so plain Newtonian gravity is the correct model —
- * a = −GM·r̂/r². Comets are launched on the outer ring with a tangential
- * component, which yields the hyperbolic and highly eccentric flybys that
- * whip around the mass and slingshot away. Anything that falls inside the
- * capture radius is respawned on the rim.
+ * ── Orbits ────────────────────────────────────────────────────────────
+ * Acceleration carries both terms:
  *
- * Rendering: one THREE.Points system holds every comet's trail. Each trail
- * point carries its own size and alpha, tapering head → tail, which gives
- * a soft glowing streak. Deliberately not LineSegments: WebGL ignores
- * `linewidth`, so lines would render as hard 1px hairlines.
+ *     a = −GM·r̂/r²  −  3·GM·h²·r̂/r⁴
+ *         └ Newton ┘    └ relativistic correction ┘
+ *
+ * where h = |r × v| is the specific angular momentum. The second term is
+ * the same post-Newtonian correction that bends light on the landing page,
+ * and it makes the orbits *precess* — the ellipse slowly rotates instead
+ * of closing on itself, which is the Mercury-perihelion effect.
+ *
+ * Integration is velocity Verlet, not forward Euler. Verlet is symplectic,
+ * so orbital energy stays bounded instead of drifting; with Euler these
+ * orbits visibly spiral out over a few minutes on an idle login screen.
+ *
+ * ── Tails ─────────────────────────────────────────────────────────────
+ * The defining physical fact about a comet is that its tail points away
+ * from the central body, NOT backwards along its path. A trail of past
+ * positions is a trajectory, not a tail. So each comet renders two, per
+ * real cometary structure:
+ *
+ *   · ion tail  — gas swept straight anti-radially by the wind, narrow
+ *                 and blue-ish.
+ *   · dust tail — heavier grains released earlier, which keep more of the
+ *                 orbital velocity they were released with and so lag
+ *                 behind into a curve, broader and warmer.
+ *
+ * Outgassing scales as 1/r², so a comet is nearly bare far out and grows
+ * a long tail near perihelion — which is exactly when it swings through
+ * frame. Brightness follows the same law.
  *
  * Degradations:
- *   · `prefers-reduced-motion` / `data-motion="off"` -> one static frame
- *     of an already-evolved field, then nothing moves.
- *   · no WebGL / three fails to load -> renders nothing. The CSS
- *     <Starfield> behind it is the backdrop, so the screen still reads.
+ *   · reduced motion  -> one settled static frame, then nothing moves.
+ *   · no WebGL / three fails -> renders nothing; the CSS <Starfield>
+ *     behind it still carries the screen.
  *   · scrolled out of view -> the rAF loop parks itself.
  */
 
@@ -33,20 +53,28 @@ interface CometFieldProps {
   className?: string;
 }
 
-const COMETS = 38;
-const TRAIL = 22;
-const POINTS = COMETS * TRAIL;
+const COMETS = 30;
+const ION = 34;  // particles per ion tail — must be dense enough that
+const DUST = 34; // adjacent points overlap, or the tail reads as dashes
+const PER = 1 + ION + DUST; // + nucleus
+const POINTS = COMETS * PER;
 
-/* Scale note: the camera sits at z = CAM_Z with a 50 deg vertical fov, so
-   the visible half-height at the origin is CAM_Z * tan(25 deg) ~= 0.466 *
-   CAM_Z. R_SPAWN is kept just inside that so comets are launched on the
-   edge of frame rather than far outside it, which otherwise leaves the
-   field looking almost empty. */
+/* Geometric-ish units. Camera at CAM_Z with a 50deg vertical fov gives a
+   visible half-height of ~0.466 * CAM_Z at the origin; the spawn ring is
+   kept just inside that so comets enter frame rather than off-screen. */
 const CAM_Z = 34;
-const GM = 90;        // gravitational parameter — also sets speed, see TRAIL note
-const R_SPAWN = 15;   // launch ring
-const R_CAPTURE = 1.2;
+const GM = 90;
+/** Speed of light in these units. The relativistic term below is a
+ *  correction of order (v/c)^2, so c MUST be well above orbital speed
+ *  (~2.5 here) or the "correction" dominates the Newtonian force and the
+ *  orbits become nonsense. c = 30 puts the precession around 1% per orbit:
+ *  visible over time, never destabilising. */
+const C2 = 900;
+const R_SPAWN = 15;
+const R_CAPTURE = 1.1;
 const R_ESCAPE = 34;
+/** Outgassing reference radius: tails are ~full length inside this. */
+const R_ACTIVE = 7.5;
 
 const VERT = /* glsl */ `
   attribute float aSize;
@@ -76,7 +104,6 @@ const FRAG = /* glsl */ `
   }
 `;
 
-
 export function CometField({ className }: CometFieldProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -105,8 +132,8 @@ export function CometField({ className }: CometFieldProps) {
           alpha: true,
           antialias: false,
           // Additive blending accumulates colour but not alpha; without
-          // this (and the alpha-accumulating blend below) the whole field
-          // composites at alpha 0 and nothing is visible.
+          // premultipliedAlpha:false plus the alpha-accumulating blend
+          // below, the whole field composites at alpha 0 and vanishes.
           premultipliedAlpha: false,
           powerPreference: 'low-power',
         });
@@ -137,59 +164,75 @@ export function CometField({ className }: CometFieldProps) {
       camera.position.set(0, 0, CAM_Z);
       camera.lookAt(0, 0, 0);
 
-      /* --- comet state ------------------------------------------- */
-      const px = new Float32Array(COMETS);
-      const py = new Float32Array(COMETS);
-      const pz = new Float32Array(COMETS);
-      const vx = new Float32Array(COMETS);
-      const vy = new Float32Array(COMETS);
-      const vz = new Float32Array(COMETS);
-      // ring buffer of past positions, newest at index 0
-      const trail = new Float32Array(COMETS * TRAIL * 3);
+      /* --- state ------------------------------------------------- */
+      const pos = new Float32Array(COMETS * 3);
+      const vel = new Float32Array(COMETS * 3);
+      const acc = new Float32Array(COMETS * 3);
 
       const positions = new Float32Array(POINTS * 3);
       const sizes = new Float32Array(POINTS);
       const alphas = new Float32Array(POINTS);
       const colors = new Float32Array(POINTS * 3);
 
-      const PALETTE = [
-        new THREE.Color('#c9b6ff'), // periwinkle
-        new THREE.Color('#ff7ab8'), // flare magenta
-        new THREE.Color('#ffd9a0'), // hot gold
-        new THREE.Color('#9fe8f5'), // photon cyan
-      ];
+      // nucleus / coma, ion gas, dust grains
+      const C_CORE = new THREE.Color('#ffffff');
+      const C_ION = new THREE.Color('#8fd4ff');
+      const C_DUST = new THREE.Color('#ffc98a');
+      const C_HALO = new THREE.Color('#c9b6ff');
 
-      const spawn = (i: number, seedTrail: boolean) => {
+      /** a = -(GM/r^3)·r·(1 + 3h²/(c²r²))  — Newton plus the first
+       *  post-Newtonian correction, which precesses the orbit. */
+      const accelInto = (i: number, out: Float32Array) => {
+        const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+        const vx = vel[i * 3], vy = vel[i * 3 + 1], vz = vel[i * 3 + 2];
+        const r2 = x * x + y * y + z * z;
+        const r = Math.sqrt(r2);
+        const inv3 = 1 / (r2 * r);
+
+        // specific angular momentum h = r x v
+        const hx = y * vz - z * vy;
+        const hy = z * vx - x * vz;
+        const hz = x * vy - y * vx;
+        const h2 = hx * hx + hy * hy + hz * hz;
+
+        // Newtonian, plus a first-order relativistic precession term.
+        // The (c² r²) denominator is what keeps it a *correction*.
+        const k = -GM * inv3 * (1 + (3 * h2) / (C2 * r2));
+        out[i * 3] = x * k;
+        out[i * 3 + 1] = y * k;
+        out[i * 3 + 2] = z * k;
+      };
+
+      /**
+       * @param anywhere seed at a random orbital phase instead of on the
+       *   outer ring. Used once at start-up: spawning every comet at the
+       *   same radius leaves them phase-locked, and 30 synchronised tails
+       *   all pointing outward read as a firework rather than a comet
+       *   field. During the run, respawns use the ring so comets enter
+       *   frame from outside.
+       */
+      const spawn = (i: number, anywhere = false) => {
         const a = Math.random() * Math.PI * 2;
-        const r = R_SPAWN * (0.85 + Math.random() * 0.5);
+        const r = anywhere
+          ? 2.8 + Math.random() * (R_SPAWN * 1.35 - 2.8)
+          : R_SPAWN * (0.9 + Math.random() * 0.45);
         const x = Math.cos(a) * r;
         const y = Math.sin(a) * r;
-        const z = (Math.random() - 0.5) * 7;
+        const z = (Math.random() - 0.5) * 6;
 
-        // circular speed at this radius, scaled below 1 so the orbit
-        // decays inward instead of closing — that is what makes them fall.
+        // Sub-circular tangential speed with an inward component gives the
+        // eccentric, perihelion-passing orbits that grow tails in frame.
         const vc = Math.sqrt(GM / r);
-        const tangential = vc * (0.55 + Math.random() * 0.5);
-        const inward = vc * (0.12 + Math.random() * 0.22);
+        const tangential = vc * (0.5 + Math.random() * 0.42);
+        // at start-up some comets are already outbound past perihelion
+        const dir = anywhere && Math.random() < 0.45 ? -1 : 1;
+        const inward = dir * vc * (0.14 + Math.random() * 0.2);
 
-        px[i] = x; py[i] = y; pz[i] = z;
-        vx[i] = -Math.sin(a) * tangential - (x / r) * inward;
-        vy[i] = Math.cos(a) * tangential - (y / r) * inward;
-        vz[i] = (Math.random() - 0.5) * 0.05;
-
-        const c = PALETTE[(Math.random() * PALETTE.length) | 0];
-        for (let t = 0; t < TRAIL; t++) {
-          const k = i * TRAIL + t;
-          colors[k * 3] = c.r; colors[k * 3 + 1] = c.g; colors[k * 3 + 2] = c.b;
-          const f = 1 - t / TRAIL;
-          sizes[k] = 0.30 + f * f * 4.0;
-          alphas[k] = 0.05 + f * f * 0.68;
-          if (seedTrail) {
-            trail[(i * TRAIL + t) * 3] = x;
-            trail[(i * TRAIL + t) * 3 + 1] = y;
-            trail[(i * TRAIL + t) * 3 + 2] = z;
-          }
-        }
+        pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+        vel[i * 3] = -Math.sin(a) * tangential - (x / r) * inward;
+        vel[i * 3 + 1] = Math.cos(a) * tangential - (y / r) * inward;
+        vel[i * 3 + 2] = (Math.random() - 0.5) * 0.04;
+        accelInto(i, acc);
       };
 
       for (let i = 0; i < COMETS; i++) spawn(i, true);
@@ -218,43 +261,97 @@ export function CometField({ className }: CometFieldProps) {
       field.frustumCulled = false;
       scene.add(field);
 
-      const step = (dt: number) => {
+      /* --- velocity Verlet --------------------------------------- */
+      const integrate = (dt: number) => {
         for (let i = 0; i < COMETS; i++) {
-          const x = px[i], y = py[i], z = pz[i];
-          const r2 = x * x + y * y + z * z;
-          const r = Math.sqrt(r2);
+          const b = i * 3;
+          // x(t+dt) = x + v dt + a dt^2 / 2
+          pos[b] += vel[b] * dt + 0.5 * acc[b] * dt * dt;
+          pos[b + 1] += vel[b + 1] * dt + 0.5 * acc[b + 1] * dt * dt;
+          pos[b + 2] += vel[b + 2] * dt + 0.5 * acc[b + 2] * dt * dt;
 
-          if (r < R_CAPTURE || r > R_ESCAPE) {
-            spawn(i, true);
-            continue;
-          }
+          const ax = acc[b], ay = acc[b + 1], az = acc[b + 2];
+          accelInto(i, acc);
+          // v(t+dt) = v + (a + a_new) dt / 2
+          vel[b] += 0.5 * (ax + acc[b]) * dt;
+          vel[b + 1] += 0.5 * (ay + acc[b + 1]) * dt;
+          vel[b + 2] += 0.5 * (az + acc[b + 2]) * dt;
 
-          // Newtonian attraction toward the origin
-          const a = -GM / (r2 * r);
-          vx[i] += x * a * dt;
-          vy[i] += y * a * dt;
-          vz[i] += z * a * dt;
-
-          px[i] += vx[i] * dt;
-          py[i] += vy[i] * dt;
-          pz[i] += vz[i] * dt;
-
-          // shift the trail back one slot, newest first
-          const base = i * TRAIL * 3;
-          for (let t = TRAIL - 1; t > 0; t--) {
-            trail[base + t * 3] = trail[base + (t - 1) * 3];
-            trail[base + t * 3 + 1] = trail[base + (t - 1) * 3 + 1];
-            trail[base + t * 3 + 2] = trail[base + (t - 1) * 3 + 2];
-          }
-          trail[base] = px[i];
-          trail[base + 1] = py[i];
-          trail[base + 2] = pz[i];
+          const r = Math.hypot(pos[b], pos[b + 1], pos[b + 2]);
+          if (r < R_CAPTURE || r > R_ESCAPE) spawn(i);
         }
-        positions.set(trail);
+      };
+
+      /* --- build the two tails ----------------------------------- */
+      const buildTails = () => {
+        for (let i = 0; i < COMETS; i++) {
+          const b = i * 3;
+          const x = pos[b], y = pos[b + 1], z = pos[b + 2];
+          const r = Math.max(0.001, Math.hypot(x, y, z));
+          const rx = x / r, ry = y / r, rz = z / r; // anti-radial = away from the mass
+
+          const vx = vel[b], vy = vel[b + 1], vz = vel[b + 2];
+          const vm = Math.max(0.001, Math.hypot(vx, vy, vz));
+          const tx = vx / vm, ty = vy / vm, tz = vz / vm;
+
+          // outgassing ~ 1/r^2, saturating near perihelion
+          const q = Math.min(1, (R_ACTIVE * R_ACTIVE) / (r * r));
+          const ionLen = 1.2 + q * 7.5;
+          const dustLen = 0.9 + q * 4.6;
+          const bright = 0.16 + q * 0.9;
+
+          let k = i * PER;
+
+          // nucleus + coma
+          positions[k * 3] = x; positions[k * 3 + 1] = y; positions[k * 3 + 2] = z;
+          sizes[k] = 2.4 + q * 6.0;
+          alphas[k] = Math.min(1, 0.62 + bright);
+          colors[k * 3] = C_CORE.r; colors[k * 3 + 1] = C_CORE.g; colors[k * 3 + 2] = C_CORE.b;
+          k++;
+
+          // ion tail — straight, anti-radial
+          for (let t = 0; t < ION; t++) {
+            const s = (t + 1) / ION;
+            const d = s * ionLen;
+            positions[k * 3] = x + rx * d;
+            positions[k * 3 + 1] = y + ry * d;
+            positions[k * 3 + 2] = z + rz * d;
+            sizes[k] = (2.9 - s * 1.95) * 1.55;
+            alphas[k] = Math.pow(1 - s, 1.5) * bright * 1.15;
+            const c = s < 0.35 ? C_HALO : C_ION;
+            colors[k * 3] = c.r; colors[k * 3 + 1] = c.g; colors[k * 3 + 2] = c.b;
+            k++;
+          }
+
+          // dust tail — anti-radial but lagging behind the orbital motion,
+          // so it curves. Grains released earlier retain more of the
+          // velocity they had then, hence the s^1.6 lag term.
+          for (let t = 0; t < DUST; t++) {
+            const s = (t + 1) / DUST;
+            const d = s * dustLen;
+            const lag = Math.pow(s, 1.6) * dustLen * 0.85;
+            positions[k * 3] = x + rx * d - tx * lag;
+            positions[k * 3 + 1] = y + ry * d - ty * lag;
+            positions[k * 3 + 2] = z + rz * d - tz * lag;
+            sizes[k] = (3.1 - s * 2.1) * 1.75;
+            alphas[k] = Math.pow(1 - s, 1.5) * bright * 0.62;
+            colors[k * 3] = C_DUST.r; colors[k * 3 + 1] = C_DUST.g; colors[k * 3 + 2] = C_DUST.b;
+            k++;
+          }
+        }
         geo.attributes.position.needsUpdate = true;
         geo.attributes.aSize.needsUpdate = true;
         geo.attributes.aAlpha.needsUpdate = true;
         geo.attributes.aColor.needsUpdate = true;
+      };
+
+      const step = (dt: number) => {
+        // fixed sub-steps keep the integrator stable through perihelion,
+        // where the acceleration spikes
+        const SUB = 3;
+        const h = dt / SUB;
+        for (let n = 0; n < SUB; n++) integrate(h);
+        buildTails();
       };
 
       let onScreen = true;
@@ -277,9 +374,9 @@ export function CometField({ className }: CometFieldProps) {
       };
       el.addEventListener('webglcontextlost', onLost);
 
-      // Settle the field before the first paint so it never appears as a
-      // ring of dots that then springs to life.
-      for (let i = 0; i < 220; i++) step(1 / 60);
+      // Settle so the first paint shows an evolved field with real tails,
+      // not a ring of bare nuclei that then springs to life.
+      for (let i = 0; i < 260; i++) step(1 / 60);
       renderer.render(scene, camera);
 
       if (!motionOff()) {
@@ -287,7 +384,7 @@ export function CometField({ className }: CometFieldProps) {
         const loop = () => {
           raf = requestAnimationFrame(loop);
           const now = performance.now();
-          const dt = Math.min((now - last) / 1000, 1 / 20); // clamp after tab-switch
+          const dt = Math.min((now - last) / 1000, 1 / 20); // clamp after a tab switch
           last = now;
           if (!onScreen) return;
           step(dt);
@@ -323,12 +420,7 @@ export function CometField({ className }: CometFieldProps) {
       ref={hostRef}
       className={className}
       aria-hidden="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: 'none',
-      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}
     />
   );
 }

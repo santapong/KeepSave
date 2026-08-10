@@ -60,8 +60,15 @@ or promotion-engine changes — this release is frontend and docs only.
 - **`frontend/src/components/cosmic/CometField.tsx`** - WebGL backdrop for
   the login and register screens, and the companion piece to the landing
   page's `Singularity`: the landing shows the hole, this shows what falls
-  into it. Newtonian trajectories (`a = -GM·r̂/r²`) — correct here because
-  these are matter, not light — rendered as tapering point trails.
+  into it. Orbits integrate `a = -(GM/r³)·r·(1 + 3h²/c²r²)` — Newtonian
+  gravity plus the first post-Newtonian correction, so the ellipses
+  precess — using velocity Verlet, which is symplectic and therefore does
+  not let orbital energy drift the way forward Euler does on a screen left
+  open. Each comet renders the two tails real comets have: a straight
+  anti-radial ion tail and a curved, lagging dust tail, both scaled by
+  outgassing proportional to 1/r². Tails point *away from the mass*, not
+  backwards along the path — a trail of past positions is a trajectory,
+  not a tail.
 - **`frontend/src/hooks/useCosmicEntrance.ts`** - shared anime.js staggered
   entrance for both auth screens.
 - **`frontend/src/lib/motion.ts`** - one feature-detected
