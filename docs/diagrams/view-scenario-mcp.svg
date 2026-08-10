@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="520" viewBox="0 0 940 520" role="img" aria-label="KeepSave — 4+1 Scenario: agent tool call with secret injection">
+<title>KeepSave — 4+1 Scenario: agent tool call with secret injection</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b87a3"/></marker></defs>
+<rect width="940" height="520" fill="#fbfaff"/>
+<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#1e1b2e" text-anchor="start">4+1 · Scenarios (+1) — an agent calls an MCP tool</text>
+<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#5b5772" text-anchor="start">The scenario that ties the other four views together. The agent never receives the credential.</text>
+<rect x="60" y="92" width="150" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="135.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">AI Agent</text>
+<path d="M135 138 L135 452" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="270" y="92" width="150" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="345.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCP Gateway</text>
+<path d="M345 138 L345 452" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="500" y="92" width="150" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="575.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Secret Vault</text>
+<path d="M575 138 L575 452" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="730" y="92" width="150" height="46" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="805.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCP Server</text>
+<path d="M805 138 L805 452" stroke="#8b87a3" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M135 178 L345 178" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="162.2" y="165.0" width="155.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="240.0" y="177.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">1  tools/call (name, args)</text>
+<path d="M345 226 L575 226" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="390.6" y="213.0" width="138.79999999999998" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="460.0" y="225.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">2  resolve env_mappings</text>
+<path d="M575 274 L345 274" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="368.2" y="261.0" width="183.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="460.0" y="273.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">3  decrypted values (in memory)</text>
+<path d="M345 322 L805 322" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="480.4" y="309.0" width="189.2" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="575.0" y="321.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">4  exec with secrets as env vars</text>
+<path d="M805 370 L345 370" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="530.8" y="357.0" width="88.39999999999999" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="575.0" y="369.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">5  tool result</text>
+<path d="M345 418 L135 418" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="184.6" y="405.0" width="110.8" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="240.0" y="417.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">6  result to agent</text>
+<rect x="60" y="452" width="820" height="44" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.4"/>
+<text x="76" y="479" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#5b21b6" text-anchor="start">Audit: mcp.tool.called is written before the result returns. The plaintext never leaves the gateway process.</text>
+</svg>

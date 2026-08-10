@@ -124,11 +124,15 @@ const LENS_FRAG = /* glsl */ `
     float t   = clamp((r - uDiskIn) / (uDiskOut - uDiskIn), 0.0, 1.0);
     float phi = atan(hit.z, hit.x);
 
-    // Keplerian shear — inner annuli lap the outer ones.
-    float orbit = uTime * 0.6 / pow(r, 1.5);
-    float turb  = fbm(vec2(phi * 3.4 + orbit * 6.0, r * 1.1 - orbit * 1.5));
-    turb        = mix(0.35, 1.5, turb);
-    turb       *= 0.75 + 0.45 * fbm(vec2(r * 6.5, phi * 8.0 - orbit * 4.0));
+    // Keplerian angular velocity: Omega ~ r^-3/2, so inner annuli lap
+    // the outer ones and the disk shears itself into streaks.
+    float orbit   = uTime * 2.6 / pow(r, 1.5);
+    float phiFlow = phi + orbit;   // co-rotating azimuth
+    float turb  = fbm(vec2(phiFlow * 3.4, r * 1.1));
+    turb        = mix(0.30, 1.55, turb);
+    turb       *= 0.72 + 0.5 * fbm(vec2(r * 6.5, phiFlow * 8.0));
+    // bright filaments dragged around with the flow
+    turb       *= 0.85 + 0.35 * fbm(vec2(phiFlow * 1.7, r * 2.6));
 
     /* --- relativistic beaming ------------------------------------ */
     vec3  tangent = normalize(vec3(-hit.z, 0.0, hit.x));  // orbital direction
@@ -326,7 +330,7 @@ export function Singularity({ size = 560, className }: SingularityProps) {
       /* --- camera orbit ---------------------------------------------
          Kept nearly edge-on: a shallow inclination is what makes the far
          side of the disk arc up over the shadow. */
-      const RADIUS = 34;
+      const RADIUS = 25;
       let yaw = 0;
       let pitch = 0.115; // radians above the disk plane
       let targetYaw = 0;

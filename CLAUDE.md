@@ -138,6 +138,7 @@ When in doubt, treat as the next class up. Misclassification is itself a bug.
 | Need                                       | Doc                                                       |
 |--------------------------------------------|-----------------------------------------------------------|
 | Architecture overview                      | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)            |
+| C4 + 4+1 architecture views (SVG)          | [`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md) |
 | Why a decision was made                    | [`docs/adr/`](docs/adr/)                                  |
 | What's open / tracked                      | [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md)                  |
 | What we're NOT building                    | [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md)              |

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="480" viewBox="0 0 900 480" role="img" aria-label="KeepSave — 4+1 Physical view">
+<title>KeepSave — 4+1 Physical view</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b87a3"/></marker></defs>
+<rect width="900" height="480" fill="#fbfaff"/>
+<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#1e1b2e" text-anchor="start">4+1 · Physical view — deployment topology</text>
+<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#5b5772" text-anchor="start">Split-origin deploy: static frontend and API are separate Vercel projects.</text>
+<rect x="50" y="92" width="380" height="150" rx="10" fill="#ffffff" stroke="#8b87a3" stroke-width="1.5"/>
+<text x="240.0" y="164.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Vercel — keep-save</text>
+<text x="240.0" y="181.0" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="400" fill="#5b5772" text-anchor="middle">static SPA + CDN</text>
+<rect x="70" y="138" width="340" height="44" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
+<text x="240.0" y="156.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">dist/ bundle</text>
+<text x="240.0" y="173.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">CSP: script-src &#x27;self&#x27;; fonts from gstatic</text>
+<rect x="70" y="190" width="340" height="40" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
+<text x="240.0" y="213.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">/assets/* immutable, index.html no-cache</text>
+<rect x="470" y="92" width="380" height="150" rx="10" fill="#ffffff" stroke="#8b87a3" stroke-width="1.5"/>
+<text x="660.0" y="164.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Vercel — keep-save-api</text>
+<text x="660.0" y="181.0" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" font-weight="400" fill="#5b5772" text-anchor="middle">Go binary</text>
+<rect x="490" y="138" width="340" height="44" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
+<text x="660.0" y="156.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">REST API + MCP gateway</text>
+<text x="660.0" y="173.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">migrations embedded in binary</text>
+<rect x="490" y="190" width="340" height="40" rx="6" fill="#f8f7ff" stroke="#c4b5fd" stroke-width="1.5"/>
+<text x="660.0" y="213.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Prometheus metrics · OpenTelemetry</text>
+<rect x="180" y="300" width="240" height="76" rx="10" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="300.0" y="334.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Database</text>
+<text x="300.0" y="351.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">PostgreSQL 16 (managed)</text>
+<rect x="490" y="300" width="200" height="76" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="590.0" y="334.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#5b21b6" text-anchor="middle">KMS</text>
+<text x="590.0" y="351.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">master key, never in DB</text>
+<rect x="720" y="300" width="130" height="76" rx="10" fill="#ffffff" stroke="#8b87a3" stroke-width="1.5"/>
+<text x="785.0" y="334.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCP servers</text>
+<text x="785.0" y="351.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">process runner</text>
+<path d="M430 160 L468 160" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="393.6" y="151.0" width="110.8" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="449.0" y="163.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">HTTPS  connect-src</text>
+<path d="M300 242 L300 298" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="286.6" y="261.0" width="26.799999999999997" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="300.0" y="273.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">TLS</text>
+<path d="M600 242 L590 298" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="562.0" y="261.0" width="66.0" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="595.0" y="273.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">unwrap DEK</text>
+<path d="M760 242 L780 298" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="720.2" y="261.0" width="99.6" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
+<text x="770.0" y="273.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">spawn / JSON-RPC</text>
+<text x="50" y="430" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="500" fill="#5b5772" text-anchor="start">Also shipped: docker-compose.yml for local/self-host, and helm/ for Kubernetes.</text>
+<text x="50" y="452" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="500" fill="#5b5772" text-anchor="start">Deploys are gated by CI: lint, tests, npm audit, gosec, govulncheck, CodeQL.</text>
+</svg>

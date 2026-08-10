@@ -42,6 +42,19 @@ or promotion-engine changes — this release is frontend and docs only.
   front). The same artwork serves as the favicon, replacing Vite's
   default.
 
+### Added — architecture documentation
+
+- **`docs/ARCHITECTURE_VIEWS.md`** + **`docs/diagrams/`** - ten checked-in
+  SVG diagrams replacing the ASCII art in `README.md`: C4 levels 1-3
+  (context, container, component) and the 4+1 views (logical, process,
+  development, physical, and a scenarios view of an agent tool call with
+  secret injection), plus OAuth and promotion flow diagrams.
+- **`scripts/gen_diagrams.py`** - generates the whole set, so geometry,
+  palette and type stay consistent. Edit the script, not the SVG.
+- `docs/ARCHITECTURE.md` keeps its annotated package-dependency map as
+  text — the inline annotations are its whole value — and now
+  cross-references the view set.
+
 ### Changed — design system
 
 - **Typography** is now Geist + Geist Mono, replacing Space Grotesk +

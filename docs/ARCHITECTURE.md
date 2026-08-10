@@ -4,65 +4,19 @@ One-page diagram of which package depends on which, what crosses each boundary, 
 
 This is a *living* doc — when a new package is added or a boundary moves, update it in the same PR.
 
+> For the structural picture — C4 levels 1–3 and the 4+1 views, as SVG —
+> see [`ARCHITECTURE_VIEWS.md`](ARCHITECTURE_VIEWS.md). This page stays
+> text: the package-dependency map below is annotated inline, and those
+> annotations are the point of it.
+
 ---
 
 ## High-level flow
 
-```
-                         ┌─────────────────────────────┐
-                         │       HTTP client           │
-                         │  (dashboard │ embed widget  │
-                         │   │ CLI │ AI agent)         │
-                         └──────────────┬──────────────┘
-                                        │   HTTPS
-                                        ▼
-══════════════════════ trust boundary 1: network ═════════════════════
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │   backend/internal/api      │
-                         │   (Gin handlers + mux)      │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │   middleware                │
-                         │   • JWTAuthMiddleware       │
-                         │   • APIKeyAuthMiddleware    │ ← ADR-0002
-                         │   • request validation      │
-                         │   • audit-log enrichment    │
-                         └──────────────┬──────────────┘
-                                        │
-══════════ trust boundary 2: authenticated caller identity ══════════
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │   service                   │
-                         │   • secret_service          │
-                         │   • project_service         │
-                         │   • promotion_service       │ ← ADR-0003
-                         │   • intelligence/AI         │
-                         └────┬──────────┬─────────────┘
-                              │          │
-                ┌─────────────▼──┐   ┌───▼─────────────────┐
-                │   crypto       │   │   repository        │
-                │   (AES-256-GCM)│   │   (PostgreSQL)      │
-                │   ← ADR-0001   │   │                     │
-                └────────┬───────┘   └──────────┬──────────┘
-                         │                      │
-                ┌────────▼──────────┐           │
-                │   keyprovider     │           │
-                │   • EnvProvider   │           │
-                │   • KMS (AWS/GCP) │ ← ADR-0004│
-                └────────┬──────────┘           │
-                         │                      │
-══════════ trust boundary 3: storage / key custody ══════════════════
-                         │                      │
-                         ▼                      ▼
-                   ┌──────────┐           ┌──────────────┐
-                   │  KMS /   │           │  PostgreSQL  │
-                   │  env var │           │  (encrypted  │
-                   │          │           │   at rest    │
-                   │          │           │   via crypto)│
-                   └──────────┘           └──────────────┘
-```
+![C4 Level 2 — KeepSave containers](diagrams/c4-2-container.svg)
+
+Component-level detail for the API container is in
+[`ARCHITECTURE_VIEWS.md`](ARCHITECTURE_VIEWS.md#c4--level-3-components-rest-api).
 
 ## Package dependency direction
 

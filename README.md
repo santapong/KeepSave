@@ -19,142 +19,23 @@ KeepSave provides:
 
 ## System Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Frontend (React + TypeScript)              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────────┐  │
-│  │Dashboard │ │ MCP Hub  │ │  OAuth   │ │  Embeddable Widget │  │
-│  │(Projects,│ │(Market-  │ │ Clients  │ │ (<keepsave-widget>)│  │
-│  │ Secrets, │ │ place,   │ │ Manage-  │ │                    │  │
-│  │ Promote) │ │ Install) │ │  ment)   │ │                    │  │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────────┬──────────┘  │
-└───────┼─────────────┼────────────┼─────────────────┼─────────────┘
-        │             │            │                  │
-        └─────────────┴─────┬──────┴──────────────────┘
-                            │ HTTPS / REST API
-┌───────────────────────────▼──────────────────────────────────────┐
-│                    Backend (Go + Gin)                             │
-│                                                                  │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                     API Layer (Gin Handlers)                 │ │
-│  │  Auth │ Projects │ Secrets │ Promotion │ OAuth │ MCP Hub    │ │
-│  └──┬────┴────┬─────┴────┬────┴─────┬─────┴───┬───┴─────┬─────┘ │
-│     │         │          │          │         │         │        │
-│  ┌──▼─────────▼──────────▼──────────▼─────────▼─────────▼─────┐ │
-│  │                    Service Layer                             │ │
-│  │                                                             │ │
-│  │  AuthService    SecretService    PromotionService           │ │
-│  │  ProjectService OAuthService     MCPService                 │ │
-│  │  APIKeyService  MCPBuilderService                           │ │
-│  │  OrgService     TemplateService  EnvFileService             │ │
-│  │  SSOService     ComplianceService BackupService             │ │
-│  │  LeaseService   AgentAnalyticsService                       │ │
-│  └──┬──────────────────────────────────────────────────────┬───┘ │
-│     │                                                      │     │
-│  ┌──▼───────────────────┐  ┌───────────────────────────────▼──┐  │
-│  │   Crypto Layer       │  │      MCP Gateway / Proxy         │  │
-│  │                      │  │                                   │  │
-│  │  AES-256-GCM         │  │  • Routes tool calls to servers  │  │
-│  │  Envelope Encryption │  │  • Injects secrets as env vars   │  │
-│  │  Per-project DEKs    │  │  • JSON-RPC 2.0 protocol         │  │
-│  │  Master key from KMS │  │  • Request logging & stats       │  │
-│  └──────────┬───────────┘  └───────────┬──────────┬───────────┘  │
-│             │                          │          │              │
-│  ┌──────────▼──────────────────────────▼────┐     │              │
-│  │         Repository Layer (SQL)            │     │              │
-│  │  PostgreSQL │ MySQL │ SQLite              │     │              │
-│  └──────────────────────┬───────────────────┘     │              │
-└─────────────────────────┼─────────────────────────┼──────────────┘
-                          │                         │
-              ┌───────────▼───────────┐   ┌────────▼──────────┐
-              │     Database          │   │   MCP Servers      │
-              │                       │   │                    │
-              │  • Users & Orgs       │   │  ┌──────────────┐  │
-              │  • Projects & Secrets │   │  │ Gmail Server │  │
-              │  • OAuth Clients      │   │  │ (from GitHub)│  │
-              │  • MCP Registry       │   │  └──────────────┘  │
-              │  • Audit Log          │   │  ┌──────────────┐  │
-              │  • Gateway Log        │   │  │ Slack Server │  │
-              │                       │   │  │ (from GitHub)│  │
-              └───────────────────────┘   │  └──────────────┘  │
-                                          │  ┌──────────────┐  │
-                                          │  │ Custom MCP   │  │
-                                          │  │ (from GitHub)│  │
-                                          │  └──────────────┘  │
-                                          └────────────────────┘
-```
+![C4 Level 2 — KeepSave containers](docs/diagrams/c4-2-container.svg)
+
+For the full diagram set — C4 levels 1–3 and the 4+1 views (logical,
+process, development, physical and scenarios) — see
+[`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md).
 
 ### OAuth 2.0 Flow
 
-```
-┌──────────┐     ┌──────────────┐     ┌──────────────┐
-│  Client  │     │   KeepSave   │     │   Resource   │
-│  App     │     │  OAuth IdP   │     │   Server     │
-└────┬─────┘     └──────┬───────┘     └──────┬───────┘
-     │                  │                     │
-     │  1. GET /oauth/authorize               │
-     │  (client_id, redirect_uri, scope)      │
-     ├────────────────►│                      │
-     │                  │                     │
-     │  2. Authorization Code                 │
-     │◄────────────────┤                      │
-     │                  │                     │
-     │  3. POST /oauth/token                  │
-     │  (code, client_id, client_secret)      │
-     ├────────────────►│                      │
-     │                  │                     │
-     │  4. Access Token + Refresh Token       │
-     │◄────────────────┤                      │
-     │                  │                     │
-     │  5. API Request (Bearer token)         │
-     ├────────────────────────────────────────►
-     │                  │                     │
-     │  6. Response                           │
-     │◄────────────────────────────────────────
-```
+![OAuth 2.0 authorization code flow](docs/diagrams/flow-oauth.svg)
 
 ### MCP Gateway Flow
 
-```
-┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌───────────┐
-│  Claude  │     │  KeepSave    │     │  KeepSave    │     │   MCP     │
-│  Agent   │     │  MCP Gateway │     │  Secret Vault│     │  Server   │
-└────┬─────┘     └──────┬───────┘     └──────┬───────┘     └─────┬─────┘
-     │                  │                     │                   │
-     │  1. tools/call   │                     │                   │
-     │  (tool_name,     │                     │                   │
-     │   arguments)     │                     │                   │
-     ├────────────────►│                      │                   │
-     │                  │                     │                   │
-     │                  │  2. Resolve secrets  │                   │
-     │                  │  for env_mappings    │                   │
-     │                  ├────────────────────►│                   │
-     │                  │                     │                   │
-     │                  │  3. Decrypted        │                   │
-     │                  │  secret values       │                   │
-     │                  │◄────────────────────┤                   │
-     │                  │                     │                   │
-     │                  │  4. Execute tool call with              │
-     │                  │  secrets as env vars  │                  │
-     │                  ├─────────────────────────────────────────►
-     │                  │                     │                   │
-     │                  │  5. Tool result      │                  │
-     │                  │◄─────────────────────────────────────────
-     │                  │                     │                   │
-     │  6. Result       │                     │                   │
-     │◄────────────────┤                      │                   │
-```
+![MCP gateway flow — agent tool call with secret injection](docs/diagrams/view-scenario-mcp.svg)
 
 ### Environment Promotion Pipeline
 
-```
-Alpha ──(promote)──► UAT ──(promote)──► PROD
-  │                   │                   │
-  │  Diff preview     │  Diff preview     │  Multi-party
-  │  Instant apply    │  Instant apply    │  approval required
-  │  Audit logged     │  Audit logged     │  Audit logged
-  │                   │                   │  Rollback supported
-```
+![Environment promotion pipeline](docs/diagrams/flow-promotion.svg)
 
 ## Tech Stack
 
