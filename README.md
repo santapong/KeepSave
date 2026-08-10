@@ -1,5 +1,11 @@
 # KeepSave
 
+[![Release](https://img.shields.io/github/v/release/santapong/KeepSave?style=flat-square&color=8b5cf6&labelColor=0b0a12)](https://github.com/santapong/KeepSave/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/santapong/KeepSave/ci.yml?branch=main&style=flat-square&label=CI&color=4fe3b8&labelColor=0b0a12)](https://github.com/santapong/KeepSave/actions)
+[![Go](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat-square&labelColor=0b0a12)](https://go.dev)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&labelColor=0b0a12)](https://react.dev)
+[![License](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square&labelColor=0b0a12)](#license)
+
 Secure environment variable storage, OAuth 2.0 identity provider, and Central MCP Server Hub for AI Agents and development teams.
 
 ## Problem
@@ -260,6 +266,8 @@ keepsave/
 | Document | Description |
 |----------|-------------|
 | [CLAUDE.md](./CLAUDE.md) | Development guide and conventions |
+| [docs/ARCHITECTURE_VIEWS.md](./docs/ARCHITECTURE_VIEWS.md) | C4 levels 1–3 and the 4+1 views, as SVG |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Package dependency map and trust boundaries |
 | [Roadmap.md](./Roadmap.md) | Phased delivery plan |
 | [MedQCNN Integration](./docs/medqcnn_integration.md) | Integration guide for MedQCNN quantum diagnostics |
 | [NEXUS Integration](./docs/nexus_integration.md) | Integration guide for NEXUS Agentic AI platform |

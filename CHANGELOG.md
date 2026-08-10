@@ -8,6 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [1.3.0] - 2026-08-11
+
+**Physically-modelled cosmic layer, and documentation that matches the
+product.** Frontend and docs only; no API, crypto, auth or
+promotion-engine changes.
+
+### Fixed — the comets were orbiting nothing
+
+- On the auth screens the comets orbit the scene origin of `CometField`,
+  a full-viewport canvas, which projects to the centre of the *screen*.
+  The black hole was rendered inside `.cz-login-aside-bg`, the centre of
+  the *left pane*. Two canvases, two different centres — so the comets
+  were orbiting a point where nothing was drawn. The hole now lives in a
+  viewport-centred `.cz-cosmos-hole` layer, and the comets visibly sweep
+  around it.
+- Perihelion distances were raised so every orbit clears the shadow's
+  apparent radius. Two comets previously passed inside it, which looked
+  like diving through the black hole.
+
+### Changed — documentation theme
+
+- The ten C4 / 4+1 SVG diagrams are re-themed to the frontend's own Event
+  Horizon tokens: deep-space void ground, periwinkle-violet accent,
+  aurora teal for healthy state, Geist and Geist Mono. Documentation and
+  product now read as one thing. Values stay hard-coded hex rather than
+  `oklch()` or `prefers-color-scheme`, because GitHub sanitises SVG and
+  honours neither reliably inside `<img>`.
+- `README.md` gains status badges and surfaces the architecture view set
+  in its documentation table.
+
 ### Changed — auth screens: real comets, properly modelled
 
 - `CometField` now runs **four** comets instead of thirty, each modelled

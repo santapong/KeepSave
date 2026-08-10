@@ -1,64 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="470" viewBox="0 0 900 470" role="img" aria-label="KeepSave — 4+1 Logical view">
 <title>KeepSave — 4+1 Logical view</title>
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b87a3"/></marker></defs>
-<rect width="900" height="470" fill="#fbfaff"/>
-<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#1e1b2e" text-anchor="start">4+1 · Logical view — the domain model</text>
-<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#5b5772" text-anchor="start">What the system is made of, from the end user&#x27;s point of view.</text>
-<rect x="60" y="92" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="160.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Organisation</text>
-<text x="160.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">tenants, SSO</text>
-<rect x="300" y="92" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="400.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Project</text>
-<text x="400.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">unit of isolation</text>
-<rect x="540" y="92" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="640.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Environment</text>
-<text x="640.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">alpha · uat · prod</text>
-<rect x="700" y="92" width="150" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="775.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Secret</text>
-<text x="775.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">sealed value</text>
-<rect x="60" y="226" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="160.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">API Key</text>
-<text x="160.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">scoped to project/env</text>
-<rect x="300" y="226" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="400.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">OAuth Client</text>
-<text x="400.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">4 grant flows</text>
-<rect x="540" y="226" width="200" height="68" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="640.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">MCP Server</text>
-<text x="640.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">registered from GitHub</text>
-<rect x="60" y="356" width="200" height="66" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="160.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#5b21b6" text-anchor="middle">Promotion</text>
-<text x="160.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">diff · approve · apply</text>
-<rect x="300" y="356" width="200" height="66" rx="8" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.5"/>
-<text x="400.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#5b21b6" text-anchor="middle">Lease</text>
-<text x="400.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">time-boxed access</text>
-<rect x="540" y="356" width="310" height="66" rx="8" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="695.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#1e1b2e" text-anchor="middle">Audit Event</text>
-<text x="695.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#5b5772" text-anchor="middle">append-only, every mutation</text>
-<path d="M260 126 L298 126" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="262.8" y="117.0" width="32.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="279.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">1..n</text>
-<path d="M500 126 L538 126" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="502.8" y="117.0" width="32.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="519.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">1..n</text>
-<path d="M740 126 L698 126" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="702.8" y="117.0" width="32.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="719.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">1..n</text>
-<path d="M160 160 L160 224" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="138.2" y="183.0" width="43.599999999999994" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="160.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">issues</text>
-<path d="M400 160 L400 224" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="383.8" y="183.0" width="32.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="400.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">owns</text>
-<path d="M640 160 L640 224" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="612.6" y="183.0" width="54.8" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="640.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">consumes</text>
-<path d="M160 294 L160 354" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="129.8" y="315.0" width="60.4" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="160.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">target of</text>
-<path d="M400 294 L400 354" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="378.2" y="315.0" width="43.599999999999994" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="400.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">grants</text>
-<path d="M640 294 L660 354" fill="none" stroke="#8b87a3" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="625.4" y="315.0" width="49.199999999999996" height="16" rx="4" fill="#fbfaff" opacity="0.95"/>
-<text x="650.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#5b5772" text-anchor="middle">records</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a4560"/></marker></defs>
+<rect width="900" height="470" fill="#0b0a12"/>
+<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#eeecf3" text-anchor="start">4+1 · Logical view — the domain model</text>
+<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#928da0" text-anchor="start">What the system is made of, from the end user&#x27;s point of view.</text>
+<rect x="60" y="92" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Organisation</text>
+<text x="160.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">tenants, SSO</text>
+<rect x="300" y="92" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="400.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Project</text>
+<text x="400.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">unit of isolation</text>
+<rect x="540" y="92" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="640.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Environment</text>
+<text x="640.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">alpha · uat · prod</text>
+<rect x="700" y="92" width="150" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="775.0" y="122.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Secret</text>
+<text x="775.0" y="139.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">sealed value</text>
+<rect x="60" y="226" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">API Key</text>
+<text x="160.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">scoped to project/env</text>
+<rect x="300" y="226" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="400.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">OAuth Client</text>
+<text x="400.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">4 grant flows</text>
+<rect x="540" y="226" width="200" height="68" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="640.0" y="256.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCP Server</text>
+<text x="640.0" y="273.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">registered from GitHub</text>
+<rect x="60" y="356" width="200" height="66" rx="8" fill="#251d3d" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#c4a3ff" text-anchor="middle">Promotion</text>
+<text x="160.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#a9a3bb" text-anchor="middle">diff · approve · apply</text>
+<rect x="300" y="356" width="200" height="66" rx="8" fill="#251d3d" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="400.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#c4a3ff" text-anchor="middle">Lease</text>
+<text x="400.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#a9a3bb" text-anchor="middle">time-boxed access</text>
+<rect x="540" y="356" width="310" height="66" rx="8" fill="#141220" stroke="#6d5bb0" stroke-width="1.5"/>
+<text x="695.0" y="385.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Audit Event</text>
+<text x="695.0" y="402.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">append-only, every mutation</text>
+<path d="M260 126 L298 126" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="262.8" y="117.0" width="32.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="279.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">1..n</text>
+<path d="M500 126 L538 126" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="502.8" y="117.0" width="32.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="519.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">1..n</text>
+<path d="M740 126 L698 126" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="702.8" y="117.0" width="32.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="719.0" y="129.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">1..n</text>
+<path d="M160 160 L160 224" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="138.2" y="183.0" width="43.599999999999994" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="160.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">issues</text>
+<path d="M400 160 L400 224" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="383.8" y="183.0" width="32.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="400.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">owns</text>
+<path d="M640 160 L640 224" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="612.6" y="183.0" width="54.8" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="640.0" y="195.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">consumes</text>
+<path d="M160 294 L160 354" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="129.8" y="315.0" width="60.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="160.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">target of</text>
+<path d="M400 294 L400 354" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="378.2" y="315.0" width="43.599999999999994" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="400.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">grants</text>
+<path d="M640 294 L660 354" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="625.4" y="315.0" width="49.199999999999996" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
+<text x="650.0" y="327.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">records</text>
 </svg>

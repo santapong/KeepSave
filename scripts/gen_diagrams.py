@@ -12,25 +12,30 @@ OUT = "docs/diagrams"
 FONT = "Geist, Inter, ui-sans-serif, system-ui, sans-serif"
 MONO = "Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
 
-PAPER   = "#fbfaff"
-INK     = "#1e1b2e"
-MUTED   = "#5b5772"
-LINE    = "#8b87a3"
-ACCENT  = "#7c3aed"       # KeepSave periwinkle violet
-ACCENT_D= "#5b21b6"
-TEAL    = "#0f9488"
-EXT     = "#9490a8"
+# Event Horizon palette, matching the frontend's dark theme tokens
+# (frontend/src/index.css [data-theme="dark"] + styles/cosmic.css).
+# Hex rather than oklch: SVG renderers and GitHub's sanitiser are not
+# reliable with oklch, and these assets have to render everywhere.
+PAPER   = "#0b0a12"       # --color-background, deep-space void
+INK     = "#eeecf3"       # --color-foreground
+MUTED   = "#928da0"       # --color-muted-foreground
+FAINT   = "#676375"
+LINE    = "#4a4560"       # a step up from --color-border, for legibility
+ACCENT  = "#a78bfa"       # --color-primary, periwinkle violet
+ACCENT_D= "#c4a3ff"       # --color-accent-foreground (brighter on dark)
+TEAL    = "#4fe3b8"       # --color-success, aurora teal
+EXT     = "#1a1724"
 
 STYLES = {
     # fill, stroke, title colour, subtitle colour
-    "person":    ("#6d28d9", ACCENT_D, "#ffffff", "#ddd6fe"),
-    "system":    (ACCENT,    ACCENT_D, "#ffffff", "#e9d5ff"),
-    "external":  (EXT,       "#6b6880", "#ffffff", "#e5e4ea"),
-    "container": ("#ffffff", ACCENT,   INK,       MUTED),
-    "store":     ("#f5f3ff", "#a78bfa", INK,      MUTED),
-    "component": ("#f8f7ff", "#c4b5fd", INK,      MUTED),
-    "node":      ("#ffffff", LINE,      INK,      MUTED),
-    "accentbox": ("#ede9fe", ACCENT,    ACCENT_D, MUTED),
+    "person":    ("#2e2445", ACCENT,   INK,       ACCENT_D),
+    "system":    ("#5b3ec7", ACCENT_D, "#ffffff", "#e2d8ff"),
+    "external":  (EXT,       LINE,     "#cfcbd9", MUTED),
+    "container": ("#17141f", ACCENT,   INK,       MUTED),
+    "store":     ("#141220", "#6d5bb0", INK,      MUTED),
+    "component": ("#16131f", "#3c3849", INK,      MUTED),
+    "node":      ("#100e1a", "#3c3849", INK,      MUTED),
+    "accentbox": ("#251d3d", ACCENT,   ACCENT_D,  "#a9a3bb"),
 }
 
 def esc(s): return html.escape(s, quote=True)
@@ -77,7 +82,7 @@ def arrow(x1, y1, x2, y2, label="", dash=False, side="mid", off=0):
         mx, my = (x1+x2)/2, (y1+y2)/2
         tw = len(label) * 5.6 + 10
         s += (f'<rect x="{mx-tw/2}" y="{my-9+off}" width="{tw}" height="16" rx="4" '
-              f'fill="{PAPER}" opacity="0.95"/>\n')
+              f'fill="{PAPER}" opacity="0.92"/>\n')
         s += caption(mx, my+3+off, label, 10.5, MUTED, "middle", "500")
     return s
 

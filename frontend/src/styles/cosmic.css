@@ -474,15 +474,29 @@
    ============================================================ */
 .cz-login-root { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; position: relative; }
 .cz-login-aside { position: relative; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--cz-rule); overflow: hidden; }
-/* Holds the ray-traced <Singularity>. Dimmer and edge-feathered than the
-   CSS event horizon it replaced: the real accretion disk has a genuinely
-   blown-out Doppler limb, which at full strength cuts straight through the
-   hero copy and the ledger figures sitting on top of it. */
-.cz-login-aside-bg {
-  position: absolute; inset: 0; z-index: 0;
-  display: grid; place-items: center;
+/* The ray-traced <Singularity> on the auth screens, centred on the
+   VIEWPORT rather than on a pane. <CometField> is a full-viewport canvas
+   whose comets orbit its scene origin, which projects to the centre of the
+   screen — so the hole has to live there too, or the comets orbit empty
+   space.
+
+   Sized well under the comet orbits on purpose: the shadow's apparent
+   radius has to stay inside the smallest cometary perihelion, otherwise
+   comets visibly dive through the black hole.
+
+   Dimmed and feathered because the real accretion disk has a blown-out
+   Doppler limb which at full strength cuts through the copy over it. */
+.cz-cosmos-hole {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(56vmin, 500px);
+  aspect-ratio: 1;
+  z-index: 0;
+  pointer-events: none;
   opacity: 0.5;
-  mask-image: radial-gradient(72% 62% at 50% 50%, #000 42%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 56%, transparent 100%);
 }
 .cz-login-aside-head, .cz-login-aside-body, .cz-login-aside-foot { position: relative; z-index: 1; }
 .cz-login-aside-head { display: flex; align-items: center; justify-content: space-between; }
