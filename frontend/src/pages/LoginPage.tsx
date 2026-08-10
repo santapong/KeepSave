@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { login as apiLogin } from '../api/client';
 import { EventHorizon } from '../components/cosmic/EventHorizon';
 import { KsMark } from '../components/cosmic/KsMark';
 import { Starfield } from '../components/cosmic/Starfield';
+import { CometField } from '../components/cosmic/CometField';
+import { useCosmicEntrance } from '../hooks/useCosmicEntrance';
 import type { User } from '../types';
 
 interface LoginPageProps {
@@ -41,9 +43,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   }
 
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useCosmicEntrance(rootRef, '.cz-login-aside-head, .cz-login-aside-body > *, .cz-login-aside-foot, .cz-login-card > *');
+
+
   return (
-    <div className="cz-login-root">
+    <div className="cz-login-root" ref={rootRef}>
       <Starfield />
+      <CometField />
 
       {/* Hero pane */}
       <aside className="cz-login-aside">

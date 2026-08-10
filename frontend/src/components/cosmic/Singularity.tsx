@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type * as THREE_NS from 'three';
 import { EventHorizon } from './EventHorizon';
+import { prefersReducedMotion } from '@/lib/motion';
 
 /**
  * Singularity — a ray-traced Schwarzschild black hole.
@@ -231,11 +232,6 @@ const LENS_FRAG = /* glsl */ `
   }
 `;
 
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false;
-  if (document.documentElement.dataset.motion === 'off') return true;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 export function Singularity({ size = 560, className }: SingularityProps) {
   const hostRef = useRef<HTMLDivElement>(null);

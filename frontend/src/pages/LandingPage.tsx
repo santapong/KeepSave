@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { animate, stagger } from 'animejs';
+import { prefersReducedMotion as motionOff } from '@/lib/motion';
 import { Starfield } from '../components/cosmic/Starfield';
 import { Singularity } from '../components/cosmic/Singularity';
 import { KsMark } from '../components/cosmic/KsMark';
@@ -136,11 +137,6 @@ const NAV: Array<[string, string]> = [
   ['Docs', REPO],
 ];
 
-function motionOff(): boolean {
-  if (typeof window === 'undefined') return true;
-  if (document.documentElement.dataset.motion === 'off') return true;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 /* ------------------------------------------------------------------ */
 

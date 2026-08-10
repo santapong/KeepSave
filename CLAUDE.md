@@ -104,7 +104,20 @@ docker-compose up --build                  # Run everything
 - **TypeScript**: Strict mode enabled. Use functional components with hooks. No `any` types.
 - **Tests**: Table-driven tests in Go. React Testing Library for frontend.
 - **Commits**: Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`).
-- **Branches**: Feature branches off `main`. PRs required for `main`.
+- **Branches**: exactly two are permanent — `main` (production) and
+  `develop` (integration). Everything else is short-lived, branched off
+  `develop`, and deleted once merged:
+
+  | Prefix        | For                                              |
+  |---------------|--------------------------------------------------|
+  | `feat/`       | new features and fixes headed for release        |
+  | `test/`       | trial runs, spikes on test infrastructure        |
+  | `experiment/` | throwaway exploration, not expected to merge     |
+
+  Flow is `feat/x → develop → main`. PRs are required for `main`; direct
+  commits to it are not allowed. Delete the branch after merge — the
+  prefixes exist so the branch list stays readable, which only works if
+  merged branches are pruned.
 - **Error responses**: handlers must never return `err.Error()` directly to clients — use the `httperror` package described in [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md). Lint enforced.
 - **Audit log**: every state-mutating handler (secret/project/api-key/promotion) MUST emit an audit event from the canonical taxonomy in [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md), and the test MUST assert the audit row was written. PRs failing either are rejected.
 

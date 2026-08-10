@@ -55,6 +55,28 @@ or promotion-engine changes — this release is frontend and docs only.
   text — the inline annotations are its whole value — and now
   cross-references the view set.
 
+### Added — cosmic auth screens
+
+- **`frontend/src/components/cosmic/CometField.tsx`** - WebGL backdrop for
+  the login and register screens, and the companion piece to the landing
+  page's `Singularity`: the landing shows the hole, this shows what falls
+  into it. Newtonian trajectories (`a = -GM·r̂/r²`) — correct here because
+  these are matter, not light — rendered as tapering point trails.
+- **`frontend/src/hooks/useCosmicEntrance.ts`** - shared anime.js staggered
+  entrance for both auth screens.
+- **`frontend/src/lib/motion.ts`** - one feature-detected
+  `prefersReducedMotion()`, replacing four duplicated copies that called
+  `window.matchMedia` unguarded. It is absent in jsdom and some embedded
+  webviews, which broke the LoginPage test suite.
+
+### Fixed
+
+- The auth-screen entrance could leave the form **permanently invisible**.
+  anime.js v4 drives animations through the Web Animations API, which
+  composites over the inline style rather than replacing it, so the
+  resting value underneath stayed `opacity: 0`. The hook now clears the
+  inline hiding styles on completion, with a timer as a backstop.
+
 ### Changed — design system
 
 - **Typography** is now Geist + Geist Mono, replacing Space Grotesk +
