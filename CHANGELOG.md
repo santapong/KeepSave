@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — documentation
+
+- **`README.md` is about KeepSave only.** 637 lines down to ~300. The
+  308-line "Integrations" section — nearly half the file, and entirely
+  about NEXUS and MedQCNN — was fully duplicated by
+  `docs/nexus_integration.md` and `docs/medqcnn_integration.md`, so it was
+  removed rather than moved. The two overlapping documentation sections
+  are merged into one, and the 97-line API dump is replaced by an
+  endpoint map pointing at the full reference.
+- **`docs/INTEGRATIONS.md`** is new: the single hub for everything that
+  plugs in. First-party (SDKs, GitHub Actions, GitLab CI, Terraform, the
+  embed widget, MCP clients) and partner products (NEXUS, MedQCNN,
+  Grovernance, Seidr), plus the five-step shape every integration follows.
+
+### Fixed — documentation accuracy
+
+- The Go SDK was documented as `go get`-able. It is not: `sdks/go/` sits
+  in no Go module (the only `go.mod` is `backend/go.mod`), so that command
+  fails. `docs/INTEGRATIONS.md` now states the real situation and it is
+  tracked in `docs/FOLLOWUPS.md`.
+
 ---
 
 ## [1.3.0] - 2026-08-11

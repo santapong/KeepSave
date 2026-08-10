@@ -6,87 +6,89 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&labelColor=0b0a12)](https://react.dev)
 [![License](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square&labelColor=0b0a12)](#license)
 
-Secure environment variable storage, OAuth 2.0 identity provider, and Central MCP Server Hub for AI Agents and development teams.
+**Your agents need secrets. Your repo doesn't.**
 
-## Problem
+KeepSave is an encrypted vault, an OAuth 2.0 identity provider, and an MCP
+server hub in one service. It seals every value with AES-256-GCM under a
+per-project key, then releases it to your agents, pipelines and MCP servers on
+demand — so it never lands in a `.env`, a prompt, or a chat log.
 
-AI Agents and CI/CD pipelines need access to environment variables (API keys, database URLs, feature flags), but storing them in `.env` files, code, or chat logs exposes sensitive data. Promoting configurations between environments (Alpha -> UAT -> PROD) is manual and error-prone. MCP servers need API tokens to function, but distributing those tokens securely across multiple servers is a challenge.
+---
 
-## Solution
+## The problem
 
-KeepSave provides:
+AI agents and CI pipelines need API keys, database URLs and feature flags. The
+usual answers all leak:
 
-- **Encrypted vault** - AES-256-GCM encryption at rest for all secret values
-- **Environment promotion** - One-click promotion pipeline: Alpha -> UAT -> PROD with diff review, audit trail, and rollback
-- **API key access for AI Agents** - Scoped API keys let agents fetch secrets without exposing them in prompts or code
-- **OAuth 2.0 Provider** - Full identity provider (like Okta) with authorization code, client credentials, PKCE, and refresh token flows
-- **Central MCP Server Hub** - Register MCP servers from GitHub, discover and install from a marketplace, and route tool calls through a unified gateway with automatic secret injection
-- **Embeddable widget** - A `<keepsave-widget>` Web Component that integrates into any website via a single `<script>` tag
+- `.env` files get committed, copied into Slack, and pasted into prompts.
+- Promoting config from Alpha to UAT to PROD is manual, so it drifts — and the
+  one time it doesn't drift, nobody can prove it.
+- MCP servers each need their own tokens, so every new tool multiplies the
+  number of places a credential lives.
 
-## System Architecture
+The failure mode is never the encryption. It's the copy someone made.
+
+## What KeepSave does
+
+| | |
+|---|---|
+| **Encrypted vault** | AES-256-GCM envelope encryption, per-project data keys, master key held in a KMS and never written to the database |
+| **Environment promotion** | Alpha → UAT → PROD with diff review, audit trail, rollback, and optional multi-party approval on PROD |
+| **Scoped agent access** | Read-only API keys bound to one project and one environment, so a leaked runtime key cannot reach production |
+| **OAuth 2.0 provider** | A full identity provider — authorization code, client credentials, PKCE, refresh token, OIDC discovery |
+| **MCP server hub** | Register servers from GitHub, browse a marketplace, and route tool calls through one gateway that injects secrets as env vars at call time |
+| **Embeddable widget** | A `<keepsave-widget>` Web Component that drops into any site with one `<script>` tag |
+
+The load-bearing property across all of it: **the agent never receives the
+credential.** The gateway resolves it, hands it to the server as an environment
+variable, writes an audit event, and returns only the tool result.
+
+## Architecture
 
 ![C4 Level 2 — KeepSave containers](docs/diagrams/c4-2-container.svg)
 
-For the full diagram set — C4 levels 1–3 and the 4+1 views (logical,
-process, development, physical and scenarios) — see
+The crypto layer is only ever reached through the service layer, and the MCP
+gateway resolves secrets through that same path rather than reading storage
+directly. Nothing bypasses it.
+
+For the full picture — C4 levels 1–3 and the 4+1 views (logical, process,
+development, physical, and a scenario walkthrough of an agent tool call) — see
 [`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md).
 
-### OAuth 2.0 Flow
-
-![OAuth 2.0 authorization code flow](docs/diagrams/flow-oauth.svg)
-
-### MCP Gateway Flow
-
-![MCP gateway flow — agent tool call with secret injection](docs/diagrams/view-scenario-mcp.svg)
-
-### Environment Promotion Pipeline
+### Environment promotion
 
 ![Environment promotion pipeline](docs/diagrams/flow-promotion.svg)
 
-## Tech Stack
+Every hop previews its diff before applying, writes an audit row when it does,
+and can be rolled back. The whole pipeline has a kill switch:
+`KEEPSAVE_PROMOTIONS_ENABLED=false` makes `/promote` and `/approve` return 503.
 
-| Layer        | Technology                         |
-|-------------|-------------------------------------|
-| Backend     | Go 1.24+ with Gin framework         |
-| Database    | PostgreSQL 16, MySQL, SQLite        |
-| Encryption  | AES-256-GCM (envelope encryption)   |
-| Auth        | JWT + API keys + OAuth 2.0 Provider |
-| Frontend    | React 18 + TypeScript + Vite        |
-| Embed SDK   | Web Components (Shadow DOM)         |
-| MCP Hub     | GitHub integration + process runner |
-| Container   | Docker + Docker Compose + Helm      |
-| Observability | Prometheus metrics + OpenTelemetry |
+---
 
-## Quick Start
+## Quick start
 
-### Prerequisites
-
-- Docker and Docker Compose
-- Go 1.22+ (for local backend development)
-- Node.js 20+ (for local frontend development)
-
-### Run with Docker Compose
+**Prerequisites:** Docker and Docker Compose. For local development, Go 1.24+
+and Node.js 20+.
 
 ```bash
-# Clone the repository
 git clone https://github.com/santapong/KeepSave.git
 cd KeepSave
 
-# Generate a master encryption key
+# The master key never lives in the database — generate it and keep it out.
 export MASTER_KEY=$(openssl rand -base64 32)
 
-# Start all services
 docker-compose up --build
 ```
 
-The API will be available at `http://localhost:8080` and the dashboard at `http://localhost:3000`.
+API on `http://localhost:8080`, dashboard on `http://localhost:3000`.
 
-### Local Development
+<details>
+<summary>Running the services directly</summary>
 
 ```bash
 # Backend
 cd backend
-cp .env.example .env        # Configure database and keys
+cp .env.example .env        # configure database and keys
 go run ./cmd/server
 
 # Frontend
@@ -95,542 +97,204 @@ npm install
 npm run dev
 ```
 
-## API Overview
+</details>
 
-### Authentication
-
-```bash
-# Register
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secure-password"}'
-
-# Generate API key (for AI Agent use)
-curl -X POST http://localhost:8080/api/v1/api-keys \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"name": "my-agent", "project_id": "...", "scopes": ["read"]}'
-```
-
-### Secrets
+### First secret, end to end
 
 ```bash
-# Store a secret
-curl -X POST http://localhost:8080/api/v1/projects/:id/secrets \
-  -H "X-API-Key: ks_xxxx" \
-  -d '{"key": "DATABASE_URL", "value": "postgres://...", "environment": "alpha"}'
+# 1. Register, and create a project — the unit of isolation
+curl -X POST localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"a-strong-password"}'
 
-# Retrieve secrets (values are decrypted server-side, returned over TLS)
-curl http://localhost:8080/api/v1/projects/:id/secrets?environment=alpha \
-  -H "X-API-Key: ks_xxxx"
+# 2. Store a secret in the alpha environment
+curl -X POST localhost:8080/api/v1/projects/$PROJECT/secrets \
+  -H "Authorization: Bearer $JWT" \
+  -d '{"key":"DATABASE_URL","value":"postgres://…","environment":"alpha"}'
+
+# 3. Issue a read-only key for an agent, scoped to alpha only
+curl -X POST localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer $JWT" \
+  -d '{"name":"my-agent","project_id":"'$PROJECT'","scopes":["read"],"environment":"alpha"}'
+
+# 4. The agent fetches what it needs, and nothing else
+curl "localhost:8080/api/v1/projects/$PROJECT/secrets?environment=alpha" \
+  -H "X-API-Key: ks_live_…"
 ```
 
-### Environment Promotion
+## API
 
-```bash
-# Preview what will change (diff)
-curl -X POST http://localhost:8080/api/v1/projects/:id/promote/diff \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"source_environment": "alpha", "target_environment": "uat"}'
+| Area | Base path | What lives there |
+|---|---|---|
+| Auth | `/api/v1/auth` | Register, login, JWT issue and refresh |
+| API keys | `/api/v1/api-keys` | Scoped machine credentials for agents and CI |
+| Projects & secrets | `/api/v1/projects` | Projects, environments, sealed values |
+| Promotion | `/api/v1/projects/:id/promote` | Diff preview, apply, approve, rollback |
+| OAuth 2.0 | `/api/v1/oauth`, `/.well-known/openid-configuration` | Clients, authorize, token, OIDC discovery |
+| MCP hub | `/api/v1/mcp` | Server registry, marketplace, installations, gateway |
+| Health & metrics | `/healthz`, `/metrics` | Liveness and Prometheus |
 
-# Promote alpha -> uat
-curl -X POST http://localhost:8080/api/v1/projects/:id/promote \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"source_environment": "alpha", "target_environment": "uat", "override_policy": "skip"}'
-```
-
-### OAuth 2.0 Provider
-
-```bash
-# Register an OAuth client
-curl -X POST http://localhost:8080/api/v1/oauth/clients \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"name": "My App", "redirect_uris": ["https://myapp.com/callback"], "scopes": ["read"], "grant_types": ["authorization_code"]}'
-
-# Get authorization code
-curl "http://localhost:8080/api/v1/oauth/authorize?response_type=code&client_id=ks_xxx&redirect_uri=https://myapp.com/callback&scope=read" \
-  -H "Authorization: Bearer <jwt-token>"
-
-# Exchange code for tokens
-curl -X POST http://localhost:8080/api/v1/oauth/token \
-  -d '{"grant_type": "authorization_code", "code": "xxx", "client_id": "ks_xxx", "client_secret": "xxx", "redirect_uri": "https://myapp.com/callback"}'
-
-# Client credentials grant (M2M)
-curl -X POST http://localhost:8080/api/v1/oauth/token \
-  -d '{"grant_type": "client_credentials", "client_id": "ks_xxx", "client_secret": "xxx"}'
-
-# OIDC Discovery
-curl http://localhost:8080/.well-known/openid-configuration
-```
-
-### MCP Server Hub
-
-```bash
-# Register an MCP server from GitHub
-curl -X POST http://localhost:8080/api/v1/mcp/servers \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"name": "my-mcp-server", "github_url": "https://github.com/user/mcp-server", "github_branch": "main", "is_public": true}'
-
-# Browse public marketplace
-curl http://localhost:8080/api/v1/mcp/servers/public
-
-# Install an MCP server
-curl -X POST http://localhost:8080/api/v1/mcp/installations \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"mcp_server_id": "uuid-here"}'
-
-# Call a tool through the gateway
-curl -X POST http://localhost:8080/api/v1/mcp/gateway \
-  -H "Authorization: Bearer <jwt-token>" \
-  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "tool_name", "arguments": {}}}'
-
-# List all available tools across installed servers
-curl http://localhost:8080/api/v1/mcp/gateway/tools \
-  -H "Authorization: Bearer <jwt-token>"
-
-# Get MCP config for Claude Desktop/Code
-curl http://localhost:8080/api/v1/mcp/config \
-  -H "Authorization: Bearer <jwt-token>"
-```
-
-## Embedding the Widget
-
-Add the widget to any website:
-
-```html
-<script src="https://your-keepsave-host/embed/keepsave-widget.js"></script>
-<keepsave-widget
-  api-url="https://your-keepsave-host"
-  project-id="your-project-id"
-  theme="dark">
-</keepsave-widget>
-```
-
-## Project Structure
-
-```
-keepsave/
-├── backend/                  # Go (Gin) REST API
-│   ├── cmd/server/           # Entry point
-│   ├── internal/
-│   │   ├── api/              # HTTP handlers & middleware
-│   │   ├── auth/             # JWT + API keys
-│   │   ├── crypto/           # AES-256-GCM encryption
-│   │   ├── models/           # Domain models (OAuth, MCP, etc.)
-│   │   ├── repository/       # Database access (multi-dialect)
-│   │   ├── service/          # Business logic
-│   │   ├── events/           # Event bus
-│   │   ├── plugins/          # Plugin registry
-│   │   ├── metrics/          # Prometheus metrics
-│   │   └── tracing/          # Distributed tracing
-│   └── migrations/           # SQL migrations (PG, MySQL, SQLite)
-├── frontend/                 # React + TypeScript + Vite
-│   ├── src/
-│   │   ├── pages/            # Route pages (MCP Hub, OAuth, etc.)
-│   │   ├── components/       # UI components
-│   │   ├── api/              # API client
-│   │   ├── types/            # TypeScript interfaces
-│   │   └── embed/            # Embeddable widget SDK
-├── sdks/                     # Client SDKs (Node.js, Go, Python)
-├── integrations/             # Terraform, GitHub Actions, GitLab CI
-├── helm/                     # Kubernetes Helm chart
-└── docker-compose.yml        # Full stack orchestration
-```
-
-## Feature Phases
-
-| Phase | Feature | Status |
-|-------|---------|--------|
-| 1-5   | Core: Auth, Secrets, Promotion, Widget | Done |
-| 6     | Organizations, Templates, Dependencies | Done |
-| 7     | Observability (Metrics, Tracing) | Done |
-| 8     | OpenAPI Specification | Done |
-| 9     | Enterprise (SSO, Compliance, Backups) | Done |
-| 10    | Security Hardening (Rate Limit, CSRF) | Done |
-| 11    | AI Agent Experience (Leases, Analytics) | Done |
-| 12    | Platform Ecosystem (Events, Plugins) | Done |
-| 13    | **OAuth 2.0 Provider + MCP Server Hub** | **Done** |
+Full request and response shapes, including every error code, are in
+[`docs/system/03-api-reference.md`](docs/system/03-api-reference.md). An OpenAPI
+specification ships with the backend.
 
 ## Security
 
-- All secret values encrypted using AES-256-GCM with envelope encryption
-- Master key never stored in the database
-- API keys are scoped per-project and per-environment
-- OAuth 2.0 with PKCE support for public clients
-- Full audit log for all secret access and promotion events
-- Rate limiting (100 req/s, 200 burst)
-- Security headers (X-Frame-Options, CSP, etc.)
-- CORS restrictions for the embeddable widget
+KeepSave holds other people's secrets, so the guarantees are the product:
 
-## Project Documentation
+- **Sealed before storage.** AES-256-GCM envelope encryption with per-project
+  data keys. No secret value is written to disk unsealed.
+- **The master key is never in the database.** It comes from a KMS or an
+  env-provided root key, and unwraps data keys in memory.
+- **Least privilege by construction.** API keys are scoped per-project and
+  per-environment; PROD promotion can require multi-party approval.
+- **Nothing leaks through errors.** Handlers never return raw error strings —
+  see [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md).
+- **Every mutation is audited.** State-mutating handlers must emit an event from
+  the canonical taxonomy, and the test must assert the row was written.
+- **Hardened by default.** Rate limiting keyed on a derived client IP
+  (`TRUSTED_PROXIES` defaults to trusting no proxy, so `X-Forwarded-For` cannot
+  spoof it), CSRF protection, security headers, and CORS restricted for the
+  embeddable widget.
 
-| Document | Description |
-|----------|-------------|
-| [CLAUDE.md](./CLAUDE.md) | Development guide and conventions |
-| [docs/ARCHITECTURE_VIEWS.md](./docs/ARCHITECTURE_VIEWS.md) | C4 levels 1–3 and the 4+1 views, as SVG |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Package dependency map and trust boundaries |
-| [Roadmap.md](./Roadmap.md) | Phased delivery plan |
-| [MedQCNN Integration](./docs/medqcnn_integration.md) | Integration guide for MedQCNN quantum diagnostics |
-| [NEXUS Integration](./docs/nexus_integration.md) | Integration guide for NEXUS Agentic AI platform |
+The STRIDE pass with `file:line` references is in
+[`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md); release posture is in
+[`SECURITY_AUDIT.md`](SECURITY_AUDIT.md).
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Go 1.24 with Gin |
+| Database | PostgreSQL 16, MySQL, SQLite |
+| Encryption | AES-256-GCM, envelope encryption |
+| Auth | JWT, scoped API keys, OAuth 2.0 provider |
+| Frontend | React 19, TypeScript, Vite, Tailwind v4 |
+| Embed SDK | Web Components with Shadow DOM |
+| MCP hub | GitHub integration and process runner |
+| Deploy | Docker Compose, Helm |
+| Observability | Prometheus metrics, OpenTelemetry |
+
+## Repository layout
+
+```
+keepsave/
+├── backend/              # Go (Gin) REST API
+│   ├── cmd/server/       # entry point
+│   ├── internal/
+│   │   ├── api/          # handlers, middleware
+│   │   ├── auth/         # JWT + API keys
+│   │   ├── crypto/       # AES-256-GCM         ← Security Engineer veto
+│   │   ├── service/      # business logic
+│   │   ├── promotion/    # promotion engine    ← Security Engineer veto
+│   │   └── repository/   # SQL, driver-agnostic
+│   └── migrations/       # embedded in the binary
+├── frontend/             # React 19 + Vite dashboard, and the embed widget
+├── sdks/                 # Go · Node.js · Python
+├── integrations/         # GitHub Action · GitLab CI · Terraform
+├── helm/                 # Kubernetes chart
+└── docs/                 # architecture, ADRs, threat model, runbook
+```
 
 ## Integrations
 
-### NEXUS Integration
+SDKs for Go, Node.js and Python; GitHub Actions, GitLab CI and a Terraform
+provider; the embeddable widget; and any MCP-speaking client.
 
-KeepSave integrates with [NEXUS](https://github.com/santapong/Nexus), an Agentic AI Company-as-a-Service platform where every department is staffed by an AI agent (CEO, Engineer, Analyst, Writer, QA, Prompt Creator).
+**→ [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)** covers all of them, plus the
+partner products that use KeepSave as their vault.
 
-| KeepSave Role | What It Does for NEXUS |
-|--------------|------------------------|
-| **Secret Vault** | Stores LLM API keys (Anthropic, Google, OpenAI, Groq, Mistral), database URLs, JWT secrets, Kafka credentials |
-| **OAuth Provider** | Issues authentication tokens for NEXUS API and A2A gateway access |
-| **MCP Hub** | Hosts NEXUS agent tools for external discovery |
-| **Promotion Engine** | Manages NEXUS configs across dev ($5/day limit) → staging ($10/day) → production ($50/day) |
-| **API Key Manager** | Scoped, time-limited keys for NEXUS agents to fetch secrets at runtime |
-| **Audit System** | Tracks all secret access — critical for NEXUS multi-tenant compliance |
+---
 
-**Quick start:**
-```bash
-# 1. Create NEXUS project in KeepSave
-curl -X POST http://localhost:8080/api/v1/projects \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name": "nexus", "description": "Agentic AI Company-as-a-Service"}'
+## Documentation
 
-# 2. Import NEXUS secrets
-keepsave import --project <nexus-id> --env alpha --file /path/to/Nexus/.env
+KeepSave handles other people's secrets, so the project runs on explicit
+decision records, role mandates and operating rituals rather than convention.
 
-# 3. Create runtime API key
-curl -X POST http://localhost:8080/api/v1/api-keys \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name": "nexus-runtime", "project_id": "<nexus-id>", "scopes": ["read"], "environment": "alpha"}'
+**Start here**
 
-# 4. NEXUS fetches secrets at startup via Python SDK
-# Only KEEPSAVE_URL, KEEPSAVE_API_KEY, KEEPSAVE_PROJECT_ID needed in .env
-```
+| Document | What it answers |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Conventions, branch model, decision classes |
+| [`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md) | C4 levels 1–3 and the 4+1 views, as SVG |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Package dependency map and trust boundaries |
+| [`docs/system/`](docs/system/) | Per-subsystem reference, including the API |
+| [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) | Everything that plugs in |
 
-For the full guide, see [docs/nexus_integration.md](./docs/nexus_integration.md).
+<details>
+<summary><strong>Decisions and architecture</strong></summary>
 
-### MedQCNN Integration
-
-KeepSave integrates with [MedQCNN](https://github.com/santapong/MedQCNN), a hybrid quantum-classical CNN for medical image diagnostics. This integration provides secure secret management, centralized MCP server hosting, and OAuth-based authentication for MedQCNN deployments.
-
-### Integration Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        KeepSave Platform                            │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                      Secret Vault                            │   │
-│  │                                                              │   │
-│  │  Project: "medqcnn"                                          │   │
-│  │  ┌─────────────┬──────────────┬──────────────┐              │   │
-│  │  │    Alpha     │     UAT      │     PROD     │              │   │
-│  │  ├─────────────┼──────────────┼──────────────┤              │   │
-│  │  │ DATABASE_URL │ DATABASE_URL │ DATABASE_URL │              │   │
-│  │  │ JWT_SECRET   │ JWT_SECRET   │ JWT_SECRET   │              │   │
-│  │  │ KAFKA_CREDS  │ KAFKA_CREDS  │ KAFKA_CREDS  │              │   │
-│  │  │ OPENAI_KEY   │ OPENAI_KEY   │ OPENAI_KEY   │              │   │
-│  │  │ N_QUBITS=4   │ N_QUBITS=4   │ N_QUBITS=8   │              │   │
-│  │  └──────┬──────┴──────┬───────┴──────┬───────┘              │   │
-│  │         │  promote ──►│  promote ──► │                       │   │
-│  └─────────┼─────────────┼──────────────┼───────────────────────┘   │
-│            │             │              │                           │
-│  ┌─────────▼─────────────▼──────────────▼───────────────────────┐   │
-│  │                    MCP Server Hub                             │   │
-│  │                                                              │   │
-│  │  ┌────────────────────────────────────┐                      │   │
-│  │  │ MedQCNN MCP Server                 │                      │   │
-│  │  │ Tools: diagnose, model_info,       │                      │   │
-│  │  │        list_datasets               │                      │   │
-│  │  │ Secrets auto-injected as env vars  │                      │   │
-│  │  └────────────────────────────────────┘                      │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │              OAuth 2.0 Identity Provider                     │   │
-│  │  MedQCNN registered as OAuth client                         │   │
-│  │  Tokens issued for API + agent authentication               │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                    Secrets + Auth tokens
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        MedQCNN Service                              │
-│                                                                     │
-│  Medical Image → [ResNet-18] → [Quantum Circuit] → Diagnosis       │
-│                                                                     │
-│  Endpoints: /predict, /predict/batch, /health, /info               │
-│  MCP Tools: diagnose, model_info, list_datasets                    │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### What MedQCNN Is
-
-MedQCNN is a hybrid quantum-classical neural network for medical image classification:
-
-- **Classical Component (Node A)**: Frozen ResNet-18 backbone compresses images to a 256-dimensional latent vector
-- **Quantum Component (Node B)**: Parameterized quantum circuit with amplitude encoding and hardware-efficient ansatz (Ry/Rz/CZ gates)
-- **Use Case**: Binary/multi-class classification of medical images (breast ultrasound, pathology, dermatoscopy, CT scans)
-- **Edge Deployment**: Designed for Raspberry Pi 5 clusters with 8-qubit cap
-
-### Integration Points
-
-| KeepSave Feature | MedQCNN Usage |
-|-----------------|---------------|
-| **Secret Vault** | Stores `DATABASE_URL`, `JWT_SECRET_KEY`, `KAFKA_BOOTSTRAP_SERVERS`, `OPENAI_API_KEY`, `CHECKPOINT_PATH` |
-| **Environment Promotion** | Promotes MedQCNN configs through Alpha (4 qubits, SQLite) → UAT (4 qubits, PostgreSQL) → PROD (8 qubits, PostgreSQL) |
-| **MCP Server Hub** | Hosts MedQCNN's MCP server (`diagnose`, `model_info`, `list_datasets` tools) in the marketplace |
-| **OAuth 2.0** | Provides identity provider for MedQCNN API authentication |
-| **API Keys** | Issues scoped keys for agents accessing MedQCNN diagnostics |
-| **Python SDK** | MedQCNN uses `keepsave` Python package to fetch secrets at runtime |
-| **MCP Gateway** | Routes AI agent tool calls to MedQCNN with automatic secret injection |
-
-### Step 1: Create a MedQCNN Project in KeepSave
-
-```bash
-# Via CLI
-keepsave login --api-url http://localhost:8080 --email admin@example.com
-curl -X POST http://localhost:8080/api/v1/projects \
-  -H "Authorization: Bearer <token>" \
-  -d '{"name": "medqcnn", "description": "MedQCNN Quantum Medical Diagnostics"}'
-```
-
-### Step 2: Store MedQCNN Secrets
-
-```bash
-# Import from MedQCNN's .env file
-keepsave import --project <medqcnn-id> --env alpha --file /path/to/MedQCNN/.env
-
-# Or store individually
-keepsave push --project <medqcnn-id> --env alpha --file - <<'EOF'
-DATABASE_URL=postgresql://medqcnn:medqcnn@localhost:5432/medqcnn
-JWT_SECRET_KEY=your-strong-secret
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-N_QUBITS=4
-CHECKPOINT_PATH=checkpoints/model_final.pt
-EOF
-```
-
-### Step 3: Register MedQCNN MCP Server
-
-```bash
-curl -X POST http://localhost:8080/api/v1/mcp/servers \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "name": "medqcnn",
-    "description": "Hybrid Quantum-Classical CNN for Medical Image Diagnostics — diagnose medical images, get model info, and list available datasets",
-    "github_url": "https://github.com/santapong/MedQCNN",
-    "github_branch": "main",
-    "entry_command": "uv run python scripts/mcp_server.py",
-    "transport": "stdio",
-    "is_public": true,
-    "env_mappings": {
-      "DATABASE_URL": "medqcnn/alpha/DATABASE_URL",
-      "JWT_SECRET_KEY": "medqcnn/alpha/JWT_SECRET_KEY",
-      "CHECKPOINT_PATH": "medqcnn/alpha/CHECKPOINT_PATH"
-    },
-    "tool_definitions": {
-      "diagnose": {
-        "description": "Analyze a medical image and return a diagnostic prediction with quantum expectation values",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "image_path": {"type": "string", "description": "Absolute path to a medical image (PNG, JPG, DICOM)"}
-          },
-          "required": ["image_path"]
-        }
-      },
-      "model_info": {
-        "description": "Get model architecture, parameter counts, and quantum circuit details"
-      },
-      "list_datasets": {
-        "description": "List available MedMNIST benchmark datasets for training and evaluation"
-      }
-    }
-  }'
-```
-
-### Step 4: Call MedQCNN Tools via KeepSave Gateway
-
-AI agents can call MedQCNN tools through the KeepSave MCP gateway without direct access to MedQCNN credentials:
-
-```bash
-# List available tools (includes MedQCNN tools)
-curl http://localhost:8080/api/v1/mcp/gateway/tools \
-  -H "Authorization: Bearer <token>"
-
-# Call MedQCNN diagnose tool through the gateway
-curl -X POST http://localhost:8080/api/v1/mcp/gateway \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "diagnose",
-      "arguments": {
-        "image_path": "/path/to/medical-scan.png"
-      }
-    }
-  }'
-```
-
-### Step 5: Environment Promotion for MedQCNN
-
-Manage MedQCNN configurations across deployment stages:
-
-```bash
-# Alpha (development): 4 qubits, SQLite, demo mode
-# UAT (testing): 4 qubits, PostgreSQL, full auth
-# PROD (production): 8 qubits, PostgreSQL, Kafka, full auth
-
-# Preview promotion diff
-keepsave promote --project <medqcnn-id> --from alpha --to uat --dry-run
-
-# Promote (copies encrypted secrets to target environment)
-keepsave promote --project <medqcnn-id> --from alpha --to uat
-
-# PROD promotion (may require multi-party approval)
-keepsave promote --project <medqcnn-id> --from uat --to prod
-```
-
-### Step 6: OAuth 2.0 for MedQCNN API
-
-Register MedQCNN as an OAuth client to use KeepSave as the identity provider:
-
-```bash
-# Register MedQCNN as OAuth client
-curl -X POST http://localhost:8080/api/v1/oauth/clients \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "name": "MedQCNN API",
-    "redirect_uris": ["http://localhost:8000/auth/callback"],
-    "scopes": ["read", "write"],
-    "grant_types": ["authorization_code", "client_credentials"]
-  }'
-
-# Machine-to-machine authentication (agent → MedQCNN)
-curl -X POST http://localhost:8080/api/v1/oauth/token \
-  -d '{
-    "grant_type": "client_credentials",
-    "client_id": "ks_medqcnn_xxx",
-    "client_secret": "xxx"
-  }'
-```
-
-### MedQCNN Secrets Reference
-
-| Secret Key | Environment | Description |
-|------------|-------------|-------------|
-| `DATABASE_URL` | All | PostgreSQL connection string (`sqlite:///medqcnn.db` for alpha) |
-| `JWT_SECRET_KEY` | All | JWT token signing secret for API auth |
-| `API_HOST` | All | API server bind address (default: `0.0.0.0`) |
-| `API_PORT` | All | API server port (default: `8000`) |
-| `N_QUBITS` | Alpha/UAT: `4`, PROD: `8` | Number of qubits for the quantum circuit |
-| `CHECKPOINT_PATH` | UAT/PROD | Path to trained model checkpoint |
-| `KAFKA_BOOTSTRAP_SERVERS` | UAT/PROD | Kafka broker address |
-| `OPENAI_API_KEY` | All | OpenAI key for LangChain agent (optional) |
-| `MEDQCNN_API_KEY` | All | Single API key for edge deployment |
-
-### Docker Compose (KeepSave + MedQCNN)
-
-```yaml
-# Add to docker-compose.yml or docker-compose.override.yml
-services:
-  # KeepSave services
-  keepsave-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: keepsave
-      POSTGRES_PASSWORD: keepsave
-      POSTGRES_DB: keepsave
-
-  keepsave-api:
-    build: ./
-    ports:
-      - "8080:8080"
-    environment:
-      DATABASE_URL: postgresql://keepsave:keepsave@keepsave-db:5432/keepsave
-      MASTER_KEY: ${MASTER_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-    depends_on:
-      - keepsave-db
-
-  # MedQCNN services
-  medqcnn-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: medqcnn
-      POSTGRES_PASSWORD: medqcnn
-      POSTGRES_DB: medqcnn
-
-  medqcnn-api:
-    build: ../MedQCNN
-    ports:
-      - "8000:8000"
-    environment:
-      KEEPSAVE_URL: http://keepsave-api:8080
-      KEEPSAVE_API_KEY: ${KEEPSAVE_API_KEY}
-      MEDQCNN_ENV: alpha
-    depends_on:
-      - keepsave-api
-      - medqcnn-db
-```
-
-For full MedQCNN documentation, see [MedQCNN README](https://github.com/santapong/MedQCNN).
-
-## Documentation & Project Governance
-
-KeepSave handles other people's secrets, so the project is run with explicit decision records, role mandates, and operating rituals. The docs below are the substrate.
-
-### Decisions and architecture
-
-- [`docs/adr/`](docs/adr/) — Architecture Decision Records. Start with [the README](docs/adr/README.md) for when to write an ADR, the lifecycle, and the index.
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records; start with
+  [the README](docs/adr/README.md) for the lifecycle and index.
   - [`0001`](docs/adr/0001-envelope-encryption.md) Envelope encryption with AES-256-GCM
   - [`0002`](docs/adr/0002-auth-model.md) JWT for humans, API keys for agents
   - [`0003`](docs/adr/0003-promotion-engine.md) Promotion engine: decrypt-and-rewrap
   - [`0004`](docs/adr/0004-key-hierarchy.md) Two-level key hierarchy
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — one-page dependency map and trust boundaries.
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with file:line references (currently v1.2.0).
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with `file:line` refs.
 
-### Roles and execution plan
+</details>
 
-- [`docs/ROLES.md`](docs/ROLES.md) — operating model: 9 roles with owned artifacts, decision-making process, phased team composition, hiring filters.
-- [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — per-role 30/60/90 action plan for Phase A. Reviewed monthly.
-- [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — tracked technical debt with owner + due date per item.
-- [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md) — explicit non-goals so scope stays honest.
+<details>
+<summary><strong>Roles and execution</strong></summary>
 
-### Operations and security
+- [`docs/ROLES.md`](docs/ROLES.md) — 9-role operating model; the Security
+  Engineer holds veto over `internal/crypto`, `internal/auth` and the promotion
+  engine.
+- [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — per-role 30/60/90 plan.
+- [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — tracked debt with owner and due date.
+- [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md) — explicit non-goals.
+- [`docs/ADLC.md`](docs/ADLC.md) — how AI-assisted work is sequenced and gated.
 
-- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — incident runbook (lost master key, compromised API key, DB failover, rotation drill, deploy rollback drill, break-glass secret read).
-- [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md) — where KeepSave's own secrets live in dev / staging / production.
-- [`docs/PENTEST_CHECKLIST.md`](docs/PENTEST_CHECKLIST.md) — pre-release security checklist.
-- [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md) — least-privilege CI runner permissions.
-- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — security audit posture per release.
+</details>
 
-### Engineering specs (30-day deliverables)
+<details>
+<summary><strong>Operations and security</strong></summary>
 
-- [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md) — canonical event taxonomy + test obligations.
-- [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md) — `httperror` package + sanitization pattern.
-- [`docs/EMBED_STATE.md`](docs/EMBED_STATE.md) — embed widget state machine and audit-log requirements.
-- [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) — postMessage / cross-origin policy.
-- [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) — per-screen UX state spec.
-- [`tests/PYRAMID.md`](tests/PYRAMID.md) — test coverage census.
-- [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) — endpoint × attacker-case matrix.
-- [`tests/FLAKY.md`](tests/FLAKY.md) — flaky-test tracker and triage SLA.
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — lost master key, compromised API key,
+  DB failover, rotation drill, deploy rollback, break-glass secret read.
+- [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md) — where KeepSave's own
+  secrets live per environment.
+- [`docs/PENTEST_CHECKLIST.md`](docs/PENTEST_CHECKLIST.md) — pre-release checklist.
+- [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md) — least-privilege CI.
+- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — audit posture per release.
 
-### Integration guides
+</details>
 
-- [`docs/SEIDR_INTEGRATION.md`](docs/SEIDR_INTEGRATION.md)
-- [`docs/medqcnn_integration.md`](docs/medqcnn_integration.md)
-- [`docs/nexus_integration.md`](docs/nexus_integration.md)
+<details>
+<summary><strong>Engineering specs and tests</strong></summary>
 
-### Roadmap and changelogs
+- [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md) — event taxonomy and test obligations.
+- [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md) — `httperror` and sanitisation.
+- [`docs/EMBED_STATE.md`](docs/EMBED_STATE.md) · [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) — widget state machine and cross-origin policy.
+- [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) — per-screen UX states.
+- [`tests/PYRAMID.md`](tests/PYRAMID.md) · [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) · [`tests/FLAKY.md`](tests/FLAKY.md)
+
+</details>
+
+<details>
+<summary><strong>Roadmap and changelogs</strong></summary>
 
 - [`Roadmap.md`](Roadmap.md) — vision, phases, completed milestones.
 - [`CHANGELOG.md`](CHANGELOG.md) — release-by-release notes.
-- [`PHASE15_CHANGELOG.md`](PHASE15_CHANGELOG.md), [`PHASE16_CHANGELOG.md`](PHASE16_CHANGELOG.md) — phase-scoped summaries.
+- [`PHASE15_CHANGELOG.md`](PHASE15_CHANGELOG.md) · [`PHASE16_CHANGELOG.md`](PHASE16_CHANGELOG.md) — phase summaries.
+
+</details>
+
+## Status
+
+Phases 1–13 are complete: core vault and promotion, organisations and templates,
+observability, OpenAPI, enterprise SSO and compliance, security hardening, agent
+leases and analytics, the platform event/plugin system, and the OAuth 2.0
+provider with the MCP server hub. See [`Roadmap.md`](Roadmap.md) for the detail
+and what comes next.
+
+## Contributing
+
+`main` and `develop` are the only permanent branches. Work happens on short-lived
+`feat/`, `test/` or `experiment/` branches off `develop`, and PRs are required to
+reach `main`. Changes to `internal/crypto`, `internal/auth` or the promotion
+engine are Type-1 decisions: they need an ADR and Security Engineer sign-off
+before implementation. See [`CLAUDE.md`](CLAUDE.md).
 
 ## License
 

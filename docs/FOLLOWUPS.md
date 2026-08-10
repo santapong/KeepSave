@@ -298,6 +298,16 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 
 ---
 
+### Go SDK is not an importable module *(P3)*
+- **Status:** **OPEN — found while rewriting the README, 2026-08-11.** `sdks/go/keepsave.go` declares `package keepsave` but sits in no Go module: the only `go.mod` in the repo is `backend/go.mod`. `go get github.com/santapong/KeepSave/sdks/go` therefore cannot resolve it, so the Go SDK can only be used by vendoring the file.
+- **Why it matters:** the Node and Python SDKs are installable packages; Go consumers get a worse story than the docs imply. It also means the SDK is not versioned or dependency-checked independently.
+- **Fix:** add `sdks/go/go.mod` declaring `github.com/santapong/KeepSave/sdks/go`, and tag it so `go get` resolves a version.
+- **Owner:** Backend Engineer.
+- **Due:** next minor release.
+- **Related:** [`docs/INTEGRATIONS.md`](INTEGRATIONS.md) carries the caveat until this is closed.
+
+---
+
 ## Open — Phase B (multi-tenant, deferred)
 
 Captured here so they're not lost, **not** to be worked on until Phase B starts. If something on this list becomes urgent, it gets promoted to Phase A with a written reason and an explicit trade (something else gets pushed down).
