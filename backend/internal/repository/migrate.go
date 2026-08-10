@@ -3,21 +3,28 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 )
 
 func RunMigrations(db *sql.DB, dialect Dialect, migrationsDir string) error {
+	return RunMigrationsFS(db, dialect, os.DirFS(migrationsDir))
+}
+
+// RunMigrationsFS runs migrations from any fs.FS rooted at the migrations
+// directory (an os.DirFS in local/container runs, an embed.FS when the
+// binary must be self-contained).
+func RunMigrationsFS(db *sql.DB, dialect Dialect, fsys fs.FS) error {
 	// Determine the subdirectory based on dialect
-	subdir := string(dialect.DBType())
-	fullDir := filepath.Join(migrationsDir, subdir)
+	fullDir := string(dialect.DBType())
 
 	// Fall back to base directory if subdirectory doesn't exist (backward compat)
-	if _, err := os.Stat(fullDir); os.IsNotExist(err) {
-		fullDir = migrationsDir
+	if _, err := fs.Stat(fsys, fullDir); err != nil {
+		fullDir = "."
 	}
 
 	// Create schema_migrations table using dialect-appropriate SQL
@@ -30,7 +37,7 @@ func RunMigrations(db *sql.DB, dialect Dialect, migrationsDir string) error {
 		return fmt.Errorf("creating schema_migrations table: %w", err)
 	}
 
-	entries, err := os.ReadDir(fullDir)
+	entries, err := fs.ReadDir(fsys, fullDir)
 	if err != nil {
 		return fmt.Errorf("reading migrations directory %s: %w", fullDir, err)
 	}
@@ -69,7 +76,7 @@ func RunMigrations(db *sql.DB, dialect Dialect, migrationsDir string) error {
 			continue
 		}
 
-		content, err := os.ReadFile(filepath.Join(fullDir, file))
+		content, err := fs.ReadFile(fsys, path.Join(fullDir, file))
 		if err != nil {
 			return fmt.Errorf("reading migration %s: %w", file, err)
 		}

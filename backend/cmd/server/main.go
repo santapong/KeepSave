@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,6 +26,7 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/service"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
 	"github.com/santapong/KeepSave/backend/internal/version"
+	"github.com/santapong/KeepSave/backend/migrations"
 )
 
 // shutdownGracePeriod bounds how long the server waits for in-flight
@@ -50,7 +52,14 @@ func main() {
 
 	logger.Info("connected to database", map[string]interface{}{"type": string(dialect.DBType())})
 
-	if err := repository.RunMigrations(db, dialect, "migrations"); err != nil {
+	// Prefer on-disk migrations when the directory exists (local runs and the
+	// Docker image copy them); fall back to the copy embedded in the binary
+	// for hosts that deploy only the executable (e.g. Vercel's Go runtime).
+	var migrationsSource fs.FS = migrations.FS
+	if _, err := os.Stat("migrations"); err == nil {
+		migrationsSource = os.DirFS("migrations")
+	}
+	if err := repository.RunMigrationsFS(db, dialect, migrationsSource); err != nil {
 		logger.Error("failed to run migrations", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
