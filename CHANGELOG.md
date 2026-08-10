@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [1.2.1] - 2026-08-10
+
+**WebGL consistency and performance.** The auth screens get the same
+ray-traced black hole as the landing page, and the geodesic march is made
+affordable on integrated graphics. Frontend only; no API, crypto, auth or
+promotion-engine changes.
+
 ### Changed
 
 - The login and register screens now use the ray-traced `Singularity`
