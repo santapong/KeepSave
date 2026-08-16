@@ -212,7 +212,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Run gosec
-        uses: securego/gosec@d4617f51baf75f4f809066386a4f9d27b3ac3e46 # v2.21.4
+        uses: securego/gosec@9e75c0576c9878035d4221392108d458abe10fc3 # v2.28.0
         with:
           # Scan the Go backend; emit SARIF but do not fail the action on findings
           # there (-no-fail) — the SARIF upload + Security tab is the signal. Flip
