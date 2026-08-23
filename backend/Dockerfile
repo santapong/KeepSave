@@ -1,7 +1,7 @@
 # Build stage. golang:1.25-alpine matches go.mod (go 1.25.0) and CI's toolchain.
 # Digest-pinned for supply-chain integrity (INF-2); the trailing `# tag` comment
 # is the human-readable version Dependabot/Renovate bump against.
-FROM golang:1.25-alpine@sha256:523c3effe300580ed375e43f43b1c9b091b68e935a7c3a92bfcc4e7ed55b18c2 AS builder
+FROM golang:1.27-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc AS builder
 # tag: golang:1.25-alpine
 
 WORKDIR /app
