@@ -10,7 +10,7 @@ vi.mock('../api/client', () => ({
   deleteSecret: vi.fn(),
 }));
 
-import { listSecrets, createSecret } from '../api/client';
+import { listSecrets, createSecret, updateSecret } from '../api/client';
 
 const mockSecrets = [
   {
@@ -161,4 +161,35 @@ describe('SecretsPanel', () => {
       get: () => 'visible',
     });
   });
+  it('keeps the latest environment when an older request finishes late', async () => {
+    let finishAlpha!: (rows: typeof mockSecrets) => void;
+    vi.mocked(listSecrets).mockImplementationOnce(() => new Promise((resolve) => { finishAlpha = resolve; }));
+    vi.mocked(listSecrets).mockResolvedValueOnce([{ ...mockSecrets[0], id: 'uat-id', key: 'UAT_ONLY' }]);
+    const user = userEvent.setup();
+    render(<SecretsPanel projectId="p1" />);
+    await user.click(screen.getByRole('button', { name: 'uat', exact: true }));
+    await screen.findByText('UAT_ONLY');
+    finishAlpha(mockSecrets);
+    await waitFor(() => expect(screen.queryByText('DATABASE_URL')).not.toBeInTheDocument());
+    expect(screen.getByText('UAT_ONLY')).toBeInTheDocument();
+  });
+
+  it('disables competing mutations until an update is acknowledged', async () => {
+    let finishUpdate!: () => void;
+    vi.mocked(updateSecret).mockImplementationOnce(() => new Promise((resolve) => { finishUpdate = () => resolve(mockSecrets[0]); }));
+    const user = userEvent.setup();
+    render(<SecretsPanel projectId="p1" />);
+    await screen.findByText('DATABASE_URL');
+    await user.click(screen.getAllByTitle('Edit value')[0]);
+    await user.clear(screen.getByLabelText('New secret value'));
+    await user.type(screen.getByLabelText('New secret value'), crypto.randomUUID());
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    for (const button of screen.getAllByTitle('Edit value')) expect(button).toBeDisabled();
+    for (const button of screen.getAllByTitle('Delete secret')) expect(button).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'uat', exact: true })).toBeDisabled();
+    finishUpdate();
+    await waitFor(() => expect(screen.getAllByTitle('Edit value')[0]).not.toBeDisabled());
+  });
+
 });

@@ -8,9 +8,10 @@ vi.mock('../api/client', () => ({
   listProjects: vi.fn(),
   createProject: vi.fn(),
   deleteProject: vi.fn(),
+  importEnv: vi.fn(),
 }));
 
-import { listProjects, createProject } from '../api/client';
+import { listProjects, createProject, importEnv } from '../api/client';
 
 const mockProjects = [
   {
@@ -81,4 +82,23 @@ describe('ProjectsPage', () => {
       expect(screen.getByText('A test project')).toBeInTheDocument();
     });
   });
+  it.each([
+    { created: ['IMPORTED_KEY'], updated: null, skipped: null },
+    { created: null, updated: null, skipped: ['IMPORTED_KEY'] },
+    { created: null, updated: ['IMPORTED_KEY'], skipped: null },
+  ])('closes a successful import when unused result arrays are null: %j', async (result) => {
+    vi.mocked(importEnv).mockResolvedValue(result);
+    const user = userEvent.setup({ applyAccept: false });
+    renderPage();
+    await screen.findByText('My App');
+    await user.click(screen.getByRole('button', { name: 'Import .env', exact: true }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const content = `IMPORTED_KEY=${crypto.randomUUID()}`;
+    const file = new File([content], '.env', { type: 'text/plain' });
+    Object.defineProperty(file, 'text', { value: async () => content });
+    await user.upload(input, file);
+    await waitFor(() => expect(importEnv).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByLabelText('Environment')).not.toBeInTheDocument());
+  });
+
 });

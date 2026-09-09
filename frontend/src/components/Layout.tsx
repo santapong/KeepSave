@@ -49,18 +49,19 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
   const now =
     segments.length === 0
       ? 'projects'
-      : segments.map((s) => ROUTE_LABELS[s] || decodeURIComponent(s)).join(' / ');
+      : ROUTE_LABELS[segments[0]] || decodeURIComponent(segments[0]);
 
   return (
     <div className="cz-shell">
       <Starfield />
+      <a className="cz-skip" href="#workspace-main">Skip to workspace</a>
 
       <Sidebar user={user} collapsed={collapsed} onToggle={toggle} onLogout={onLogout} />
 
       <div className="cz-main">
         <div className="cz-topbar">
           <div className="cz-crumbs">
-            <span className="cz-faint">acme-platform</span>
+            <span className="cz-faint">Workspace</span>
             <span className="cz-sep">/</span>
             <span className="cz-now">{now}</span>
           </div>
@@ -72,7 +73,7 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
             aria-label="Open command palette"
           >
             <Search size={15} className="cz-faint" />
-            <span className="cz-ph">Search secrets, projects, agents, leases…</span>
+            <span className="cz-ph">Go to projects, tools, and settings…</span>
             <span style={{ display: 'flex', gap: 4 }}>
               <span className="cz-kbd">⌘</span>
               <span className="cz-kbd">K</span>
@@ -80,16 +81,13 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
           </button>
 
           <div className="cz-topbar-right">
-            <span className="cz-pill cz-pill-go">
-              <span className="cz-dot cz-dot-go" /> Operational
-            </span>
-            <Link to="/" className="cz-btn cz-btn-primary" title="New project">
+            <Link to="/?new=project" className="cz-btn cz-btn-primary" title="New project">
               <Plus size={15} /> New
             </Link>
           </div>
         </div>
 
-        <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>{children}</main>
+        <main id="workspace-main" tabIndex={-1} style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: 0 }}>{children}</main>
 
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       </div>

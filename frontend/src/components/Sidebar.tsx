@@ -10,14 +10,14 @@ import {
   AppWindow,
   Bot,
   BookOpen,
-  ChevronDown,
   LogOut,
   Moon,
   Sun,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import { EhMark } from './cosmic/EhMark';
+import { MotionToggle } from './cosmic/MotionToggle';
+import { Brand } from './cosmic/Brand';
 
 interface SidebarProps {
   user: { email: string } | null;
@@ -82,17 +82,12 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
 
   return (
     <aside className="cz-rail">
-      <Link to="/" className="cz-wordmark">
-        <EhMark />
-        <span className="cz-mk">
-          Keep<em>save</em>
-        </span>
-      </Link>
+      <Brand className="cz-wordmark" size={36} />
 
-      <button type="button" className="cz-org">
-        <span className="cz-nm">acme-platform</span>
-        <ChevronDown className="cz-ar" size={14} />
-      </button>
+      <Link to="/organizations" className="cz-org" style={{ textDecoration: 'none' }}>
+        <span className="cz-nm">Your workspace</span>
+        <Building2 size={14} />
+      </Link>
 
       <nav className="cz-nav">
         {NAV_SECTIONS.map((section) => (
@@ -106,6 +101,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                   key={item.path}
                   to={item.path}
                   className={cn('cz-nav-item', active && 'cz-active')}
+                  aria-current={active ? 'page' : undefined}
                 >
                   <Icon className="cz-ic" size={16} strokeWidth={1.6} />
                   <span className="cz-lb">{item.label}</span>
@@ -118,20 +114,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
       </nav>
 
       <div className="cz-rail-foot">
-        <div className="cz-row">
-          <span>Region</span>
-          <b>eu-west-1</b>
-        </div>
-        <div className="cz-row">
-          <span>Master key</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span className="cz-dot cz-dot-go" /> HSM
-          </span>
-        </div>
-        <div className="cz-row">
-          <span>Uptime</span>
-          <b className="cz-num">99.997%</b>
-        </div>
+        <div className="cz-row"><span>Vault storage</span><b>Encrypted at rest</b></div>
 
         <div className="cz-user-row">
           <span className="cz-avatar">{initial}</span>
@@ -148,7 +131,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
               {name}
             </div>
             <div className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 10 }}>
-              member
+              Signed in
             </div>
           </div>
           <button
@@ -188,7 +171,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
             {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
             {theme === 'dark' ? 'Dark' : 'Light'}
           </button>
-          <span className="cz-faint">build 14.0</span>
+          <MotionToggle />
         </div>
       </div>
     </aside>

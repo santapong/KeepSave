@@ -1,0 +1,738 @@
+.ks-landing{
+  --ks-bg:#090812;
+  --ks-panel:#131120;
+  --ks-border:#342d47;
+  --ks-muted:#b9b0cd;
+  --ks-text:#f4f0ff;
+  --ks-accent:#c7b7ff;
+  background:radial-gradient(ellipse at 78% 12%, #29154630, transparent 32%), var(--ks-bg);
+  color:var(--ks-text);
+  font-family:var(--font-sans),sans-serif;
+  line-height:1.6;
+  min-height:100vh;
+  color-scheme:dark}
+  .ks-landing *{
+    box-sizing:border-box}
+    .ks-landing a{
+      text-decoration:none;
+      color:inherit}
+      .ks-landing button{
+        font:inherit;
+        cursor:pointer}
+        .ks-landing a:focus-visible,.ks-landing button:focus-visible{
+          outline:2px solid var(--ks-accent);
+          outline-offset:5px}
+          .ks-container{
+            width:min(1200px,calc(100% - 80px));
+            margin-inline:auto}
+            .ks-nav{
+              min-height:98px;
+              display:flex;
+              align-items:center;
+              justify-content:space-between;
+              gap:30px;
+              border-bottom:1px solid var(--ks-border)}
+              .ks-brand{
+                display:inline-flex;
+                align-items:center;
+                gap:9px;
+                font-size:22px;
+                font-weight:600;
+                letter-spacing:-.8px}
+                .ks-brand-dot{
+                  color:var(--ks-accent);
+                  margin-left:-8px}
+                  .ks-mark{
+                    display:inline-flex;
+                    align-items:center;
+                    justify-content:center;
+                    width:33px;
+                    height:35px;
+                    border:1px solid #665680;
+                    border-radius:10px;
+                    color:var(--ks-accent)}
+                    .ks-nav nav,.ks-nav-actions{
+                      display:flex;
+                      align-items:center;
+                      gap:29px;
+                      font-size:13px}
+                      .ks-nav nav{
+                        color:var(--ks-muted)}
+                        .ks-nav nav a,.ks-footer a{
+                          display:inline-flex;
+                          align-items:center;
+                          gap:5px}
+                          .ks-nav a:hover,.ks-footer a:hover{
+                            color:var(--ks-accent)}
+                            .ks-landing .ks-button{
+                              display:inline-flex;
+                              align-items:center;
+                              justify-content:center;
+                              gap:25px;
+                              padding:15px 22px;
+                              border:1px solid var(--ks-accent);
+                              border-radius:7px;
+                              color:#171124;
+                              background:var(--ks-accent);
+                              font-weight:600;
+                              font-size:14px;
+                              white-space:nowrap;
+                              transition:background .15s}
+                              .ks-landing .ks-button:hover{
+                                background:#dfd4ff;
+                                color:#171124}
+                                .ks-landing .ks-button-small{
+                                  padding:10px 15px;
+                                  gap:15px;
+                                  font-size:12px}
+                                  .ks-landing .ks-button-secondary{
+                                    background:transparent;
+                                    color:var(--ks-text);
+                                    border-color:#4c405f}
+                                    .ks-landing .ks-button-secondary:hover{
+                                      background:var(--ks-panel);
+                                      color:var(--ks-accent)}
+                                      .ks-hero{
+                                        padding-block:94px 100px;
+                                        display:grid;
+                                        grid-template-columns:1.02fr 1fr;
+                                        gap:58px;
+                                        align-items:center}
+                                        .ks-eyebrow{
+                                          font-family:var(--font-mono),monospace;
+                                          font-size:10px;
+                                          font-weight:500;
+                                          letter-spacing:1.7px;
+                                          color:var(--ks-accent);
+                                          display:flex;
+                                          align-items:center;
+                                          gap:9px}
+                                          .ks-eyebrow>span{
+                                            height:6px;
+                                            width:6px;
+                                            border-radius:50%;
+                                            background:var(--ks-accent)}
+                                            .ks-hero h1{
+                                              font-size:clamp(44px,4.6vw,65px);
+                                              font-weight:500;
+                                              line-height:1.09;
+                                              letter-spacing:-3px;
+                                              margin:23px 0}
+                                              .ks-hero h1>span{
+                                                color:var(--ks-accent)}
+                                                .ks-lead{
+                                                  color:var(--ks-muted);
+                                                  max-width:460px;
+                                                  font-size:16px;
+                                                  line-height:1.85}
+                                                  .ks-actions{
+                                                    display:flex;
+                                                    gap:12px;
+                                                    flex-wrap:wrap;
+                                                    margin-top:30px}
+                                                    .ks-proof{
+                                                      display:flex;
+                                                      gap:22px;
+                                                      flex-wrap:wrap;
+                                                      font-size:11px;
+                                                      color:var(--ks-muted);
+                                                      margin-top:22px}
+                                                      .ks-proof>span{
+                                                        display:flex;
+                                                        gap:6px;
+                                                        align-items:center}
+                                                        .ks-proof svg{
+                                                          color:var(--ks-accent)}
+                                                          .ks-product{
+                                                            border:1px solid #514364;
+                                                            border-radius:12px;
+                                                            background:var(--ks-panel);
+                                                            box-shadow:0 24px 80px #0004;
+                                                            min-width:0;
+                                                            position:relative}
+                                                            .ks-product:before{
+                                                              content:'';
+                                                              position:absolute;
+                                                              inset:20px -15px -14px 16px;
+                                                              border:1px solid #453359;
+                                                              border-radius:12px;
+                                                              pointer-events:none;
+                                                              z-index:0}
+                                                              .ks-product>*{
+                                                                position:relative;
+                                                                background:var(--ks-panel)}
+                                                                .ks-preview-top{
+                                                                  padding:17px 22px;
+                                                                  display:flex;
+                                                                  align-items:center;
+                                                                  justify-content:space-between;
+                                                                  border-bottom:1px solid var(--ks-border);
+                                                                  border-radius:12px 12px 0 0;
+                                                                  font-size:13px}
+                                                                  .ks-preview-top>span:first-child{
+                                                                    display:flex;
+                                                                    align-items:center;
+                                                                    gap:8px;
+                                                                    font-weight:500}
+                                                                    .ks-preview-top .ks-mark{
+                                                                      width:26px;
+                                                                      height:27px;
+                                                                      border-radius:7px}
+                                                                      .ks-example{
+                                                                        font-family:var(--font-mono),monospace;
+                                                                        font-size:8px;
+                                                                        letter-spacing:1px;
+                                                                        color:var(--ks-muted);
+                                                                        border:1px solid var(--ks-border);
+                                                                        padding:3px 7px;
+                                                                        border-radius:4px}
+                                                                        .ks-preview-body{
+                                                                          padding:25px 23px 0}
+                                                                          .ks-preview-crumb{
+                                                                            font-size:10px;
+                                                                            display:flex;
+                                                                            gap:9px;
+                                                                            align-items:center;
+                                                                            color:var(--ks-muted)}
+                                                                            .ks-preview-heading{
+                                                                              display:flex;
+                                                                              align-items:center;
+                                                                              justify-content:space-between;
+                                                                              margin:19px 0}
+                                                                              .ks-preview-heading h2{
+                                                                                font-size:26px;
+                                                                                letter-spacing:-1px;
+                                                                                font-weight:500;
+                                                                                margin:0}
+                                                                                .ks-preview-heading p{
+                                                                                  font-size:11px;
+                                                                                  color:var(--ks-muted);
+                                                                                  margin:3px 0 0}
+                                                                                  .ks-preview-heading>svg{
+                                                                                    color:var(--ks-accent)}
+                                                                                    .ks-env-tabs{
+                                                                                      display:flex;
+                                                                                      gap:6px;
+                                                                                      border-bottom:1px solid var(--ks-border);
+                                                                                      padding-bottom:14px}
+                                                                                      .ks-env-tabs button{
+                                                                                        display:flex;
+                                                                                        align-items:center;
+                                                                                        gap:7px;
+                                                                                        font-size:9px;
+                                                                                        letter-spacing:1px;
+                                                                                        background:transparent;
+                                                                                        color:var(--ks-muted);
+                                                                                        border:1px solid transparent;
+                                                                                        border-radius:5px;
+                                                                                        padding:7px 11px}
+                                                                                        .ks-env-tabs button[aria-pressed=true]{
+                                                                                          border-color:#7d68a6;
+                                                                                          background:#2a203d;
+                                                                                          color:var(--ks-accent)}
+                                                                                          .ks-env-dot{
+                                                                                            width:5px;
+                                                                                            height:5px;
+                                                                                            background:#a3c586;
+                                                                                            border-radius:50%}
+                                                                                            .ks-env-uat{
+                                                                                              background:#c2b3ef}
+                                                                                              .ks-env-prod{
+                                                                                                background:#deb478}
+                                                                                                .ks-preview-table{
+                                                                                                  font-family:var(--font-mono),monospace}
+                                                                                                  .ks-preview-table-head,.ks-preview-row{
+                                                                                                    display:grid;
+                                                                                                    grid-template-columns:1.3fr 1fr;
+                                                                                                    gap:12px;
+                                                                                                    align-items:center;
+                                                                                                    border-bottom:1px solid #342d476e}
+                                                                                                    .ks-preview-table-head{
+                                                                                                      padding:14px 0 9px;
+                                                                                                      font-size:8px;
+                                                                                                      letter-spacing:1.3px;
+                                                                                                      color:var(--ks-muted)}
+                                                                                                      .ks-preview-row{
+                                                                                                        font-size:10px;
+                                                                                                        min-height:49px}
+                                                                                                        .ks-preview-row>span{
+                                                                                                          display:flex;
+                                                                                                          align-items:center;
+                                                                                                          gap:8px}
+                                                                                                          .ks-preview-row svg{
+                                                                                                            color:#b8a8d2;
+                                                                                                            flex-shrink:0}
+                                                                                                            .ks-preview-row .ks-masked{
+                                                                                                              font-size:12px;
+                                                                                                              justify-content:space-between;
+                                                                                                              letter-spacing:2px;
+                                                                                                              color:#a596bf}
+                                                                                                              .ks-preview-foot{
+                                                                                                                display:flex;
+                                                                                                                align-items:center;
+                                                                                                                gap:7px;
+                                                                                                                padding:15px 0 19px;
+                                                                                                                font-size:9px;
+                                                                                                                color:var(--ks-muted)}
+                                                                                                                .ks-preview-foot>span:last-child{
+                                                                                                                  margin-left:auto}
+                                                                                                                  .ks-preview-foot svg{
+                                                                                                                    color:var(--ks-accent)}
+                                                                                                                    .ks-preview-pipeline{
+                                                                                                                      display:flex;
+                                                                                                                      gap:12px;
+                                                                                                                      align-items:center;
+                                                                                                                      border-top:1px solid var(--ks-border);
+                                                                                                                      padding:20px 23px;
+                                                                                                                      border-radius:0 0 12px 12px;
+                                                                                                                      font-size:11px}
+                                                                                                                      .ks-preview-pipeline>svg,.ks-preview-pipeline>span:last-child{
+                                                                                                                        color:var(--ks-accent)}
+                                                                                                                        .ks-preview-pipeline>span:last-child{
+                                                                                                                          display:flex;
+                                                                                                                          gap:6px;
+                                                                                                                          align-items:center}
+                                                                                                                          .ks-line{
+                                                                                                                            height:1px;
+                                                                                                                            background:#605071;
+                                                                                                                            flex:1;
+                                                                                                                            min-width:12px}
+                                                                                                                            .ks-stack-strip{
+                                                                                                                              border-block:1px solid var(--ks-border);
+                                                                                                                              background:#100d18}
+                                                                                                                              .ks-stack-strip>.ks-container{
+                                                                                                                                padding-block:25px;
+                                                                                                                                display:flex;
+                                                                                                                                justify-content:space-between;
+                                                                                                                                align-items:center;
+                                                                                                                                gap:24px;
+                                                                                                                                flex-wrap:wrap}
+                                                                                                                                .ks-stack-strip span{
+                                                                                                                                  display:flex;
+                                                                                                                                  align-items:center;
+                                                                                                                                  gap:9px;
+                                                                                                                                  font-size:12px;
+                                                                                                                                  color:#d3c7e5}
+                                                                                                                                  .ks-stack-strip span:first-child{
+                                                                                                                                    font-family:var(--font-mono),monospace;
+                                                                                                                                    font-size:9px;
+                                                                                                                                    letter-spacing:1px;
+                                                                                                                                    color:var(--ks-muted)}
+                                                                                                                                    .ks-section{
+                                                                                                                                      padding-block:84px}
+                                                                                                                                      .ks-section-heading{
+                                                                                                                                        display:flex;
+                                                                                                                                        justify-content:space-between;
+                                                                                                                                        align-items:flex-end;
+                                                                                                                                        gap:40px;
+                                                                                                                                        margin-bottom:36px}
+                                                                                                                                        .ks-section h2,.ks-integration h2,.ks-bottom-cta h2{
+                                                                                                                                          font-size:38px;
+                                                                                                                                          font-weight:500;
+                                                                                                                                          line-height:1.2;
+                                                                                                                                          letter-spacing:-1.7px;
+                                                                                                                                          margin:17px 0 0}
+                                                                                                                                          .ks-section-heading>p{
+                                                                                                                                            max-width:345px;
+                                                                                                                                            color:var(--ks-muted);
+                                                                                                                                            font-size:14px;
+                                                                                                                                            margin-bottom:4px}
+                                                                                                                                            .ks-steps{
+                                                                                                                                              display:grid;
+                                                                                                                                              grid-template-columns:repeat(3,1fr);
+                                                                                                                                              border-block:1px solid var(--ks-border)}
+                                                                                                                                              .ks-steps article{
+                                                                                                                                                padding:30px 28px 29px}
+                                                                                                                                                .ks-steps article:first-child{
+                                                                                                                                                  padding-left:0}
+                                                                                                                                                  .ks-steps article:last-child{
+                                                                                                                                                    padding-right:0}
+                                                                                                                                                    .ks-steps article+article{
+                                                                                                                                                      border-left:1px solid var(--ks-border)}
+                                                                                                                                                      .ks-step-top{
+                                                                                                                                                        display:flex;
+                                                                                                                                                        justify-content:space-between;
+                                                                                                                                                        align-items:center;
+                                                                                                                                                        color:var(--ks-accent);
+                                                                                                                                                        margin-bottom:24px}
+                                                                                                                                                        .ks-step-top span{
+                                                                                                                                                          font-family:var(--font-mono),monospace;
+                                                                                                                                                          font-size:10px;
+                                                                                                                                                          color:#9f90b6}
+                                                                                                                                                          .ks-steps h3{
+                                                                                                                                                            font-size:18px;
+                                                                                                                                                            font-weight:500;
+                                                                                                                                                            letter-spacing:-.3px;
+                                                                                                                                                            margin:0 0 10px}
+                                                                                                                                                            .ks-steps p{
+                                                                                                                                                              font-size:13px;
+                                                                                                                                                              line-height:1.8;
+                                                                                                                                                              color:var(--ks-muted);
+                                                                                                                                                              margin:0 0 22px}
+                                                                                                                                                              .ks-step-tag{
+                                                                                                                                                                font-family:var(--font-mono),monospace;
+                                                                                                                                                                font-size:8px;
+                                                                                                                                                                letter-spacing:1px;
+                                                                                                                                                                color:#bca9d8}
+                                                                                                                                                                .ks-integration{
+                                                                                                                                                                  display:grid;
+                                                                                                                                                                  grid-template-columns:1fr 1fr;
+                                                                                                                                                                  gap:100px;
+                                                                                                                                                                  padding-bottom:80px;
+                                                                                                                                                                  align-items:center}
+                                                                                                                                                                  .ks-integration p{
+                                                                                                                                                                    color:var(--ks-muted);
+                                                                                                                                                                    font-size:14px;
+                                                                                                                                                                    line-height:1.8;
+                                                                                                                                                                    max-width:440px;
+                                                                                                                                                                    margin:19px 0}
+                                                                                                                                                                    .ks-text-link{
+                                                                                                                                                                      display:inline-flex;
+                                                                                                                                                                      gap:12px;
+                                                                                                                                                                      align-items:center;
+                                                                                                                                                                      color:var(--ks-accent)!important;
+                                                                                                                                                                      font-size:12px}
+                                                                                                                                                                      .ks-code{
+                                                                                                                                                                        border:1px solid var(--ks-border);
+                                                                                                                                                                        border-radius:9px;
+                                                                                                                                                                        background:#100d18;
+                                                                                                                                                                        min-width:0;
+                                                                                                                                                                        font-family:var(--font-mono),monospace}
+                                                                                                                                                                        .ks-code>div:first-child{
+                                                                                                                                                                          display:flex;
+                                                                                                                                                                          align-items:center;
+                                                                                                                                                                          gap:10px;
+                                                                                                                                                                          padding:15px 20px;
+                                                                                                                                                                          font-size:10px;
+                                                                                                                                                                          color:var(--ks-muted);
+                                                                                                                                                                          border-bottom:1px solid var(--ks-border)}
+                                                                                                                                                                          .ks-code>div:first-child span{
+                                                                                                                                                                            margin-left:auto;
+                                                                                                                                                                            font-size:8px}
+                                                                                                                                                                            .ks-code pre{
+                                                                                                                                                                              overflow-x:auto;
+                                                                                                                                                                              padding:20px 25px;
+                                                                                                                                                                              margin:0;
+                                                                                                                                                                              color:var(--ks-accent);
+                                                                                                                                                                              font-size:13px;
+                                                                                                                                                                              line-height:1.8}
+                                                                                                                                                                              .ks-code code>span{
+                                                                                                                                                                                color:#b6a7c9}
+                                                                                                                                                                                .ks-code-note{
+                                                                                                                                                                                  display:flex;
+                                                                                                                                                                                  align-items:center;
+                                                                                                                                                                                  gap:8px;
+                                                                                                                                                                                  font-size:9px;
+                                                                                                                                                                                  padding:17px 20px;
+                                                                                                                                                                                  border-top:1px solid var(--ks-border);
+                                                                                                                                                                                  color:var(--ks-muted)}
+                                                                                                                                                                                  .ks-bottom-cta{
+                                                                                                                                                                                    border-top:1px solid var(--ks-border);
+                                                                                                                                                                                    padding-block:54px;
+                                                                                                                                                                                    display:flex;
+                                                                                                                                                                                    align-items:center;
+                                                                                                                                                                                    justify-content:space-between;
+                                                                                                                                                                                    gap:24px}
+                                                                                                                                                                                    .ks-bottom-cta h2{
+                                                                                                                                                                                      font-size:32px;
+                                                                                                                                                                                      margin-top:12px}
+                                                                                                                                                                                      .ks-bottom-cta p{
+                                                                                                                                                                                        color:var(--ks-muted);
+                                                                                                                                                                                        font-size:13px;
+                                                                                                                                                                                        margin-top:10px}
+                                                                                                                                                                                        .ks-footer{
+                                                                                                                                                                                          border-top:1px solid var(--ks-border);
+                                                                                                                                                                                          display:flex;
+                                                                                                                                                                                          gap:25px;
+                                                                                                                                                                                          align-items:center;
+                                                                                                                                                                                          justify-content:space-between;
+                                                                                                                                                                                          padding-block:27px;
+                                                                                                                                                                                          color:var(--ks-muted);
+                                                                                                                                                                                          font-size:11px}
+                                                                                                                                                                                          .ks-footer .ks-brand{
+                                                                                                                                                                                            font-size:17px;
+                                                                                                                                                                                            color:var(--ks-text)}
+                                                                                                                                                                                            .ks-footer>div{
+                                                                                                                                                                                              display:flex;
+                                                                                                                                                                                              gap:24px}
+                                                                                                                                                                                              .ks-skip{
+                                                                                                                                                                                                position:absolute;
+                                                                                                                                                                                                left:15px;
+                                                                                                                                                                                                top:-60px;
+                                                                                                                                                                                                padding:9px 15px;
+                                                                                                                                                                                                background:var(--ks-accent);
+                                                                                                                                                                                                color:#171124!important;
+                                                                                                                                                                                                z-index:10}
+                                                                                                                                                                                                .ks-skip:focus{
+                                                                                                                                                                                                  top:10px}
+                                                                                                                                                                                                  @media(min-width:1450px){
+                                                                                                                                                                                                    .ks-hero{
+                                                                                                                                                                                                      padding-block:112px 120px}
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                    @media(max-width:1050px){
+                                                                                                                                                                                                      .ks-container{
+                                                                                                                                                                                                        width:calc(100% - 48px)}
+                                                                                                                                                                                                        .ks-hero{
+                                                                                                                                                                                                          gap:30px}
+                                                                                                                                                                                                          .ks-hero h1{
+                                                                                                                                                                                                            font-size:48px}
+                                                                                                                                                                                                            .ks-nav nav{
+                                                                                                                                                                                                              gap:17px}
+                                                                                                                                                                                                              .ks-integration{
+                                                                                                                                                                                                                gap:45px}
+                                                                                                                                                                                                                .ks-preview-row{
+                                                                                                                                                                                                                  font-size:9px}
+                                                                                                                                                                                                                  .ks-preview-foot{
+                                                                                                                                                                                                                    font-size:8px}
+                                                                                                                                                                                                                    .ks-actions{
+                                                                                                                                                                                                                      gap:9px}
+                                                                                                                                                                                                                      .ks-actions .ks-button{
+                                                                                                                                                                                                                        padding:12px 14px;
+                                                                                                                                                                                                                        gap:12px;
+                                                                                                                                                                                                                        font-size:12px}
+                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                      @media(max-width:780px){
+                                                                                                                                                                                                                        .ks-nav{
+                                                                                                                                                                                                                          min-height:78px}
+                                                                                                                                                                                                                          .ks-nav nav{
+                                                                                                                                                                                                                            display:none}
+                                                                                                                                                                                                                            .ks-hero{
+                                                                                                                                                                                                                              grid-template-columns:1fr;
+                                                                                                                                                                                                                              gap:48px;
+                                                                                                                                                                                                                              padding-block:54px 60px}
+                                                                                                                                                                                                                              .ks-hero h1{
+                                                                                                                                                                                                                                font-size:58px}
+                                                                                                                                                                                                                                .ks-hero-copy{
+                                                                                                                                                                                                                                  max-width:550px}
+                                                                                                                                                                                                                                  .ks-lead{
+                                                                                                                                                                                                                                    max-width:540px}
+                                                                                                                                                                                                                                    .ks-product{
+                                                                                                                                                                                                                                      max-width:570px;
+                                                                                                                                                                                                                                      width:calc(100% - 12px)}
+                                                                                                                                                                                                                                      .ks-preview-row{
+                                                                                                                                                                                                                                        font-size:11px}
+                                                                                                                                                                                                                                        .ks-preview-foot{
+                                                                                                                                                                                                                                          font-size:10px}
+                                                                                                                                                                                                                                          .ks-section{
+                                                                                                                                                                                                                                            padding-block:56px}
+                                                                                                                                                                                                                                            .ks-section-heading{
+                                                                                                                                                                                                                                              align-items:flex-start;
+                                                                                                                                                                                                                                              flex-direction:column;
+                                                                                                                                                                                                                                              gap:14px}
+                                                                                                                                                                                                                                              .ks-section-heading>p{
+                                                                                                                                                                                                                                                max-width:480px}
+                                                                                                                                                                                                                                                .ks-steps{
+                                                                                                                                                                                                                                                  grid-template-columns:1fr}
+                                                                                                                                                                                                                                                  .ks-steps article,.ks-steps article:first-child,.ks-steps article:last-child{
+                                                                                                                                                                                                                                                    padding:26px 0}
+                                                                                                                                                                                                                                                    .ks-steps article+article{
+                                                                                                                                                                                                                                                      border-left:0;
+                                                                                                                                                                                                                                                      border-top:1px solid var(--ks-border)}
+                                                                                                                                                                                                                                                      .ks-step-top{
+                                                                                                                                                                                                                                                        margin-bottom:15px}
+                                                                                                                                                                                                                                                        .ks-integration{
+                                                                                                                                                                                                                                                          grid-template-columns:1fr;
+                                                                                                                                                                                                                                                          gap:30px;
+                                                                                                                                                                                                                                                          padding-bottom:55px}
+                                                                                                                                                                                                                                                          .ks-bottom-cta{
+                                                                                                                                                                                                                                                            align-items:flex-start;
+                                                                                                                                                                                                                                                            flex-direction:column}
+                                                                                                                                                                                                                                                            .ks-footer{
+                                                                                                                                                                                                                                                              flex-wrap:wrap}
+                                                                                                                                                                                                                                                              .ks-footer>span{
+                                                                                                                                                                                                                                                                display:none}
+                                                                                                                                                                                                                                                                .ks-stack-strip>.ks-container{
+                                                                                                                                                                                                                                                                  gap:18px 25px}
+                                                                                                                                                                                                                                                                  .ks-stack-strip span:first-child{
+                                                                                                                                                                                                                                                                    width:100%}
+                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                  @media(max-width:420px){
+                                                                                                                                                                                                                                                                    .ks-container{
+                                                                                                                                                                                                                                                                      width:calc(100% - 36px)}
+                                                                                                                                                                                                                                                                      .ks-brand{
+                                                                                                                                                                                                                                                                        font-size:20px}
+                                                                                                                                                                                                                                                                        .ks-nav-actions{
+                                                                                                                                                                                                                                                                          gap:14px;
+                                                                                                                                                                                                                                                                          font-size:12px}
+                                                                                                                                                                                                                                                                          .ks-nav-actions .ks-button-small{
+                                                                                                                                                                                                                                                                            padding:8px 10px;
+                                                                                                                                                                                                                                                                            gap:7px}
+                                                                                                                                                                                                                                                                            .ks-hero h1{
+                                                                                                                                                                                                                                                                              font-size:48px;
+                                                                                                                                                                                                                                                                              letter-spacing:-2.4px}
+                                                                                                                                                                                                                                                                              .ks-eyebrow{
+                                                                                                                                                                                                                                                                                font-size:8px;
+                                                                                                                                                                                                                                                                                letter-spacing:1.2px}
+                                                                                                                                                                                                                                                                                .ks-lead{
+                                                                                                                                                                                                                                                                                  font-size:14px}
+                                                                                                                                                                                                                                                                                  .ks-preview-body{
+                                                                                                                                                                                                                                                                                    padding-inline:15px}
+                                                                                                                                                                                                                                                                                    .ks-preview-top{
+                                                                                                                                                                                                                                                                                      padding-inline:15px}
+                                                                                                                                                                                                                                                                                      .ks-preview-row{
+                                                                                                                                                                                                                                                                                        font-size:9px}
+                                                                                                                                                                                                                                                                                        .ks-preview-row .ks-masked{
+                                                                                                                                                                                                                                                                                          font-size:10px;
+                                                                                                                                                                                                                                                                                          letter-spacing:1px}
+                                                                                                                                                                                                                                                                                          .ks-preview-foot{
+                                                                                                                                                                                                                                                                                            font-size:8px}
+                                                                                                                                                                                                                                                                                            .ks-proof{
+                                                                                                                                                                                                                                                                                              gap:12px;
+                                                                                                                                                                                                                                                                                              font-size:10px}
+                                                                                                                                                                                                                                                                                              .ks-section h2,.ks-integration h2{
+                                                                                                                                                                                                                                                                                                font-size:33px}
+                                                                                                                                                                                                                                                                                                .ks-code pre{
+                                                                                                                                                                                                                                                                                                  font-size:11px;
+                                                                                                                                                                                                                                                                                                  padding:20px}
+                                                                                                                                                                                                                                                                                                  .ks-example{
+                                                                                                                                                                                                                                                                                                    font-size:7px}
+                                                                                                                                                                                                                                                                                                    .ks-code-note{
+                                                                                                                                                                                                                                                                                                      font-size:8px}
+                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                    @media(prefers-reduced-motion:reduce){
+                                                                                                                                                                                                                                                                                                      .ks-landing *{
+                                                                                                                                                                                                                                                                                                        transition:none!important;
+                                                                                                                                                                                                                                                                                                        scroll-behavior:auto!important}
+                                                                                                                                                                                                                                                                                                      }
+
+/* Event Horizon hero composition. */
+.ks-hero {
+  padding-block: 65px 55px;
+  grid-template-columns: 1fr 1.08fr;
+  gap: 28px;
+}
+.ks-hero-copy { position: relative; z-index: 1; }
+.ks-hero h1 { font-size: clamp(46px, 4.9vw, 70px); }
+.ks-hero h1 > span {
+  color: #d1bbff;
+  background: linear-gradient(105deg, #d1bbff, #f4d6b3);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.ks-gravity-stage {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  aspect-ratio: 1.05;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(1px 1px at 16% 24%, #e8d5ff 90%, transparent),
+    radial-gradient(1px 1px at 76% 12%, #e8d5ff 90%, transparent),
+    radial-gradient(1px 1px at 91% 63%, #e8d5ff 90%, transparent),
+    radial-gradient(1px 1px at 28% 86%, #e8d5ff 90%, transparent),
+    radial-gradient(1.5px 1.5px at 83% 78%, #ffe1bf 90%, transparent),
+    radial-gradient(ellipse at 50% 55%, #49234b44, transparent 62%);
+}
+.ks-gravity-stage .ks-blackhole {
+  position: absolute;
+  width: 82%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-17deg);
+}
+.ks-orbit {
+  position: absolute;
+  border: 1px solid #b993e220;
+  border-radius: 50%;
+  inset: 10%;
+  transform: rotate(-28deg) scaleY(.74);
+}
+.ks-orbit-inner { inset: 20% 4%; transform: rotate(40deg) scaleY(.8); border-style: dashed; border-color: #b993e217; }
+.ks-scene-label, .ks-scene-caption, .ks-orbit-note {
+  position: absolute;
+  font-family: var(--font-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: #baaccd;
+}
+.ks-scene-label { top: 5%; left: 8%; }
+.ks-scene-caption { bottom: 6%; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #aa8bbe; }
+.ks-orbit-note { display: flex; align-items: center; gap: 9px; font-size: 9px; }
+.ks-orbit-note > span { width: 5px; height: 5px; border-radius: 50%; background: #e9c7a7; box-shadow: 0 0 8px #e9c7a766; }
+.ks-orbit-note-top { top: 22%; right: 7%; }
+.ks-orbit-note-bottom { bottom: 21%; left: 5%; }
+.ks-vault-tour {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  align-items: center;
+  gap: 70px;
+  padding-block: 65px 95px;
+  border-top: 1px solid var(--ks-border);
+}
+.ks-tour-copy h2 { font-size: 39px; font-weight: 500; letter-spacing: -1.6px; line-height: 1.2; margin: 20px 0; }
+.ks-tour-copy h2 > span { color: #c7b7ff; }
+.ks-tour-copy > p { color: var(--ks-muted); font-size: 14px; line-height: 1.85; max-width: 410px; }
+.ks-tour-detail { display: flex; align-items: flex-start; gap: 12px; margin-top: 22px; }
+.ks-tour-detail > svg { color: var(--ks-accent); flex-shrink: 0; margin-top: 3px; }
+.ks-tour-detail strong { display: block; color: var(--ks-text); font-size: 13px; font-weight: 500; }
+.ks-tour-detail span { display: block; font-size: 12px; color: var(--ks-muted); margin-top: 3px; }
+.ks-tour-copy > .ks-text-link { margin-top: 26px; }
+.ks-nav-actions > a { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.ks-env-tabs button { min-height: 44px; }
+.ks-product::before { border-color: #463354; }
+.ks-bottom-cta { background: radial-gradient(ellipse at 75% 100%, #663c8d1c, transparent 70%); }
+
+@media (max-width: 1050px) {
+  .ks-hero { gap: 8px; }
+  .ks-hero h1 { font-size: 48px; }
+  .ks-vault-tour { gap: 38px; }
+  .ks-tour-copy h2 { font-size: 34px; }
+}
+@media (max-width: 780px) {
+  .ks-hero { grid-template-columns: 1fr; padding-block: 45px 16px; gap: 16px; }
+  .ks-hero h1 { font-size: clamp(42px, 8vw, 60px); }
+  .ks-gravity-stage { max-width: 540px; justify-self: center; aspect-ratio: 1.3; }
+  .ks-gravity-stage .ks-blackhole { width: 72%; }
+  .ks-vault-tour { grid-template-columns: 1fr; gap: 32px; padding-block: 45px 58px; }
+  .ks-tour-copy h2 { font-size: 34px; }
+  .ks-product { width: 100%; }
+  .ks-product::before { inset: 10px -5px -8px 8px; }
+  .ks-scene-label { top: 4%; left: 2%; font-size: 7px; letter-spacing: 1px; }
+  .ks-orbit-note { font-size: 8px; }
+}
+@media (max-width: 420px) {
+  .ks-nav { gap: 12px; }
+  .ks-nav-actions { gap: 12px; }
+  .ks-brand { gap: 7px; font-size: 18px; }
+  .ks-orbit-note-top { top: 20%; right: 1%; }
+  .ks-orbit-note-bottom { bottom: 19%; left: 1%; }
+  .ks-gravity-stage { margin-top: 12px; }
+  .ks-scene-caption { font-size: 7px; bottom: 3%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ks-landing *, .ks-landing *::before, .ks-landing *::after { animation: none !important; transition: none !important; }
+}
+[data-motion="off"] .ks-landing *, [data-motion="off"] .ks-landing *::before, [data-motion="off"] .ks-landing *::after { animation: none !important; transition: none !important; }
+@media (max-width: 360px) {
+  .ks-nav { gap: 8px; }
+  .ks-nav-actions { gap: 10px; }
+  .ks-nav .ks-brand { font-size: 16px; }
+  .ks-nav-actions .ks-button-small { padding-inline: 8px; font-size: 11px; }
+}
+
+/* Animated Event Horizon uses the same scene on landing and authentication. */
+.ks-live-blackhole { position: absolute; inset: 25px 0 0; height: auto; z-index: 2; }
+.ks-gravity-stage .cz-scene-controls { bottom: 24px; }
+.ks-gravity-stage .ks-scene-caption { display: none; }
+.ks-gravity-stage .cz-motion-toggle { background: #131120; color: #b9b0cd; border-color: #342d47; }
+.ks-gravity-stage .cz-motion-toggle:hover { border-color: #c7b7ff; }
+.ks-gravity-stage .cz-blackhole-fallback .cz-eh { transform: rotate(-4deg); }
+.ks-gravity-stage .ks-orbit-note { pointer-events: none; }
+@media (max-width: 780px) {
+  .ks-gravity-stage { min-height: 300px; }
+  .ks-live-blackhole { inset: 8px -14px 0; width: calc(100% + 28px); }
+  .ks-gravity-stage .cz-scene-controls { bottom: 2px; }
+}
+.ks-brand.cz-brand { color: var(--ks-text); }
+.ks-brand .cz-brand-name > span { color: var(--ks-accent); }
+.ks-preview-top > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 780px) {
+  .ks-nav .cz-brand-icon { width: 32px; height: 32px; }
+  .ks-nav .cz-brand-name { font-size: 19px; }
+}
+@media (max-width: 360px) {
+  .ks-nav .cz-brand-icon { width: 28px; height: 28px; }
+  .ks-nav .cz-brand-name { font-size: 16px; }
+  .ks-nav .cz-brand { gap: 6px; }
+}

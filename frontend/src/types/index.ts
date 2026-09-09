@@ -135,9 +135,9 @@ export interface DependencyNode {
 }
 
 export interface ImportResult {
-  created: string[];
-  updated: string[];
-  skipped: string[];
+  created: string[] | null;
+  updated: string[] | null;
+  skipped: string[] | null;
 }
 
 // Phase 14: Application Dashboard types

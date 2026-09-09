@@ -22,7 +22,7 @@ const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
 
 const MAX_MESSAGE = 4000;
 
-// Floating feedback launcher, fixed at the bottom-left on every authenticated
+// Floating feedback launcher, fixed at the bottom-right on every authenticated
 // screen. Opens a small dialog with a 3-way category selector and a textarea;
 // submissions are filed as GitHub issues by the backend (feature-flagged).
 export function FeedbackButton() {
@@ -75,7 +75,7 @@ export function FeedbackButton() {
         onClick={() => setOpen(true)}
         aria-label="Give feedback"
         title="Give feedback"
-        className="fixed bottom-6 left-6 z-[190] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+        className="fixed bottom-6 right-6 z-[190] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
       >
         <MessageSquarePlus className="h-5 w-5" />
       </button>

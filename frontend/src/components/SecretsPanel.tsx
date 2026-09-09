@@ -71,6 +71,8 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const [env, setEnv] = useState<Environment>('alpha');
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const requestVersion = useRef(0);
   const [error, setError] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newKey, setNewKey] = useState('');
@@ -90,25 +92,31 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const clipboardClearRef = useRef<{ timer: number; value: string } | null>(null);
 
   const loadSecrets = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
       const data = await listSecrets(projectId, env);
-      setSecrets(data);
+      if (version === requestVersion.current) setSecrets(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load secrets');
+      if (version === requestVersion.current) setError(err instanceof Error ? err.message : 'Failed to load secrets');
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [projectId, env]);
 
   useEffect(() => {
+    setSecrets([]);
     loadSecrets();
+    setNewKey('');
+    setNewValue('');
+    setShowAdd(false);
     setRevealed(new Set());
     setRevealRemaining({});
     setEditing(null);
     setEditValue('');
     setSearchQuery('');
+    return () => { requestVersion.current++; };
   }, [loadSecrets]);
 
   // FU 0i: tick down auto-hide timers once per second. Auto-hides any secret
@@ -190,6 +198,9 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError('');
     try {
       await createSecret(projectId, newKey.toUpperCase(), newValue, env);
       setNewKey('');
@@ -199,10 +210,15 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create secret');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleUpdate(secretId: string) {
+    if (saving) return;
+    setSaving(true);
+    setError('');
     try {
       await updateSecret(projectId, secretId, editValue);
       setEditing(null);
@@ -211,16 +227,23 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update secret');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function performDelete(secretId: string) {
+    if (saving) return;
+    setSaving(true);
+    setError('');
     try {
       await deleteSecret(projectId, secretId);
       toast({ title: 'Deleted', description: 'Secret deleted' });
       loadSecrets();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete secret');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -326,6 +349,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
           return (
             <Button
               key={e}
+              disabled={saving}
               onClick={() => setEnv(e)}
               variant="outline"
               size="sm"
@@ -342,7 +366,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
         })}
         <div className="flex-1" />
         <Button
-          onClick={() => setShowAdd(!showAdd)}
+          disabled={loading || saving} onClick={() => setShowAdd(!showAdd)}
           variant={showAdd ? 'outline' : 'default'}
           size="sm"
         >
@@ -356,9 +380,10 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
 
       {/* Error Banner */}
       {error && (
-        <div className="flex items-center bg-destructive/10 text-destructive border border-destructive rounded-md px-3.5 py-2.5 text-sm mb-4 font-medium">
+        <div role="alert" className="flex items-center bg-destructive/10 text-destructive border border-destructive rounded-md px-3.5 py-2.5 text-sm mb-4 font-medium">
           <span className="mr-2">!</span>
           {error}
+          <Button variant="outline" size="sm" className="ml-3" onClick={loadSecrets} disabled={loading || saving}>Retry</Button>
           <button
             onClick={() => setError('')}
             className="ml-auto bg-transparent border-none text-destructive cursor-pointer text-sm font-bold px-1"
@@ -376,10 +401,13 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
               <div className="text-sm font-semibold mb-3">
                 Add new secret to <span className={cn('uppercase', ENV_TEXT_CLASSES[env])}>{env}</span>
               </div>
-              <div className="flex gap-3 mb-3">
+              <div className="flex flex-col sm:flex-row gap-3 mb-3">
                 <div className="flex flex-col gap-1.5 flex-1">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Key</Label>
+                  <Label htmlFor="secret-key" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Key</Label>
                   <Input
+                    id="secret-key"
+                    disabled={saving}
+                    autoComplete="off"
                     placeholder="e.g. DATABASE_URL"
                     value={newKey}
                     onChange={(e) => setNewKey(e.target.value.toUpperCase())}
@@ -388,8 +416,11 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5 flex-[2]">
-                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Value</Label>
+                  <Label htmlFor="secret-value" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Value</Label>
                   <Input
+                    id="secret-value"
+                    disabled={saving}
+                    autoComplete="new-password"
                     placeholder="Enter the secret value"
                     value={newValue}
                     onChange={(e) => setNewValue(e.target.value)}
@@ -399,11 +430,11 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-1">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowAdd(false)}>
+                <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => { setShowAdd(false); setNewKey(''); setNewValue(''); }}>
                   Cancel
                 </Button>
-                <Button type="submit" size="sm">
-                  Save
+                <Button type="submit" size="sm" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save'}
                 </Button>
               </div>
             </form>
@@ -413,7 +444,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
 
       {/* Summary Bar + Search */}
       {!loading && (
-        <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="flex flex-wrap items-center justify-between mb-3 gap-3">
           <div className="flex items-center">
             <span className={cn(
               'inline-flex items-center justify-center min-w-[24px] h-6 rounded-full text-white text-xs font-bold mr-2 px-1.5',
@@ -475,7 +506,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
           <Skeleton className="h-6 w-6 rounded-full" />
           <Skeleton className="h-4 w-32" />
         </div>
-      ) : secrets.length === 0 ? (
+      ) : error && secrets.length === 0 ? null : secrets.length === 0 ? (
         <Card className="text-center py-12 px-6">
           <CardContent className="p-0 flex flex-col items-center">
             <Lock className={cn('h-12 w-12 mb-4 opacity-70', ENV_TEXT_CLASSES[env])} />
@@ -488,7 +519,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
               <span className={cn('font-semibold uppercase', ENV_TEXT_CLASSES[env])}>{env}</span>{' '}
               environment.
             </p>
-            <Button onClick={() => setShowAdd(true)}>
+            <Button disabled={loading || saving} onClick={() => setShowAdd(true)}>
               <Plus className="mr-2 h-4 w-4" /> Add Your First Secret
             </Button>
           </CardContent>
@@ -522,19 +553,23 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                     {editing === s.id ? (
                       <div className="flex gap-2 items-center">
                         <Input
+                          disabled={saving}
+                          type="password"
+                          aria-label="New secret value"
+                          autoComplete="new-password"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           className="flex-1 h-8 text-sm"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleUpdate(s.id);
-                            if (e.key === 'Escape') setEditing(null);
+                            if (e.key === 'Escape' && !saving) { setEditing(null); setEditValue(''); }
                           }}
                         />
-                        <Button onClick={() => handleUpdate(s.id)} size="sm" className="h-8 text-xs">
+                        <Button disabled={saving} onClick={() => handleUpdate(s.id)} size="sm" className="h-8 text-xs">
                           Save
                         </Button>
-                        <Button onClick={() => setEditing(null)} variant="outline" size="sm" className="h-8 text-xs">
+                        <Button disabled={saving} onClick={() => { setEditing(null); setEditValue(''); }} variant="outline" size="sm" className="h-8 text-xs">
                           Cancel
                         </Button>
                       </div>
@@ -600,6 +635,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                           setEditing(s.id);
                           setEditValue(s.value || '');
                         }}
+                        disabled={saving}
                         title="Edit value"
                       >
                         <Pencil className="h-3 w-3" />
@@ -609,6 +645,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                         size="sm"
                         className="h-7 text-xs px-2 text-destructive border-destructive hover:bg-destructive/10"
                         onClick={() => setDeleteTarget(s)}
+                        disabled={saving}
                         title="Delete secret"
                       >
                         <Trash2 className="h-3 w-3" />

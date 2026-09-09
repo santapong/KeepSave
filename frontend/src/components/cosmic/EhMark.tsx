@@ -1,13 +1,5 @@
-import { cn } from '@/lib/utils';
-
-interface EhMarkProps {
-  className?: string;
-}
-
-/**
- * EhMark — a 26px mini event horizon used as the KeepSave logo mark in
- * the sidebar wordmark and login card. Pure CSS (`.cz-eh-mark`).
- */
-export function EhMark({ className }: EhMarkProps) {
-  return <span className={cn('cz-eh-mark', className)} aria-hidden="true" />;
+/** One lightweight vector asset for the favicon, wordmark, and product preview. */
+export function EhMark({ size = 32, className = '' }: { size?: number; className?: string }) {
+  return <img src="/keepsave.svg?v=event-horizon" width={size} height={size}
+    className={`cz-brand-icon ${className}`} alt="" aria-hidden="true" draggable={false} />;
 }

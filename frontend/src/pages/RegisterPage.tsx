@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
-import { EventHorizon } from '../components/cosmic/EventHorizon';
-import { EhMark } from '../components/cosmic/EhMark';
+import { BlackHoleScene } from '../components/cosmic/BlackHoleScene';
+import { Brand } from '../components/cosmic/Brand';
+import { LockKeyhole } from 'lucide-react';
 import { Starfield } from '../components/cosmic/Starfield';
 import type { User } from '../types';
 
@@ -12,8 +13,8 @@ interface RegisterPageProps {
 
 const INCLUDED: Array<[string, string]> = [
   ['Encrypted at rest', 'AES-256-GCM'],
-  ['Lease-based access', 'just-in-time'],
-  ['Audited end to end', 'tamper-evident'],
+  ['Scoped access', 'API keys'],
+  ['Change history', 'audit trail'],
   ['Self-host or hosted', 'docker compose'],
 ];
 
@@ -48,14 +49,12 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
 
       {/* Hero pane */}
       <aside className="cz-login-aside">
-        <div className="cz-login-aside-bg" aria-hidden="true">
-          <EventHorizon size={560} />
+        <div className="cz-login-aside-bg">
+          <BlackHoleScene />
         </div>
 
         <div className="cz-login-aside-head">
-          <span className="cz-pill cz-pill-go">
-            <span className="cz-dot cz-dot-go" /> All systems operational
-          </span>
+          <span className="cz-brand-kicker"><span /> KEEPSAVE / EVENT HORIZON</span>
         </div>
 
         <div className="cz-login-aside-body">
@@ -87,7 +86,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
 
         <div className="cz-login-aside-foot">
           <span>KeepSave · 2026</span>
-          <span>build 14.0</span>
+          <span>Environment secrets, kept together.</span>
         </div>
       </aside>
 
@@ -95,15 +94,8 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
       <main className="cz-login-main">
         <div className="cz-login-card">
           <div className="cz-login-card-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <EhMark />
-              <span className="cz-mk" style={{ fontWeight: 500, fontSize: 20 }}>
-                Keep<em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>save</em>
-              </span>
-            </div>
-            <span className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
-              v14.0
-            </span>
+            <Brand size={40} />
+            <span className="cz-vault-badge"><LockKeyhole size={12} /> VAULT</span>
           </div>
 
           <h2 className="cz-login-h2">Create account</h2>
@@ -112,11 +104,12 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
           </p>
 
           <form className="cz-login-form" onSubmit={handleSubmit} style={{ marginTop: 22 }}>
-            {error && <div className="cz-login-error">{error}</div>}
+            {error && <div className="cz-login-error" role="alert">{error}</div>}
 
             <div className="cz-login-field">
               <label htmlFor="register-email">Email</label>
               <input
+                autoComplete="email"
                 id="register-email"
                 className="cz-input"
                 type="email"
@@ -131,6 +124,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               <input
                 id="register-password"
                 className="cz-input"
+                autoComplete="new-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -144,6 +138,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               <input
                 id="register-confirm"
                 className="cz-input"
+                autoComplete="new-password"
                 type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
@@ -164,8 +159,9 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
 
           <div className="cz-login-divider" />
           <div className="cz-login-fine">
+            <Link to="/">← Back to KeepSave</Link>
             <span>Encrypted at rest · AES-256-GCM</span>
-            <span>CSRF · HSTS · CSP</span>
+            <span>Scoped access</span>
           </div>
         </div>
       </main>

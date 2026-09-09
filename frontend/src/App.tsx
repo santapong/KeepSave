@@ -8,6 +8,7 @@ import { FeedbackButton } from './components/FeedbackButton';
 import { Toaster } from './components/ui/toaster';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { LandingPage } from './pages/LandingPage';
 
 // Authenticated routes are code-split so heavy pages (and recharts, which
 // only the admin dashboard uses) load on demand instead of in the initial
@@ -46,6 +47,8 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
           <Route path="/register" element={<RegisterPage onLogin={auth.login} />} />
           <Route path="*" element={<LoginPage onLogin={auth.login} />} />
         </Routes>
