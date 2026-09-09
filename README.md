@@ -1,3 +1,5 @@
+![KeepSave — Your secrets. In the right orbit.](docs/assets/keepsave-banner.png)
+
 # KeepSave
 
 [![Release](https://img.shields.io/github/v/release/santapong/KeepSave?style=flat-square&color=8b5cf6&labelColor=0b0a12)](https://github.com/santapong/KeepSave/releases)
