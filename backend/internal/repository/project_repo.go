@@ -37,7 +37,7 @@ func (r *ProjectRepository) scanProject(p *models.Project, row rowScanner) error
 			&p.ID, &p.Name, &p.Description, &p.OwnerID,
 			&p.EncryptedDEK, &p.DEKNonce,
 			pq.Array(&origins), &p.EmbedPolicyEnabled,
-			&p.CreatedAt, &p.UpdatedAt,
+			dbTime(&p.CreatedAt), dbTime(&p.UpdatedAt),
 		); err != nil {
 			return err
 		}
@@ -48,7 +48,7 @@ func (r *ProjectRepository) scanProject(p *models.Project, row rowScanner) error
 		&p.ID, &p.Name, &p.Description, &p.OwnerID,
 		&p.EncryptedDEK, &p.DEKNonce,
 		&p.AllowedOrigins, &p.EmbedPolicyEnabled,
-		&p.CreatedAt, &p.UpdatedAt,
+		dbTime(&p.CreatedAt), dbTime(&p.UpdatedAt),
 	)
 }
 

@@ -22,7 +22,9 @@ const leakedDevMasterKeyHashHex = "f69968df7fb0fa71e2cdad7f258e0c1af7270a8cb759c
 const prodMinJWTSecretBytes = 32
 
 type Config struct {
-	DatabaseURL string
+	DatabaseURL    string
+	DBMaxOpenConns int
+	DBMaxIdleConns int
 
 	// KeyProvider selects the master-key source. Valid values: env (default),
 	// awskms, gcpkms, vault. See docs/THREAT_MODEL.md for guidance.
@@ -89,6 +91,14 @@ func Load() (*Config, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	maxOpen, err := strconv.Atoi(getenvOr("DB_MAX_OPEN_CONNS", "10"))
+	if err != nil || maxOpen < 1 {
+		return nil, fmt.Errorf("DB_MAX_OPEN_CONNS must be a positive integer")
+	}
+	maxIdle, err := strconv.Atoi(getenvOr("DB_MAX_IDLE_CONNS", "2"))
+	if err != nil || maxIdle < 0 || maxIdle > maxOpen {
+		return nil, fmt.Errorf("DB_MAX_IDLE_CONNS must be between zero and DB_MAX_OPEN_CONNS")
 	}
 
 	env := getenvOr("KEEPSAVE_ENV", "")
@@ -160,6 +170,8 @@ func Load() (*Config, error) {
 
 	return &Config{
 		DatabaseURL:           databaseURL,
+		DBMaxOpenConns:        maxOpen,
+		DBMaxIdleConns:        maxIdle,
 		KeyProvider:           keyProvider,
 		MasterKey:             masterKey,
 		KMSKeyID:              os.Getenv("KEEPSAVE_KMS_KEY_ID"),

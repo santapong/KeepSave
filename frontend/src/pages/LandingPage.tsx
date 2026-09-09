@@ -1,581 +1,87 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { animate, stagger } from 'animejs';
-import { prefersReducedMotion as motionOff } from '@/lib/motion';
-import { Starfield } from '../components/cosmic/Starfield';
-import { Singularity } from '../components/cosmic/Singularity';
-import { KsMark } from '../components/cosmic/KsMark';
-
-/**
- * LandingPage — the public front door.
- *
- * Visual language is Event Horizon, the same one the login screen and the
- * app shell speak: starfield ground, 14px glass panels, 99px pill buttons,
- * periwinkle-violet accent, mono for every datum. It reuses the `cz-*`
- * primitives from cosmic.css directly (.cz-btn, .cz-pill, .cz-card,
- * .cz-eyebrow, .cz-num, .cz-dot) so nothing here forks the design system.
- *
- * The hero is anchored by <Singularity>, a three.js/WebGL black hole that
- * ray-traces null geodesics. The auth screens use the same component, so
- * the CSS <EventHorizon> now survives only as its no-WebGL fallback and in
- * small empty-state slots.
- *
- * Motion is anime.js: one entrance timeline for the hero, then per-section
- * reveals triggered by IntersectionObserver. Everything is gated on
- * prefers-reduced-motion — see the guard in the layout effect and the
- * reduced-motion block in landing.css. Elements are only hidden after the
- * effect adds `.ks-anim`, so a failed anime.js load degrades to a static
- * page rather than a blank one.
- *
- * Copy rule: every claim is drawn from the repository (README.md,
- * CLAUDE.md, docs/, sdks/, integrations/). The promotion panel shows
- * illustrative product UI, not measured telemetry, and there are no
- * invented customers, logos or benchmarks.
- */
+import { ArrowRight, ArrowUpRight, Check, Code2, FolderClosed, GitBranch, KeyRound, LockKeyhole, ShieldCheck, Terminal } from 'lucide-react';
+import { Brand } from '../components/cosmic/Brand';
+import { EhMark } from '../components/cosmic/EhMark';
+import { BlackHoleScene } from '../components/cosmic/BlackHoleScene';
+import '../styles/landing.css';
 
 const REPO = 'https://github.com/santapong/KeepSave';
-
-/* ------------------------------------------------------------------ */
-/* data                                                                */
-/* ------------------------------------------------------------------ */
-
-type Health = 'go' | 'warn' | 'stop';
-type DiffState = 'added' | 'changed' | 'same';
-
-interface SecretRow {
-  key: string;
-  /** presence across [alpha, uat, prod] */
-  envs: [boolean, boolean, boolean];
-  state: DiffState;
-}
-
-interface Promotion {
-  id: string;
-  from: string;
-  to: string;
-  health: Health;
-  note: string;
-  rows: SecretRow[];
-}
-
-const PROMOTIONS: Promotion[] = [
-  {
-    id: 'prm_4b21c9',
-    from: 'alpha',
-    to: 'uat',
-    health: 'go',
-    note: 'applied',
-    rows: [
-      { key: 'DATABASE_URL', envs: [true, true, true], state: 'changed' },
-      { key: 'OPENAI_API_KEY', envs: [true, true, false], state: 'added' },
-      { key: 'REDIS_URL', envs: [true, true, false], state: 'same' },
-      { key: 'JWT_SECRET', envs: [true, true, true], state: 'same' },
-      { key: 'SMTP_PASSWORD', envs: [true, true, false], state: 'added' },
-    ],
-  },
-  {
-    id: 'prm_4b20f7',
-    from: 'uat',
-    to: 'prod',
-    health: 'warn',
-    note: 'awaiting 2nd approver',
-    rows: [
-      { key: 'DATABASE_URL', envs: [true, true, true], state: 'changed' },
-      { key: 'STRIPE_SECRET_KEY', envs: [true, true, true], state: 'changed' },
-      { key: 'WEBHOOK_SIGNING_KEY', envs: [true, true, true], state: 'added' },
-      { key: 'JWT_SECRET', envs: [true, true, true], state: 'same' },
-    ],
-  },
-  {
-    id: 'prm_4b1e02',
-    from: 'alpha',
-    to: 'uat',
-    health: 'go',
-    note: 'applied',
-    rows: [
-      { key: 'FEATURE_MCP_HUB', envs: [true, true, false], state: 'added' },
-      { key: 'LOG_LEVEL', envs: [true, true, true], state: 'changed' },
-      { key: 'CORS_ORIGINS', envs: [true, true, true], state: 'same' },
-    ],
-  },
-  {
-    id: 'prm_4b1c88',
-    from: 'uat',
-    to: 'prod',
-    health: 'stop',
-    note: 'rolled back',
-    rows: [
-      { key: 'DATABASE_URL', envs: [true, true, true], state: 'changed' },
-      { key: 'CORS_ORIGINS', envs: [true, true, true], state: 'changed' },
-      { key: 'LEASE_TTL_SECONDS', envs: [true, true, false], state: 'added' },
-    ],
-  },
-];
-
-const ENV_ORDER = ['alpha', 'uat', 'prod'] as const;
-
-const OAUTH_FLOWS = ['authorization code', 'client credentials', 'pkce', 'refresh token'];
-
-const REACH: Array<[string, string]> = [
-  ['sdks', 'go · node.js · python'],
-  ['ci', 'github action · gitlab ci'],
-  ['infra', 'terraform provider'],
-  ['embed', '<keepsave-widget>'],
-  ['deploy', 'docker compose · helm'],
-];
-
-const METRICS: Array<[string, string, string]> = [
-  ['256', 'bit', 'AES-GCM envelope encryption. Per-project data keys, master key held in a KMS and never written to the database.'],
-  ['4', 'flows', 'A full OAuth 2.0 provider: authorization code, client credentials, PKCE and refresh token.'],
-  ['3', 'stages', 'Alpha to UAT to PROD. Every promotion is diff-reviewed, audit-logged and reversible.'],
-  ['0', 'plaintext', 'No secret value is written to disk unsealed, and none is returned in an error response.'],
-];
-
-const NAV: Array<[string, string]> = [
-  ['Vault', '#vault'],
-  ['Gateway', '#gateway'],
-  ['Security', '#guarantees'],
-  ['Docs', REPO],
-];
-
-
-/* ------------------------------------------------------------------ */
+const EXAMPLE_KEYS = ['DATABASE_URL', 'PAYMENTS_API_KEY', 'SESSION_SECRET'];
 
 export function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [stuck, setStuck] = useState(false);
-  const [selected, setSelected] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const promotion = PROMOTIONS[selected];
-
-  /* --- header shadow on scroll ------------------------------------ */
-  useEffect(() => {
-    const onScrollY = () => setStuck(window.scrollY > 24);
-    onScrollY();
-    window.addEventListener('scroll', onScrollY, { passive: true });
-    return () => window.removeEventListener('scroll', onScrollY);
-  }, []);
-
-  /* --- anime.js: hero entrance + per-section reveals ---------------
-     useLayoutEffect, not useEffect: the .ks-anim class is what makes
-     .ks-rise elements transparent, so it has to land before the browser
-     paints or the page flashes its content and then hides it. */
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    // Reduced motion: never hide anything, animate nothing.
-    if (motionOff()) return;
-
-    // Opt in to the hidden start state only now that we know we can undo it.
-    root.classList.add('ks-anim');
-
-    const hero = Array.from(root.querySelectorAll<HTMLElement>('[data-hero] .ks-rise'));
-    if (hero.length) {
-      animate(hero, {
-        opacity: [0, 1],
-        translateY: [26, 0],
-        filter: ['blur(10px)', 'blur(0px)'],
-        duration: 1100,
-        delay: stagger(110, { start: 180 }),
-        ease: 'out(3)',
-      });
-    }
-
-    // Sections reveal as they cross into view, once each.
-    const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-reveal]'));
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const el = entry.target as HTMLElement;
-          io.unobserve(el);
-          const items = Array.from(el.querySelectorAll<HTMLElement>('.ks-rise'));
-          if (!items.length) continue;
-          animate(items, {
-            opacity: [0, 1],
-            translateY: [30, 0],
-            duration: 900,
-            delay: stagger(80),
-            ease: 'out(3)',
-          });
-        }
-      },
-      { rootMargin: '0px 0px -12% 0px', threshold: 0.05 },
-    );
-    sections.forEach((s) => io.observe(s));
-
-    // The scroll rail breathes so the hint reads as live.
-    const rail = root.querySelector<HTMLElement>('.ks-scroll-rail');
-    if (rail) {
-      animate(rail, {
-        opacity: [0.25, 1, 0.25],
-        duration: 2600,
-        loop: true,
-        ease: 'inOut(2)',
-      });
-    }
-
-    return () => io.disconnect();
-  }, []);
+  const [environment, setEnvironment] = useState('alpha');
 
   return (
-    <div className="ks-landing" ref={rootRef}>
-      <Starfield />
-
-      {/* ---------------------------------------------------------- */}
-      {/* header                                                      */}
-      {/* ---------------------------------------------------------- */}
-      <header className={`ks-header${stuck ? ' ks-stuck' : ''}`}>
-        <a className="ks-brand" href="#top">
-          <KsMark />
-          <span className="ks-mk">
-            Keep<em>save</em>
-          </span>
-        </a>
-
-        <nav className="ks-nav" aria-label="Primary">
-          {NAV.map(([label, href]) => (
-            <a key={label} href={href}>
-              {label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="ks-header-actions">
-          <Link className="cz-btn cz-btn-ghost ks-hide-sm" to="/login">
-            Sign in
-          </Link>
-          <Link className="cz-btn cz-btn-primary" to="/register">
-            Open an account →
-          </Link>
-          <button
-            type="button"
-            className="cz-btn ks-menu-btn"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-          >
-            ☰
-          </button>
-        </div>
+    <div className="ks-landing">
+      <a className="ks-skip" href="#main">Skip to content</a>
+      <header className="ks-nav ks-container">
+        <Brand className="ks-brand" size={40} />
+        <nav aria-label="Main navigation"><a href="#workflow">How it works</a><a href="#built-for">For your stack</a><a href={`${REPO}/tree/main/docs/system`}>Docs <ArrowUpRight size={13} /></a></nav>
+        <div className="ks-nav-actions"><Link to="/login">Sign in</Link><Link className="ks-button ks-button-small" to="/register">Get started <ArrowRight size={15} /></Link></div>
       </header>
 
-      {menuOpen && (
-        <div className="ks-menu">
-          <div className="ks-menu-top">
-            <span className="ks-brand">
-              <KsMark />
-              <span className="ks-mk">
-                Keep<em>save</em>
-              </span>
-            </span>
-            <button type="button" className="cz-btn" onClick={() => setMenuOpen(false)} aria-label="Close menu">
-              ✕
-            </button>
+      <main id="main">
+        <section className="ks-hero ks-container">
+          <div className="ks-hero-copy">
+            <div className="ks-eyebrow"><span /> KEEPSAVE / EVENT HORIZON</div>
+            <h1>Your secrets.<br />In the <span>right orbit.</span></h1>
+            <p className="ks-lead">One place for the keys that keep your software running. Store them encrypted, give agents scoped access, and move changes to production with a review.</p>
+            <div className="ks-actions"><Link to="/register" className="ks-button">Create your vault <ArrowRight size={17} /></Link><a href={REPO} className="ks-button ks-button-secondary">Explore the source <ArrowUpRight size={16} /></a></div>
+            <div className="ks-proof"><span><Check size={14} /> Per-project encryption</span><span><Check size={14} /> Self-hostable</span></div>
           </div>
-          <nav>
-            {NAV.map(([label, href]) => (
-              <a key={label} href={href} onClick={() => setMenuOpen(false)}>
-                {label}
-              </a>
-            ))}
-          </nav>
-          <div className="ks-menu-foot">
-            <Link className="cz-btn" to="/login" onClick={() => setMenuOpen(false)}>
-              Sign in
-            </Link>
-            <Link className="cz-btn cz-btn-primary" to="/register" onClick={() => setMenuOpen(false)}>
-              Open an account →
-            </Link>
+          <div className="ks-gravity-stage">
+            <div className="ks-orbit ks-orbit-outer" />
+            <div className="ks-orbit ks-orbit-inner" />
+            <span className="ks-scene-label">A LITTLE GRAVITY. A LOT OF CONTROL.</span>
+            <BlackHoleScene className="ks-live-blackhole" />
+            <span className="ks-orbit-note ks-orbit-note-top"><span /> ENCRYPT</span>
+            <span className="ks-orbit-note ks-orbit-note-bottom"><span /> CONNECT</span>
+            <span className="ks-scene-caption">THE EVENT HORIZON</span>
           </div>
-        </div>
-      )}
+        </section>
 
-      {/* ---------------------------------------------------------- */}
-      {/* hero — the singularity                                      */}
-      {/* ---------------------------------------------------------- */}
-      <section className="ks-hero" id="top" data-hero>
-        <div className="ks-hero-stage">
-          <Singularity size={860} />
-        </div>
-
-        <div className="ks-hero-inner">
-          <span className="cz-pill cz-pill-accent ks-rise">
-            <span className="cz-dot cz-dot-go" /> self-hosted · docker · helm
-          </span>
-
-          <h1 className="ks-h1 ks-rise">
-            Nothing escapes
-            <br />
-            <em>the keeping-place.</em>
-          </h1>
-
-          <p className="ks-lede ks-rise">
-            KeepSave seals every value with AES-256-GCM under a per-project key, then releases it to your agents,
-            pipelines and MCP servers on demand — so it never lands in a <code className="cz-mono">.env</code>, a prompt,
-            or a chat log.
-          </p>
-
-          <div className="ks-hero-cta ks-rise">
-            <Link className="cz-btn cz-btn-primary" to="/register">
-              Open an account →
-            </Link>
-            <a className="cz-btn" href={REPO} target="_blank" rel="noreferrer">
-              Read the docs
-            </a>
+        <section className="ks-vault-tour ks-container" aria-labelledby="vault-tour-title">
+          <div className="ks-tour-copy">
+            <div className="ks-eyebrow">UNDER THE SURFACE / YOUR WORKSPACE</div>
+            <h2 id="vault-tour-title">One workspace.<br /><span>Three environments.</span></h2>
+            <p>Create a project, add your keys, and choose who can access them. Keep development, testing, and production clearly separated.</p>
+            <div className="ks-tour-detail"><ShieldCheck size={18} /><div><strong>Private by default</strong><span>Values stay hidden until you choose to reveal them.</span></div></div>
+            <div className="ks-tour-detail"><GitBranch size={18} /><div><strong>Move forward with a review</strong><span>Compare changes before promoting between environments.</span></div></div>
+            <Link to="/register" className="ks-text-link">Create your first project <ArrowRight size={16} /></Link>
           </div>
-
-          <p className="ks-fine ks-hero-foot ks-rise">
-            go 1.24 · postgresql · mysql · sqlite · prometheus · opentelemetry
-          </p>
-        </div>
-
-        <div className="ks-scroll-hint" aria-hidden="true">
-          <span className="ks-fine">scroll</span>
-          <span className="ks-scroll-rail" />
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------- */}
-      {/* 01 · vault                                                  */}
-      {/* ---------------------------------------------------------- */}
-      <section className="ks-section" id="vault" data-reveal>
-        <div className="ks-shell">
-          <div className="ks-head">
-            <div className="ks-eyebrow-row ks-rise">
-              <span className="ks-ix">01</span>
-              <span className="cz-eyebrow">Vault</span>
+          <div className="ks-product" aria-label="Illustrative vault preview">
+            <div className="ks-preview-top"><span><EhMark size={24} /> KeepSave</span><span className="ks-example">PRODUCT EXAMPLE</span></div>
+            <div className="ks-preview-body">
+              <div className="ks-preview-crumb"><FolderClosed size={14} /> Projects <span>/</span> storefront</div>
+              <div className="ks-preview-heading"><div><h2>storefront</h2><p>A separate home for every environment.</p></div><LockKeyhole size={21} /></div>
+              <div className="ks-env-tabs" role="group" aria-label="Preview environment">{['alpha', 'uat', 'prod'].map(env => <button type="button" aria-pressed={env === environment} key={env} onClick={() => setEnvironment(env)}><span className={`ks-env-dot ks-env-${env}`} />{env.toUpperCase()}</button>)}</div>
+              <div className="ks-preview-table"><div className="ks-preview-table-head"><span>KEY</span><span>VALUE</span></div>{EXAMPLE_KEYS.map(key => <div key={key} className="ks-preview-row"><span><KeyRound size={13} />{key}</span><span className="ks-masked">•••••••••••• <LockKeyhole size={12} /></span></div>)}</div>
+              <div className="ks-preview-foot" aria-live="polite"><ShieldCheck size={15} /><span>{environment.toUpperCase()} · Values hidden by default</span><span>3 example keys</span></div>
             </div>
-            <h2 className="ks-h2 ks-rise">
-              Promote environments.
-              <br />
-              <em>Don&rsquo;t copy-paste them.</em>
-            </h2>
-            <p className="ks-lede ks-rise">
-              Every promotion previews its diff before it applies, writes an audit row when it does, and can be rolled
-              back. PROD can require a second approver. Select a promotion to see what moved.
-            </p>
+            <div className="ks-preview-pipeline"><GitBranch size={17} /><span>Develop</span><span className="ks-line" /><span>Review</span><span className="ks-line" /><span>Promote <ArrowRight size={14} /></span></div>
           </div>
+        </section>
 
-          <div className="cz-card ks-panel ks-rise">
-            <div className="ks-panel-bar">
-              <span className="cz-num" style={{ fontSize: 13, color: 'var(--cz-accent-hi)' }}>
-                {promotion.id}
-              </span>
-              <div className="ks-panel-chips">
-                <span className="cz-pill">
-                  {promotion.from} → {promotion.to}
-                </span>
-                <span className="cz-pill">{promotion.rows.length} keys</span>
-                <span className={`cz-pill ${promotion.health === 'go' ? 'cz-pill-go' : promotion.health === 'stop' ? 'cz-pill-stop' : ''}`}>
-                  <span className={`cz-dot cz-dot-${promotion.health}`} />
-                  {promotion.note}
-                </span>
-              </div>
-            </div>
+        <div className="ks-stack-strip"><div className="ks-container"><span>FITS THE WAY YOU BUILD</span><span><Terminal size={17} /> CLI & CI/CD</span><span><Code2 size={17} /> Python · Node.js · Go</span><span><KeyRound size={17} /> Scoped API keys</span><span><GitBranch size={17} /> MCP tools</span></div></div>
 
-            <div className="ks-panel-body">
-              <div className="ks-panel-side" role="tablist" aria-label="Promotions">
-                {PROMOTIONS.map((p, i) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="tab"
-                    className="ks-run"
-                    aria-selected={i === selected}
-                    onClick={() => setSelected(i)}
-                  >
-                    <span className={`cz-dot cz-dot-${p.health}`} />
-                    {p.id}
-                    <span className="ks-run-to">{p.to}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="ks-panel-main">
-                <div className="ks-drow ks-dhead">
-                  <span>key</span>
-                  <span>alpha · uat · prod</span>
-                  <span style={{ textAlign: 'right' }}>state</span>
-                </div>
-
-                {promotion.rows.map((row) => (
-                  <div className="ks-drow" key={row.key}>
-                    <span className="ks-dkey">{row.key}</span>
-
-                    <span className="ks-track" aria-hidden="true">
-                      {row.envs.map((present, i) =>
-                        present ? (
-                          <span
-                            key={ENV_ORDER[i]}
-                            className={`ks-seg${
-                              ENV_ORDER[i] === promotion.to && row.state !== 'same' ? ` is-${row.state}` : ''
-                            }`}
-                            style={{ left: `${i * 34}%`, width: '30%' }}
-                          />
-                        ) : null,
-                      )}
-                    </span>
-
-                    <span className={`ks-dstate is-${row.state}`}>{row.state}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <section id="workflow" className="ks-section ks-container">
+          <div className="ks-section-heading"><div><div className="ks-eyebrow">01 / A CLEAR PATH TO PRODUCTION</div><h2>Less copy-paste.<br />More control.</h2></div><p>Give each project its own vault. Keep Alpha, UAT, and Production separate. Make every change intentional.</p></div>
+          <div className="ks-steps">
+            <article><div className="ks-step-top"><LockKeyhole size={22} /><span>01</span></div><h3>Keep it encrypted</h3><p>Add a secret or import an existing .env file. Values are encrypted at rest with AES-256-GCM and a key for each project.</p><span className="ks-step-tag">YOUR PROJECT. YOUR VAULT.</span></article>
+            <article><div className="ks-step-top"><KeyRound size={22} /><span>02</span></div><h3>Grant just enough access</h3><p>Scope API keys to projects, environments, and actions. Connect your applications, pipelines, and agent tools.</p><span className="ks-step-tag">ACCESS WITH BOUNDARIES.</span></article>
+            <article><div className="ks-step-top"><GitBranch size={22} /><span>03</span></div><h3>Review. Then promote.</h3><p>Compare changes before moving them between environments. Use approval rules and audit history to track what happened.</p><span className="ks-step-tag">A RECORD OF THE CHANGE.</span></article>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ---------------------------------------------------------- */}
-      {/* 02 · gateway                                                */}
-      {/* ---------------------------------------------------------- */}
-      <section className="ks-section ks-section--tight" id="gateway" data-reveal>
-        <div className="ks-shell">
-          <div className="ks-head">
-            <div className="ks-eyebrow-row ks-rise">
-              <span className="ks-ix">02</span>
-              <span className="cz-eyebrow">Gateway</span>
-            </div>
-            <h2 className="ks-h2 ks-rise">
-              One hop between your agents
-              <br />
-              and <em>everything else.</em>
-            </h2>
-            <p className="ks-lede ks-rise">
-              Register MCP servers from GitHub, route tool calls through a single gateway, and let KeepSave inject the
-              secrets each server needs as environment variables at call time.
-            </p>
-          </div>
+        <section id="built-for" className="ks-integration ks-container">
+          <div><div className="ks-eyebrow">02 / YOUR TOOLS, CONNECTED</div><h2>Made for developers.<br />Ready for agents.</h2><p>KeepSave brings environment secrets and MCP connections into one workspace, with a REST API, language SDKs, and a CLI for your existing workflows.</p><a href={`${REPO}/tree/main/sdks`} className="ks-text-link">Browse SDKs and integration guides <ArrowRight size={16} /></a></div>
+          <div className="ks-code"><div><Terminal size={15} /> a familiar workflow <span>CLI</span></div><pre><code><span># Open your project vault</span>{'\n'}keepsave projects{'\n\n'}<span># Read the command reference</span>{'\n'}keepsave --help</code></pre><div className="ks-code-note"><LockKeyhole size={14} /> Configure credentials locally using the CLI guide.</div></div>
+        </section>
 
-          <div className="ks-bento">
-            <article className="cz-card ks-rise">
-              <span className="cz-eyebrow">MCP hub</span>
-              <h3 className="ks-h3">Secrets injected at call time.</h3>
-              <p>
-                JSON-RPC 2.0 in, tool result out. The agent never receives the credential — the gateway resolves it,
-                hands it to the server as an env var, and logs the call.
-              </p>
-              <pre className="ks-codeblock">
-                <span className="i">{'POST /mcp/gateway/tools/call\n'}</span>
-                {'{ "server": '}
-                <span className="a">{'"gmail"'}</span>
-                {', "tool": '}
-                <span className="a">{'"send"'}</span>
-                {' }\n\n'}
-                {'resolve  '}
-                <span className="g">{'GMAIL_TOKEN → env\n'}</span>
-                {'audit    '}
-                <span className="i">{'mcp.tool.called'}</span>
-              </pre>
-            </article>
-
-            <article className="cz-card ks-rise">
-              <span className="cz-eyebrow">Identity</span>
-              <h3 className="ks-h3">A full OAuth 2.0 provider.</h3>
-              <p>
-                Issue and rotate tokens for your own apps and agents without standing up a second identity service.
-                Scoped API keys cover the machine-to-machine case.
-              </p>
-              <div className="ks-pillrow">
-                {OAUTH_FLOWS.map((flow) => (
-                  <span className="cz-pill" key={flow}>
-                    {flow}
-                  </span>
-                ))}
-              </div>
-            </article>
-
-            <article className="cz-card ks-rise">
-              <span className="cz-eyebrow">Reach</span>
-              <h3 className="ks-h3">Wherever the secret is needed.</h3>
-              <p>Three SDKs, two CI integrations, a Terraform provider, and an embeddable widget for your own dashboard.</p>
-              <div className="ks-kv">
-                {REACH.map(([k, v]) => (
-                  <div className="ks-kv-row" key={k}>
-                    <span>{k}</span>
-                    <span>{v}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------- */}
-      {/* 03 · guarantees                                             */}
-      {/* ---------------------------------------------------------- */}
-      <section className="ks-section ks-section--tight" id="guarantees" data-reveal>
-        <div className="ks-shell">
-          <div className="ks-head">
-            <div className="ks-eyebrow-row ks-rise">
-              <span className="ks-ix">03</span>
-              <span className="cz-eyebrow">Guarantees</span>
-            </div>
-            <h2 className="ks-h2 ks-rise">
-              What the design <em>actually commits to.</em>
-            </h2>
-            <p className="ks-lede ks-rise">
-              These are properties of the system, not benchmarks. The threat model and the ASVS audit are in the
-              repository if you want the working.
-            </p>
-          </div>
-
-          <div className="ks-metrics ks-rise">
-            {METRICS.map(([value, unit, label]) => (
-              <div className="ks-metric" key={label}>
-                <div>
-                  <span className="ks-metric-value">{value}</span>
-                  <span className="ks-metric-unit">{unit}</span>
-                </div>
-                <p className="ks-metric-label">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------- */}
-      {/* close                                                       */}
-      {/* ---------------------------------------------------------- */}
-      <section className="ks-close" data-reveal>
-        <h2 className="ks-h2 ks-rise">
-          Run it <em>yourself.</em>
-        </h2>
-        <p className="ks-lede ks-rise">
-          Clone the repository, generate a master key, and bring the stack up with Docker Compose. The API listens on
-          8080, the dashboard on 3000.
-        </p>
-        <div className="ks-close-cta ks-rise">
-          <Link className="cz-btn cz-btn-primary" to="/register">
-            Open an account →
-          </Link>
-          <a className="cz-btn" href={REPO} target="_blank" rel="noreferrer">
-            View on GitHub
-          </a>
-        </div>
-      </section>
-
-      {/* ---------------------------------------------------------- */}
-      {/* footer                                                      */}
-      {/* ---------------------------------------------------------- */}
-      <footer className="ks-footer">
-        <span className="ks-fine">KeepSave · encrypted vault · oauth provider · mcp hub</span>
-        <div className="ks-footer-links">
-          <a href={`${REPO}#readme`} target="_blank" rel="noreferrer">
-            Docs
-          </a>
-          <a href={`${REPO}/blob/main/SECURITY_AUDIT.md`} target="_blank" rel="noreferrer">
-            Security
-          </a>
-          <a href={`${REPO}/blob/main/docs/THREAT_MODEL.md`} target="_blank" rel="noreferrer">
-            Threat model
-          </a>
-          <a href={REPO} target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-        </div>
-      </footer>
+        <section className="ks-bottom-cta ks-container"><div><div className="ks-eyebrow">A BETTER PLACE TO KEEP THINGS</div><h2>Start with one project.</h2><p>Create a vault, add a secret, and take it from there.</p></div><Link to="/register" className="ks-button">Create your vault <ArrowRight size={17} /></Link></section>
+      </main>
+      <footer className="ks-footer ks-container"><Brand className="ks-brand" size={36} /><span>Built for the things you shouldn’t share.</span><div><a href={REPO}>GitHub <ArrowUpRight size={13} /></a><a href={`${REPO}/blob/main/docs/THREAT_MODEL.md`}>Security model</a></div></footer>
     </div>
   );
 }

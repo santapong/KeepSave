@@ -27,7 +27,7 @@ describe('LoginPage', () => {
 
   it('renders login form', () => {
     renderLogin();
-    expect(screen.getByText(/the keeping-place/i)).toBeInTheDocument();
+    expect(screen.getByText(/your orbit/i)).toBeInTheDocument();
     expect(screen.getByText(/sign in/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();

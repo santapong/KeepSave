@@ -9,7 +9,7 @@ import { ProjectAPIKeysPanel } from '../components/ProjectAPIKeysPanel';
 import { TypedConfirmModal } from '../components/TypedConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { OrbitalPipeline } from '../components/cosmic/OrbitalPipeline';
-import { Page, PageHeader, KpiStrip, Kpi, SectionHead } from '../components/cosmic/primitives';
+import { Page, PageHeader, SectionHead } from '../components/cosmic/primitives';
 import type { Project } from '../types';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
@@ -117,9 +117,6 @@ export function ProjectDetailPage() {
     { key: 'api-keys', label: 'API Keys', path: `/projects/${id}/api-keys` },
   ];
 
-  const nameParts = project.name.split('-');
-  const head = nameParts[0];
-  const tail = nameParts.slice(1).join('-') || 'vault';
 
   return (
     <Page>
@@ -129,7 +126,7 @@ export function ProjectDetailPage() {
 
       <PageHeader
         eyebrow={`Project · prj_${project.id.slice(0, 6)}`}
-        title={<>{head} <em>/ {tail}</em></>}
+        title={project.name}
         sub={project.description || undefined}
         actions={
           <>
@@ -179,12 +176,11 @@ export function ProjectDetailPage() {
         }
       />
 
-      <KpiStrip>
-        <Kpi label="Secrets" value="—" hint="this project" bars={[2, 3, 2, 4, 3, 5, 4, 5]} />
-        <Kpi label="Environments" value="03" hint="alpha · uat · prod" bars={[1, 2, 2, 3, 3, 3, 3, 3]} />
-        <Kpi label="Reads / hr" value="1,204" hint="+4% h/h" trend="up" bars={[6, 7, 8, 9, 8, 10, 11, 12]} flux />
-        <Kpi label="Drift" value="Δ0" hint="envs aligned" />
-      </KpiStrip>
+      <div className="ks-workspace-summary">
+        <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+        <span>Alpha · UAT · Production</span>
+        <span>Encrypted at rest · AES-256-GCM</span>
+      </div>
 
       {/* Tabs */}
       <div className="cz-tabs">

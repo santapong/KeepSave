@@ -28,7 +28,7 @@ func (r *SecretRepository) Create(projectID, environmentID uuid.UUID, key string
 			 VALUES ($1, $2, $3, $4, $5, $6)
 			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`,
 			id, projectID, environmentID, key, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating secret: %w", err)
 		}
@@ -39,7 +39,7 @@ func (r *SecretRepository) Create(projectID, environmentID uuid.UUID, key string
 			return nil, fmt.Errorf("creating secret: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created secret: %w", err)
 		}
@@ -53,7 +53,7 @@ func (r *SecretRepository) GetByID(id uuid.UUID) (*models.Secret, error) {
 		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
 		 FROM secrets WHERE id = $1`),
 		id,
-	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting secret: %w", err)
 	}
@@ -74,7 +74,7 @@ func (r *SecretRepository) ListByProjectAndEnv(projectID, environmentID uuid.UUI
 	var secrets []models.Secret
 	for rows.Next() {
 		var s models.Secret
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning secret: %w", err)
 		}
 		secrets = append(secrets, s)
@@ -91,7 +91,7 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 			 WHERE id = $1
 			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`),
 			id, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}
@@ -101,7 +101,7 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading updated secret: %w", err)
 		}
@@ -129,7 +129,7 @@ func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string
 			 SET encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = NOW()
 			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`,
 			id, projectID, environmentID, key, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("upserting secret: %w", err)
 		}
@@ -143,7 +143,7 @@ func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string
 			return nil, fmt.Errorf("upserting secret: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE environment_id = $1 AND key = $2`)
-		err = r.db.QueryRow(selectQ, environmentID, key).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		err = r.db.QueryRow(selectQ, environmentID, key).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading upserted secret: %w", err)
 		}
@@ -165,7 +165,7 @@ func (r *SecretRepository) ListByProject(projectID uuid.UUID) ([]models.Secret, 
 	var secrets []models.Secret
 	for rows.Next() {
 		var s models.Secret
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning secret: %w", err)
 		}
 		secrets = append(secrets, s)
@@ -179,7 +179,7 @@ func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (
 		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
 		 FROM secrets WHERE environment_id = $1 AND key = $2`),
 		environmentID, key,
-	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting secret by env and key: %w", err)
 	}
@@ -193,7 +193,7 @@ func (r *SecretRepository) GetByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID,
 	s := &models.Secret{}
 	err := QueryRowQ(tx, r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
 		 FROM secrets WHERE environment_id = $1 AND key = $2`, environmentID, key).
-		Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

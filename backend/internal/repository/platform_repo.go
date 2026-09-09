@@ -32,7 +32,7 @@ func (r *AccessPolicyRepository) GetPolicies(projectID uuid.UUID) ([]models.Acce
 	for rows.Next() {
 		var p models.AccessPolicy
 		if err := rows.Scan(&p.ID, &p.ProjectID, &p.PolicyType, &p.Config, &p.Enabled,
-			&p.CreatedBy, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.CreatedBy, dbTime(&p.CreatedAt), dbTime(&p.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning access policy: %w", err)
 		}
 		policies = append(policies, p)
@@ -49,7 +49,7 @@ func (r *AccessPolicyRepository) CreatePolicy(policy *models.AccessPolicy) (*mod
 			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id, created_at, updated_at`,
 			id, policy.ProjectID, policy.PolicyType, policy.Config, policy.Enabled, policy.CreatedBy,
-		).Scan(&policy.ID, &policy.CreatedAt, &policy.UpdatedAt)
+		).Scan(&policy.ID, dbTime(&policy.CreatedAt), dbTime(&policy.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating access policy: %w", err)
 		}
@@ -60,7 +60,7 @@ func (r *AccessPolicyRepository) CreatePolicy(policy *models.AccessPolicy) (*mod
 			return nil, fmt.Errorf("creating access policy: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, created_at, updated_at FROM access_policies WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&policy.ID, &policy.CreatedAt, &policy.UpdatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&policy.ID, dbTime(&policy.CreatedAt), dbTime(&policy.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created access policy: %w", err)
 		}

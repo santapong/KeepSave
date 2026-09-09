@@ -21,13 +21,19 @@ export function HelpPage() {
   ];
 
   return (
-    <div style={{ display: 'flex', gap: 32, minHeight: 'calc(100vh - 120px)', overflow: 'auto', padding: 32 }}>
+    <div className="cz-docs">
+      <label className="cz-docs-mobile">Documentation
+        <select className="cz-input" value={active} onChange={(event) => setActive(event.target.value as Section)}>
+          {sections.map(section => <option key={section.key} value={section.key}>{section.label}</option>)}
+        </select>
+      </label>
       {/* Sidebar */}
-      <nav style={sidebar}>
+      <nav className="cz-docs-nav" aria-label="Documentation sections">
         <h3 className="cz-eyebrow" style={{ marginBottom: 12 }}>Documentation</h3>
         {sections.map(s => (
           <button
             key={s.key}
+            aria-current={active === s.key ? 'page' : undefined}
             onClick={() => setActive(s.key)}
             style={{
               ...sidebarItem,
@@ -1395,14 +1401,6 @@ function ApiRow({ method, path, desc }: { method: string; path: string; desc: st
 }
 
 /* Styles */
-
-const sidebar: React.CSSProperties = {
-  width: 200,
-  flexShrink: 0,
-  position: 'sticky',
-  top: 80,
-  alignSelf: 'flex-start',
-};
 
 const sidebarItem: React.CSSProperties = {
   display: 'block',

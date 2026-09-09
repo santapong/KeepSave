@@ -8,11 +8,9 @@ interface EventHorizonProps {
 }
 
 /**
- * Event Horizon — a pure-CSS black hole used on the login hero and
- * empty states. Layers: outer bloom, rotating accretion disk, photon
- * ring, black core, and the lensed near-side disk that wraps in front
- * of the core. Decorative only (`aria-hidden`). The disk rotation is
- * gated by `prefers-reduced-motion` / `data-motion="off"` in CSS.
+ * Static CSS companion for empty states and the WebGL fallback.
+ * The light-plane and lensed arcs approximate the live scene's silhouette;
+ * only BlackHoleScene computes actual geodesic intersections.
  */
 export function EventHorizon({ size = 440, className }: EventHorizonProps) {
   return (
@@ -22,6 +20,8 @@ export function EventHorizon({ size = 440, className }: EventHorizonProps) {
       aria-hidden="true"
     >
       <div className="cz-eh__bloom" />
+      <div className="cz-eh__lensing cz-eh__lensing--upper" />
+      <div className="cz-eh__lensing cz-eh__lensing--lower" />
       <div className="cz-eh__disk" />
       <div className="cz-eh__photon" />
       <div className="cz-eh__core" />

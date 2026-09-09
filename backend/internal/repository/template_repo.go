@@ -27,7 +27,7 @@ func (r *TemplateRepository) Create(name, description, stack string, keys models
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at`,
 			id, name, description, stack, keys, createdBy, orgID, isGlobal,
-		).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
+		).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating template: %w", err)
 		}
@@ -38,7 +38,7 @@ func (r *TemplateRepository) Create(name, description, stack string, keys models
 			return nil, fmt.Errorf("creating template: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at FROM secret_templates WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created template: %w", err)
 		}
@@ -52,7 +52,7 @@ func (r *TemplateRepository) GetByID(id uuid.UUID) (*models.SecretTemplate, erro
 		Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at
 		 FROM secret_templates WHERE id = $1`),
 		id,
-	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting template: %w", err)
 	}
@@ -77,7 +77,7 @@ func (r *TemplateRepository) GetByIDForUser(id, userID uuid.UUID) (*models.Secre
 				WHERE om.organization_id = secret_templates.organization_id AND om.user_id = $3))
 		 )`),
 		id, userID, userID,
-	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt))
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (r *TemplateRepository) Update(id uuid.UUID, name, description, stack strin
 	}
 	t := &models.SecretTemplate{}
 	selectQ := Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at FROM secret_templates WHERE id = $1`)
-	if err := r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt); err != nil {
+	if err := r.db.QueryRow(selectQ, id).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt)); err != nil {
 		return nil, fmt.Errorf("reading updated template: %w", err)
 	}
 	return t, nil
@@ -160,7 +160,7 @@ func (r *TemplateRepository) scanTemplates(rows *sql.Rows) ([]models.SecretTempl
 	var templates []models.SecretTemplate
 	for rows.Next() {
 		var t models.SecretTemplate
-		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning template: %w", err)
 		}
 		templates = append(templates, t)

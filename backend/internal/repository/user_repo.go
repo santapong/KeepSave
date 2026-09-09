@@ -47,7 +47,7 @@ func (r *UserRepository) Create(email, passwordHash string) (*models.User, error
 			`INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)
 			 RETURNING id, email, password_hash, created_at, updated_at`,
 			id, email, passwordHash,
-		).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+		).Scan(&user.ID, &user.Email, &user.PasswordHash, dbTime(&user.CreatedAt), dbTime(&user.UpdatedAt))
 		if err != nil {
 			if isUniqueViolation(err) {
 				return nil, ErrUserExists
@@ -64,7 +64,7 @@ func (r *UserRepository) Create(email, passwordHash string) (*models.User, error
 			return nil, fmt.Errorf("creating user: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&user.ID, &user.Email, &user.PasswordHash, dbTime(&user.CreatedAt), dbTime(&user.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created user: %w", err)
 		}
@@ -77,7 +77,7 @@ func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 	err := r.db.QueryRow(
 		Q(r.dialect, `SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = $1`),
 		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, dbTime(&user.CreatedAt), dbTime(&user.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting user by email: %w", err)
 	}
@@ -89,7 +89,7 @@ func (r *UserRepository) GetByID(id uuid.UUID) (*models.User, error) {
 	err := r.db.QueryRow(
 		Q(r.dialect, `SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = $1`),
 		id,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, dbTime(&user.CreatedAt), dbTime(&user.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting user by id: %w", err)
 	}

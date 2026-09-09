@@ -129,7 +129,7 @@ func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]mod
 	var entries []models.AuditEntry
 	for rows.Next() {
 		var e models.AuditEntry
-		if err := rows.Scan(&e.ID, &e.UserID, &e.ProjectID, &e.Action, &e.Environment, &e.Details, &e.IPAddress, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.ProjectID, &e.Action, &e.Environment, &e.Details, &e.IPAddress, dbTime(&e.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning audit entry: %w", err)
 		}
 		entries = append(entries, e)
@@ -203,7 +203,7 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 		var action, ipAddress string
 		var detailsRaw []byte
 		var createdAt time.Time
-		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash, &createdAt); err != nil {
+		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash, dbTime(&createdAt)); err != nil {
 			rows.Close()
 			return 0, fmt.Errorf("scanning audit chain row for prune: %w", err)
 		}

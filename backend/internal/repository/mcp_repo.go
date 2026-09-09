@@ -47,8 +47,8 @@ func (r *MCPRepository) GetServer(id uuid.UUID) (*models.MCPServer, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&server.ID, &server.Name, &server.Description, &server.OwnerID, &server.GitHubURL, &server.GitHubBranch,
 		&server.EntryCommand, &server.Transport, &server.IconURL, &server.Version, &server.Status, &server.BuildLog,
-		&server.EnvMappings, &server.ToolDefinitions, &server.LastSyncedAt, &server.InstallCount, &server.IsPublic,
-		&server.CreatedAt, &server.UpdatedAt,
+		&server.EnvMappings, &server.ToolDefinitions, dbTime(&server.LastSyncedAt), &server.InstallCount, &server.IsPublic,
+		dbTime(&server.CreatedAt), dbTime(&server.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting mcp server: %w", err)
@@ -147,7 +147,7 @@ func (r *MCPRepository) ListInstallationsByUser(userID uuid.UUID) ([]models.MCPI
 	var installations []models.MCPInstallation
 	for rows.Next() {
 		var inst models.MCPInstallation
-		if err := rows.Scan(&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, &inst.CreatedAt, &inst.UpdatedAt); err != nil {
+		if err := rows.Scan(&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, dbTime(&inst.CreatedAt), dbTime(&inst.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning installation: %w", err)
 		}
 		installations = append(installations, inst)
@@ -160,7 +160,7 @@ func (r *MCPRepository) GetInstallation(userID, mcpServerID uuid.UUID) (*models.
 	query := Q(r.dialect, `SELECT id, user_id, mcp_server_id, project_id, enabled, config, created_at, updated_at
 		FROM mcp_installations WHERE user_id = $1 AND mcp_server_id = $2`)
 	err := r.db.QueryRow(query, userID, mcpServerID).Scan(
-		&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, &inst.CreatedAt, &inst.UpdatedAt,
+		&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, dbTime(&inst.CreatedAt), dbTime(&inst.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting installation: %w", err)
@@ -203,7 +203,7 @@ func (r *MCPRepository) ListEnabledInstallationsForUser(userID uuid.UUID) ([]mod
 	var installations []models.MCPInstallation
 	for rows.Next() {
 		var inst models.MCPInstallation
-		if err := rows.Scan(&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, &inst.CreatedAt, &inst.UpdatedAt); err != nil {
+		if err := rows.Scan(&inst.ID, &inst.UserID, &inst.MCPServerID, &inst.ProjectID, &inst.Enabled, &inst.Config, dbTime(&inst.CreatedAt), dbTime(&inst.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning installation: %w", err)
 		}
 		installations = append(installations, inst)
@@ -280,8 +280,8 @@ func (r *MCPRepository) scanServerRows(rows *sql.Rows) ([]models.MCPServer, erro
 		if err := rows.Scan(
 			&s.ID, &s.Name, &s.Description, &s.OwnerID, &s.GitHubURL, &s.GitHubBranch,
 			&s.EntryCommand, &s.Transport, &s.IconURL, &s.Version, &s.Status, &s.BuildLog,
-			&s.EnvMappings, &s.ToolDefinitions, &s.LastSyncedAt, &s.InstallCount, &s.IsPublic,
-			&s.CreatedAt, &s.UpdatedAt,
+			&s.EnvMappings, &s.ToolDefinitions, dbTime(&s.LastSyncedAt), &s.InstallCount, &s.IsPublic,
+			dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt),
 		); err != nil {
 			return nil, fmt.Errorf("scanning mcp server: %w", err)
 		}

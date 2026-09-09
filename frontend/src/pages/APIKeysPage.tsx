@@ -122,7 +122,7 @@ export function APIKeysPage() {
 
       {showCreate && projects.length > 0 && (
         <form onSubmit={handleCreate} className="cz-card" style={{ padding: 20, marginBottom: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="cz-key-fields">
             <label className="cz-login-field">
               <span style={{ display: 'block', marginBottom: 7 }}>Name</span>
               <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="my-agent-key" className="cz-input" />

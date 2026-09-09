@@ -38,7 +38,7 @@ func (r *AuthAttemptsRepository) Get(email string) (*LoginAttempt, error) {
 		email,
 	)
 	la := &LoginAttempt{Email: email}
-	if err := row.Scan(&la.Email, &la.FailedCount, &la.LastFailedAt, &la.LockedUntil); err != nil {
+	if err := row.Scan(&la.Email, &la.FailedCount, dbTime(&la.LastFailedAt), dbTime(&la.LockedUntil)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &LoginAttempt{Email: email}, nil
 		}
