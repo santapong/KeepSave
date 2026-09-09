@@ -28,10 +28,14 @@ func RunMigrationsFS(db *sql.DB, dialect Dialect, fsys fs.FS) error {
 	}
 
 	// Create schema_migrations table using dialect-appropriate SQL
+	defaultTime := dialect.Now()
+	if dialect.DBType() == DBTypeSQLite {
+		defaultTime = "(" + defaultTime + ")"
+	}
 	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version VARCHAR(255) PRIMARY KEY,
 		applied_at %s NOT NULL DEFAULT %s
-	)`, schemaTimestamp(dialect), dialect.Now())
+	)`, schemaTimestamp(dialect), defaultTime)
 	_, err := db.Exec(createTable)
 	if err != nil {
 		return fmt.Errorf("creating schema_migrations table: %w", err)

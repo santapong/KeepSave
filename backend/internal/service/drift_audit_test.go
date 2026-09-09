@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -24,6 +25,7 @@ func TestDetectDrift_EmitsAudit(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	for _, ddl := range []string{
+		`CREATE TABLE drift_schedules (id TEXT PRIMARY KEY, project_id TEXT, source_env TEXT, target_env TEXT, enabled BOOLEAN, next_run_at TIMESTAMP, last_run_at TIMESTAMP, updated_at TIMESTAMP)`,
 		`CREATE TABLE projects (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -139,6 +141,28 @@ func TestDetectDrift_EmitsAudit(t *testing.T) {
 	seedSecret("alpha", "DATABASE_URL", plaintextAlpha)
 	seedSecret("uat", "DATABASE_URL", "uat-plaintext-value")
 
+	// Run through the real scheduler with a single database connection.
+	// A scheduler retaining its SELECT rows while doing more queries blocks
+	// forever; a deadline bounds the regression test and closing DB releases it.
+	if _, err := db.Exec(`INSERT INTO drift_schedules (id, project_id, source_env, target_env, enabled) VALUES (?, ?, 'alpha', 'uat', true)`, uuid.New().String(), pid.String()); err != nil {
+		t.Fatal(err)
+	}
+	type scheduledResult struct {
+		count int
+		err   error
+	}
+	done := make(chan scheduledResult, 1)
+	go func() { count, err := svc.RunScheduledChecks(); done <- scheduledResult{count, err} }()
+	select {
+	case result := <-done:
+		if result.err != nil || result.count != 1 {
+			t.Fatalf("scheduled result: %+v", result)
+		}
+	case <-time.After(3 * time.Second):
+		_ = db.Close()
+		t.Fatal("scheduler blocked with a single database connection")
+	}
+
 	check, err := svc.DetectDrift(pid, owner, "alpha", "uat")
 	if err != nil {
 		t.Fatalf("DetectDrift: %v", err)
@@ -147,14 +171,14 @@ func TestDetectDrift_EmitsAudit(t *testing.T) {
 		t.Errorf("DriftedKeys = %d, want 1", check.DriftedKeys)
 	}
 
-	// Exactly one drift.detected row, attributed to the actor and project.
+	// The scheduled and direct checks each emit an attributed audit row.
 	var count int
 	var gotActor, gotProject, details string
 	if err := db.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE action = 'drift.detected'`).Scan(&count); err != nil {
 		t.Fatalf("count audit rows: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("got %d drift.detected rows, want 1", count)
+	if count != 2 {
+		t.Fatalf("got %d drift.detected rows, want 2", count)
 	}
 	if err := db.QueryRow(`SELECT user_id, project_id, details FROM audit_log WHERE action = 'drift.detected'`).
 		Scan(&gotActor, &gotProject, &details); err != nil {

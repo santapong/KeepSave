@@ -30,7 +30,7 @@ func (r *EnvironmentRepository) CreateDefaultsForProject(projectID uuid.UUID) ([
 				`INSERT INTO environments (id, project_id, name) VALUES ($1, $2, $3)
 				 RETURNING id, project_id, name, created_at`,
 				id, projectID, name,
-			).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
+			).Scan(&env.ID, &env.ProjectID, &env.Name, dbTime(&env.CreatedAt))
 			if err != nil {
 				return nil, fmt.Errorf("creating environment %s: %w", name, err)
 			}
@@ -41,7 +41,7 @@ func (r *EnvironmentRepository) CreateDefaultsForProject(projectID uuid.UUID) ([
 				return nil, fmt.Errorf("creating environment %s: %w", name, err)
 			}
 			selectQ := Q(r.dialect, `SELECT id, project_id, name, created_at FROM environments WHERE id = $1`)
-			err = r.db.QueryRow(selectQ, id).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
+			err = r.db.QueryRow(selectQ, id).Scan(&env.ID, &env.ProjectID, &env.Name, dbTime(&env.CreatedAt))
 			if err != nil {
 				return nil, fmt.Errorf("reading created environment %s: %w", name, err)
 			}
@@ -64,7 +64,7 @@ func (r *EnvironmentRepository) ListByProjectID(projectID uuid.UUID) ([]models.E
 	var envs []models.Environment
 	for rows.Next() {
 		var e models.Environment
-		if err := rows.Scan(&e.ID, &e.ProjectID, &e.Name, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.ProjectID, &e.Name, dbTime(&e.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning environment: %w", err)
 		}
 		envs = append(envs, e)
@@ -77,7 +77,7 @@ func (r *EnvironmentRepository) GetByProjectAndName(projectID uuid.UUID, name st
 	err := r.db.QueryRow(
 		Q(r.dialect, `SELECT id, project_id, name, created_at FROM environments WHERE project_id = $1 AND name = $2`),
 		projectID, name,
-	).Scan(&env.ID, &env.ProjectID, &env.Name, &env.CreatedAt)
+	).Scan(&env.ID, &env.ProjectID, &env.Name, dbTime(&env.CreatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting environment: %w", err)
 	}

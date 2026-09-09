@@ -38,7 +38,7 @@ func (r *ApplicationRepository) GetByID(id uuid.UUID) (*models.Application, erro
 		FROM applications WHERE id = $1`)
 	err := r.db.QueryRow(query, id).Scan(
 		&app.ID, &app.Name, &app.URL, &app.Description, &app.Icon, &app.Category, &app.OwnerID,
-		&app.CreatedAt, &app.UpdatedAt,
+		dbTime(&app.CreatedAt), dbTime(&app.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting application: %w", err)
@@ -55,7 +55,7 @@ func (r *ApplicationRepository) GetByOwner(id, ownerID uuid.UUID) (*models.Appli
 		FROM applications WHERE id = $1 AND owner_id = $2`)
 	err := r.db.QueryRow(query, id, ownerID).Scan(
 		&app.ID, &app.Name, &app.URL, &app.Description, &app.Icon, &app.Category, &app.OwnerID,
-		&app.CreatedAt, &app.UpdatedAt,
+		dbTime(&app.CreatedAt), dbTime(&app.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting application: %w", err)
@@ -104,7 +104,7 @@ func (r *ApplicationRepository) ListByOwner(ownerID uuid.UUID, search, category 
 	for rows.Next() {
 		var app models.Application
 		if err := rows.Scan(&app.ID, &app.Name, &app.URL, &app.Description, &app.Icon, &app.Category,
-			&app.OwnerID, &app.CreatedAt, &app.UpdatedAt); err != nil {
+			&app.OwnerID, dbTime(&app.CreatedAt), dbTime(&app.UpdatedAt)); err != nil {
 			return nil, 0, fmt.Errorf("scanning application: %w", err)
 		}
 		apps = append(apps, app)

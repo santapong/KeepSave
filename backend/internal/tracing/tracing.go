@@ -28,6 +28,7 @@ type Tracer struct {
 	mu          sync.RWMutex
 	spans       []Span
 	maxSpans    int
+	nextSpan    int // oldest entry once the retention buffer is full
 }
 
 // NewTracer creates a new tracer for the given service.
@@ -65,13 +66,13 @@ func (t *Tracer) GetRecentSpans(limit int) []Span {
 		limit = len(t.spans)
 	}
 
-	start := len(t.spans) - limit
-	if start < 0 {
-		start = 0
-	}
-
 	result := make([]Span, limit)
-	copy(result, t.spans[start:])
+	if limit == 0 {
+		return result
+	}
+	start := (t.nextSpan + len(t.spans) - limit) % len(t.spans)
+	n := copy(result, t.spans[start:])
+	copy(result[n:], t.spans[:limit-n])
 	return result
 }
 
@@ -79,10 +80,14 @@ func (t *Tracer) record(s Span) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.spans = append(t.spans, s)
-	if len(t.spans) > t.maxSpans {
-		t.spans = t.spans[len(t.spans)-t.maxSpans:]
+	if len(t.spans) < t.maxSpans {
+		t.spans = append(t.spans, s)
+		return
 	}
+	// Overwrite the oldest slot. Reslicing an appended buffer used to retain
+	// evicted spans and periodically copy the entire retained history.
+	t.spans[t.nextSpan] = s
+	t.nextSpan = (t.nextSpan + 1) % t.maxSpans
 }
 
 // SpanContext is an active span that can be finished.

@@ -27,7 +27,7 @@ func (r *SecretVersionRepository) CreateVersion(secretID, projectID, envID uuid.
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING id, secret_id, project_id, environment_id, version, encrypted_value, value_nonce, created_by, created_at`,
 			id, secretID, projectID, envID, version, encryptedValue, valueNonce, createdBy,
-		).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, &sv.CreatedAt)
+		).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, dbTime(&sv.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating secret version: %w", err)
 		}
@@ -38,7 +38,7 @@ func (r *SecretVersionRepository) CreateVersion(secretID, projectID, envID uuid.
 			return nil, fmt.Errorf("creating secret version: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, secret_id, project_id, environment_id, version, encrypted_value, value_nonce, created_by, created_at FROM secret_versions WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, &sv.CreatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, dbTime(&sv.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created secret version: %w", err)
 		}
@@ -60,7 +60,7 @@ func (r *SecretVersionRepository) ListVersions(secretID uuid.UUID) ([]models.Sec
 	var versions []models.SecretVersion
 	for rows.Next() {
 		var sv models.SecretVersion
-		if err := rows.Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, &sv.CreatedAt); err != nil {
+		if err := rows.Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, dbTime(&sv.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning secret version: %w", err)
 		}
 		versions = append(versions, sv)
@@ -86,7 +86,7 @@ func (r *SecretVersionRepository) GetVersion(secretID uuid.UUID, version int) (*
 		Q(r.dialect, `SELECT id, secret_id, project_id, environment_id, version, encrypted_value, value_nonce, created_by, created_at
 		 FROM secret_versions WHERE secret_id = $1 AND version = $2`),
 		secretID, version,
-	).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, &sv.CreatedAt)
+	).Scan(&sv.ID, &sv.SecretID, &sv.ProjectID, &sv.EnvironmentID, &sv.Version, &sv.EncryptedValue, &sv.ValueNonce, &sv.CreatedBy, dbTime(&sv.CreatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting secret version: %w", err)
 	}

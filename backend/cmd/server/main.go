@@ -43,7 +43,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, dialect, err := repository.NewDB(cfg.DatabaseURL)
+	db, dialect, err := repository.NewDBWithPool(cfg.DatabaseURL, repository.PoolOptions{
+		MaxOpen: cfg.DBMaxOpenConns, MaxIdle: cfg.DBMaxIdleConns,
+	})
 	if err != nil {
 		logger.Error("failed to connect to database", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)

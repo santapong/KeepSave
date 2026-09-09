@@ -29,7 +29,7 @@ func (r *DependencyRepository) Create(projectID, envID uuid.UUID, secretKey, dep
 			 SET reference_pattern = EXCLUDED.reference_pattern
 			 RETURNING id, project_id, environment_id, secret_key, depends_on_key, reference_pattern, created_at`,
 			id, projectID, envID, secretKey, dependsOnKey, pattern,
-		).Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, &d.CreatedAt)
+		).Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, dbTime(&d.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating dependency: %w", err)
 		}
@@ -43,7 +43,7 @@ func (r *DependencyRepository) Create(projectID, envID uuid.UUID, secretKey, dep
 			return nil, fmt.Errorf("creating dependency: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, secret_key, depends_on_key, reference_pattern, created_at FROM secret_dependencies WHERE project_id = $1 AND environment_id = $2 AND secret_key = $3 AND depends_on_key = $4`)
-		err = r.db.QueryRow(selectQ, projectID, envID, secretKey, dependsOnKey).Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, &d.CreatedAt)
+		err = r.db.QueryRow(selectQ, projectID, envID, secretKey, dependsOnKey).Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, dbTime(&d.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created dependency: %w", err)
 		}
@@ -66,7 +66,7 @@ func (r *DependencyRepository) ListByProjectAndEnv(projectID, envID uuid.UUID) (
 	var deps []models.SecretDependency
 	for rows.Next() {
 		var d models.SecretDependency
-		if err := rows.Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.ProjectID, &d.EnvironmentID, &d.SecretKey, &d.DependsOnKey, &d.ReferencePattern, dbTime(&d.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning dependency: %w", err)
 		}
 		deps = append(deps, d)

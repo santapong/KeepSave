@@ -65,6 +65,8 @@ services:
       MASTER_KEY: ${MASTER_KEY:-43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       PORT: "8080"
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-10}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-2}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       # Allowlist for the cross-tenant /admin endpoints. Dev default matches the
       # quickstart account; empty would deny all (fail-closed).
