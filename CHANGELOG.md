@@ -8,10 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [1.4.0-rc.1] - 2026-10-02 (prepared candidate; integration and tag pending)
+### Planned — research-based product development
+
+- Add a primary-source evidence register and complete delivery/backlog plan
+  for setup diagnostics, safe denial explanations, audit search, credential
+  ownership/reminders, invitations/offboarding and login-method recovery.
+  These are proposed features, not implementation claims. Preserve the existing
+  MCP → GitHub broker/runner → skills/profiles → team-operations sequence.
+- Reconcile historical backlog/non-goals with the integrated core source;
+  independent reviews, real provider UAT and production acceptance remain pending.
+
+## [1.4.0-rc.1] - 2026-10-02 (integrated source candidate; untagged)
 
 This candidate adds revocable identity and a reliable PostgreSQL vault. It is
-not a production release. Independent reviews, remote CI, staging rollback
+not a production release. Sponsor-directed develop integration is recorded;
+independent reviews, remote CI, staging rollback
 acceptance and real provider consent remain pending; see the
 [candidate notes](docs/releases/v1.4.0-rc.1.md).
 

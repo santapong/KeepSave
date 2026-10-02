@@ -1,8 +1,8 @@
 # ADR-0028: Core identity and reliable vault release
 
-- Status: Accepted for local implementation by sponsor instruction, 2026-10-01.
+- Status: Accepted for local implementation by sponsor instruction, 2026-10-01; sponsor-directed develop integration, 2026-10-02.
 - Authority: the owner explicitly requested implementation of the complete reviewed backend plan in this task.
-- Independent Security Engineer and Tech Lead review: **pending**. This is not integration, release, provider configuration, or deployment approval.
+- Independent Security Engineer and Tech Lead review: **pending**. The owner renewed the develop merge instruction after these gates were disclosed; candidate `8fa8d6e` was integrated by `1fb27c4`. This exception authorizes develop integration only, not independent signoff, tagging, release, provider configuration or deployment.
 - Scope: preserved feature checkout, synthetic databases/provider fixtures, core first release before M2–M5.
 
 ## Decision

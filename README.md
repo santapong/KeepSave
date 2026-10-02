@@ -71,6 +71,12 @@ See the [architecture proposal](docs/design/2026-09-28-backend-platform/README.m
 [implementation checkpoint](docs/design/2026-09-28-backend-platform/IMPLEMENTATION.md),
 [core release ADR](docs/adr/0028-core-identity-and-vault-release.md) and
 [delivery dependencies](docs/design/2026-09-28-backend-platform/DELIVERY.md).
+
+The [research-based product plan](docs/design/2026-10-02-product-roadmap/README.md)
+prioritizes setup, safe denial explanations, searchable audit, renewal ownership
+and team onboarding/offboarding, with proposed contracts, acceptance gates and
+primary-source evidence. These additions are planned; the selected Codex/GitHub
+broker program remains the strategic delivery path.
 The older [architecture views](docs/ARCHITECTURE_VIEWS.md) describe legacy
 components; they do not prove runner isolation or current release acceptance.
 

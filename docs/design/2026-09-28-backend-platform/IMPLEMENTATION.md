@@ -11,8 +11,10 @@ Implementation checkout: `/mnt/data/company/apps/KeepSave-backend-platform`,
 branch `feat/backend-secure-tool-access-20260928`, base `9e2b3ba`. The accepted
 dirty frontend and backend baseline is preserved. The 2 October candidate
 preparation names this slice `v1.4.0-rc.1` and aligns version metadata; see the
-[candidate notes](../../releases/v1.4.0-rc.1.md). Integration, tagging, push,
-production migration, credential configuration and deployment remain pending.
+[candidate notes](../../releases/v1.4.0-rc.1.md). Candidate `8fa8d6e` was integrated
+into `develop` by `1fb27c4` on the renewed sponsor instruction after gate
+disclosure. Independent review, tagging, production migration, credential
+configuration and deployment remain pending.
 Original preserved patch/manifest live under
 `/mnt/data/keepsave-platform-implementation-2026-09-28/`.
 

@@ -4,6 +4,30 @@ This is the single source of truth for tracked technical debt and deferred work.
 
 **Cadence:** reviewed at the monthly ADR review (`docs/ROLES.md` §6). Items past due without an explanation get pulled into the next 30-day plan.
 
+## Current reconciliation — 2026-10-02
+
+The historical Phase A/B entries below retain their original observations and
+closed sections. They are not a current missing-feature inventory. Candidate
+`8fa8d6e`, integrated by `1fb27c4`, and the
+[acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md) supersede
+contradictory historical status claims; integration is not production approval.
+
+| Historical item | Current state / remaining work |
+|---|---|
+| #0/#9 required mutation audit; S-M6 chain | Core PostgreSQL mutations join required audit/outbox; serialized persisted chain head and continuity tests exist. Independent review/operational acceptance remain. Retained legacy routes have explicit availability status. |
+| #2 backup tamper test | Local encrypted-bundle wrong-key/corruption and external isolated recovery drills passed. Production key/storage/recovery acceptance remains. |
+| #3 DEK rotation | Implemented with retained history/promotion key dependencies and local router/journal tests; no new rotation engine is needed. |
+| #5 self-approval | Service/DB protections plus exact artifact/revision-bound local promotion tests exist. |
+| Phase B human JWT revocation/scopes | Revocable tracked human sessions, denylist/agent issuance and project/environment/key/parent scope checks are implemented. Workload broker identities remain M3, device attestation deferred. |
+| #6 experimental intelligence | Preserved source is unavailable in core; do not advertise or enable it through this roadmap. |
+| Go SDK module | Local module/example/build checks exist; remote module publishing remains separate. |
+| Current delivery | Independent reviews/CI, real provider UAT, staging rollback and installation-specific operations remain release gates. |
+
+The [new product plan](design/2026-10-02-product-roadmap/README.md) and
+[proposed backlog](design/2026-10-02-product-roadmap/BACKLOG.md) define F01–F09.
+Their role owners/relative dependencies are proposals, not assigned due dates
+or completed work. The existing M2–M5 program remains in order.
+
 ---
 
 ## Closed (v1.1.0)
@@ -108,7 +132,8 @@ so an operator coming in cold sees the explicit remaining surface.
   plan-question-4 choice during Phase 0. Trigger to revisit: any new
   endpoint that handles a project ID, OR a customer security review
   asking for the matrix completion.
-- **S-M6 — Audit-log tamper-evident storage.** The original audit
+- **S-M6 — Historical audit-log tamper-evident deferral.** Superseded by the
+  current persisted chain/audit transaction evidence above. The original audit
   itself routed this to Phase B. Phase A operators export the
   `audit_log` table nightly to an immutable bucket (GCS Object
   Lock / S3 Object Lock) — see `DEPLOYMENT_PLAN.md` PROD gate G16.
@@ -144,7 +169,7 @@ remains pending per CLAUDE.md §"Decision classes".
 
 ---
 
-## Open — Phase A (MVP hardening)
+## Historical Phase A tracker (reconciled above)
 
 Top-of-list = highest leverage. Order matters — anything blocking a 30-day action in `docs/ROLES_30_60_90.md` goes first.
 
@@ -234,14 +259,14 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Related:** ADR-0004 §Open Questions.
 
 ### 2. Backup tamper-detection test
-- **Status:** Pending. Need a test that mutates a row's ciphertext or nonce in a backup-style copy of the DB and asserts the AEAD-auth tag check rejects it cleanly.
+- **Status, 2026-10-02:** Local encrypted recovery tamper/wrong-key tests and external isolated drill passed; production acceptance pending. The original missing-test description is historical.
 - **Why it matters:** Formalizes the AEAD-auth guarantee in ADR-0001. Today, the guarantee is in the algorithm; the test proves we've wired it correctly.
 - **Owner:** QA / Test Engineer.
 - **Due:** 60 days (Phase A).
 - **Related:** ADR-0001, `docs/PENTEST_CHECKLIST.md`.
 
 ### 3. DEK rotation API
-- **Status:** No code path exists. ADR-0004 acknowledges DEK rotation isn't built.
+- **Status, 2026-10-02:** Implemented and locally exercised through the PostgreSQL journal, retaining history/promotion keys. The earlier no-code observation is superseded; independent release review/operations remain pending.
 - **Why it matters:** Without DEK rotation, a leaked project DEK has no in-product mitigation — only project re-creation. That's an unacceptable posture for a production secrets product.
 - **Owner:** Backend Engineer.
 - **Due:** 60 days (Phase A).
@@ -255,7 +280,7 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 - **Related:** ADR-0003 §Open Questions.
 
 ### 5. Approver-cannot-be-requester invariant
-- **Status:** Unclear whether enforced at the DB layer or only in service code. ADR-0003 flags it.
+- **Status, 2026-10-02:** Service and DB protections exist; current local tests also cover exact artifact/current-authority and stale request refusal. The earlier uncertainty is historical.
 - **Why it matters:** A single-account compromise would otherwise let the attacker request *and* approve a PROD promotion. This is the multi-party-control linchpin.
 - **Owner:** Backend Engineer + Security Engineer (review).
 - **Due:** 30 days (Phase A).
@@ -308,16 +333,16 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 
 ---
 
-## Open — Phase B (multi-tenant, deferred)
+## Historical Phase B tracker (reconciled above)
 
 Captured here so they're not lost, **not** to be worked on until Phase B starts. If something on this list becomes urgent, it gets promoted to Phase A with a written reason and an explicit trade (something else gets pushed down).
 
 - **Per-environment DEK** (Option C in ADR-0004). Reconsider once we have a customer or compliance requirement.
-- **JWT denylist for pre-expiry revocation** (ADR-0002 §Open Questions). Build when a customer SLA requires it.
-- **Fine-grained API key scopes** (per-secret or per-action; ADR-0002). Build when a use case appears, not before.
+- **JWT revocation:** implemented tracked human sessions plus legacy agent denylist/issuance; production cutover remains gated. Do not treat the original Phase B deferral as current.
+- **Fine-grained API-key scopes:** project/environment/key/parent narrowing is implemented; preserve compatibility semantics and the current acceptance matrix.
 - **Three-of-N approval for PROD** (ADR-0003). Build if regulatory pressure or a customer commitment forces it.
 - **Subkey derivation (HKDF) for auxiliary purposes** (audit-log MAC, etc.; ADR-0004). Only with a new ADR.
-- **Ephemeral attested workload identity for AI agents (SPIFFE-shaped SVIDs).** Today `ks_` keys are issued with no expiry (`backend/internal/api/validation.go:33-38` — `CreateAPIKeyRequest` has no `expires_at`; `backend/internal/service/apikey_service.go:33` — `Create` takes no expiry param), so a leaked agent key is valid until manual deletion. **Trigger:** (a) a customer with an MCP / AI-agent workflow asks for short-lived agent credentials, OR (b) a CVE-class incident in the field shows long-lived agent keys being exfiltrated and abused, OR (c) MedQCNN / Nexus integration (`docs/medqcnn_integration.md`, `docs/nexus_integration.md`) reaches multi-tenant agent deployment. Research input: `docs/research/competitors/spiffe.md`; leapfrog framing: `docs/research/BEYOND.md` §2.5.
+- **Workload identity:** API-key expiry and short-lived vault leases/tokens are implemented; the original immortal-key description is historical. Tenant-bound runner enrollment is planned M3. SPIFFE/remote device attestation is deferred; the future broker grant is not an existing vault token.
 - **Lease-renewal grammar for `SecretLease`** (`backend/internal/models/models.go:367-377`). Today `SecretLease` has `ExpiresAt` + `Revoked` but no renewal endpoint; long-running agents must re-issue and lose audit-trail continuity across a single session. **Trigger:** first customer agent runs longer than current lease max-TTL, OR first complaint about lease-ID churn fragmenting audit search. Pattern source: HashiCorp Vault lease-renewal grammar — see `docs/research/competitors/vault.md` Candidate 5. Owner: Backend Engineer (when trigger fires).
 
 ---
