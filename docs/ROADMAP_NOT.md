@@ -4,6 +4,11 @@ The hardest PM discipline is saying no — out loud, in writing, with a reason. 
 
 PM is not yet hired in Phase A; interim owner is the Tech Lead. Updated at the monthly review (`docs/ROLES.md` §6).
 
+Reconciled 2 October 2026: this retains the historical Phase A exclusions.
+Sponsor-selected exceptions below and the current
+[product plan](design/2026-10-02-product-roadmap/README.md) identify the changed
+scope. Independent reviews and production acceptance are still pending.
+
 ---
 
 ## Hard "no" for Phase A
@@ -17,6 +22,7 @@ These either expand scope beyond MVP hardening or commit us to capabilities we c
 - **Exception:** schema preparation (additive migrations only) is allowed in Phase A — see Backend 90-day in `docs/ROLES_30_60_90.md`.
 
 ### 2. SSO / SAML / OIDC for end-user auth
+- **Current exception:** Google/GitHub social sign-in is implemented in the core candidate under the sponsor's plan. Real consent acceptance remains pending. Enterprise SAML/SSO remains unavailable and deferred; this historical exclusion cannot prohibit the selected social-login scope.
 - **What we are not building:** federated login for dashboard users.
 - **Why:** no customer has asked. Building it before the demand signal arrives means we'll build the wrong shape.
 - **Trigger to revisit:** when two customers ask in the same quarter, or when one enterprise prospect makes it a deal-blocker.
@@ -53,6 +59,7 @@ Less absolute — would not refuse a small spike if a clear win emerged, but no 
 - **Audit-log streaming to SIEM** (Splunk, Datadog, etc.). Customer signal exists; defer because the audit log itself isn't complete (see `docs/AUDIT_LOG_COVERAGE.md`).
 - **Compliance certifications** (SOC 2, ISO 27001). Process work that requires the engineering substrate built in Phase A first.
 - **Self-service tier / signup flow.** Manual onboarding is fine at current scale.
+  **Current exception:** explicit public registration/named workspaces are implemented; registration grants no global authority. Hosted billing/tiers are not added.
 - **Multi-region deployment.** No customer requires it yet.
 
 ## Explicit non-goals (the *never*)
@@ -73,9 +80,15 @@ These are not deferrals. They are deliberate choices about what KeepSave will no
 
 A merged exception is documented at the bottom of this file (with date and reason) so the next PM has the history.
 
-## Granted exceptions
+## Sponsor-selected exceptions and independent review status
 
-(none yet)
+- **2026-09-28 through 2026-10-02 — social identity and open registration:** owner requested Google/GitHub/password login and explicit workspaces. Implemented and integrated as the core candidate; real provider UAT and independent review remain pending. Enterprise SSO and billing stay deferred.
+- **2026-09-28 through 2026-10-02 — controlled private tools and self-hosted teams:** owner selected Codex, a read-only GitHub App, separate runner and private instruction-only skills. M2–M5 remain planned; this does not authorize public marketplaces, arbitrary builds or device-attestation claims.
+- **2026-10-02 — develop integration:** owner renewed the merge request after pending gates were disclosed. Candidate `8fa8d6e` integrated by `1fb27c4`; this exception is limited to integration, with no independent signature, stable tag or production approval implied.
+
+The trade is explicit: prioritize dependable core/team journeys and the bounded
+repository-review pilot; keep enterprise SSO, experimental AI, broad provider
+sync, marketplaces, mobile and multi-region work outside the current release.
 
 ## References
 

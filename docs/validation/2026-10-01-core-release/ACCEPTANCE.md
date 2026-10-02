@@ -4,6 +4,12 @@ Checked 2026-10-02 (Asia/Bangkok). Scope: the local identity/workspace/reliable-
 candidate `v1.4.0-rc.1` in `KeepSave-backend-platform`, base `9e2b3ba`.
 This is not a release, remote CI result, provider UAT or independent review.
 
+Candidate `8fa8d6e` was integrated into `develop` by `1fb27c4` on 2 October
+after the owner renewed the merge request with the pending gates disclosed.
+This is sponsor-directed integration only; review, tagging and production
+acceptance are not inferred from it. The source tree matched the validated
+candidate; later documentation/planning changes do not claim new image scans.
+
 Status meanings: **verified local** means an executed synthetic check described
 below; **implemented / pending** means code exists without a completed acceptance
 gate; **compatibility** means preserved source/routes with no new end-to-end claim;

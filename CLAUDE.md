@@ -38,11 +38,11 @@ keepsave/
 
 | Layer       | Technology                        |
 |-------------|-----------------------------------|
-| Backend     | Go 1.22+ with Gin framework       |
+| Backend     | Go 1.27.1 build/CI, module minimum 1.26; Gin framework |
 | Database    | PostgreSQL 16                      |
 | Encryption  | AES-256-GCM (envelope encryption) |
-| Auth        | JWT tokens + API keys for agents   |
-| Frontend    | React 18 + TypeScript + Vite       |
+| Auth        | Revocable 24-hour human Bearer sessions; scoped API keys/agent tokens |
+| Frontend    | React 19 + TypeScript + Vite; Node 24.21.0 build/CI |
 | Embed SDK   | Web Components (Shadow DOM)        |
 | Container   | Docker + Docker Compose            |
 
@@ -95,7 +95,7 @@ docker-compose up --build                  # Run everything
 | `PORT`                | API server port (default: 8080)          |
 | `CORS_ORIGINS`        | Allowed origins for embed widget         |
 | `KEEPSAVE_PROMOTIONS_ENABLED` | Promotion kill switch (default: true). `false` makes `/promote` + `/approve` return 503; see `docs/RUNBOOK.md` §8 |
-| `KEEPSAVE_PLATFORM_ADMIN_EMAILS` | Comma-separated allowlist of user emails permitted to reach the cross-tenant `/admin` endpoints (dashboard, traces). Empty (default) ⇒ `/admin` rejects everyone (fail-closed) |
+| `KEEPSAVE_PLATFORM_ADMIN_EMAILS` | Retained legacy configuration; the core uses operator-issued database grants keyed by immutable user ID. Configured emails do not enroll administrators. |
 | `TRUSTED_PROXIES` | Comma-separated reverse-proxy CIDRs whose `X-Forwarded-For`/`X-Real-IP` headers are trusted when deriving the client IP (rate-limit key + audit IP). Empty (default) ⇒ trust NO proxy, so a forged `X-Forwarded-For` cannot spoof the client IP (CWE-348) |
 
 ## Coding Conventions
@@ -154,6 +154,7 @@ When in doubt, treat as the next class up. Misclassification is itself a bug.
 | C4 + 4+1 architecture views (SVG)          | [`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md) |
 | Why a decision was made                    | [`docs/adr/`](docs/adr/)                                  |
 | What's open / tracked                      | [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md)                  |
+| Research-based feature plan and delivery queue | [`docs/design/2026-10-02-product-roadmap/README.md`](docs/design/2026-10-02-product-roadmap/README.md) |
 | What we're NOT building                    | [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md)              |
 | Incident procedures                        | [`docs/RUNBOOK.md`](docs/RUNBOOK.md)                      |
 | Where secrets live (KeepSave's own)        | [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md)        |

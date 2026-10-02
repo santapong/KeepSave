@@ -1,7 +1,7 @@
 # Credential entry-point inventory
 
-Reconciled 2026-10-02 in `KeepSave-backend-platform`, base `9e2b3ba` plus local
-uncommitted changes. This inventories custody and authority in the current
+Reconciled 2026-10-02 against candidate `8fa8d6e`, integrated into `develop` by
+`1fb27c4` on the renewed sponsor instruction. This inventories custody and authority in the current
 identity/reliable-vault composition. It does not declare preserved legacy
 features supported, reviewed, deployed or interoperable with Codex. Executed
 checks and remaining gates live in the [acceptance ledger](../../validation/2026-10-01-core-release/ACCEPTANCE.md).
