@@ -149,6 +149,8 @@ class KeepSaveClient:
         circuit_breaker_reset_timeout: float = 30.0,
         cache_ttl: float = 60.0,
     ):
+        self._auth_lock = threading.RLock()
+        self._credential_generation = 0
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.api_key = api_key
@@ -167,13 +169,39 @@ class KeepSaveClient:
         self._cache.clear()
 
     @property
+    def token(self) -> Optional[str]:
+        with self._auth_lock:
+            return self._token
+
+    @token.setter
+    def token(self, value: Optional[str]) -> None:
+        with self._auth_lock:
+            if hasattr(self, "_cache"):
+                self.clear_cache()
+            self._credential_generation += 1
+            self._token = value
+
+    @property
+    def api_key(self) -> Optional[str]:
+        with self._auth_lock:
+            return self._api_key
+
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        with self._auth_lock:
+            if hasattr(self, "_cache"):
+                self.clear_cache()
+            self._credential_generation += 1
+            self._api_key = value
+
+    @property
     def circuit_state(self) -> str:
         """Get circuit breaker state (CLOSED / OPEN / HALF_OPEN / DISABLED)."""
         return self._breaker.state if self._breaker else "DISABLED"
 
     # ── Internal HTTP ────────────────────────────────────────────────
 
-    def _request(self, method: str, path: str, body: Optional[dict] = None) -> dict:
+    def _request(self, method: str, path: str, body: Optional[dict] = None, human: bool = False) -> dict:
         if self._breaker and not self._breaker.can_execute():
             raise CircuitBreakerOpenError()
 
@@ -181,7 +209,7 @@ class KeepSaveClient:
 
         for attempt in range(self._max_retries + 1):
             try:
-                result = self._do_request(method, path, body)
+                result = self._do_request(method, path, body, human)
                 if self._breaker:
                     self._breaker.on_success()
                 return result
@@ -196,14 +224,18 @@ class KeepSaveClient:
 
         raise last_error  # type: ignore[misc]
 
-    def _do_request(self, method: str, path: str, body: Optional[dict] = None) -> dict:
+    def _do_request(self, method: str, path: str, body: Optional[dict] = None, human: bool = False) -> dict:
+        with self._auth_lock:
+            token, api_key = self._token, self._api_key
+        if human and not token:
+            raise KeepSaveError("A human bearer session is required", 401)
         url = f"{self.base_url}/api/v1{path}"
         headers = {"Content-Type": "application/json"}
 
-        if self.api_key:
-            headers["X-API-Key"] = self.api_key
-        elif self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        if api_key and not human:
+            headers["X-API-Key"] = api_key
+        elif token:
+            headers["Authorization"] = f"Bearer {token}"
 
         data = json.dumps(body).encode("utf-8") if body else None
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -214,6 +246,11 @@ class KeepSaveClient:
                     return {}
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            if e.code == 401 and path not in ("/auth/login", "/auth/register"):
+                self.clear_cache()
+                with self._auth_lock:
+                    if (human or not api_key) and self._token == token:
+                        self.token = None
             try:
                 err_body = json.loads(e.read().decode("utf-8"))
                 msg = err_body.get("error", {})
@@ -245,6 +282,23 @@ class KeepSaveClient:
         self.token = resp.get("token")
         return resp
 
+    def list_sessions(self) -> list:
+        """List metadata for your human sessions, using Bearer rather than an API key."""
+        return self._request("GET", "/account/sessions", human=True).get("sessions", [])
+
+    def revoke_session(self, session_id: str) -> None:
+        """Revoke one owned session. Revoking this client's session is noticed on its next request."""
+        from urllib.parse import quote
+        self._request("DELETE", "/account/sessions/" + quote(session_id, safe=""), human=True)
+
+    def logout(self) -> None:
+        """Clear the human token only after confirmed revocation; retain separate API keys."""
+        started_token = self.token
+        self._request("POST", "/auth/logout", human=True)
+        with self._auth_lock:
+            if self._token == started_token:
+                self.token = None
+
     # ── Projects ─────────────────────────────────────────────────────
 
     def list_projects(self) -> list:
@@ -271,7 +325,9 @@ class KeepSaveClient:
 
     def list_secrets(self, project_id: str, environment: str) -> list:
         """List secrets for a project in a given environment. Results are cached."""
-        cache_key = f"secrets:{project_id}:{environment}"
+        with self._auth_lock:
+            generation = self._credential_generation
+        cache_key = f"secrets:{project_id}:{environment}:{generation}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached

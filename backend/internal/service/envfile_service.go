@@ -2,7 +2,9 @@ package service
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 	"strings"
 
 	"github.com/google/uuid"
@@ -12,6 +14,7 @@ import (
 )
 
 type EnvFileService struct {
+	vault       *vault.Service
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
@@ -37,6 +40,9 @@ func NewEnvFileService(
 
 // Export generates a .env file content from secrets in a project environment.
 func (s *EnvFileService) Export(projectID uuid.UUID, envName string) (string, error) {
+	if s.vault != nil {
+		return "", vault.ErrDenied
+	}
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return "", fmt.Errorf("getting project: %w", err)
@@ -79,6 +85,9 @@ func (s *EnvFileService) Export(projectID uuid.UUID, envName string) (string, er
 
 // Import parses .env file content and creates/updates secrets in a project environment.
 func (s *EnvFileService) Import(projectID uuid.UUID, envName, content string, overwrite bool, actorID uuid.UUID, ipAddr string) (*ImportResult, error) {
+	if s.vault != nil {
+		return s.ImportAuthorized(context.Background(), humanPrincipal(actorID), projectID, envName, content, overwrite, ipAddr)
+	}
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)

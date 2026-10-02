@@ -24,7 +24,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { Plus, Trash2, Copy, Check, Key } from 'lucide-react';
+import { Plus, Trash2, Copy, Check, Key } from '@/components/icons';
 import { TypedConfirmModal } from './TypedConfirmModal';
 import { HoldToReveal } from './cosmic/HoldToReveal';
 

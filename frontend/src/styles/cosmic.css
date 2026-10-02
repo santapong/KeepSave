@@ -954,6 +954,13 @@
 /* One Event Horizon identity across navigation, forms, and product previews. */
 .cz-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--cz-ink); text-decoration: none; flex-shrink: 0; }
 .cz-brand-icon { display: block; flex-shrink: 0; user-select: none; }
+.cz-brand-icon > img { display: block; width: 100%; height: 100%; }
+.cz-brand-icon > .cz-mark-light { display: none; }
+[data-theme="light"] .cz-brand-icon > .cz-mark-dark { display: none; }
+[data-theme="light"] .cz-brand-icon > .cz-mark-light { display: block; }
+/* Public Event Horizon surfaces stay dark even when the workspace preference is light. */
+[data-theme="light"] :is(.ks-landing, .ks-auth) .cz-brand-icon > .cz-mark-dark { display: block; }
+[data-theme="light"] :is(.ks-landing, .ks-auth) .cz-brand-icon > .cz-mark-light { display: none; }
 .cz-brand-name { font-family: var(--font-sans); font-size: 22px; font-weight: 600; letter-spacing: -.035em; line-height: 1; white-space: nowrap; }
 .cz-brand-name > span { color: var(--cz-accent-hi); }
 .cz-brand:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 5px; border-radius: 6px; }

@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Plus, Trash2 } from '@/components/icons';
 import { listAPIKeys, createAPIKey, deleteAPIKey, listProjects } from '../api/client';
 import type { APIKey, Project } from '../types';
 import { TypedConfirmModal } from '../components/TypedConfirmModal';
@@ -116,7 +116,7 @@ export function APIKeysPage() {
       {showCreate && projects.length === 0 && (
         <div className="cz-login-error" style={{ marginBottom: 16 }}>
           You must create a project before you can create an API key.{' '}
-          <Link to="/" style={{ color: 'inherit', fontWeight: 600 }}>Go to Projects →</Link>
+          <Link to="/" style={{ color: 'inherit', fontWeight: 600 }}>Go to Projects <ArrowRight size={14} /></Link>
         </div>
       )}
 
@@ -149,7 +149,7 @@ export function APIKeysPage() {
               </select>
             </label>
           </div>
-          <button type="submit" className="cz-btn cz-btn-primary" style={{ marginTop: 14 }}>Create key →</button>
+          <button type="submit" className="cz-btn cz-btn-primary" style={{ marginTop: 14 }}>Create key <ArrowRight size={14} /></button>
         </form>
       )}
 

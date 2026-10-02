@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Trash2, Play } from 'lucide-react';
+import { Trash2, Play } from '@/components/icons';
 import { Page, PageHeader, KpiStrip, Kpi, SectionHead, Chip, EmptyState } from '../components/cosmic/primitives';
 
 export function TemplatesPage() {

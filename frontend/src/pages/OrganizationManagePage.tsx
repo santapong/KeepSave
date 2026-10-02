@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Page } from '@/components/cosmic/primitives';
-import { ArrowLeft, Users, FolderOpen, AlertCircle, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Users, FolderOpen, AlertCircle, Trash2, X } from '@/components/icons';
 
 const ACCENT_AVATAR = 'linear-gradient(135deg, var(--cz-accent-hi), var(--cz-plasma))';
 

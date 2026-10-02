@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
 // VersionHandler handles secret version history endpoints.
@@ -16,7 +17,10 @@ type VersionHandler struct {
 	secretRepo  *repository.SecretRepository
 	projectRepo *repository.ProjectRepository
 	cryptoSvc   *crypto.Service
+	vault       *vault.Service
 }
+
+func (h *VersionHandler) EnableVault(v *vault.Service) { h.vault = v }
 
 // NewVersionHandler creates a new version handler.
 func NewVersionHandler(
@@ -44,6 +48,15 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 	secretID, err := uuid.Parse(c.Param("secretId"))
 	if err != nil {
 		RespondError(c, http.StatusBadRequest, "invalid secret ID")
+		return
+	}
+	if h.vault != nil {
+		versions, err := h.vault.History(c.Request.Context(), PrincipalFromContext(c), projectID, secretID)
+		if err != nil {
+			WrapError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, versions)
 		return
 	}
 
@@ -75,13 +88,16 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 		RespondError(c, http.StatusInternalServerError, "decryption error")
 		return
 	}
+	defer crypto.SecureZero(dek)
 
 	for i := range versions {
 		plaintext, err := crypto.Decrypt(dek, versions[i].EncryptedValue, versions[i].ValueNonce)
 		if err != nil {
-			continue
+			RespondError(c, http.StatusInternalServerError, "historical value unavailable")
+			return
 		}
 		versions[i].Value = string(plaintext)
+		crypto.SecureZero(plaintext)
 		versions[i].EncryptedValue = nil
 		versions[i].ValueNonce = nil
 	}
@@ -104,8 +120,17 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 	}
 
 	version, err := strconv.Atoi(c.Param("version"))
-	if err != nil {
+	if err != nil || version < 1 {
 		RespondError(c, http.StatusBadRequest, "invalid version number")
+		return
+	}
+	if h.vault != nil {
+		r, err := h.vault.Read(c.Request.Context(), PrincipalFromContext(c), projectID, secretID, int64(version))
+		if err != nil {
+			WrapError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, r)
 		return
 	}
 
@@ -136,6 +161,7 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 		RespondError(c, http.StatusInternalServerError, "decryption error")
 		return
 	}
+	defer crypto.SecureZero(dek)
 
 	plaintext, err := crypto.Decrypt(dek, sv.EncryptedValue, sv.ValueNonce)
 	if err != nil {
@@ -144,7 +170,45 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 	}
 
 	sv.Value = string(plaintext)
+	crypto.SecureZero(plaintext)
 	sv.EncryptedValue = nil
 	sv.ValueNonce = nil
 	c.JSON(http.StatusOK, sv)
+}
+
+// RestoreVersion appends a new current revision. The required precondition
+// prevents a stale browser from overwriting a newer edit.
+func (h *VersionHandler) RestoreVersion(c *gin.Context) {
+	if h.vault == nil {
+		WrapError(c, ErrServiceUnavailable)
+		return
+	}
+	project, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	id, err := uuid.Parse(c.Param("secretId"))
+	if err != nil {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	version, err := strconv.ParseInt(c.Param("version"), 10, 64)
+	if err != nil || version < 1 {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	var req struct {
+		ExpectedRevision *int64 `json:"expected_current_revision"`
+	}
+	if err = c.ShouldBindJSON(&req); err != nil || req.ExpectedRevision == nil || *req.ExpectedRevision < 1 {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	r, err := h.vault.Restore(c.Request.Context(), PrincipalFromContext(c), project, id, version, *req.ExpectedRevision)
+	if err != nil {
+		WrapError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, r)
 }

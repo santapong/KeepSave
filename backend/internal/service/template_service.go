@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
@@ -21,6 +23,8 @@ var (
 )
 
 type TemplateService struct {
+	sessions     *SessionService
+	vault        *vault.Service
 	templateRepo *repository.TemplateRepository
 	secretRepo   *repository.SecretRepository
 	projectRepo  *repository.ProjectRepository
@@ -48,16 +52,7 @@ func NewTemplateService(
 }
 
 func (s *TemplateService) Create(name, description, stack string, keys models.JSONMap, createdBy uuid.UUID, orgID *uuid.UUID, isGlobal bool, ipAddr string) (*models.SecretTemplate, error) {
-	if name == "" {
-		return nil, fmt.Errorf("template name is required")
-	}
-	tmpl, err := s.templateRepo.Create(name, description, stack, keys, createdBy, orgID, isGlobal)
-	if err != nil {
-		return nil, err
-	}
-	emitAudit(s.auditRepo, &createdBy, nil, "template.created", "",
-		models.JSONMap{"template_id": tmpl.ID.String(), "name": name}, ipAddr)
-	return tmpl, nil
+	return s.CreateAuthorized(context.Background(), humanPrincipal(createdBy), name, description, stack, keys, orgID, isGlobal, ipAddr)
 }
 
 // GetByID returns a template only if userID may read it (global, owned, or in
@@ -76,37 +71,25 @@ func (s *TemplateService) GetByID(id, userID uuid.UUID) (*models.SecretTemplate,
 
 func (s *TemplateService) List(userID uuid.UUID, orgID *uuid.UUID) ([]models.SecretTemplate, error) {
 	if orgID != nil {
+		allowed, err := s.templateRepo.HasOrganizationRole(userID, *orgID, "viewer")
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, ErrTemplateProjectAccess
+		}
 		return s.templateRepo.ListByOrganization(*orgID)
 	}
 	return s.templateRepo.ListByUser(userID)
 }
 
-// Update mutates a template only when actorID owns it (created it). A non-owner
-// gets ErrTemplateNotFound and no mutation occurs.
+// Compatibility wrappers preserve the old signature; strict session-enabled
+// compositions require an authenticated principal through the authorized method.
 func (s *TemplateService) Update(id uuid.UUID, name, description, stack string, keys models.JSONMap, actorID uuid.UUID, ipAddr string) (*models.SecretTemplate, error) {
-	tmpl, err := s.templateRepo.Update(id, name, description, stack, keys, actorID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrTemplateNotFound
-		}
-		return nil, err
-	}
-	emitAudit(s.auditRepo, &actorID, nil, "template.updated", "",
-		models.JSONMap{"template_id": id.String(), "name": name}, ipAddr)
-	return tmpl, nil
+	return s.UpdateAuthorized(context.Background(), humanPrincipal(actorID), id, name, description, stack, keys, ipAddr)
 }
-
-// Delete removes a template only when actorID owns it.
 func (s *TemplateService) Delete(id uuid.UUID, actorID uuid.UUID, ipAddr string) error {
-	if err := s.templateRepo.Delete(id, actorID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrTemplateNotFound
-		}
-		return err
-	}
-	emitAudit(s.auditRepo, &actorID, nil, "template.deleted", "",
-		models.JSONMap{"template_id": id.String()}, ipAddr)
-	return nil
+	return s.DeleteAuthorized(context.Background(), humanPrincipal(actorID), id, ipAddr)
 }
 
 // ApplyTemplate creates secrets in a project environment based on a template.
@@ -115,7 +98,10 @@ func (s *TemplateService) Delete(id uuid.UUID, actorID uuid.UUID, ipAddr string)
 // checks any authenticated user could write CHANGEME secrets into another
 // tenant's project, or apply a template they cannot see.
 func (s *TemplateService) ApplyTemplate(templateID, projectID uuid.UUID, envName string, userID uuid.UUID) ([]models.Secret, error) {
-	allowed, err := s.projectRepo.UserHasAccess(userID, projectID)
+	if s.vault != nil {
+		return s.ApplyTemplateAuthorized(context.Background(), humanPrincipal(userID), templateID, projectID, envName)
+	}
+	allowed, err := s.projectRepo.UserHasRole(userID, projectID, "editor")
 	if err != nil || !allowed {
 		return nil, ErrTemplateProjectAccess
 	}

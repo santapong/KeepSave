@@ -1,5 +1,7 @@
 # Embeddable Widget
 
+> **Current scope — 2026-10-02.** This is the preserved widget implementation reference. The core POST batch route now exists; widget batch/401/cache/browser acceptance remains pending. Source mechanisms below do not imply production client UAT or confinement from a malicious host page. See the [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+
 > Part of the **[KeepSave System Documentation](./README.md)**.
 
 KeepSave ships an embeddable `<keepsave-widget>` Web Component so a third party can drop a small, self-contained secrets panel into their own page with a single `<script>` tag. Because the widget runs on **integrator origins** — outside KeepSave's own trust domain — it is treated as its own attack surface: it isolates itself in Shadow DOM, holds credentials and plaintext only in memory, and (for the postMessage auth path) refuses to start until the server confirms the host origin is allow-listed. This chapter documents the widget end to end from `frontend/src/embed/`, with the security invariants made explicit for auditors.

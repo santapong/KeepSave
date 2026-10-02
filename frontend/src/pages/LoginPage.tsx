@@ -1,137 +1,41 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowUpRight, ArrowRight, Eye, EyeOff } from '@/components/icons';
 import { login as apiLogin } from '../api/client';
-import { BlackHoleScene } from '../components/cosmic/BlackHoleScene';
-import { Brand } from '../components/cosmic/Brand';
-import { LockKeyhole } from 'lucide-react';
-import { Starfield } from '../components/cosmic/Starfield';
+import { AuthShell } from '../components/auth/AuthShell';
+import { ProviderButtons } from '../components/auth/ProviderButtons';
 import type { User } from '../types';
 
-interface LoginPageProps {
-  onLogin: (user: User, token: string) => void;
-}
-
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [visible, setVisible] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const resp = await apiLogin(email, password);
-      onLogin(resp.user, resp.token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+  const [providerPending, setProviderPending] = useState(false);
+  const navigate = useNavigate();
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault(); if (loading || providerPending) return;
+    setError(''); setLoading(true);
+    try { const result = await apiLogin(email, password); onLogin(result.user, result.token); navigate('/', { replace: true }); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Login failed. Please try again.'); }
+    finally { setLoading(false); }
   }
-
-  return (
-    <div className="cz-login-root">
-      <Starfield />
-
-      {/* Hero pane */}
-      <aside className="cz-login-aside">
-        <div className="cz-login-aside-bg">
-          <BlackHoleScene />
-        </div>
-
-        <div className="cz-login-aside-head">
-          <span className="cz-brand-kicker"><span /> KEEPSAVE / EVENT HORIZON</span>
-        </div>
-
-        <div className="cz-login-aside-body">
-          <span className="cz-eyebrow">Entry authorization</span>
-          <h1 className="cz-login-title">
-            Return to
-            <br />
-            <em>your orbit.</em>
-          </h1>
-          <p className="cz-login-sub">
-            Your project vaults, scoped connections, and environment changes —
-            together in one workspace.
-          </p>
-
-          <div className="cz-login-stats">
-            {[['Store', 'Encrypted project vaults'], ['Connect', 'Scoped access for your tools'], ['Promote', 'Review changes between environments']].map(([label, detail]) => (
-              <div key={label} className="cz-login-stat"><span className="cz-lb">{label}</span><span className="cz-vl" style={{ fontSize: 12 }}>{detail}</span></div>
-            ))}
-          </div>
-        </div>
-
-        <div className="cz-login-aside-foot">
-          <span>KeepSave · 2026</span>
-          <span>Environment secrets, kept together.</span>
-        </div>
-      </aside>
-
-      {/* Form pane */}
-      <main className="cz-login-main">
-        <div className="cz-login-card">
-          <div className="cz-login-card-head">
-            <Brand size={40} />
-            <span className="cz-vault-badge"><LockKeyhole size={12} /> VAULT</span>
-          </div>
-
-          <h2 className="cz-login-h2">Sign in</h2>
-          <p className="cz-login-lead">
-            New to KeepSave?{' '}
-            <Link to="/register">Open an account →</Link>
-          </p>
-
-          {error && <div className="cz-login-error" role="alert">{error}</div>}
-
-            <form className="cz-login-form" onSubmit={handleSubmit} style={{ marginTop: 24 }}>
-              <div className="cz-login-field">
-                <label htmlFor="login-email">Email</label>
-                <input
-                  id="login-email"
-                  className="cz-input"
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  required
-                />
-              </div>
-              <div className="cz-login-field">
-                <label htmlFor="login-password">
-                  Password
-                </label>
-                <input
-                  id="login-password"
-                  className="cz-input"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={8}
-                  required
-                />
-              </div>
-              <p className="cz-faint" style={{ fontSize: 12 }}>Your session stays in this browser tab.</p>
-              <button
-                type="submit"
-                className="cz-btn cz-btn-primary"
-                style={{ justifyContent: 'center', width: '100%' }}
-                disabled={loading}
-              >
-                {loading ? 'Signing in…' : 'Enter the vault →'}
-              </button>
-            </form>
-          <div className="cz-login-divider" />
-          <div className="cz-login-fine">
-            <Link to="/">← Back to KeepSave</Link>
-            <span>Encrypted at rest</span>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+  return <AuthShell>
+    <h2>Sign in</h2><p className="ks-auth-lead">Continue to your KeepSave workspace.</p>
+    <ProviderButtons busy={loading} onBusyChange={setProviderPending} />
+    <div className="ks-auth-divider"><span>or continue with email</span></div>
+    {error && <div className="ks-auth-error" role="alert">{error}</div>}
+    <form onSubmit={handleSubmit} className="ks-auth-form" aria-busy={loading}>
+      <label htmlFor="login-email">Email</label>
+      <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" required disabled={loading || providerPending} />
+      <label htmlFor="login-password">Password</label>
+      <div className="ks-auth-password"><input id="login-password" type={visible ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required disabled={loading || providerPending} placeholder="Enter your password" />
+        <button type="button" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+      </div>
+      <p className="ks-auth-session">Your session stays in this browser tab.</p>
+      <button type="submit" className="ks-auth-submit" disabled={loading || providerPending}>{loading ? 'Signing in…' : 'Enter the vault'}<ArrowRight size={17} /></button>
+    </form>
+    <p className="ks-auth-register">New to KeepSave? <Link to="/register">Open an account <ArrowUpRight size={14} /></Link></p>
+  </AuthShell>;
 }

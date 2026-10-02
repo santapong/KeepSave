@@ -15,6 +15,10 @@ import (
 // attacker could still mount a DNS-rebinding attack against the delivery
 // call, but the registration check is the primary control.
 func ValidateWebhookURL(rawURL string) error {
+	return validateWebhookURL(rawURL, net.LookupIP)
+}
+
+func validateWebhookURL(rawURL string, lookup func(string) ([]net.IP, error)) error {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return fmt.Errorf("invalid url: %w", err)
@@ -43,9 +47,12 @@ func ValidateWebhookURL(rawURL string) error {
 			return fmt.Errorf("host %q points at a cloud metadata service", host)
 		}
 	}
-	ips, err := net.LookupIP(host)
+	ips, err := lookup(host)
 	if err != nil {
 		return fmt.Errorf("resolving host %q: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return fmt.Errorf("host %q has no resolved addresses", host)
 	}
 	// In dev / test environments we still ban link-local + cloud-metadata
 	// IPs (the attack we care about) but allow loopback / RFC-1918 so

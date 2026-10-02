@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -19,29 +21,9 @@ import (
 // (KEEPSAVE_PLATFORM_ADMIN_EMAILS). It MUST be mounted after JWTAuthMiddleware
 // (which sets the "email" claim). It fails closed: an empty allowlist denies
 // everyone, so /admin is never world-readable by default (DB-06).
-func RequirePlatformAdmin(adminEmails []string) gin.HandlerFunc {
-	allow := make(map[string]struct{}, len(adminEmails))
-	for _, e := range adminEmails {
-		if v := strings.ToLower(strings.TrimSpace(e)); v != "" {
-			allow[v] = struct{}{}
-		}
-	}
-	return func(c *gin.Context) {
-		email, _ := c.Get("email")
-		es, _ := email.(string)
-		if es == "" {
-			WrapError(c, ErrUnauthorized)
-			c.Abort()
-			return
-		}
-		if _, ok := allow[strings.ToLower(es)]; !ok {
-			WrapError(c, ErrForbidden)
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
+// Deprecated: email claims cannot grant global authority. Compatibility callers
+// fail closed; use RequireOperatorAdmin with the database grant checker.
+func RequirePlatformAdmin(_ []string) gin.HandlerFunc { return RequireOperatorAdmin(nil) }
 
 // scopeForMethod maps an HTTP method to the API-key scope required to perform
 // it. The scope vocabulary (read/write/delete/promote) matches validation.go.
@@ -88,43 +70,7 @@ func apiKeyHasScope(scopes models.StringList, required string) bool {
 // matchKeyGlob matches a secret key against a glob whose only metacharacter is
 // "*" (any run of characters, including empty). An empty pattern matches every
 // key (legacy bare-scope semantics).
-func matchKeyGlob(pattern, key string) bool {
-	if pattern == "" || pattern == "*" {
-		return true
-	}
-	parts := strings.Split(pattern, "*")
-	// No "*": exact match.
-	if len(parts) == 1 {
-		return pattern == key
-	}
-	// Anchor the first segment to the start.
-	if parts[0] != "" {
-		if !strings.HasPrefix(key, parts[0]) {
-			return false
-		}
-		key = key[len(parts[0]):]
-	}
-	// Anchor the last segment to the end.
-	last := parts[len(parts)-1]
-	if last != "" {
-		if !strings.HasSuffix(key, last) {
-			return false
-		}
-		key = key[:len(key)-len(last)]
-	}
-	// Middle segments must appear in order.
-	for _, seg := range parts[1 : len(parts)-1] {
-		if seg == "" {
-			continue
-		}
-		idx := strings.Index(key, seg)
-		if idx < 0 {
-			return false
-		}
-		key = key[idx+len(seg):]
-	}
-	return true
-}
+func matchKeyGlob(pattern, key string) bool { return policy.MatchKey(pattern, key) }
 
 // apiKeyScopeAllowsKey reports whether scopes grant the required action on the
 // specific key (ADR-0022): some scope's action must grant the action AND its
@@ -192,7 +138,11 @@ func EnforceAPIKeyScope() gin.HandlerFunc {
 			return
 		}
 		scopes, _ := scopesVal.(models.StringList)
-		if !apiKeyHasScope(scopes, scopeForMethod(c.Request.Method)) {
+		required := scopeForMethod(c.Request.Method)
+		if strings.Contains(c.FullPath(), "/leases") || strings.Contains(c.FullPath(), "/agent-token") || c.FullPath() == "/api/v1/projects/:id/secrets/batch" {
+			required = "read"
+		}
+		if !apiKeyHasScope(scopes, required) {
 			WrapError(c, ErrForbidden)
 			c.Abort()
 			return
@@ -257,7 +207,7 @@ func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 			c.Header("Vary", "Origin")
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, Idempotency-Key")
 		c.Header("Access-Control-Max-Age", "86400")
 
 		if c.Request.Method == "OPTIONS" {
@@ -343,12 +293,19 @@ func JWTAuthMiddleware(jwtService *auth.JWTService) gin.HandlerFunc {
 			return
 		}
 
-		claims, err := jwtService.ValidateToken(parts[1])
+		claims, err := jwtService.ValidateTokenContext(c.Request.Context(), parts[1])
 		if err != nil {
+			if errors.Is(err, auth.ErrSessionUnavailable) {
+				WrapError(c, ErrServiceUnavailable)
+				c.Abort()
+				return
+			}
 			RespondError(c, http.StatusUnauthorized, "invalid or expired token")
 			c.Abort()
 			return
 		}
+
+		c.Set("auth_claims", claims)
 
 		// Agent tokens (ADR-0021) are a confined principal, NOT a general user
 		// credential. They may only READ the secrets their lease names, in the
@@ -393,6 +350,9 @@ func JWTAuthMiddleware(jwtService *auth.JWTService) gin.HandlerFunc {
 // denied, including the lease/agent-token endpoints themselves (no privilege
 // re-delegation) and every write method on the secret routes.
 func agentTokenRouteAllowed(method, fullPath string) bool {
+	if method == http.MethodPost && fullPath == "/api/v1/projects/:id/secrets/batch" {
+		return true
+	}
 	if method != http.MethodGet {
 		return false
 	}
@@ -408,6 +368,9 @@ func agentTokenRouteAllowed(method, fullPath string) bool {
 // (read:<key>), so the existing per-key enforcement restricts an agent token to
 // exactly its leased keys and the coarse action gate forbids any write/delete.
 func agentReadScopes(keys []string) models.StringList {
+	if len(keys) == 0 {
+		return models.StringList{"read"}
+	}
 	scopes := make(models.StringList, 0, len(keys))
 	for _, k := range keys {
 		scopes = append(scopes, "read:"+k)
@@ -435,6 +398,7 @@ func APIKeyAuthMiddleware(jwtService *auth.JWTService, apikeyRepo *repository.AP
 			}
 
 			c.Set("user_id", key.UserID)
+			c.Set("api_key_id", key.ID)
 			c.Set("api_key_project_id", key.ProjectID)
 			c.Set("api_key_scopes", key.Scopes)
 			if key.Environment != nil {

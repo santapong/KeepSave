@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TypedConfirmModal } from './TypedConfirmModal';
+import { SecretHistoryPanel } from './SecretHistoryPanel';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 /** FU 0i: auto-hide revealed secrets after this many seconds. */
 const REVEAL_TIMEOUT_SECONDS = 30;
@@ -34,7 +36,7 @@ import {
   Trash2,
   Search,
   Lock,
-} from 'lucide-react';
+} from '@/components/icons';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Environment = (typeof ENVIRONMENTS)[number];
@@ -68,6 +70,8 @@ interface SecretsPanelProps {
 }
 
 export function SecretsPanel({ projectId }: SecretsPanelProps) {
+  const { enabled } = useCapabilities();
+  const [historyTarget, setHistoryTarget] = useState<Secret | null>(null);
   const [env, setEnv] = useState<Environment>('alpha');
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +110,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   }, [projectId, env]);
 
   useEffect(() => {
+    setHistoryTarget(null);
     setSecrets([]);
     loadSecrets();
     setNewKey('');
@@ -220,7 +225,9 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
     setSaving(true);
     setError('');
     try {
-      await updateSecret(projectId, secretId, editValue);
+      const current = secrets.find((secret) => secret.id === secretId);
+      if (current?.revision) await updateSecret(projectId, secretId, editValue, current.revision);
+      else await updateSecret(projectId, secretId, editValue);
       setEditing(null);
       setEditValue('');
       toast({ title: 'Updated', description: 'Secret value updated' });
@@ -341,15 +348,18 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
   const allRevealed = filteredSecrets.length > 0 && revealed.size === filteredSecrets.length;
 
   return (
-    <div>
+    <div className="ks-secrets-panel">
+      {historyTarget && <SecretHistoryPanel key={`${projectId}:${historyTarget.id}`} projectId={projectId} secret={historyTarget} onClose={() => setHistoryTarget(null)} onRestored={() => { setHistoryTarget(null); void loadSecrets(); }} />}
       {/* Environment Tabs */}
-      <div className="flex gap-2 mb-4 items-center">
+      <div className="ks-secrets-toolbar">
+        <div className="ks-environment-switch" role="group" aria-label="Secret environment">
         {ENVIRONMENTS.map((e) => {
           const isActive = env === e;
           return (
             <Button
               key={e}
               disabled={saving}
+              aria-pressed={isActive}
               onClick={() => setEnv(e)}
               variant="outline"
               size="sm"
@@ -364,7 +374,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
             </Button>
           );
         })}
-        <div className="flex-1" />
+        </div>
         <Button
           disabled={loading || saving} onClick={() => setShowAdd(!showAdd)}
           variant={showAdd ? 'outline' : 'default'}
@@ -377,6 +387,8 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
           )}
         </Button>
       </div>
+
+      <p className="ks-environment-hint">{env === 'alpha' ? 'Development secrets live here. Changes stay in Alpha until you promote them.' : env === 'uat' ? 'Test your configuration here before promoting it to production.' : 'Production secrets power your live application. Review changes carefully.'}</p>
 
       {/* Error Banner */}
       {error && (
@@ -596,6 +608,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1.5">
+                      {enabled('secret_history') && <Button variant="outline" size="sm" className="h-7 text-xs px-2" disabled={saving || !s.revision} onClick={() => setHistoryTarget(s)} title="Secret revision history">History</Button>}
                       <Button
                         variant="outline"
                         size="sm"

@@ -1,4 +1,4 @@
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play } from '@/components/icons';
 import { useMotion } from '../../hooks/useMotion';
 
 export function MotionToggle() {

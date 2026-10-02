@@ -12,6 +12,51 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/tracing"
 )
 
+// Dependencies makes composition explicit; legacy SetupRouter remains a compatibility adapter.
+type Dependencies struct {
+	CoreRelease          bool
+	OperatorAdminChecker OperatorAdminChecker
+	SessionHandler       *SessionHandler
+	RecoveryHandler      *RecoveryHandler
+	DisableLocalMCP      bool
+	CORSOrigins          string
+	PromotionsEnabled    bool
+	PlatformAdminEmails  []string
+	TrustedProxies       []string
+	JWTService           *auth.JWTService
+	APIKeyRepo           *repository.APIKeyRepository
+	ProjectRepo          *repository.ProjectRepository
+	AuthHandler          *AuthHandler
+	ProjectHandler       *ProjectHandler
+	SecretHandler        *SecretHandler
+	APIKeyHandler        *APIKeyHandler
+	PromotionHandler     *PromotionHandler
+	KeyRotationHandler   *KeyRotationHandler
+	WebhookHandler       *WebhookHandler
+	VersionHandler       *VersionHandler
+	HealthHandler        *HealthHandler
+	OrgHandler           *OrganizationHandler
+	TemplateHandler      *TemplateHandler
+	EnvFileHandler       *EnvFileHandler
+	DepHandler           *DependencyHandler
+	MetricsHandler       *MetricsHandler
+	EnterpriseHandler    *EnterpriseHandler
+	AgentHandler         *AgentHandler
+	PlatformHandler      *PlatformHandler
+	OpenAPIHandler       *OpenAPIHandler
+	OAuthHandler         *OAuthHandler
+	MCPHubHandler        *MCPHubHandler
+	MCPGatewayHandler    *MCPGatewayHandler
+	ApplicationHandler   *ApplicationHandler
+	IntelligenceHandler  *IntelligenceHandler
+	EmbedHandler         *EmbedHandler
+	FeedbackHandler      *FeedbackHandler
+	AppMetrics           *metrics.AppMetrics
+	Tracer               *tracing.Tracer
+	DB                   *sql.DB
+	Logger               *logging.Logger
+}
+
 func SetupRouter(
 	corsOrigins string, promotionsEnabled bool, platformAdminEmails []string, trustedProxies []string, jwtService *auth.JWTService, apikeyRepo *repository.APIKeyRepository,
 	projectRepo *repository.ProjectRepository,
@@ -26,6 +71,82 @@ func SetupRouter(
 	embedHandler *EmbedHandler, feedbackHandler *FeedbackHandler,
 	appMetrics *metrics.AppMetrics, tracer *tracing.Tracer, db *sql.DB, logger *logging.Logger,
 ) *gin.Engine {
+	return NewRouter(Dependencies{
+		CORSOrigins:         corsOrigins,
+		PromotionsEnabled:   promotionsEnabled,
+		PlatformAdminEmails: platformAdminEmails,
+		TrustedProxies:      trustedProxies,
+		JWTService:          jwtService,
+		APIKeyRepo:          apikeyRepo,
+		ProjectRepo:         projectRepo,
+		AuthHandler:         authHandler,
+		ProjectHandler:      projectHandler,
+		SecretHandler:       secretHandler,
+		APIKeyHandler:       apikeyHandler,
+		PromotionHandler:    promotionHandler,
+		KeyRotationHandler:  keyRotationHandler,
+		WebhookHandler:      webhookHandler,
+		VersionHandler:      versionHandler,
+		HealthHandler:       healthHandler,
+		OrgHandler:          orgHandler,
+		TemplateHandler:     templateHandler,
+		EnvFileHandler:      envFileHandler,
+		DepHandler:          depHandler,
+		MetricsHandler:      metricsHandler,
+		EnterpriseHandler:   enterpriseHandler,
+		AgentHandler:        agentHandler,
+		PlatformHandler:     platformHandler,
+		OpenAPIHandler:      openAPIHandler,
+		OAuthHandler:        oauthHandler,
+		MCPHubHandler:       mcpHubHandler,
+		MCPGatewayHandler:   mcpGatewayHandler,
+		ApplicationHandler:  applicationHandler,
+		IntelligenceHandler: intelligenceHandler,
+		EmbedHandler:        embedHandler,
+		FeedbackHandler:     feedbackHandler,
+		AppMetrics:          appMetrics,
+		Tracer:              tracer,
+		DB:                  db,
+		Logger:              logger,
+	})
+}
+
+func NewRouter(d Dependencies) *gin.Engine {
+	corsOrigins := d.CORSOrigins
+	promotionsEnabled := d.PromotionsEnabled
+	trustedProxies := d.TrustedProxies
+	jwtService := d.JWTService
+	apikeyRepo := d.APIKeyRepo
+	projectRepo := d.ProjectRepo
+	authHandler := d.AuthHandler
+	projectHandler := d.ProjectHandler
+	secretHandler := d.SecretHandler
+	apikeyHandler := d.APIKeyHandler
+	promotionHandler := d.PromotionHandler
+	keyRotationHandler := d.KeyRotationHandler
+	webhookHandler := d.WebhookHandler
+	versionHandler := d.VersionHandler
+	healthHandler := d.HealthHandler
+	orgHandler := d.OrgHandler
+	templateHandler := d.TemplateHandler
+	envFileHandler := d.EnvFileHandler
+	depHandler := d.DepHandler
+	metricsHandler := d.MetricsHandler
+	enterpriseHandler := d.EnterpriseHandler
+	agentHandler := d.AgentHandler
+	platformHandler := d.PlatformHandler
+	openAPIHandler := d.OpenAPIHandler
+	oauthHandler := d.OAuthHandler
+	mcpHubHandler := d.MCPHubHandler
+	mcpGatewayHandler := d.MCPGatewayHandler
+	applicationHandler := d.ApplicationHandler
+	intelligenceHandler := d.IntelligenceHandler
+	embedHandler := d.EmbedHandler
+	feedbackHandler := d.FeedbackHandler
+	appMetrics := d.AppMetrics
+	tracer := d.Tracer
+	logger := d.Logger
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	// CWE-348: constrain which upstream proxies may set X-Forwarded-For/X-Real-IP.
@@ -61,7 +182,7 @@ func SetupRouter(
 	r.GET("/readyz", healthHandler.Readiness)
 	r.GET("/metrics", metricsHandler.Metrics)
 	r.GET("/api/docs", openAPIHandler.Spec)
-	r.GET("/.well-known/openid-configuration", oauthHandler.OpenIDConfiguration)
+	r.GET("/.well-known/openid-configuration", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.OpenIDConfiguration))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -86,7 +207,25 @@ func SetupRouter(
 			auth.POST("/login", authHandler.Login)
 		}
 
+		if d.SessionHandler != nil {
+			auth.POST("/logout", JWTAuthMiddleware(jwtService), d.SessionHandler.Logout)
+			sessions := v1.Group("/account/sessions", JWTAuthMiddleware(jwtService))
+			sessions.GET("", d.SessionHandler.List)
+			sessions.DELETE("/:sessionId", d.SessionHandler.Revoke)
+		}
+		v1.GET("/capabilities", coreCapabilities(d.CoreRelease, d.RecoveryHandler != nil && d.RecoveryHandler.vault != nil))
 		users := v1.Group("/users")
+		if authHandler.social != nil {
+			social := authHandler.social
+			limiter := RateLimitMiddleware(NewRateLimiter(10, time.Minute, 10))
+			auth.GET("/providers", social.Providers)
+			auth.POST("/social/:provider/start", limiter, social.Start(false))
+			auth.POST("/social/:provider/complete", limiter, social.Complete(false))
+			connections := v1.Group("/account/connections", JWTAuthMiddleware(jwtService))
+			connections.GET("", social.Connections)
+			connections.POST("/:provider/start", limiter, social.Start(true))
+			connections.POST("/:provider/complete", limiter, social.Complete(true))
+		}
 		users.Use(JWTAuthMiddleware(jwtService))
 		{
 			users.GET("/lookup", authHandler.LookupUser)
@@ -113,15 +252,18 @@ func SetupRouter(
 		}
 
 		sec := v1.Group("/projects/:id/secrets")
-		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope())
+		sec.Use(APIKeyAuthMiddleware(jwtService, apikeyRepo), RequireProjectAccess(projectRepo), EnforceAPIKeyScope(), RequireSecretScope(projectRepo))
 		{
 			sec.POST("", secretHandler.Create)
+			sec.POST("/batch", secretHandler.BatchRead)
 			sec.GET("", secretHandler.List)
 			sec.GET("/:secretId", secretHandler.Get)
 			sec.PUT("/:secretId", secretHandler.Update)
 			sec.DELETE("/:secretId", secretHandler.Delete)
-			sec.GET("/:secretId/versions", versionHandler.ListVersions)
-			sec.GET("/:secretId/versions/:version", versionHandler.GetVersion)
+			vaultUnavailable := d.CoreRelease && (d.RecoveryHandler == nil || d.RecoveryHandler.vault == nil)
+			sec.GET("/:secretId/versions", coreRoute(vaultUnavailable, "versioned_vault", versionHandler.ListVersions))
+			sec.GET("/:secretId/versions/:version", coreRoute(vaultUnavailable, "versioned_vault", versionHandler.GetVersion))
+			sec.POST("/:secretId/versions/:version/restore", coreRoute(vaultUnavailable, "versioned_vault", versionHandler.RestoreVersion))
 		}
 
 		pm := v1.Group("/projects/:id")
@@ -142,37 +284,45 @@ func SetupRouter(
 			pm.GET("/audit-log", promotionHandler.AuditLog)
 			pm.POST("/rotate-keys", keyRotationHandler.RotateProjectKey)
 			pm.GET("/verify-encryption", keyRotationHandler.VerifyEncryption)
-			pm.POST("/webhooks", webhookHandler.Register)
-			pm.GET("/webhooks", webhookHandler.List)
-			pm.DELETE("/webhooks", webhookHandler.Remove)
+			pm.POST("/webhooks", coreRoute(d.CoreRelease, "webhook_automation", webhookHandler.Register))
+			pm.GET("/webhooks", coreRoute(d.CoreRelease, "webhook_automation", webhookHandler.List))
+			pm.DELETE("/webhooks", coreRoute(d.CoreRelease, "webhook_automation", webhookHandler.Remove))
 			pm.GET("/env-export", envFileHandler.Export)
 			pm.POST("/env-import", envFileHandler.Import)
-			pm.POST("/dependencies/analyze", depHandler.Analyze)
-			pm.GET("/dependencies/graph", depHandler.Graph)
-			pm.POST("/backups", enterpriseHandler.CreateBackup)
-			pm.GET("/backups", enterpriseHandler.ListBackups)
-			pm.GET("/policy", enterpriseHandler.GetSecretPolicy)
-			pm.PUT("/policy", enterpriseHandler.SetSecretPolicy)
+			pm.POST("/dependencies/analyze", coreRoute(d.CoreRelease, "dependency_analysis", depHandler.Analyze))
+			pm.GET("/dependencies/graph", coreRoute(d.CoreRelease, "dependency_analysis", depHandler.Graph))
+			if d.RecoveryHandler != nil {
+				pm.POST("/backups", d.RecoveryHandler.Backup)
+				pm.GET("/backups", d.RecoveryHandler.List)
+				pm.POST("/backups/verify", d.RecoveryHandler.Verify)
+				pm.POST("/backups/preview", d.RecoveryHandler.Preview)
+				pm.POST("/backups/restore", d.RecoveryHandler.RestoreSelected)
+			} else {
+				pm.POST("/backups", coreRoute(d.CoreRelease, "legacy_backup", enterpriseHandler.CreateBackup))
+				pm.GET("/backups", coreRoute(d.CoreRelease, "legacy_backup", enterpriseHandler.ListBackups))
+			}
+			pm.GET("/policy", coreRoute(d.CoreRelease, "policy_metadata", enterpriseHandler.GetSecretPolicy))
+			pm.PUT("/policy", coreRoute(d.CoreRelease, "policy_metadata", enterpriseHandler.SetSecretPolicy))
 			pm.GET("/agent-activity", agentHandler.GetRecentActivity)
 			pm.GET("/agent-heatmap", agentHandler.GetAccessHeatmap)
-			pm.GET("/access-policies", platformHandler.ListAccessPolicies)
-			pm.POST("/access-policies", platformHandler.CreateAccessPolicy)
-			pm.DELETE("/access-policies/:policyId", platformHandler.DeleteAccessPolicy)
+			pm.GET("/access-policies", coreRoute(d.CoreRelease, "policy_metadata", platformHandler.ListAccessPolicies))
+			pm.POST("/access-policies", coreRoute(d.CoreRelease, "policy_metadata", platformHandler.CreateAccessPolicy))
+			pm.DELETE("/access-policies/:policyId", coreRoute(d.CoreRelease, "policy_metadata", platformHandler.DeleteAccessPolicy))
 
 			// Phase 15: AI Intelligence - per-project
-			pm.POST("/drift", intelligenceHandler.DetectDrift)
-			pm.GET("/drift", intelligenceHandler.ListDriftChecks)
-			pm.POST("/drift/schedules", intelligenceHandler.CreateDriftSchedule)
-			pm.GET("/drift/schedules", intelligenceHandler.ListDriftSchedules)
-			pm.PUT("/drift/schedules/:scheduleId", intelligenceHandler.UpdateDriftSchedule)
-			pm.DELETE("/drift/schedules/:scheduleId", intelligenceHandler.DeleteDriftSchedule)
-			pm.POST("/anomalies/scan", intelligenceHandler.RunAnomalyDetection)
-			pm.GET("/analytics/trends", intelligenceHandler.GetUsageTrends)
-			pm.GET("/analytics/forecast", intelligenceHandler.GetUsageForecast)
-			pm.GET("/analytics/export", intelligenceHandler.ExportAnalyticsCSV)
-			pm.POST("/recommendations/generate", intelligenceHandler.GenerateRecommendations)
-			pm.GET("/recommendations", intelligenceHandler.ListRecommendations)
-			pm.DELETE("/recommendations/:recId", intelligenceHandler.DismissRecommendation)
+			pm.POST("/drift", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.DetectDrift))
+			pm.GET("/drift", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListDriftChecks))
+			pm.POST("/drift/schedules", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.CreateDriftSchedule))
+			pm.GET("/drift/schedules", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListDriftSchedules))
+			pm.PUT("/drift/schedules/:scheduleId", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.UpdateDriftSchedule))
+			pm.DELETE("/drift/schedules/:scheduleId", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.DeleteDriftSchedule))
+			pm.POST("/anomalies/scan", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.RunAnomalyDetection))
+			pm.GET("/analytics/trends", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.GetUsageTrends))
+			pm.GET("/analytics/forecast", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.GetUsageForecast))
+			pm.GET("/analytics/export", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ExportAnalyticsCSV))
+			pm.POST("/recommendations/generate", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.GenerateRecommendations))
+			pm.GET("/recommendations", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListRecommendations))
+			pm.DELETE("/recommendations/:recId", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.DismissRecommendation))
 		}
 
 		ls := v1.Group("/projects/:id/leases")
@@ -208,7 +358,7 @@ func SetupRouter(
 		wh := v1.Group("/webhook-deliveries")
 		wh.Use(JWTAuthMiddleware(jwtService))
 		{
-			wh.GET("", webhookHandler.Deliveries)
+			wh.GET("", coreRoute(d.CoreRelease, "webhook_automation", webhookHandler.Deliveries))
 		}
 
 		og := v1.Group("/organizations")
@@ -225,14 +375,14 @@ func SetupRouter(
 			og.DELETE("/:orgId/members/:userId", orgHandler.RemoveMember)
 			og.POST("/:orgId/projects", orgHandler.AssignProject)
 			og.GET("/:orgId/projects", orgHandler.ListProjects)
-			og.POST("/:orgId/sso", enterpriseHandler.ConfigureSSO)
-			og.GET("/:orgId/sso", enterpriseHandler.ListSSOConfigs)
-			og.DELETE("/:orgId/sso/:provider", enterpriseHandler.DeleteSSOConfig)
-			og.POST("/:orgId/compliance", enterpriseHandler.GenerateComplianceReport)
-			og.GET("/:orgId/compliance", enterpriseHandler.ListComplianceReports)
+			og.POST("/:orgId/sso", coreRoute(d.CoreRelease, "enterprise_sso", enterpriseHandler.ConfigureSSO))
+			og.GET("/:orgId/sso", coreRoute(d.CoreRelease, "enterprise_sso", enterpriseHandler.ListSSOConfigs))
+			og.DELETE("/:orgId/sso/:provider", coreRoute(d.CoreRelease, "enterprise_sso", enterpriseHandler.DeleteSSOConfig))
+			og.POST("/:orgId/compliance", coreRoute(d.CoreRelease, "compliance_assessment", enterpriseHandler.GenerateComplianceReport))
+			og.GET("/:orgId/compliance", coreRoute(d.CoreRelease, "compliance_assessment", enterpriseHandler.ListComplianceReports))
 			// Phase 15: Quota management per org
-			og.GET("/:orgId/quota", intelligenceHandler.GetQuota)
-			og.PUT("/:orgId/quota", intelligenceHandler.SetQuota)
+			og.GET("/:orgId/quota", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.GetQuota))
+			og.PUT("/:orgId/quota", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.SetQuota))
 		}
 
 		tpl := v1.Group("/templates")
@@ -250,7 +400,7 @@ func SetupRouter(
 		// /admin exposes cross-tenant operational data (security events,
 		// traces), so it is gated by a platform-admin allowlist on top of JWT.
 		adm := v1.Group("/admin")
-		adm.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
+		adm.Use(JWTAuthMiddleware(jwtService), RequireOperatorAdmin(d.OperatorAdminChecker))
 		{
 			adm.GET("/dashboard", metricsHandler.AdminDashboard)
 			adm.GET("/traces", metricsHandler.Traces)
@@ -269,47 +419,47 @@ func SetupRouter(
 		// (e.g. a security validator) or read the global event log. Fail-closed:
 		// an empty allowlist denies everyone.
 		pl := v1.Group("/platform")
-		pl.Use(JWTAuthMiddleware(jwtService), RequirePlatformAdmin(platformAdminEmails))
+		pl.Use(JWTAuthMiddleware(jwtService), RequireOperatorAdmin(d.OperatorAdminChecker))
 		{
 			pl.GET("/events", platformHandler.ListEvents)
-			pl.POST("/events/replay", platformHandler.ReplayEvents)
+			pl.POST("/events/replay", coreRoute(d.CoreRelease, "event_replay", platformHandler.ReplayEvents))
 			pl.GET("/plugins", platformHandler.ListPlugins)
-			pl.POST("/plugins", platformHandler.RegisterPlugin)
-			pl.PUT("/plugins/:pluginId", platformHandler.TogglePlugin)
+			pl.POST("/plugins", coreRoute(d.CoreRelease, "plugin_execution", platformHandler.RegisterPlugin))
+			pl.PUT("/plugins/:pluginId", coreRoute(d.CoreRelease, "plugin_execution", platformHandler.TogglePlugin))
 		}
 
 		// Phase 15: AI Intelligence - global
 		ai := v1.Group("/ai")
 		ai.Use(JWTAuthMiddleware(jwtService))
 		{
-			ai.GET("/providers", intelligenceHandler.ListProviders)
-			ai.POST("/query", intelligenceHandler.NLPQuery)
-			ai.POST("/converse", intelligenceHandler.NLPConverse)
-			ai.GET("/anomalies", intelligenceHandler.ListAnomalies)
-			ai.PUT("/anomalies/:anomalyId/acknowledge", intelligenceHandler.AcknowledgeAnomaly)
-			ai.PUT("/anomalies/:anomalyId/resolve", intelligenceHandler.ResolveAnomaly)
-			ai.POST("/rules", intelligenceHandler.CreateAlertRule)
-			ai.GET("/rules", intelligenceHandler.ListAlertRules)
-			ai.PUT("/rules/:ruleId", intelligenceHandler.UpdateAlertRule)
-			ai.DELETE("/rules/:ruleId", intelligenceHandler.DeleteAlertRule)
-			ai.POST("/drift/run-scheduled", intelligenceHandler.RunScheduledDriftChecks)
+			ai.GET("/providers", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListProviders))
+			ai.POST("/query", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.NLPQuery))
+			ai.POST("/converse", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.NLPConverse))
+			ai.GET("/anomalies", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListAnomalies))
+			ai.PUT("/anomalies/:anomalyId/acknowledge", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.AcknowledgeAnomaly))
+			ai.PUT("/anomalies/:anomalyId/resolve", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ResolveAnomaly))
+			ai.POST("/rules", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.CreateAlertRule))
+			ai.GET("/rules", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.ListAlertRules))
+			ai.PUT("/rules/:ruleId", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.UpdateAlertRule))
+			ai.DELETE("/rules/:ruleId", coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.DeleteAlertRule))
+			ai.POST("/drift/run-scheduled", RequireOperatorAdmin(d.OperatorAdminChecker), coreRoute(d.CoreRelease, "experimental_intelligence", intelligenceHandler.RunScheduledDriftChecks))
 		}
 
 		oauthPub := v1.Group("/oauth")
 		{
-			oauthPub.POST("/token", oauthHandler.Token)
-			oauthPub.GET("/userinfo", oauthHandler.UserInfo)
-			oauthPub.POST("/revoke", oauthHandler.Revoke)
+			oauthPub.POST("/token", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.Token))
+			oauthPub.GET("/userinfo", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.UserInfo))
+			oauthPub.POST("/revoke", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.Revoke))
 			oauthPub.GET("/.well-known/jwks.json", oauthHandler.JWKS)
 		}
 
 		oauthAuth := v1.Group("/oauth")
 		oauthAuth.Use(JWTAuthMiddleware(jwtService))
 		{
-			oauthAuth.GET("/authorize", oauthHandler.Authorize)
-			oauthAuth.POST("/clients", oauthHandler.RegisterClient)
-			oauthAuth.GET("/clients", oauthHandler.ListClients)
-			oauthAuth.DELETE("/clients/:clientId", oauthHandler.DeleteClient)
+			oauthAuth.GET("/authorize", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.Authorize))
+			oauthAuth.POST("/clients", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.RegisterClient))
+			oauthAuth.GET("/clients", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.ListClients))
+			oauthAuth.DELETE("/clients/:clientId", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.DeleteClient))
 		}
 
 		mcpPub := v1.Group("/mcp")
@@ -318,22 +468,22 @@ func SetupRouter(
 		}
 
 		mcp := v1.Group("/mcp")
-		mcp.Use(JWTAuthMiddleware(jwtService))
+		mcp.Use(JWTAuthMiddleware(jwtService), localMCPExecutionGate(d.DisableLocalMCP))
 		{
-			mcp.POST("/servers", mcpHubHandler.RegisterServer)
+			mcp.POST("/servers", coreRoute(d.CoreRelease, "mcp_execution", mcpHubHandler.RegisterServer))
 			mcp.GET("/servers", mcpHubHandler.ListMyServers)
 			mcp.GET("/servers/:serverId", mcpHubHandler.GetServer)
 			mcp.PUT("/servers/:serverId", mcpHubHandler.UpdateServer)
 			mcp.DELETE("/servers/:serverId", mcpHubHandler.DeleteServer)
-			mcp.POST("/servers/:serverId/rebuild", mcpHubHandler.RebuildServer)
-			mcp.POST("/installations", mcpHubHandler.InstallServer)
+			mcp.POST("/servers/:serverId/rebuild", coreRoute(d.CoreRelease, "mcp_execution", mcpHubHandler.RebuildServer))
+			mcp.POST("/installations", coreRoute(d.CoreRelease, "mcp_execution", mcpHubHandler.InstallServer))
 			mcp.GET("/installations", mcpHubHandler.ListInstallations)
-			mcp.PUT("/installations/:installId", mcpHubHandler.UpdateInstallation)
+			mcp.PUT("/installations/:installId", coreRoute(d.CoreRelease, "mcp_execution", mcpHubHandler.UpdateInstallation))
 			mcp.DELETE("/installations/:installId", mcpHubHandler.UninstallServer)
-			mcp.POST("/gateway", mcpGatewayHandler.HandleToolCall)
-			mcp.GET("/gateway/tools", mcpGatewayHandler.ListTools)
+			mcp.POST("/gateway", coreRoute(d.CoreRelease, "mcp_execution", mcpGatewayHandler.HandleToolCall))
+			mcp.GET("/gateway/tools", coreRoute(d.CoreRelease, "mcp_execution", mcpGatewayHandler.ListTools))
 			mcp.GET("/gateway/stats", mcpHubHandler.GetGatewayStats)
-			mcp.GET("/config", mcpGatewayHandler.MCPConfig)
+			mcp.GET("/config", coreRoute(d.CoreRelease, "mcp_execution", mcpGatewayHandler.MCPConfig))
 		}
 
 		// In-app feedback (feature-flagged by FEEDBACK_GITHUB_TOKEN; 503 when

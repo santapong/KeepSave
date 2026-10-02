@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"net"
 	"strings"
 	"testing"
 )
@@ -40,8 +42,32 @@ func TestValidateWebhookURL_RejectsSSRFTargets(t *testing.T) {
 
 func TestValidateWebhookURL_AcceptsPublicHTTPS(t *testing.T) {
 	t.Setenv("KEEPSAVE_ENV", "production")
-	if err := ValidateWebhookURL("https://example.com/hook"); err != nil {
+	if err := validateWebhookURL("https://example.com/hook", func(host string) ([]net.IP, error) {
+		if host != "example.com" {
+			t.Fatalf("unexpected lookup host %q", host)
+		}
+		return []net.IP{net.ParseIP("93.184.216.34")}, nil
+	}); err != nil {
 		t.Errorf("expected nil, got %v", err)
+	}
+}
+
+func TestValidateWebhookURL_DNSFailsClosed(t *testing.T) {
+	t.Setenv("KEEPSAVE_ENV", "production")
+	for _, tc := range []struct {
+		name string
+		ips  []net.IP
+		err  error
+	}{
+		{"unavailable", nil, errors.New("synthetic resolver unavailable")},
+		{"empty", nil, nil},
+		{"mixed public and private", []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("10.0.0.1")}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := validateWebhookURL("https://example.com/hook", func(string) ([]net.IP, error) { return tc.ips, tc.err }); err == nil {
+				t.Fatal("unsafe DNS result admitted")
+			}
+		})
 	}
 }
 

@@ -1,5 +1,7 @@
 # Frontend Architecture
 
+> **Current scope — 2026-10-02.** The accepted KeepSave frontend is preserved. Generated core API wire types, provider configuration availability and revocable-session interfaces are current additions. Older component/version counts below are historical implementation context, not a fresh frontend acceptance result. See the [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+
 > Part of the **[KeepSave System Documentation](./README.md)**.
 
 KeepSave ships a single-page React dashboard (`frontend/`) that is the human-facing console for projects, secrets, promotions, API keys, the MCP hub, and the admin/observability dashboards. It is a thin client: all secrets, encryption, and authorization live in the [backend](./02-backend.md), and the frontend never sees a plaintext secret it did not explicitly request through an authenticated API call. This chapter grounds every claim in the source under `frontend/src/` so an engineer or auditor can navigate the app, understand how authentication state is held in the browser, and know exactly which surfaces handle secret material.

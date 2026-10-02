@@ -8,6 +8,8 @@ vi.mock('../api/client', () => ({
   login: vi.fn(),
 }));
 
+vi.mock('../api/socialAuth', () => ({ getProviders: vi.fn().mockResolvedValue({ github: false, google: false }), startSocialLogin: vi.fn() }));
+
 import { login as apiLogin } from '../api/client';
 
 describe('LoginPage', () => {
@@ -28,9 +30,9 @@ describe('LoginPage', () => {
   it('renders login form', () => {
     renderLogin();
     expect(screen.getByText(/your orbit/i)).toBeInTheDocument();
-    expect(screen.getByText(/sign in/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Password', { exact: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /enter the vault/i })).toBeInTheDocument();
   });
 
@@ -45,7 +47,7 @@ describe('LoginPage', () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/email/i), 'test@test.com');
-    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.type(screen.getByLabelText('Password', { exact: true }), 'password123');
     await user.click(screen.getByRole('button', { name: /enter the vault/i }));
 
     await waitFor(() => {
@@ -60,7 +62,7 @@ describe('LoginPage', () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/email/i), 'bad@test.com');
-    await user.type(screen.getByLabelText(/password/i), 'wrongpass');
+    await user.type(screen.getByLabelText('Password', { exact: true }), 'wrongpass');
     await user.click(screen.getByRole('button', { name: /enter the vault/i }));
 
     await waitFor(() => {

@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, X, Info, ChevronDown, ChevronUp } from '@/components/icons';
 
 interface AuditLogViewerProps {
   projectId: string;

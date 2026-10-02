@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
 import { BlackHoleScene } from '../components/cosmic/BlackHoleScene';
 import { Brand } from '../components/cosmic/Brand';
-import { LockKeyhole } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole } from '@/components/icons';
 import { Starfield } from '../components/cosmic/Starfield';
 import type { User } from '../types';
 
@@ -15,7 +15,7 @@ const INCLUDED: Array<[string, string]> = [
   ['Encrypted at rest', 'AES-256-GCM'],
   ['Scoped access', 'API keys'],
   ['Change history', 'audit trail'],
-  ['Self-host or hosted', 'docker compose'],
+  ['Self-hostable', 'docker compose'],
 ];
 
 export function RegisterPage({ onLogin }: RegisterPageProps) {
@@ -65,8 +65,8 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
             <em>secrets properly.</em>
           </h1>
           <p className="cz-login-sub">
-            An encrypted vault, OAuth 2.0 identity provider, and central MCP hub for the teams
-            whose agents and pipelines reach into production.
+            Give your projects one encrypted home, with scoped access, a durable history,
+            and a clear path between environments.
           </p>
 
           <div className="cz-login-stats">
@@ -100,7 +100,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
 
           <h2 className="cz-login-h2">Create account</h2>
           <p className="cz-login-lead">
-            Already have an account? <Link to="/login">Sign in →</Link>
+            Already have an account? <Link to="/login">Sign in <ArrowRight size={14} /></Link>
           </p>
 
           <form className="cz-login-form" onSubmit={handleSubmit} style={{ marginTop: 22 }}>
@@ -153,13 +153,13 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               style={{ justifyContent: 'center', width: '100%' }}
               disabled={loading}
             >
-              {loading ? 'Creating account…' : 'Create account →'}
+              {loading ? 'Creating account…' : <>Create account <ArrowRight size={16} /></>}
             </button>
           </form>
 
           <div className="cz-login-divider" />
           <div className="cz-login-fine">
-            <Link to="/">← Back to KeepSave</Link>
+            <Link to="/"><ArrowLeft size={14} /> Back to KeepSave</Link>
             <span>Encrypted at rest · AES-256-GCM</span>
             <span>Scoped access</span>
           </div>

@@ -298,10 +298,10 @@ Top-of-list = highest leverage. Order matters — anything blocking a 30-day act
 
 ---
 
-### Go SDK is not an importable module *(P3)*
-- **Status:** **OPEN — found while rewriting the README, 2026-08-11.** `sdks/go/keepsave.go` declares `package keepsave` but sits in no Go module: the only `go.mod` in the repo is `backend/go.mod`. `go get github.com/santapong/KeepSave/sdks/go` therefore cannot resolve it, so the Go SDK can only be used by vendoring the file.
+### Go SDK standalone module and published distribution *(P3)*
+- **Status:** **Local packaging resolved, 2026-10-02; published distribution pending.** `sdks/go/go.mod` now declares `github.com/santapong/KeepSave/sdks/go` and a dedicated SDK CI test job exists. The August11 missing-module observation is historical. No new published version/tag or remote `go get` exercise has occurred.
 - **Why it matters:** the Node and Python SDKs are installable packages; Go consumers get a worse story than the docs imply. It also means the SDK is not versioned or dependency-checked independently.
-- **Fix:** add `sdks/go/go.mod` declaring `github.com/santapong/KeepSave/sdks/go`, and tag it so `go get` resolves a version.
+- **Remaining:** review/test the local module, then use the authorized release workflow to publish a module version and verify remote resolution. Local source changes are not publishing authority.
 - **Owner:** Backend Engineer.
 - **Due:** next minor release.
 - **Related:** [`docs/INTEGRATIONS.md`](INTEGRATIONS.md) carries the caveat until this is closed.

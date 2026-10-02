@@ -23,7 +23,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle } from '@/components/icons';
 
 interface PromotionWizardProps {
   projectId: string;

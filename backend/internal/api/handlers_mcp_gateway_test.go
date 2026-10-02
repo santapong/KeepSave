@@ -27,7 +27,7 @@ func newGatewayTestEnv(t *testing.T) *gatewayTestEnv {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	for _, ddl := range []string{
-		`CREATE TABLE projects (
+		`CREATE TABLE projects (deleted_at TEXT,
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT,
@@ -42,8 +42,10 @@ func newGatewayTestEnv(t *testing.T) *gatewayTestEnv {
 		)`,
 		`CREATE TABLE organization_members (
 			organization_id TEXT NOT NULL,
-			user_id TEXT NOT NULL
+			user_id TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'editor'
 		)`,
+		`CREATE TABLE mcp_installations(id TEXT PRIMARY KEY,user_id TEXT,mcp_server_id TEXT,project_id TEXT,enabled INTEGER,config TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
 		`CREATE TABLE environments (
 			id TEXT PRIMARY KEY,
 			project_id TEXT NOT NULL,
@@ -77,6 +79,7 @@ func newGatewayTestEnv(t *testing.T) *gatewayTestEnv {
 	// Only the repos/crypto used by resolveSecretEnvVars are wired; the rest
 	// (mcpService, builderService, mcpRepo) are not needed for this path.
 	h := &MCPGatewayHandler{
+		mcpRepo:     repository.NewMCPRepository(db, dialect),
 		secretRepo:  repository.NewSecretRepository(db, dialect),
 		projectRepo: repository.NewProjectRepository(db, dialect),
 		envRepo:     repository.NewEnvironmentRepository(db, dialect),
@@ -137,6 +140,11 @@ func TestResolveSecretEnvVars_SkipsUnauthorizedProject(t *testing.T) {
 	projB := env.seedProjectSecret(t, userB, "alpha", "TOKEN_B", "value-B")
 
 	server := &models.MCPServerWithTools{}
+	for _, binding := range []struct{ user, project uuid.UUID }{{userA, projA}, {userB, projB}} {
+		if err := env.handler.mcpRepo.CreateInstallation(&models.MCPInstallation{UserID: binding.user, MCPServerID: server.ID, ProjectID: &binding.project, Enabled: true, Config: models.JSONMap{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	server.EnvMappings = models.JSONMap{
 		"VAR_A": map[string]interface{}{"project_id": projA.String(), "environment": "alpha", "secret_key": "TOKEN_A"},
 		"VAR_B": map[string]interface{}{"project_id": projB.String(), "environment": "alpha", "secret_key": "TOKEN_B"},

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, FolderKey, KeyRound, Lock } from 'lucide-react';
+import { Activity, FolderKey, KeyRound, Lock } from '@/components/icons';
 import * as api from '@/api/client';
 import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';

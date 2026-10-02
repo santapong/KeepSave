@@ -1,5 +1,9 @@
-/** One lightweight vector asset for the favicon, wordmark, and product preview. */
+/** The selected Field Twist geometry, with paint suited to each product surface. */
 export function EhMark({ size = 32, className = '' }: { size?: number; className?: string }) {
-  return <img src="/keepsave.svg?v=event-horizon" width={size} height={size}
-    className={`cz-brand-icon ${className}`} alt="" aria-hidden="true" draggable={false} />;
+  return <span className={`cz-brand-icon ${className}`} style={{ width: size, height: size }} aria-hidden="true">
+    <img className="cz-mark-dark" src="/keepsave.svg?v=field-twist-v2-3" width={size} height={size}
+      alt="" draggable={false} />
+    <img className="cz-mark-light" src="/keepsave-light.svg?v=field-twist-v2-3" width={size} height={size}
+      alt="" draggable={false} />
+  </span>;
 }

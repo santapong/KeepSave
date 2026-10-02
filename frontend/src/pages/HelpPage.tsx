@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 type Section = 'getting-started' | 'concepts' | 'api' | 'api-keys' | 'sdks' | 'promotion' | 'embed' | 'security' | 'developer-guide' | 'agent-integration' | 'mcp-server' | 'examples';
 
 export function HelpPage() {
   const [active, setActive] = useState<Section>('getting-started');
+  const { unavailable, capabilities } = useCapabilities();
 
   const sections: { key: Section; label: string }[] = [
     { key: 'getting-started', label: 'Getting Started' },
@@ -50,6 +52,7 @@ export function HelpPage() {
 
       {/* Content */}
       <div style={{ flex: 1, maxWidth: 780, minWidth: 0 }}>
+        {capabilities?.restricted_profile && <p className="cz-muted" role="note">This release supports your account, workspace and vault. Managed Codex profiles, MCP execution and the GitHub credential broker are planned integrations. SDK and CLI secret reads return permitted values to your client.</p>}
         {active === 'getting-started' && <GettingStarted />}
         {active === 'concepts' && <Concepts />}
         {active === 'api' && <APIReference />}
@@ -60,7 +63,7 @@ export function HelpPage() {
         {active === 'security' && <SecurityModel />}
         {active === 'developer-guide' && <DeveloperGuide />}
         {active === 'agent-integration' && <AgentIntegration />}
-        {active === 'mcp-server' && <MCPServer />}
+        {active === 'mcp-server' && (unavailable('mcp_execution') ? <div><h1 style={pageTitle}>MCP integration</h1><p style={intro}>MCP execution is unavailable on this instance. Approved tools, private skills and managed Codex setup will follow the reliable vault release.</p></div> : <MCPServer />)}
         {active === 'examples' && <Examples />}
       </div>
     </div>
@@ -483,28 +486,49 @@ except requests.ConnectionError:
 
       <div style={docCard}>
         <h3 style={docTitle}>Go</h3>
-        <CodeBlock code={`go get github.com/your-org/keepsave-go`} />
-        <CodeBlock code={`import "github.com/your-org/keepsave-go"
+        <p style={stepDesc}>The Go SDK is a standalone module in this checkout. Use Go 1.26 or newer and an existing application module; replace the path below with your local KeepSave checkout. Remote module publication is pending.</p>
+        <CodeBlock code={`go mod edit -replace=github.com/santapong/KeepSave/sdks/go=/absolute/path/to/KeepSave/sdks/go
+go get github.com/santapong/KeepSave/sdks/go@v0.0.0`} />
+        <CodeBlock code={`package main
 
-client := keepsave.NewClient(
-    keepsave.WithAPIKey("ks_your_api_key"),
-    keepsave.WithBaseURL("http://localhost:8080"),
+import (
+    "context"
+    "errors"
+    "log"
+    "os"
+
+    keepsave "github.com/santapong/KeepSave/sdks/go"
 )
 
-secrets, err := client.GetSecrets(ctx, "alpha")
-dbURL := secrets["DATABASE_URL"]`} />
-        <p style={{ ...stepDesc, marginTop: 12 }}><strong>Error Handling</strong></p>
-        <CodeBlock code={`secrets, err := client.GetSecrets(ctx, "alpha")
-if err != nil {
-    var apiErr *keepsave.APIError
-    if errors.As(err, &apiErr) && apiErr.StatusCode == 403 {
-        log.Fatal("Insufficient permissions — check API key scopes")
+func main() {
+    client := keepsave.NewClient(
+        "http://localhost:8080",
+        keepsave.WithAPIKey(os.Getenv("KEEPSAVE_API_KEY")),
+    )
+    secrets, err := client.ListSecrets(
+        context.Background(), os.Getenv("KEEPSAVE_PROJECT_ID"), "alpha",
+    )
+    if err != nil {
+        var apiErr *keepsave.Error
+        if errors.As(err, &apiErr) {
+            if apiErr.Code == 403 {
+                log.Fatal("Insufficient permissions — check project and API key scopes")
+            }
+            log.Fatalf("KeepSave request failed with HTTP %d", apiErr.Code)
+        }
+        log.Fatal("KeepSave request failed — check network and server availability")
     }
-    if errors.Is(err, keepsave.ErrConnectionFailed) {
-        log.Fatal("Connection failed — is the KeepSave server running?")
+
+    for _, secret := range secrets {
+        if secret.Key == "DATABASE_URL" {
+            dbURL := secret.Value
+            _ = dbURL // Configure your database; never log the credential.
+            return
+        }
     }
-    log.Fatalf("Unexpected error: %v", err)
+    log.Fatal("DATABASE_URL is missing or outside this key's scope")
 }`} />
+        <p style={{ ...stepDesc, marginTop: 12 }}><strong>Error Handling</strong>: API failures use <code style={inlineCode}>*keepsave.Error</code> with an HTTP <code style={inlineCode}>Code</code>. Transport and circuit-breaker failures are separate errors; the example avoids logging credentials or response details.</p>
       </div>
 
       <div style={docCard}>

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send } from '@/components/icons';
 import type { DashboardApplication } from '../types';
 
 interface Message {

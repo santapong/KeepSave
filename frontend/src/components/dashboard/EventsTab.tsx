@@ -5,7 +5,7 @@ import {
   Send,
   Clock,
   RefreshCw,
-} from 'lucide-react';
+} from '@/components/icons';
 import * as api from '@/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

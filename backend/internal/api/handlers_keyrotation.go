@@ -26,12 +26,12 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	result, err := h.rotationService.RotateProjectKey(projectID, userID, c.ClientIP())
+	result, err := h.rotationService.RotateProjectKeyAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -45,14 +45,14 @@ func (h *KeyRotationHandler) RotateProjectKey(c *gin.Context) {
 
 // RotateAllKeys rotates keys for all projects owned by the authenticated user.
 func (h *KeyRotationHandler) RotateAllKeys(c *gin.Context) {
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	results, err := h.rotationService.RotateAllProjects(userID, c.ClientIP())
+	results, err := h.rotationService.RotateAllProjectsAuthorized(c.Request.Context(), PrincipalFromContext(c), c.ClientIP())
 	if err != nil {
-		WrapError(c, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": ErrorDetail{Code: 500, ErrorCode: "PARTIAL_ROTATION_FAILURE", Message: "rotation stopped; completed projects are listed"}, "results": results})
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *KeyRotationHandler) VerifyEncryption(c *gin.Context) {
 		return
 	}
 
-	failedSecrets, err := h.rotationService.VerifyProjectEncryption(projectID)
+	failedSecrets, err := h.rotationService.VerifyProjectEncryptionAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID)
 	if err != nil {
 		WrapError(c, err)
 		return

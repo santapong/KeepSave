@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState, useMemo, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 import {
   Search,
   FolderClosed,
   Building2,
   Boxes,
-  Server,
-  ShieldCheck,
+  OrbitHub,
+  KeyRound,
   AppWindow,
   Bot,
   LayoutGrid,
   BookOpen,
   CornerDownLeft,
-} from 'lucide-react';
+  UserRound,
+} from '@/components/icons';
+
+import { useCapabilities, routeCapability } from '../hooks/useCapabilities';
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
 
@@ -25,11 +29,13 @@ interface CommandAction {
 }
 
 const ACTIONS: CommandAction[] = [
-  { id: 'projects', label: 'Go to Projects', hint: 'shelf · the dossier of vaults', path: '/', icon: FolderClosed },
-  { id: 'organizations', label: 'Go to Organizations', hint: 'tenancy', path: '/organizations', icon: Building2 },
-  { id: 'templates', label: 'Go to Templates', hint: 'stack starter kits', path: '/templates', icon: Boxes },
-  { id: 'mcp-hub', label: 'Go to MCP Hub', hint: 'agent gateway', path: '/mcp-hub', icon: Server },
-  { id: 'oauth', label: 'Go to OAuth Clients', hint: 'integrations', path: '/oauth-clients', icon: ShieldCheck },
+  { id: 'new-project', label: 'Create a new project', hint: 'a vault for your application', path: '/?new=project', icon: FolderClosed },
+  { id: 'account', label: 'Go to Account', hint: 'GitHub · Google · sign-in connections', path: '/account', icon: UserRound },
+  { id: 'projects', label: 'Go to Projects', hint: 'project vaults · environments', path: '/', icon: FolderClosed },
+  { id: 'organizations', label: 'Go to Organizations', hint: 'teams and members', path: '/organizations', icon: Building2 },
+  { id: 'templates', label: 'Go to Templates', hint: 'reusable secret templates', path: '/templates', icon: Boxes },
+  { id: 'mcp-hub', label: 'Go to MCP Hub', hint: 'agent gateway', path: '/mcp-hub', icon: OrbitHub },
+  { id: 'oauth', label: 'Go to OAuth Clients', hint: 'integrations', path: '/oauth-clients', icon: KeyRound },
   { id: 'applications', label: 'Go to Applications', hint: 'app dashboard', path: '/applications', icon: AppWindow },
   { id: 'ai', label: 'Go to AI Intelligence', hint: 'drift · anomaly · usage', path: '/ai', icon: Bot },
   { id: 'admin', label: 'Go to Admin Dashboard', hint: 'observability · audit', path: '/admin', icon: LayoutGrid },
@@ -39,38 +45,39 @@ const ACTIONS: CommandAction[] = [
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
+  onRestoreFocus?: () => void;
 }
 
 /**
- * Cmd+K / Ctrl+K command palette — Event Horizon glass panel.
- *
- * Esc or click-outside closes. Up/Down move selection; Enter activates.
- * Behaviour is unchanged from the prior implementation; only the chrome
- * is re-skinned to the cosmic ⌘K spec (.cz-cmdk*).
+ * Searchable workspace navigation. The shared dialog traps focus and restores it
+ * on close; arrow keys and Enter select an action from the search input.
  */
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onRestoreFocus }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
+  const { capabilities } = useCapabilities();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return ACTIONS;
-    return ACTIONS.filter(
+    const available = ACTIONS.filter((action) => { const feature = routeCapability(action.path); return !feature || (!!capabilities && (!capabilities.restricted_profile || !capabilities.unavailable.includes(feature))); });
+    if (!q) return available;
+    return available.filter(
       (a) =>
         a.label.toLowerCase().includes(q) ||
         (a.hint ?? '').toLowerCase().includes(q) ||
         a.id.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, capabilities]);
 
   useEffect(() => {
     if (open) {
       setQuery('');
       setSelected(0);
       // defer focus so the input has mounted
-      setTimeout(() => inputRef.current?.focus(), 30);
+      const timer = setTimeout(() => inputRef.current?.focus(), 30);
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
@@ -87,6 +94,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.target !== inputRef.current) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -104,22 +112,19 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }
 
   return (
-    <div
-      className="cz-cmdk-back"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Command palette"
-      onMouseDown={(e) => {
-        // click-outside closes
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onKeyDown={handleKey}
-    >
-      <div className="cz-cmdk">
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="cz-cmdk ks-command-dialog" onKeyDown={handleKey} onCloseAutoFocus={(event) => { if (onRestoreFocus) { event.preventDefault(); onRestoreFocus(); } }}>
+        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogDescription className="sr-only">Find a workspace page or create a project. Use arrow keys to choose and Enter to open.</DialogDescription>
         <div className="cz-cmdk-head">
           <Search size={18} className="cz-faint" />
           <input
             ref={inputRef}
+            role="combobox"
+            aria-label="Search workspace commands"
+            aria-expanded="true"
+            aria-controls="ks-command-options"
+            aria-activedescendant={filtered[selected] ? `ks-command-${filtered[selected].id}` : undefined}
             className="cz-cmdk-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -127,9 +132,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             spellCheck={false}
             autoComplete="off"
           />
-          <span className="cz-kbd">ESC</span>
         </div>
-        <div className="cz-cmdk-list" role="listbox">
+        <div className="cz-cmdk-list" role="listbox" id="ks-command-options" aria-label="Workspace actions">
           {filtered.length === 0 ? (
             <div className="cz-cmdk-empty">No actions match &quot;{query}&quot;.</div>
           ) : (
@@ -141,6 +145,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 return (
                   <button
                     key={action.id}
+                    id={`ks-command-${action.id}`}
+                    tabIndex={-1}
                     role="option"
                     aria-selected={isSelected}
                     type="button"
@@ -161,7 +167,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             </>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

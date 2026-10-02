@@ -1,3 +1,4 @@
+import { ArrowLeft, Plus } from '@/components/icons';
 import { useState, useEffect } from 'react';
 import { useParams, Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { getProject, exportEnv, rotateProjectKeys } from '../api/client';
@@ -11,13 +12,16 @@ import { useToast } from '@/hooks/useToast';
 import { OrbitalPipeline } from '../components/cosmic/OrbitalPipeline';
 import { Page, PageHeader, SectionHead } from '../components/cosmic/primitives';
 import type { Project } from '../types';
+import { ProjectRecoveryPanel } from '../components/ProjectRecoveryPanel';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Env = (typeof ENVIRONMENTS)[number];
 
-type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys';
+type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys' | 'recovery';
 
 export function ProjectDetailPage() {
+  const { enabled } = useCapabilities();
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState('');
@@ -35,6 +39,7 @@ export function ProjectDetailPage() {
     if (path.includes('/promotions')) return 'promotions';
     if (path.includes('/audit')) return 'audit';
     if (path.includes('/api-keys')) return 'api-keys';
+    if (path.includes('/recovery')) return 'recovery';
     return 'secrets';
   })();
 
@@ -115,13 +120,14 @@ export function ProjectDetailPage() {
     { key: 'promotions', label: 'History', path: `/projects/${id}/promotions` },
     { key: 'audit', label: 'Audit', path: `/projects/${id}/audit` },
     { key: 'api-keys', label: 'API Keys', path: `/projects/${id}/api-keys` },
+    ...(enabled('encrypted_recovery') ? [{ key: 'recovery' as const, label: 'Recovery', path: `/projects/${id}/recovery` }] : []),
   ];
 
 
   return (
     <Page>
       <Link to="/" className="cz-btn cz-btn-ghost" style={{ marginBottom: 18, display: 'inline-flex' }}>
-        ← All projects
+        <ArrowLeft size={14} /> All projects
       </Link>
 
       <PageHeader
@@ -132,7 +138,7 @@ export function ProjectDetailPage() {
           <>
             <div style={{ position: 'relative' }}>
               <button className="cz-btn" disabled={exporting} onClick={() => setExportPickerOpen((v) => !v)}>
-                {exporting ? 'Exporting…' : 'Export .env'}
+                {exporting ? 'Exporting…' : 'Export plaintext .env'}
               </button>
               {exportPickerOpen && (
                 <div
@@ -170,7 +176,7 @@ export function ProjectDetailPage() {
               {rotating ? 'Rotating…' : 'Rotate all'}
             </button>
             <button className="cz-btn cz-btn-primary" onClick={() => navigate(`/projects/${id}/promote`)}>
-              + Promote
+              <Plus size={14} /> Promote
             </button>
           </>
         }
@@ -183,22 +189,23 @@ export function ProjectDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="cz-tabs">
+      <nav className="cz-tabs" aria-label="Project pages">
         {tabs.map((tab) => (
-          <button
+          <Link
             key={tab.key}
-            type="button"
-            onClick={() => navigate(tab.path)}
+            to={tab.path}
+            aria-current={currentTab === tab.key ? 'page' : undefined}
             className={`cz-tab ${currentTab === tab.key ? 'cz-on' : ''}`}
           >
             {tab.label}
-          </button>
+          </Link>
         ))}
-      </div>
+      </nav>
 
       <div style={{ marginTop: 8 }}>
         <Routes>
           <Route index element={<SecretsPanel projectId={id!} />} />
+          <Route path="recovery" element={enabled('encrypted_recovery') ? <ProjectRecoveryPanel key={id} projectId={id!} projectName={project.name} /> : <p className="cz-muted">Encrypted recovery is unavailable on this instance.</p>} />
           <Route
             path="promote"
             element={
@@ -226,7 +233,7 @@ export function ProjectDetailPage() {
         open={rotateModalOpen}
         onOpenChange={setRotateModalOpen}
         title="Rotate all project keys"
-        description={`Rotate the data encryption keys for "${project.name}". All secrets will be re-encrypted under fresh DEKs. This operation cannot be undone and will take a few seconds.`}
+        description={`Rotate the data encryption keys for "${project.name}". Current secrets will use a fresh key. Retained history and promotion snapshots remain readable through their original keys.`}
         confirmPhrase={project.name}
         confirmLabel="Rotate keys"
         onConfirm={handleRotateAll}

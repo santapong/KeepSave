@@ -22,6 +22,7 @@ const leakedDevMasterKeyHashHex = "f69968df7fb0fa71e2cdad7f258e0c1af7270a8cb759c
 const prodMinJWTSecretBytes = 32
 
 type Config struct {
+	SocialAuth     SocialAuth
 	DatabaseURL    string
 	DBMaxOpenConns int
 	DBMaxIdleConns int
@@ -88,6 +89,9 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	if strings.TrimSpace(os.Getenv("KEEPSAVE_PLATFORM_ADMIN_EMAILS")) != "" {
+		return nil, fmt.Errorf("KEEPSAVE_PLATFORM_ADMIN_EMAILS is no longer supported; use keepsave-operator with an immutable user ID")
+	}
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
@@ -168,7 +172,12 @@ func Load() (*Config, error) {
 		promotionsEnabled = b
 	}
 
+	social, err := loadSocialAuth(env)
+	if err != nil {
+		return nil, err
+	}
 	return &Config{
+		SocialAuth:            social,
 		DatabaseURL:           databaseURL,
 		DBMaxOpenConns:        maxOpen,
 		DBMaxIdleConns:        maxIdle,

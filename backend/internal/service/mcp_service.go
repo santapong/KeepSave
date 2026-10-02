@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -68,8 +69,29 @@ func (s *MCPService) GetServer(id uuid.UUID) (*models.MCPServer, error) {
 	return s.mcpRepo.GetServer(id)
 }
 
+// GetServerForUser is the public read use case; internal builder reads use GetServer.
+func (s *MCPService) GetServerForUser(id, userID uuid.UUID) (*models.MCPServer, error) {
+	server, err := s.mcpRepo.GetServer(id)
+	if err != nil {
+		return nil, err
+	}
+	if server.OwnerID != userID {
+		if !server.IsPublic {
+			return nil, sql.ErrNoRows
+		}
+		server.BuildLog = ""
+		server.EnvMappings = nil
+	}
+	return server, nil
+}
+
 func (s *MCPService) ListPublicServers() ([]models.MCPServer, error) {
-	return s.mcpRepo.ListPublicServers()
+	servers, err := s.mcpRepo.ListPublicServers()
+	for i := range servers {
+		servers[i].BuildLog = ""
+		servers[i].EnvMappings = nil
+	}
+	return servers, err
 }
 
 func (s *MCPService) ListMyServers(ownerID uuid.UUID) ([]models.MCPServer, error) {
@@ -111,6 +133,18 @@ func (s *MCPService) InstallServer(userID, mcpServerID uuid.UUID, projectID *uui
 	if err != nil {
 		return nil, fmt.Errorf("server not found: %w", err)
 	}
+	if !server.IsPublic && server.OwnerID != userID {
+		return nil, sql.ErrNoRows
+	}
+	if projectID != nil {
+		if s.projectRepo == nil {
+			return nil, sql.ErrNoRows
+		}
+		allowed, err := s.projectRepo.UserHasRole(userID, *projectID, "editor")
+		if err != nil || !allowed {
+			return nil, sql.ErrNoRows
+		}
+	}
 	if server.Status != "ready" && server.Status != "pending" {
 		return nil, fmt.Errorf("server is not available (status: %s)", server.Status)
 	}
@@ -139,7 +173,7 @@ func (s *MCPService) ListInstallations(userID uuid.UUID) ([]models.MCPInstallati
 }
 
 func (s *MCPService) UpdateInstallation(id uuid.UUID, enabled bool, config models.JSONMap, actorID uuid.UUID, ipAddr string) error {
-	if err := s.mcpRepo.UpdateInstallation(id, enabled, config); err != nil {
+	if err := s.mcpRepo.UpdateInstallation(id, actorID, enabled, config); err != nil {
 		return err
 	}
 	emitAudit(s.auditRepo, &actorID, nil, "mcp.installation_updated", "",
@@ -166,9 +200,21 @@ func (s *MCPService) ListUserTools(userID uuid.UUID) ([]models.MCPServerWithTool
 
 	var result []models.MCPServerWithTools
 	for _, inst := range installations {
-		server, err := s.mcpRepo.GetServer(inst.MCPServerID)
+		server, err := s.GetServerForUser(inst.MCPServerID, userID)
 		if err != nil {
 			continue
+		}
+		if inst.ProjectID != nil {
+			if s.projectRepo == nil {
+				continue
+			}
+			allowed, err := s.projectRepo.UserHasRole(userID, *inst.ProjectID, "editor")
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				continue
+			}
 		}
 
 		swt := models.MCPServerWithTools{

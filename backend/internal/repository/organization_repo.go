@@ -267,7 +267,7 @@ func (r *OrganizationRepository) RemoveMember(orgID, userID uuid.UUID) error {
 func (r *OrganizationRepository) ListProjectsByOrg(orgID uuid.UUID) ([]models.Project, error) {
 	rows, err := r.db.Query(
 		Q(r.dialect, `SELECT id, name, description, owner_id, encrypted_dek, dek_nonce, created_at, updated_at
-		 FROM projects WHERE organization_id = $1 ORDER BY created_at DESC`),
+		 FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`),
 		orgID,
 	)
 	if err != nil {
@@ -284,15 +284,4 @@ func (r *OrganizationRepository) ListProjectsByOrg(orgID uuid.UUID) ([]models.Pr
 		projects = append(projects, p)
 	}
 	return projects, rows.Err()
-}
-
-func (r *OrganizationRepository) AssignProjectToOrg(projectID, orgID uuid.UUID) error {
-	_, err := ExecQ(r.db, r.dialect,
-		`UPDATE projects SET organization_id = $2, updated_at = `+r.dialect.Now()+` WHERE id = $1`,
-		projectID, orgID,
-	)
-	if err != nil {
-		return fmt.Errorf("assigning project to organization: %w", err)
-	}
-	return nil
 }

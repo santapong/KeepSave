@@ -1,13 +1,19 @@
 package service
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
+	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
 // ErrEmbedConfigNotFound is returned when a project does not exist OR has not
@@ -32,10 +38,12 @@ type EmbedConfig struct {
 }
 
 type ProjectService struct {
+	sessions    *SessionService
 	projectRepo *repository.ProjectRepository
 	envRepo     *repository.EnvironmentRepository
 	auditRepo   *repository.AuditRepository
 	cryptoSvc   *crypto.Service
+	vault       *vault.Service
 }
 
 func NewProjectService(
@@ -52,30 +60,50 @@ func NewProjectService(
 	}
 }
 
-func (s *ProjectService) Create(name, description string, ownerID uuid.UUID, ipAddr string) (*models.Project, error) {
+func (s *ProjectService) EnableVault(v *vault.Service) { s.vault = v }
+func (s *ProjectService) Create(name, description string, owner uuid.UUID, ip string) (*models.Project, error) {
+	return s.CreateAuthorized(context.Background(), policy.Principal{Kind: policy.Human, SubjectID: owner, ActorID: owner}, name, description, ip)
+}
+func (s *ProjectService) CreateAuthorized(ctx context.Context, p policy.Principal, name, description, ip string) (*models.Project, error) {
+	if p.Kind != policy.Human || p.SubjectID == uuid.Nil {
+		return nil, vault.ErrDenied
+	}
 	dek, err := s.cryptoSvc.GenerateDEK()
 	if err != nil {
-		return nil, fmt.Errorf("generating DEK: %w", err)
+		return nil, err
 	}
-
-	encryptedDEK, dekNonce, err := s.cryptoSvc.EncryptDEK(dek)
+	defer crypto.SecureZero(dek)
+	cipher, nonce, err := s.cryptoSvc.EncryptDEK(dek)
 	if err != nil {
-		return nil, fmt.Errorf("encrypting DEK: %w", err)
+		return nil, err
 	}
-
-	project, err := s.projectRepo.Create(name, description, ownerID, encryptedDEK, dekNonce)
-	if err != nil {
-		return nil, fmt.Errorf("creating project: %w", err)
-	}
-
-	if _, err := s.envRepo.CreateDefaultsForProject(project.ID); err != nil {
-		return nil, fmt.Errorf("creating default environments: %w", err)
-	}
-
-	emitAudit(s.auditRepo, &ownerID, &project.ID, "project.created", "",
-		models.JSONMap{"name": name}, ipAddr)
-
-	return project, nil
+	var project *models.Project
+	err = s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		var err error
+		if s.sessions != nil {
+			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
+				return e
+			}
+		}
+		project, err = s.projectRepo.CreateTx(tx, name, description, p.SubjectID, cipher, nonce)
+		if err != nil {
+			return err
+		}
+		if err = s.auditRepo.CreateTx(tx, &p.SubjectID, &project.ID, "project.created", "", models.JSONMap{"name": name}, ip); err != nil {
+			return err
+		}
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres {
+			payload, _ := json.Marshal(map[string]any{"project_id": project.ID, "action": "project.created"})
+			if err = jobs.EnqueueTx(ctx, tx, uuid.New(), "project.event", payload, "local", 5); err != nil {
+				return err
+			}
+		}
+		if s.vault != nil {
+			return s.vault.EnrollTx(ctx, tx, p, project.ID)
+		}
+		return nil
+	})
+	return project, err
 }
 
 func (s *ProjectService) GetByID(id, ownerID uuid.UUID) (*models.Project, error) {
@@ -198,18 +226,30 @@ func (s *ProjectService) UpdateEmbedConfig(id, ownerID uuid.UUID, allowedOrigins
 	return nil
 }
 
-func (s *ProjectService) Delete(id, ownerID uuid.UUID, ipAddr string) error {
-	project, err := s.projectRepo.GetByID(id)
-	if err != nil {
-		return fmt.Errorf("getting project: %w", err)
+func (s *ProjectService) Delete(id, owner uuid.UUID, ip string) error {
+	return s.DeleteAuthorized(context.Background(), policy.Principal{Kind: policy.Human, SubjectID: owner, ActorID: owner}, id, ip)
+}
+func (s *ProjectService) DeleteAuthorized(ctx context.Context, p policy.Principal, id uuid.UUID, ip string) error {
+	if p.Kind != policy.Human || p.SubjectID == uuid.Nil {
+		return vault.ErrDenied
 	}
-	if project.OwnerID != ownerID {
-		return fmt.Errorf("project not found")
-	}
-	if err := s.projectRepo.Delete(id); err != nil {
+	if deleted, err := s.projectRepo.IsDeletedOwned(id, p.SubjectID); err != nil {
 		return err
+	} else if deleted {
+		return nil
 	}
-	emitAudit(s.auditRepo, &ownerID, &id, "project.deleted", "",
-		models.JSONMap{"name": project.Name}, ipAddr)
-	return nil
+	if s.vault != nil {
+		return s.vault.ArchiveProject(ctx, p, id)
+	}
+	return s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		if s.sessions != nil {
+			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
+				return e
+			}
+		}
+		if err := s.projectRepo.TombstoneTx(tx, id, p.SubjectID); err != nil {
+			return err
+		}
+		return s.auditRepo.CreateTx(tx, &p.SubjectID, &id, "project.deleted", "", models.JSONMap{"retained_encrypted_history": true}, ip)
+	})
 }

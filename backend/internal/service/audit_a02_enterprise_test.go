@@ -48,6 +48,7 @@ const ddlProjects = `CREATE TABLE projects (
 	name TEXT NOT NULL,
 	description TEXT,
 	owner_id TEXT NOT NULL,
+	deleted_at TIMESTAMP,
 	encrypted_dek BLOB,
 	dek_nonce BLOB,
 	allowed_origins TEXT NOT NULL DEFAULT '[]',

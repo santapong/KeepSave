@@ -26,7 +26,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.KEEPSAVE_API_PROXY || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

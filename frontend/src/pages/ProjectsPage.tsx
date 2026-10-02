@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { listProjects, createProject, deleteProject, importEnv } from '../api/client';
 import type { Project } from '../types';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Page, PageHeader, Chip } from '../components/cosmic/primitives';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import { EventHorizon } from '../components/cosmic/EventHorizon';
+import { ArrowRight, ArrowUpRight, FolderClosed, LayoutGrid, List, Plus, Search, Upload, KeyRound, Cable, GitPullRequest, Trash2, ShieldCheck, X } from '@/components/icons';
 
 const IMPORT_ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type ImportEnv = (typeof IMPORT_ENVIRONMENTS)[number];
@@ -36,7 +36,8 @@ export function ProjectsPage() {
   const [importOverwrite, setImportOverwrite] = useState(false);
   const [importing, setImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement | null>(null);
-  const navigate = useNavigate();
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [sort, setSort] = useState('updated');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -138,135 +139,61 @@ export function ProjectsPage() {
     }
   }
 
-  const filtered = projects.filter((p) => `${p.name} ${p.description}`.toLowerCase().includes(filter.toLowerCase()));
+  const filtered = projects.filter((p) => `${p.name} ${p.description}`.toLowerCase().includes(filter.toLowerCase())).sort((a, b) => {
+    if (sort === 'name') return a.name.localeCompare(b.name);
+    const field = sort === 'created' ? 'created_at' : 'updated_at';
+    return new Date(b[field]).getTime() - new Date(a[field]).getTime();
+  });
+  const formatUpdated = (date: string) => new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <Page>
       <PageHeader
-        eyebrow="Workspace / Vault"
-        title={<>Your <em>projects.</em></>}
-        sub="A separate vault for each project. Add secrets, connect your tools, and review changes between environments."
-        actions={
-          <>
-            <button className="cz-btn" onClick={openImport} disabled={importing}>
-              {importing ? 'Importing…' : 'Import .env'}
-            </button>
-            <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}>
-              + New project
-            </button>
-          </>
-        }
+        eyebrow="YOUR WORKSPACE"
+        title="Projects"
+        sub="Your applications. Their secrets. One place to keep them together."
+        actions={<>
+          <button className="cz-btn" onClick={openImport} disabled={importing || loading || projects.length === 0}><Upload size={15} />{importing ? 'Importing…' : 'Import .env'}</button>
+          <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}><Plus size={16} /> New project</button>
+        </>}
       />
 
-      <div className="ks-workspace-summary">
-        <span><strong>{loading || error ? '—' : projects.length}</strong> {projects.length === 1 ? 'project' : 'projects'} in your workspace</span>
-        <span>3 environments per project</span>
-        <span>Encrypted at rest · AES-256-GCM</span>
+      <section className="ks-workspace-welcome" aria-label="KeepSave workflow">
+        <div className="ks-welcome-copy"><span className="ks-section-kicker">A LITTLE ORDER. A LOT LESS WORRY.</span><h2>Keep your secrets<br /><em>in their own orbit.</em></h2><p>Separate every environment. Give each tool the access it needs. Review changes before they go live.</p><Link to="/help">Explore the guide <ArrowUpRight size={14} /></Link></div>
+        <div className="ks-welcome-art" aria-hidden="true"><img src="/images/event-horizon.webp" alt="" /></div>
+        <div className="ks-workflow-steps">
+          <div><span><KeyRound size={17} /></span><section><h3>01 <b>Store</b></h3><p>A separate vault for every project.</p></section></div>
+          <div><span><Cable size={17} /></span><section><h3>02 <b>Connect</b></h3><p>Scoped access for your apps and agents.</p></section></div>
+          <div><span><GitPullRequest size={17} /></span><section><h3>03 <b>Promote</b></h3><p>Review changes from Alpha to Production.</p></section></div>
+        </div>
+      </section>
+
+      <div className="ks-projects-heading"><h2>All projects <span>{loading || error ? '—' : projects.length}</span></h2><span className="ks-protection-label"><ShieldCheck size={14} /> Encrypted at rest</span></div>
+      <div className="ks-project-toolbar">
+        <label className="ks-project-search"><Search size={16} /><input aria-label="Filter projects" placeholder="Find a project…" value={filter} onChange={(event) => setFilter(event.target.value)} />{filter && <button type="button" onClick={() => setFilter('')} aria-label="Clear project search"><X size={14} /></button>}</label>
+        <div className="ks-project-display"><select aria-label="Sort projects" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name A–Z</option></select><div className="ks-view-switch" aria-label="Project view"><button type="button" aria-label="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><LayoutGrid size={16} /></button><button type="button" aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={17} /></button></div></div>
       </div>
-
-      <div className="cz-filter-bar" style={{ marginTop: 28, gap: 16, flexWrap: 'wrap' }}>
-        <span className="cz-eyebrow">Project directory</span>
-        <input className="cz-input" aria-label="Filter projects" placeholder="Search projects…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 'min(320px, 100%)' }} />
-      </div>
-
-      {error && <div role="alert" className="cz-login-error" style={{ marginBottom: 16 }}>{error} <button className="cz-btn" onClick={loadProjects}>Retry</button></div>}
-
-      {loading ? (
-        <div className="cz-faint" style={{ padding: '24px 0', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-          Loading projects…
+      {error && <div role="alert" className="cz-login-error">{error} <button className="cz-btn" onClick={loadProjects}>Retry</button></div>}
+      {loading ? <div className="ks-project-loading" role="status"><span /> Loading your projects…</div> : error ? null : filtered.length === 0 ?
+        <div className="ks-project-empty"><span className="ks-empty-icon"><FolderClosed size={28} strokeWidth={1.4} /></span><h3>{filter ? 'No matching projects' : 'Your first project starts here'}</h3><p>{filter ? 'Try another name or clear your search.' : 'Create a project, then add a secret or bring your existing .env file.'}</p>{filter ? <button className="cz-btn" onClick={() => setFilter('')}>Clear search</button> : <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}><Plus size={16} /> Create your first project</button>}</div> :
+        <div className={`ks-project-grid ${view === 'list' ? 'ks-project-list' : ''}`}>
+          {filtered.map((project) => <article className="ks-project-card" key={project.id}>
+            <Link to={`/projects/${project.id}`} className="ks-project-card-main" aria-label={`Open ${project.name}`}>
+              <div className="ks-project-card-top"><span className="ks-project-symbol"><FolderClosed size={21} strokeWidth={1.5} /></span><ArrowUpRight className="ks-project-open" size={18} /></div>
+              <div className="ks-project-card-title"><h3>{project.name}</h3><p>{project.description || 'A dedicated vault for your environment secrets.'}</p></div>
+              <div className="ks-project-environments"><Chip>Alpha</Chip><Chip>UAT</Chip><Chip variant="prod">Production</Chip></div>
+            </Link>
+            <footer><span>Updated {formatUpdated(project.updated_at)}</span><button type="button" className="ks-project-delete" aria-label={`Delete ${project.name}`} title="Delete project" onClick={() => setDeleteTarget(project)}><Trash2 size={14} /></button></footer>
+          </article>)}
         </div>
-      ) : error ? null : filtered.length === 0 ? (
-        <div className="cz-card cz-empty-state">
-          <EventHorizon size={150} />
-          <div className="cz-eyebrow">{filter ? "No matching projects" : "Empty shelf"}</div>
-          <p className="cz-mute" style={{ marginTop: -10 }}>
-            {filter ? "Try another project name or clear your search." : "Create your first project, then add a secret or import your .env file."}
-          </p>
-          <button className="cz-btn cz-btn-primary" onClick={() => setShowCreate(true)}>
-            + New project
-          </button>
-        </div>
-      ) : (
-        <div className="cz-card cz-secrets">
-          <table className="cz-dtable">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>№</th>
-                <th>Project</th>
-                <th>ID</th>
-                <th>Environments</th>
-                <th style={{ textAlign: 'right' }}>Created</th>
-                <th style={{ textAlign: 'right' }}>Updated</th>
-                <th style={{ width: 50 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p, i) => {
-                return (
-                  <tr key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ cursor: 'pointer' }}>
-                    <td className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
-                      {String(i + 1).padStart(2, '0')}
-                    </td>
-                    <td>
-                      <div className="cz-cell-name">
-                        <Link
-                          to={`/projects/${p.id}`}
-                          className="cz-n"
-                          style={{ textDecoration: 'none', color: 'inherit', width: 'fit-content' }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {p.name}
-                        </Link>
-                        <span className="cz-d">{p.description || '—'}</span>
-                      </div>
-                    </td>
-                    <td className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
-                      prj_{p.id.slice(0, 6)}
-                    </td>
-                    <td>
-                      <div className="cz-envs">
-                        <Chip>alpha</Chip>
-                        <Chip>uat</Chip>
-                        <Chip variant="prod">prod</Chip>
-                      </div>
-                    </td>
-                    <td className="cz-faint" style={{ textAlign: 'right', fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
-                      {new Date(p.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="cz-faint" style={{ textAlign: 'right', fontFamily: 'var(--cz-mono)', fontSize: 12 }}>
-                      {new Date(p.updated_at).toLocaleDateString()}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="cz-faint"
-                        style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, background: 'transparent', border: 0, padding: '2px 6px', borderRadius: 6 }}
-                        title="Delete project"
-                        aria-label={`Delete ${p.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(p);
-                        }}
-                      >
-                        ⋯
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      }
+      <div className="ks-projects-footnote"><span>Alpha <ArrowRight size={12} /> UAT <ArrowRight size={12} /> Production</span><p>One project. Three environments. Clear boundaries.</p></div>
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={(open) => !creating && setShowCreate(open)}>
           <DialogContent className="cz-card" style={{ width: 'min(520px, 92vw)', padding: 28 }}>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>Create a vault with Alpha, UAT, and Production environments.</DialogDescription>
-            <h2 style={{ fontFamily: 'var(--cz-sans)', fontWeight: 300, fontSize: 30, letterSpacing: '-0.02em', margin: '8px 0 18px', color: 'var(--cz-ink)' }}>
-              Open a <em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>shelf.</em>
-            </h2>
             <form onSubmit={handleCreate} className="cz-login-form">
               {createError && <div className="cz-login-error" role="alert">{createError}</div>}
               <div className="cz-login-field">
@@ -278,7 +205,7 @@ export function ProjectsPage() {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoFocus
-                  placeholder="e.g. nexus-platform"
+                  placeholder="e.g. storefront-api"
                 />
               </div>
               <div className="cz-login-field">
@@ -296,7 +223,7 @@ export function ProjectsPage() {
                   Cancel
                 </button>
                 <button type="submit" disabled={creating || !name.trim()} className="cz-btn cz-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                  {creating ? "Creating…" : "Create →"}
+                  {creating ? 'Creating…' : 'Create project'}
                 </button>
               </div>
             </form>
@@ -317,13 +244,9 @@ export function ProjectsPage() {
         }}
       />
 
-      {importOpen && (
-        <div className="cz-cmdk-back" onClick={() => !importing && setImportOpen(false)}>
-          <div className="cz-card" style={{ width: 'min(520px, 92vw)', padding: 28 }} onClick={(e) => e.stopPropagation()}>
-            <div className="cz-eyebrow">Import .env</div>
-            <h2 style={{ fontFamily: 'var(--cz-sans)', fontWeight: 300, fontSize: 28, letterSpacing: '-0.02em', margin: '8px 0 18px', color: 'var(--cz-ink)' }}>
-              Restore <em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>secrets.</em>
-            </h2>
+      <Dialog open={importOpen} onOpenChange={(open) => !importing && setImportOpen(open)}>
+          <DialogContent className="cz-card" style={{ width: 'min(520px, 92vw)', padding: 28 }}>
+            <DialogTitle>Import .env</DialogTitle><DialogDescription>Choose a project and environment, then select your .env file.</DialogDescription>
             <div className="cz-login-field" style={{ marginBottom: 14 }}>
               <label htmlFor="import-project">Project</label>
               <select id="import-project" className="cz-input" value={importProjectId} onChange={(e) => setImportProjectId(e.target.value)} disabled={importing}>
@@ -371,12 +294,11 @@ export function ProjectsPage() {
                 onClick={() => importFileRef.current?.click()}
                 disabled={importing || !importProjectId}
               >
-                {importing ? 'Importing…' : 'Select file →'}
+                {importing ? 'Importing…' : <>Select file <ArrowRight size={14} /></>}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+      </Dialog>
     </Page>
   );
 }

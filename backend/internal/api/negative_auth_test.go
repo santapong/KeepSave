@@ -34,7 +34,7 @@ func newNegativeAuthEnv(t *testing.T) *negativeAuthTestEnv {
 	// reads. Avoids the migration runner (sqlite DEFAULT-function syntax
 	// quirk is a separate issue, tracked for a follow-up).
 	for _, ddl := range []string{
-		`CREATE TABLE projects (
+		`CREATE TABLE projects (deleted_at TEXT,
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT,
@@ -49,7 +49,8 @@ func newNegativeAuthEnv(t *testing.T) *negativeAuthTestEnv {
 		)`,
 		`CREATE TABLE organization_members (
 			organization_id TEXT NOT NULL,
-			user_id TEXT NOT NULL
+			user_id TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'editor'
 		)`,
 	} {
 		if _, err := db.Exec(ddl); err != nil {

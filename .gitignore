@@ -33,3 +33,7 @@ Thumbs.db
 
 # Claude Code transient agent worktrees
 .claude/worktrees/
+
+# Python SDK runtime artifacts
+__pycache__/
+*.py[cod]

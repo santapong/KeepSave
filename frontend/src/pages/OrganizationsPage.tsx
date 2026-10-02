@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Users, FolderOpen, AlertCircle, Trash2 } from 'lucide-react';
+import { Users, FolderOpen, AlertCircle, Trash2 } from '@/components/icons';
 import { Page, PageHeader, KpiStrip, Kpi, EmptyState } from '../components/cosmic/primitives';
 
 const avatarStyle: CSSProperties = {

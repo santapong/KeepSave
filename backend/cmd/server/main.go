@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -22,9 +23,11 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/logging"
 	"github.com/santapong/KeepSave/backend/internal/metrics"
 	"github.com/santapong/KeepSave/backend/internal/plugins"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/service"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 	"github.com/santapong/KeepSave/backend/internal/version"
 	"github.com/santapong/KeepSave/backend/migrations"
 )
@@ -117,6 +120,10 @@ func main() {
 	// Enable the tamper-evident audit hash chain (ADR-0019). The key is derived
 	// from the master key and never leaves internal/crypto.
 	auditRepo.SetChainKey(cryptoSvc.DeriveAuditChainKey())
+	if broken, err := auditRepo.VerifyChain(); err != nil || broken != nil {
+		logger.Error("audit chain verification failed; refusing startup", nil)
+		os.Exit(1)
+	}
 	promotionRepo := repository.NewPromotionRepository(db, dialect)
 	_ = repository.NewSecretVersionRepository(db, dialect)
 	orgRepo := repository.NewOrganizationRepository(db, dialect)
@@ -133,15 +140,41 @@ func main() {
 
 	attemptsRepo := repository.NewAuthAttemptsRepository(db, dialect)
 	authService := service.NewAuthService(userRepo, attemptsRepo, auditRepo, jwtService)
+	sessions := service.NewSessionService(db, dialect, jwtService, auditRepo)
+	jwtService.EnableHumanSessions(sessions)
+	authService.EnableSessions(sessions)
+	operatorAdmins := repository.NewPlatformAdminRepository(db, dialect, auditRepo)
+	var versionedVault *vault.Service
+	if dialect.DBType() == repository.DBTypePostgres {
+		var unenrolled int
+		if err = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM vault_projects WHERE project_id=projects.id)`).Scan(&unenrolled); err != nil || unenrolled > 0 {
+			logger.Error("versioned vault enrollment required before traffic; drain old binaries and run keepsave-vault -action baseline", map[string]interface{}{"unenrolled_projects": unenrolled})
+			os.Exit(1)
+		}
+		versionedVault = vault.New(db, cryptoSvc, func(ctx context.Context, tx *sql.Tx, p policy.Principal, action policy.Action, r policy.Resource) (policy.Decision, error) {
+			return (policy.Evaluator{Store: repository.AuthorityStore{DB: tx, Dialect: dialect, RequireHumanSession: true}}).Authorize(ctx, p, action, r)
+		}, auditRepo)
+	}
 	projectService := service.NewProjectService(projectRepo, envRepo, auditRepo, cryptoSvc)
+	projectService.EnableSessions(sessions)
 	secretService := service.NewSecretService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	apikeyService := service.NewAPIKeyService(apikeyRepo, projectRepo, auditRepo)
+	apikeyService.EnableSessions(sessions)
 	promotionService := service.NewPromotionService(promotionRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, auditRepo, cryptoSvc)
 	webhookService := service.NewWebhookService(auditRepo)
 	orgService := service.NewOrganizationService(orgRepo, auditRepo)
 	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
+	templateService.EnableSessions(sessions)
 	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
+	if versionedVault != nil {
+		projectService.EnableVault(versionedVault)
+		promotionService.EnableVault(versionedVault)
+		secretService.EnableVault(versionedVault)
+		keyRotationService.EnableVault(versionedVault)
+		templateService.EnableVault(versionedVault)
+		envFileService.EnableVault(versionedVault)
+	}
 	depService := service.NewDependencyService(depRepo, secretRepo, projectRepo, envRepo, cryptoSvc)
 
 	ssoService := service.NewSSOService(ssoRepo, orgRepo, auditRepo, cryptoSvc)
@@ -150,12 +183,13 @@ func main() {
 	policyService := service.NewSecretPolicyService(db, dialect, auditRepo)
 
 	leaseService := service.NewLeaseService(db, dialect, auditRepo)
+	leaseService.EnableSessions(sessions)
 	agentAnalyticsSvc := service.NewAgentAnalyticsService(db, dialect)
 
 	// Short-lived agent tokens + JWT denylist (ADR-0021). Seed the revocation
-	// cache from the table at boot, then attach it to the JWT verifier so
-	// agent-token (jti-bearing) validation consults it. User tokens carry no
-	// jti and skip the check entirely.
+	// cache from the table at boot, then attach it to the JWT verifier.
+	// Agent tokens consult current issuance/parent/lease authority; human
+	// tokens use the separate database-backed session verifier.
 	tokenDenylist := repository.NewTokenDenylistRepository(db, dialect)
 	if err := tokenDenylist.RefreshCache(); err != nil {
 		logger.Error("failed to seed token denylist cache", map[string]interface{}{"error": err.Error()})
@@ -166,7 +200,8 @@ func main() {
 
 	oauthService := service.NewOAuthService(oauthRepo, userRepo, orgRepo, auditRepo)
 	mcpService := service.NewMCPService(mcpRepo, secretRepo, projectRepo, envRepo, auditRepo)
-	mcpBuilderService := service.NewMCPBuilderService(mcpRepo)
+	mcpBuilderService := service.NewDisabledMCPBuilderService()
+	// Core release never builds or executes connectors on the API host.
 
 	appService := service.NewApplicationService(appRepo, auditRepo)
 	feedbackService := service.NewFeedbackService(cfg.FeedbackGitHubToken, cfg.FeedbackGitHubRepo, auditRepo)
@@ -184,6 +219,9 @@ func main() {
 	nlpService := service.NewNLPQueryService(db, dialect, projectRepo, envRepo, secretRepo, aiMgr)
 
 	authHandler := api.NewAuthHandler(authService)
+	socialService := service.NewSocialAuthService(cfg.SocialAuth, repository.NewSocialAuthRepository(db, dialect), auditRepo, jwtService)
+	socialService.EnableSessions(sessions)
+	authHandler.SetSocial(api.NewSocialAuthHandler(socialService))
 	projectHandler := api.NewProjectHandler(projectService)
 	secretHandler := api.NewSecretHandler(secretService)
 	apikeyHandler := api.NewAPIKeyHandler(apikeyService)
@@ -191,6 +229,7 @@ func main() {
 	keyRotationHandler := api.NewKeyRotationHandler(keyRotationService)
 	webhookHandler := api.NewWebhookHandler(webhookService, projectRepo)
 	versionHandler := api.NewVersionHandler(repository.NewSecretVersionRepository(db, dialect), secretRepo, projectRepo, cryptoSvc)
+	versionHandler.EnableVault(versionedVault)
 	healthHandler := api.NewHealthHandler(db)
 	orgHandler := api.NewOrganizationHandler(orgService)
 	templateHandler := api.NewTemplateHandler(templateService)
@@ -218,48 +257,51 @@ func main() {
 	if !feedbackService.Enabled() {
 		logger.Info("feedback disabled (FEEDBACK_GITHUB_TOKEN empty); POST /feedback will return 503", nil)
 	}
-	if len(cfg.PlatformAdminEmails) == 0 {
-		logger.Warn("KEEPSAVE_PLATFORM_ADMIN_EMAILS is empty; /admin endpoints will reject all callers (fail-closed)", nil)
-	}
+	logger.Info("platform roles use operator-issued database grants", nil)
 
-	router := api.SetupRouter(
-		cfg.CORSOrigins,
-		cfg.PromotionsEnabled,
-		cfg.PlatformAdminEmails,
-		cfg.TrustedProxies,
-		jwtService,
-		apikeyRepo,
-		projectRepo,
-		authHandler,
-		projectHandler,
-		secretHandler,
-		apikeyHandler,
-		promotionHandler,
-		keyRotationHandler,
-		webhookHandler,
-		versionHandler,
-		healthHandler,
-		orgHandler,
-		templateHandler,
-		envFileHandler,
-		depHandler,
-		metricsHandler,
-		enterpriseHandler,
-		agentHandler,
-		platformHandler,
-		openAPIHandler,
-		oauthHandler,
-		mcpHubHandler,
-		mcpGatewayHandler,
-		applicationHandler,
-		intelligenceHandler,
-		embedHandler,
-		feedbackHandler,
-		appMetrics,
-		tracer,
-		db,
-		logger,
-	)
+	router := api.NewRouter(api.Dependencies{
+		CoreRelease:          true,
+		OperatorAdminChecker: operatorAdmins,
+		SessionHandler:       api.NewSessionHandler(sessions),
+		RecoveryHandler:      api.NewRecoveryHandler(versionedVault),
+		CORSOrigins:          cfg.CORSOrigins,
+		PromotionsEnabled:    cfg.PromotionsEnabled,
+		PlatformAdminEmails:  cfg.PlatformAdminEmails,
+		TrustedProxies:       cfg.TrustedProxies,
+		JWTService:           jwtService,
+		APIKeyRepo:           apikeyRepo,
+		ProjectRepo:          projectRepo,
+		AuthHandler:          authHandler,
+		ProjectHandler:       projectHandler,
+		SecretHandler:        secretHandler,
+		APIKeyHandler:        apikeyHandler,
+		PromotionHandler:     promotionHandler,
+		KeyRotationHandler:   keyRotationHandler,
+		WebhookHandler:       webhookHandler,
+		VersionHandler:       versionHandler,
+		HealthHandler:        healthHandler,
+		OrgHandler:           orgHandler,
+		TemplateHandler:      templateHandler,
+		EnvFileHandler:       envFileHandler,
+		DepHandler:           depHandler,
+		MetricsHandler:       metricsHandler,
+		EnterpriseHandler:    enterpriseHandler,
+		AgentHandler:         agentHandler,
+		PlatformHandler:      platformHandler,
+		OpenAPIHandler:       openAPIHandler,
+		OAuthHandler:         oauthHandler,
+		MCPHubHandler:        mcpHubHandler,
+		MCPGatewayHandler:    mcpGatewayHandler,
+		ApplicationHandler:   applicationHandler,
+		IntelligenceHandler:  intelligenceHandler,
+		EmbedHandler:         embedHandler,
+		FeedbackHandler:      feedbackHandler,
+		AppMetrics:           appMetrics,
+		Tracer:               tracer,
+		DB:                   db,
+		Logger:               logger,
+		DisableLocalMCP:      true,
+	})
 
 	// Background workers (pruner, etc.) share a context that the signal
 	// handler cancels at shutdown so they exit cleanly with the HTTP server.

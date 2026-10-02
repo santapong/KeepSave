@@ -1,13 +1,16 @@
 import { useState, useCallback, useEffect } from 'react';
-import { isAuthenticated, setToken, clearToken } from '../api/client';
+import { isAuthenticated, setToken, invalidateBrowserSession, logoutCurrentSession } from '../api/client';
 import type { User } from '../types';
+import { toast } from './useToast';
 
 const USER_KEY = 'keepsave_user';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem(USER_KEY);
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem(USER_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
   });
   const [authenticated, setAuthenticated] = useState(isAuthenticated);
 
@@ -32,10 +35,7 @@ export function useAuth() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isAuthenticated()) {
-        clearToken();
-        localStorage.removeItem(USER_KEY);
-        setUser(null);
-        setAuthenticated(false);
+        invalidateBrowserSession();
       }
     }, 60_000);
     return () => clearInterval(interval);
@@ -48,11 +48,14 @@ export function useAuth() {
     setAuthenticated(true);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    clearToken();
-    localStorage.removeItem(USER_KEY);
-    setUser(null);
-    setAuthenticated(false);
+  const handleLogout = useCallback(async () => {
+    try {
+      await logoutCurrentSession();
+    } catch {
+      if (isAuthenticated()) {
+        toast({ title: 'Could not sign out', description: 'Server revocation has not been confirmed. Please try again.', variant: 'destructive' });
+      }
+    }
   }, []);
 
   return { user, authenticated, login: handleLogin, logout: handleLogout };

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
+import { CapabilityProvider, CapabilityGate } from './hooks/useCapabilities';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackButton } from './components/FeedbackButton';
@@ -9,6 +10,8 @@ import { Toaster } from './components/ui/toaster';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LandingPage } from './pages/LandingPage';
+import { SocialCallbackPage } from './pages/SocialCallbackPage';
+const AccountConnectionsPage = lazy(() => import('./pages/AccountConnectionsPage').then((m) => ({ default: m.AccountConnectionsPage })));
 
 // Authenticated routes are code-split so heavy pages (and recharts, which
 // only the admin dashboard uses) load on demand instead of in the initial
@@ -49,6 +52,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+          <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
           <Route path="/register" element={<RegisterPage onLogin={auth.login} />} />
           <Route path="*" element={<LoginPage onLogin={auth.login} />} />
         </Routes>
@@ -59,27 +63,31 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout user={auth.user} onLogout={auth.logout}>
+      <Routes>
+        <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
+        <Route path="*" element={<CapabilityProvider><Layout user={auth.user} onLogout={auth.logout}>
         <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
+              <Route path="/account" element={<AccountConnectionsPage />} />
               <Route path="/" element={<ProjectsPage />} />
               <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
               <Route path="/organizations" element={<OrganizationsPage />} />
               <Route path="/organizations/:id" element={<OrganizationManagePage />} />
               <Route path="/templates" element={<TemplatesPage />} />
-              <Route path="/mcp-hub" element={<MCPHubPage />} />
-              <Route path="/oauth-clients" element={<OAuthClientsPage />} />
+              <Route path="/mcp-hub" element={<CapabilityGate feature="mcp_execution"><MCPHubPage /></CapabilityGate>} />
+              <Route path="/oauth-clients" element={<CapabilityGate feature="legacy_oauth"><OAuthClientsPage /></CapabilityGate>} />
               <Route path="/applications" element={<ApplicationDashboardPage />} />
               <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
-              <Route path="/ai/*" element={<AIIntelligencePage />} />
+              <Route path="/ai/*" element={<CapabilityGate feature="experimental_intelligence"><AIIntelligencePage /></CapabilityGate>} />
               <Route path="/admin/*" element={<AdminDashboardPage />} />
               <Route path="/help" element={<HelpPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
-      </Layout>
+        </Layout></CapabilityProvider>} />
+      </Routes>
       <FeedbackButton />
       <Toaster />
     </BrowserRouter>

@@ -11,6 +11,10 @@ import (
 // databases, without rewriting tables or changing their stored values.
 func dbTime(target interface{}) sql.Scanner { return timestampScanner{target: target} }
 
+// ScanTime is the compatibility scanner for legacy services that still own
+// queries. New module adapters should keep database scans in their stores.
+func ScanTime(target interface{}) sql.Scanner { return dbTime(target) }
+
 type timestampScanner struct{ target interface{} }
 
 func (s timestampScanner) Scan(value interface{}) error {
