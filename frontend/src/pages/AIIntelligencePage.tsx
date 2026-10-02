@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/useToast';
 import { Page, PageHeader } from '@/components/cosmic/primitives';
-import { Brain, GitCompare, ShieldAlert, BarChart3, Lightbulb, MessageSquare, Send, RefreshCw, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Brain, GitCompare, ShieldAlert, BarChart3, Lightbulb, MessageSquare, Send, RefreshCw, CheckCircle, XCircle, AlertTriangle } from '@/components/icons';
 import { listProjects } from '@/api/client';
 import * as aiApi from '@/api/ai';
 import type { Project } from '@/types';

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <title>KeepSave — Event Horizon</title>
+  <defs>
+    <linearGradient id="surface" x1="7" y1="3" x2="56" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#252039"/><stop offset="1" stop-color="#0c0915"/>
+    </linearGradient>
+    <linearGradient id="light" x1="7" y1="29" x2="57" y2="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff3d9"/><stop offset=".44" stop-color="#ffcc92"/><stop offset="1" stop-color="#b47751"/>
+    </linearGradient>
+    <linearGradient id="echo" x1="22" y1="40" x2="44" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c7b7ff"/><stop offset="1" stop-color="#8a6cc4"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="url(#surface)" stroke="#625077" stroke-width="1.5"/>
+  <path d="M9 34C18 33 19 18 31 18C43 18 47 32 55 34" stroke="url(#light)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M21 37C22 51 41 52 44 38" stroke="url(#echo)" stroke-width="3.2" stroke-linecap="round"/>
+  <circle cx="32" cy="33" r="10.5" fill="#08060e"/>
+  <path d="M22 30C24 20 38 20 42 30" stroke="#ffdaa5" stroke-opacity=".55" stroke-width="1"/>
+  <path d="M7 33C20 37 43 38 57 34" stroke="url(#light)" stroke-width="4" stroke-linecap="round"/>
+</svg>

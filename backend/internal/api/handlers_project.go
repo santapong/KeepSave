@@ -29,7 +29,8 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 
-	project, err := h.projectService.Create(req.Name, req.Description, userID, c.GetString("client_ip"))
+	_ = userID
+	project, err := h.projectService.CreateAuthorized(c.Request.Context(), PrincipalFromContext(c), req.Name, req.Description, c.GetString("client_ip"))
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -58,7 +59,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Get(c *gin.Context) {
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -69,7 +70,7 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 		return
 	}
 
-	project, err := h.projectService.GetByID(projectID, userID)
+	project, err := h.projectService.GetByIDAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "project not found")
 		return
@@ -85,7 +86,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -96,7 +97,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	project, err := h.projectService.Update(projectID, userID, req.Name, req.Description, c.GetString("client_ip"))
+	project, err := h.projectService.UpdateAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.Name, req.Description, c.ClientIP())
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "project not found")
 		return
@@ -117,7 +118,8 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.projectService.Delete(projectID, userID, c.GetString("client_ip")); err != nil {
+	_ = userID
+	if err := h.projectService.DeleteAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, c.GetString("client_ip")); err != nil {
 		RespondError(c, http.StatusNotFound, "project not found")
 		return
 	}

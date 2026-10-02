@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/useToast';
 import { Page, PageHeader } from '@/components/cosmic/primitives';
 import { TypedConfirmModal } from '@/components/TypedConfirmModal';
-import { ArrowLeft, Plus, Copy, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Copy, Check, Trash2 } from '@/components/icons';
 
 export function ApplicationSettingsPage() {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);

@@ -31,6 +31,8 @@ import (
 
 // Client is a KeepSave API client.
 type Client struct {
+	authMu     sync.RWMutex
+	generation uint64
 	baseURL    string
 	token      string
 	apiKey     string
@@ -46,12 +48,12 @@ type Option func(*Client)
 
 // WithToken sets the JWT token for authentication.
 func WithToken(token string) Option {
-	return func(c *Client) { c.token = token }
+	return func(c *Client) { c.SetToken(token) }
 }
 
 // WithAPIKey sets the API key for authentication.
 func WithAPIKey(key string) Option {
-	return func(c *Client) { c.apiKey = key }
+	return func(c *Client) { c.SetAPIKey(key) }
 }
 
 // WithHTTPClient sets a custom HTTP client.
@@ -100,6 +102,24 @@ func (c *Client) ClearCache() {
 	if c.cache != nil {
 		c.cache.clear()
 	}
+}
+
+// SetToken changes the human/agent bearer credential and clears identity-dependent cached values.
+func (c *Client) SetToken(token string) {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+	c.ClearCache()
+	c.generation++
+	c.token = token
+}
+
+// SetAPIKey changes the API key without changing the separate bearer session.
+func (c *Client) SetAPIKey(key string) {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+	c.ClearCache()
+	c.generation++
+	c.apiKey = key
 }
 
 // CircuitState returns the circuit breaker state (CLOSED / OPEN / HALF_OPEN / DISABLED).
@@ -332,13 +352,17 @@ func (c *cache) clear() {
 // ── Internal HTTP ───────────────────────────────────────────────────
 
 func (c *Client) doWithRetry(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	return c.doWithRetryAuth(ctx, method, path, body, false)
+}
+
+func (c *Client) doWithRetryAuth(ctx context.Context, method, path string, body interface{}, human bool) ([]byte, error) {
 	if c.breaker != nil && !c.breaker.canExecute() {
 		return nil, &CircuitBreakerOpenError{}
 	}
 
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		data, err := c.do(ctx, method, path, body)
+		data, err := c.doAuth(ctx, method, path, body, human)
 		if err == nil {
 			if c.breaker != nil {
 				c.breaker.onSuccess()
@@ -373,6 +397,15 @@ func isRetryable(err error) bool {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	return c.doAuth(ctx, method, path, body, false)
+}
+func (c *Client) doAuth(ctx context.Context, method, path string, body interface{}, human bool) ([]byte, error) {
+	c.authMu.RLock()
+	token, apiKey := c.token, c.apiKey
+	c.authMu.RUnlock()
+	if human && token == "" {
+		return nil, &Error{Code: 401, Message: "A human bearer session is required"}
+	}
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -388,10 +421,10 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}) 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	if c.apiKey != "" {
-		req.Header.Set("X-API-Key", c.apiKey)
-	} else if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+	if !human && apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	} else if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -400,6 +433,15 @@ func (c *Client) do(ctx context.Context, method, path string, body interface{}) 
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized && path != "/auth/login" && path != "/auth/register" {
+		c.ClearCache()
+		c.authMu.Lock()
+		if (human || apiKey == "") && c.token == token {
+			c.token = ""
+			c.generation++
+		}
+		c.authMu.Unlock()
+	}
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
@@ -432,7 +474,7 @@ func (c *Client) Login(ctx context.Context, email, password string) (*AuthRespon
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
-	c.token = resp.Token
+	c.SetToken(resp.Token)
 	return &resp, nil
 }
 
@@ -448,8 +490,55 @@ func (c *Client) Register(ctx context.Context, email, password string) (*AuthRes
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
-	c.token = resp.Token
+	c.SetToken(resp.Token)
 	return &resp, nil
+}
+
+// AccountSession contains metadata only; no bearer credential or hash is returned.
+type AccountSession struct {
+	ID        string `json:"id"`
+	Current   bool   `json:"current"`
+	CreatedAt string `json:"created_at"`
+	ExpiresAt string `json:"expires_at"`
+	Status    string `json:"status"`
+	IPAddress string `json:"ip_address"`
+	UserAgent string `json:"user_agent"`
+}
+
+// ListSessions uses the human bearer credential even when an API key is configured.
+func (c *Client) ListSessions(ctx context.Context) ([]AccountSession, error) {
+	data, err := c.doWithRetryAuth(ctx, "GET", "/account/sessions", nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Sessions []AccountSession `json:"sessions"`
+	}
+	err = json.Unmarshal(data, &response)
+	return response.Sessions, err
+}
+func (c *Client) RevokeSession(ctx context.Context, id string) error {
+	_, err := c.doWithRetryAuth(ctx, "DELETE", "/account/sessions/"+url.PathEscape(id), nil, true)
+	return err
+}
+
+// Logout clears the human token only after confirmed server revocation. API keys remain separate.
+func (c *Client) Logout(ctx context.Context) error {
+	c.authMu.RLock()
+	startedToken := c.token
+	c.authMu.RUnlock()
+	_, err := c.doWithRetryAuth(ctx, "POST", "/auth/logout", nil, true)
+	if err != nil {
+		return err
+	}
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+	if c.token == startedToken {
+		c.ClearCache()
+		c.generation++
+		c.token = ""
+	}
+	return nil
 }
 
 // ── Projects ────────────────────────────────────────────────────────
@@ -490,7 +579,10 @@ func (c *Client) CreateProject(ctx context.Context, name, description string) (*
 
 // ListSecrets returns secrets for a project and environment. Results are cached.
 func (c *Client) ListSecrets(ctx context.Context, projectID, environment string) ([]Secret, error) {
-	cacheKey := fmt.Sprintf("secrets:%s:%s", projectID, environment)
+	c.authMu.RLock()
+	generation := c.generation
+	c.authMu.RUnlock()
+	cacheKey := fmt.Sprintf("secrets:%s:%s:%d", projectID, environment, generation)
 	if c.cache != nil {
 		if cached, ok := c.cache.get(cacheKey); ok {
 			return cached.([]Secret), nil

@@ -27,8 +27,13 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 // RequestSizeLimitMiddleware limits the request body size.
 func RequestSizeLimitMiddleware(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		limit := maxBytes
+		switch c.FullPath() {
+		case "/api/v1/projects/:id/backups/verify", "/api/v1/projects/:id/backups/preview", "/api/v1/projects/:id/backups/restore":
+			limit = 90 << 20
+		}
 		if c.Request.Body != nil {
-			c.Request.Body = newLimitedReader(c.Request.Body, maxBytes)
+			c.Request.Body = newLimitedReader(c.Request.Body, limit)
 		}
 		c.Next()
 	}

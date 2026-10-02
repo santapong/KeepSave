@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,9 +29,9 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	org, err := h.orgService.Create(req.Name, userID, c.ClientIP())
+	org, err := h.orgService.CreateWorkspace(req.Name, userID, c.GetString("client_ip"), c.GetHeader("Idempotency-Key"))
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -92,7 +93,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 	}
 	org, err := h.orgService.Update(orgID, userID, req.Name, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -111,7 +112,7 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.orgService.Delete(orgID, userID, c.ClientIP()); err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -143,7 +144,7 @@ func (h *OrganizationHandler) AddMember(c *gin.Context) {
 	}
 	member, err := h.orgService.AddMember(orgID, userID, targetUserID, req.Role, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -198,7 +199,7 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 	}
 	member, err := h.orgService.UpdateMemberRole(orgID, userID, memberUserID, req.Role, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -223,7 +224,7 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 		return
 	}
 	if err := h.orgService.RemoveMember(orgID, userID, memberUserID, c.ClientIP()); err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+		respondOrganizationError(c, err)
 		return
 	}
 
@@ -253,12 +254,25 @@ func (h *OrganizationHandler) AssignProject(c *gin.Context) {
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.AssignProject(orgID, userID, projectID); err != nil {
-		WrapError(c, Wrap(ErrForbidden, err))
+	if err := h.orgService.AssignProjectWithAudit(orgID, userID, projectID, c.GetString("client_ip")); err != nil {
+		respondOrganizationError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "project assigned to organization"})
+}
+
+func respondOrganizationError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrWorkspaceInput):
+		WrapError(c, Wrap(ErrInvalidInput, err))
+	case errors.Is(err, service.ErrOrgAccessDenied):
+		WrapError(c, Wrap(ErrForbidden, err))
+	case errors.Is(err, service.ErrOrganizationConflict):
+		WrapError(c, WrapMessage(ErrConflict, "workspace operation conflicts with current state", err))
+	default:
+		WrapError(c, err)
+	}
 }
 
 func (h *OrganizationHandler) ListProjects(c *gin.Context) {

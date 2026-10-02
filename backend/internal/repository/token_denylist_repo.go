@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 )
 
 // TokenDenylistRepository implements auth.Denylister (ADR-0021). A token is
@@ -14,11 +16,9 @@ import (
 //   - its jti is in the denylist table (explicit, single-token revocation), or
 //   - the lease it was minted from is revoked/expired/missing (lease-cascade).
 //
-// The explicit jti set is cached in memory (positive cache) so the common
-// "not revoked" path costs no DB round-trip; the cache is seeded at boot,
-// written through on Revoke, and refreshed periodically (RefreshCache) to pick
-// up revocations performed by other instances. The lease-cascade leg always
-// reads the live lease row, so it is never stale.
+// Positive cache entries can deny early. Every cache miss queries authoritative
+// database state, so another instance's committed revocation is immediate.
+// The lease-cascade leg also checks the current parent key and its scope.
 type TokenDenylistRepository struct {
 	db      *sql.DB
 	dialect Dialect
@@ -41,20 +41,47 @@ func (r *TokenDenylistRepository) IsTokenRevoked(jti string, leaseID *uuid.UUID)
 	if denied {
 		return true, nil
 	}
+	// A cache miss is not evidence of authority: another API instance may
+	// have committed a revocation since this process last refreshed.
+	var count int
+	if err := r.db.QueryRow(Q(r.dialect, `SELECT COUNT(*) FROM token_denylist WHERE jti = $1 AND expires_at > `+r.dialect.Now()), jti).Scan(&count); err != nil {
+		return false, fmt.Errorf("checking token revocation: %w", err)
+	}
+	if count != 0 {
+		return true, nil
+	}
 	if leaseID == nil {
 		return false, nil
 	}
 	// Lease-cascade: the token is revoked unless an active (non-revoked,
 	// non-expired) lease with this ID still exists.
-	q := Q(r.dialect, `SELECT 1 FROM secret_leases WHERE id = $1 AND revoked = `+
+	q := Q(r.dialect, `SELECT api_key_id, project_id, environment, secret_keys, expires_at FROM secret_leases WHERE id = $1 AND revoked = `+
 		r.dialect.BoolLiteral(false)+` AND expires_at > `+r.dialect.Now())
-	var one int
-	err := r.db.QueryRow(q, leaseID.String()).Scan(&one)
+	var parentID, projectID uuid.UUID
+	var environment string
+	var keys models.StringList
+	var expires time.Time
+	err := r.db.QueryRow(q, leaseID.String()).Scan(&parentID, &projectID, &environment, &keys, dbTime(&expires))
 	if err == sql.ErrNoRows {
 		return true, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("checking lease state for token revocation: %w", err)
+	}
+	if !expires.After(time.Now()) {
+		return true, nil
+	}
+	parent, err := NewAPIKeyRepository(r.db, r.dialect).GetByID(parentID)
+	if err == sql.ErrNoRows {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("checking parent authority: %w", err)
+	}
+	if parent.ProjectID != projectID || (parent.Environment != nil && *parent.Environment != environment) ||
+		!policy.LeaseKeysAllowed(parent.Scopes, keys) ||
+		(parent.ExpiresAt != nil && (!parent.ExpiresAt.After(time.Now()) || expires.After(*parent.ExpiresAt))) {
+		return true, nil
 	}
 	return false, nil
 }

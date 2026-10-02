@@ -1,12 +1,15 @@
 package api
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/service"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
 type SecretHandler struct {
@@ -30,7 +33,7 @@ func (h *SecretHandler) Create(c *gin.Context) {
 		return
 	}
 
-	actorID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -40,7 +43,7 @@ func (h *SecretHandler) Create(c *gin.Context) {
 		WrapError(c, ErrForbidden)
 		return
 	}
-	secret, err := h.secretService.Create(projectID, req.Environment, req.Key, req.Value, actorID, c.GetString("client_ip"))
+	secret, err := h.secretService.CreateAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.Environment, req.Key, req.Value, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -66,9 +69,9 @@ func (h *SecretHandler) List(c *gin.Context) {
 	// ${VAR}-style references against the same environment's keys.
 	var secrets []models.Secret
 	if c.Query("resolve") == "true" {
-		secrets, err = h.secretService.ListResolved(projectID, envName)
+		secrets, err = h.secretService.ListResolvedAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, envName)
 	} else {
-		secrets, err = h.secretService.List(projectID, envName)
+		secrets, err = h.secretService.ListAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, envName)
 	}
 	if err != nil {
 		WrapError(c, err)
@@ -95,6 +98,7 @@ func (h *SecretHandler) List(c *gin.Context) {
 		}
 	}
 
+	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, gin.H{"secrets": secrets})
 }
 
@@ -111,9 +115,13 @@ func (h *SecretHandler) Get(c *gin.Context) {
 		return
 	}
 
-	secret, err := h.secretService.GetByID(projectID, secretID)
+	secret, err := h.secretService.GetByIDAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, secretID)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, "secret not found")
+		if errors.Is(err, vault.ErrNotFound) || errors.Is(err, vault.ErrDenied) {
+			RespondError(c, http.StatusNotFound, "secret not found")
+		} else {
+			WrapError(c, err)
+		}
 		return
 	}
 	// Per-key scope (ADR-0022): an out-of-scope key is reported as not-found to
@@ -145,22 +153,13 @@ func (h *SecretHandler) Update(c *gin.Context) {
 		return
 	}
 
-	actorID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	// Per-key scope (ADR-0022): resolve the key first so an out-of-scope write
-	// is rejected (as not-found) before any mutation.
-	if _, scoped := c.Get("api_key_scopes"); scoped {
-		existing, gerr := h.secretService.GetByID(projectID, secretID)
-		if gerr != nil || !APIKeyScopeAllowsKey(c, "write", existing.Key) {
-			RespondError(c, http.StatusNotFound, "secret not found")
-			return
-		}
-	}
-	secret, err := h.secretService.Update(projectID, secretID, req.Value, actorID, c.GetString("client_ip"))
+	secret, err := h.secretService.UpdateAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, secretID, req.Value, c.ClientIP(), req.ExpectedRevision)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, "secret not found")
+		WrapError(c, err)
 		return
 	}
 
@@ -180,23 +179,50 @@ func (h *SecretHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	actorID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	// Per-key scope (ADR-0022): resolve the key first so an out-of-scope delete
-	// is rejected (as not-found) before any mutation.
-	if _, scoped := c.Get("api_key_scopes"); scoped {
-		existing, gerr := h.secretService.GetByID(projectID, secretID)
-		if gerr != nil || !APIKeyScopeAllowsKey(c, "delete", existing.Key) {
-			RespondError(c, http.StatusNotFound, "secret not found")
+	var expected *int64
+	if raw := c.Query("expected_revision"); raw != "" {
+		n, e := strconv.ParseInt(raw, 10, 64)
+		if e != nil || n < 1 {
+			WrapError(c, ErrInvalidInput)
 			return
 		}
+		expected = &n
 	}
-	if err := h.secretService.Delete(projectID, secretID, actorID, c.GetString("client_ip")); err != nil {
-		RespondError(c, http.StatusNotFound, "secret not found")
+	if err := h.secretService.DeleteAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, secretID, c.ClientIP(), expected); err != nil {
+		WrapError(c, err)
 		return
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// BatchRead is the exact POST read contract used by CLI/SDK/widget clients.
+func (h *SecretHandler) BatchRead(c *gin.Context) {
+	var req struct {
+		Environment string   `json:"environment" binding:"required,oneof=alpha uat prod"`
+		Keys        []string `json:"keys" binding:"required,min=1,max=100,dive,required,max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	project, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		WrapError(c, ErrInvalidInput)
+		return
+	}
+	secrets, missing, err := h.secretService.BatchAuthorized(c.Request.Context(), PrincipalFromContext(c), project, req.Environment, req.Keys)
+	if err != nil {
+		WrapError(c, err)
+		return
+	}
+	if missing == nil {
+		missing = []string{}
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"secrets": secrets, "missing_keys": missing})
 }

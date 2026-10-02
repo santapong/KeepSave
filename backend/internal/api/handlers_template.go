@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
@@ -25,7 +26,7 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -39,9 +40,9 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 		orgID = &id
 	}
 
-	tmpl, err := h.templateService.Create(req.Name, req.Description, req.Stack, req.Keys, userID, orgID, req.IsGlobal, c.ClientIP())
+	tmpl, err := h.templateService.CreateAuthorized(c.Request.Context(), PrincipalFromContext(c), req.Name, req.Description, req.Stack, req.Keys, orgID, req.IsGlobal, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		wrapTemplateError(c, err)
 		return
 	}
 
@@ -65,7 +66,7 @@ func (h *TemplateHandler) List(c *gin.Context) {
 
 	templates, err := h.templateService.List(userID, orgID)
 	if err != nil {
-		WrapError(c, err)
+		wrapTemplateError(c, err)
 		return
 	}
 
@@ -89,7 +90,7 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 	}
 	tmpl, err := h.templateService.GetByID(templateID, userID)
 	if err != nil {
-		RespondError(c, http.StatusNotFound, "template not found")
+		wrapTemplateError(c, err)
 		return
 	}
 
@@ -109,18 +110,14 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	tmpl, err := h.templateService.Update(templateID, req.Name, req.Description, req.Stack, req.Keys, userID, c.ClientIP())
+	tmpl, err := h.templateService.UpdateAuthorized(c.Request.Context(), PrincipalFromContext(c), templateID, req.Name, req.Description, req.Stack, req.Keys, c.ClientIP())
 	if err != nil {
-		if errors.Is(err, service.ErrTemplateNotFound) {
-			WrapError(c, ErrNotFound)
-			return
-		}
-		WrapError(c, err)
+		wrapTemplateError(c, err)
 		return
 	}
 
@@ -134,17 +131,13 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	if err := h.templateService.Delete(templateID, userID, c.ClientIP()); err != nil {
-		if errors.Is(err, service.ErrTemplateNotFound) {
-			WrapError(c, ErrNotFound)
-			return
-		}
-		WrapError(c, err)
+	if err := h.templateService.DeleteAuthorized(c.Request.Context(), PrincipalFromContext(c), templateID, c.ClientIP()); err != nil {
+		wrapTemplateError(c, err)
 		return
 	}
 
@@ -170,25 +163,32 @@ func (h *TemplateHandler) Apply(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	secrets, err := h.templateService.ApplyTemplate(templateID, projectID, req.Environment, userID)
+	secrets, err := h.templateService.ApplyTemplateAuthorized(c.Request.Context(), PrincipalFromContext(c), templateID, projectID, req.Environment)
 	if err != nil {
-		if errors.Is(err, service.ErrTemplateProjectAccess) {
-			WrapError(c, ErrForbidden)
-			return
-		}
-		if errors.Is(err, service.ErrTemplateNotFound) {
-			WrapError(c, ErrNotFound)
-			return
-		}
-		WrapError(c, err)
+		wrapTemplateError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"secrets": secrets})
+}
+
+func wrapTemplateError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, auth.ErrSessionInvalid):
+		RespondError(c, http.StatusUnauthorized, "invalid or expired session")
+	case errors.Is(err, auth.ErrSessionUnavailable):
+		RespondError(c, http.StatusServiceUnavailable, "session authority unavailable")
+	case errors.Is(err, service.ErrTemplateProjectAccess):
+		WrapError(c, ErrForbidden)
+	case errors.Is(err, service.ErrTemplateNotFound):
+		WrapError(c, ErrNotFound)
+	default:
+		WrapError(c, err)
+	}
 }
 
 func (h *TemplateHandler) ListBuiltin(c *gin.Context) {

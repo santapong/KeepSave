@@ -48,6 +48,7 @@ func computeEffectiveAPIKeyExpiry(now time.Time, requested *time.Time) (time.Tim
 }
 
 type APIKeyService struct {
+	sessions    *SessionService
 	apikeyRepo  *repository.APIKeyRepository
 	projectRepo *repository.ProjectRepository
 	auditRepo   *repository.AuditRepository

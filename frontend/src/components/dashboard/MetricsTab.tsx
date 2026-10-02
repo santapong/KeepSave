@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Gauge, AlertTriangle, Clock, ShieldCheck } from 'lucide-react';
+import { Gauge, AlertTriangle, Clock, ShieldCheck } from '@/components/icons';
 import {
   AreaChart,
   Area,

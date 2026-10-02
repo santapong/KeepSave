@@ -15,7 +15,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Copy, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Copy, AlertTriangle } from '@/components/icons';
 import { HoldToReveal } from '../components/cosmic/HoldToReveal';
 import {
   Page,

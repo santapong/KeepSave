@@ -6,17 +6,20 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auth"
 )
 
-// TestRequirePlatformAdmin covers DB-06: only allowlisted emails reach /admin,
-// the match is case-insensitive, a missing email claim is 401, and an empty
-// allowlist denies everyone (fail-closed).
+// Deprecated email allowlists deny even authenticated human callers. Stored
+// operator grants are covered through the actual session-backed router.
 func TestRequirePlatformAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	run := func(allow []string, email string) int {
 		r := gin.New()
 		r.GET("/admin/x",
 			func(c *gin.Context) {
+				c.Set("user_id", uuid.New())
+				c.Set("auth_claims", &auth.Claims{SessionID: uuid.NewString()})
 				if email != "" {
 					c.Set("email", email)
 				}
@@ -37,10 +40,10 @@ func TestRequirePlatformAdmin(t *testing.T) {
 		email string
 		want  int
 	}{
-		{"allowed", []string{"admin@x.com"}, "admin@x.com", http.StatusOK},
-		{"case-insensitive", []string{"admin@x.com"}, "Admin@X.com", http.StatusOK},
+		{"allowed", []string{"admin@x.com"}, "admin@x.com", http.StatusForbidden},
+		{"case-insensitive", []string{"admin@x.com"}, "Admin@X.com", http.StatusForbidden},
 		{"not allowed", []string{"admin@x.com"}, "intruder@x.com", http.StatusForbidden},
-		{"no email claim", []string{"admin@x.com"}, "", http.StatusUnauthorized},
+		{"no email claim", []string{"admin@x.com"}, "", http.StatusForbidden},
 		{"empty allowlist denies all", nil, "anyone@x.com", http.StatusForbidden},
 	}
 	for _, tc := range cases {

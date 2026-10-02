@@ -4,7 +4,7 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-} from 'lucide-react';
+} from '@/components/icons';
 import {
   BarChart,
   Bar,

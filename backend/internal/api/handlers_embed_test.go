@@ -38,7 +38,7 @@ func newEmbedTestDB(t *testing.T) (*sql.DB, repository.Dialect) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	// Minimal projects schema. Mirrors migration 007 for SQLite.
-	if _, err := db.Exec(`CREATE TABLE projects (
+	if _, err := db.Exec(`CREATE TABLE projects (deleted_at TEXT,
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
 		description TEXT DEFAULT '',

@@ -23,7 +23,7 @@ func NewPromotionHandler(promotionService *service.PromotionService) *PromotionH
 func (h *PromotionHandler) Promote(c *gin.Context) {
 	var req PromoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, ErrInvalidInput)
 		return
 	}
 
@@ -33,23 +33,22 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	promotion, err := h.promotionService.Promote(
-		projectID,
+	promotion, err := h.promotionService.PromoteAuthorized(
+		c.Request.Context(), PrincipalFromContext(c), projectID,
 		req.SourceEnvironment,
 		req.TargetEnvironment,
 		req.Keys,
 		req.OverridePolicy,
 		req.Notes,
-		userID,
 		c.ClientIP(),
 	)
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, err)
 		return
 	}
 
@@ -65,7 +64,7 @@ func (h *PromotionHandler) Promote(c *gin.Context) {
 func (h *PromotionHandler) Diff(c *gin.Context) {
 	var req DiffRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, ErrInvalidInput)
 		return
 	}
 
@@ -75,9 +74,9 @@ func (h *PromotionHandler) Diff(c *gin.Context) {
 		return
 	}
 
-	diffs, err := h.promotionService.Diff(projectID, req.SourceEnvironment, req.TargetEnvironment, req.Keys)
+	diffs, err := h.promotionService.DiffAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.SourceEnvironment, req.TargetEnvironment, req.Keys)
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, err)
 		return
 	}
 
@@ -151,12 +150,12 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	updated, err := h.promotionService.ApprovePromotion(promotion.ID, userID, c.ClientIP())
+	updated, err := h.promotionService.ApprovePromotionAuthorized(c.Request.Context(), PrincipalFromContext(c), promotion.ProjectID, promotion.ID, c.ClientIP())
 	if err != nil {
 		// Four-eyes invariant (ADR-0003 / NEGATIVE_AUTH_PLAN A10): the requester
 		// approving their own promotion is an authorization failure, not a
@@ -165,7 +164,7 @@ func (h *PromotionHandler) ApprovePromotion(c *gin.Context) {
 			WrapError(c, Wrap(ErrForbidden, err))
 			return
 		}
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, err)
 		return
 	}
 
@@ -179,14 +178,14 @@ func (h *PromotionHandler) RejectPromotion(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	updated, err := h.promotionService.RejectPromotion(promotion.ID, userID, c.ClientIP())
+	updated, err := h.promotionService.RejectPromotionAuthorized(c.Request.Context(), PrincipalFromContext(c), promotion.ProjectID, promotion.ID, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, err)
 		return
 	}
 
@@ -200,13 +199,13 @@ func (h *PromotionHandler) Rollback(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	if err := h.promotionService.Rollback(promotion.ID, userID, c.ClientIP()); err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+	if err := h.promotionService.RollbackAuthorized(c.Request.Context(), PrincipalFromContext(c), promotion.ProjectID, promotion.ID, c.ClientIP()); err != nil {
+		WrapError(c, err)
 		return
 	}
 

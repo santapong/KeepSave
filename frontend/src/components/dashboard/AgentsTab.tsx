@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, KeyRound } from 'lucide-react';
+import { Users, Activity, KeyRound } from '@/components/icons';
 import * as api from '@/api/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';

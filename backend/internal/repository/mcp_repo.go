@@ -168,11 +168,21 @@ func (r *MCPRepository) GetInstallation(userID, mcpServerID uuid.UUID) (*models.
 	return inst, nil
 }
 
-func (r *MCPRepository) UpdateInstallation(id uuid.UUID, enabled bool, config models.JSONMap) error {
+func (r *MCPRepository) UpdateInstallation(id, userID uuid.UUID, enabled bool, config models.JSONMap) error {
 	configJSON, _ := json.Marshal(config)
-	query := Q(r.dialect, `UPDATE mcp_installations SET enabled = $1, config = $2, updated_at = NOW() WHERE id = $3`)
-	_, err := r.db.Exec(query, enabled, string(configJSON), id)
-	return err
+	query := Q(r.dialect, `UPDATE mcp_installations SET enabled = $1, config = $2, updated_at = NOW() WHERE id = $3 AND user_id = $4`)
+	result, err := r.db.Exec(query, enabled, string(configJSON), id, userID)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (r *MCPRepository) DeleteInstallation(id uuid.UUID, userID uuid.UUID) error {

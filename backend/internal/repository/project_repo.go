@@ -72,7 +72,7 @@ func (r *ProjectRepository) Create(name, description string, ownerID uuid.UUID, 
 		if err != nil {
 			return nil, fmt.Errorf("creating project: %w", err)
 		}
-		selectQ := Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1`)
+		selectQ := Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1 AND deleted_at IS NULL`)
 		if err := r.scanProject(p, r.db.QueryRow(selectQ, id)); err != nil {
 			return nil, fmt.Errorf("reading created project: %w", err)
 		}
@@ -83,7 +83,7 @@ func (r *ProjectRepository) Create(name, description string, ownerID uuid.UUID, 
 func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 	p := &models.Project{}
 	err := r.scanProject(p, r.db.QueryRow(
-		Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1`),
+		Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1 AND deleted_at IS NULL`),
 		id,
 	))
 	if err != nil {
@@ -93,9 +93,9 @@ func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 }
 
 func (r *ProjectRepository) ListByOwnerID(ownerID uuid.UUID) ([]models.Project, error) {
-	rows, err := r.db.Query(
-		Q(r.dialect, `SELECT `+projectSelectColumns+`
-		 FROM projects WHERE owner_id = $1 ORDER BY created_at DESC`),
+	rows, err := QueryQ(r.db, r.dialect,
+		`SELECT `+projectSelectColumns+`
+		 FROM projects WHERE owner_id = $1 AND deleted_at IS NULL AND (organization_id IS NULL OR EXISTS(SELECT 1 FROM organization_members om WHERE om.organization_id=projects.organization_id AND om.user_id=$1)) ORDER BY created_at DESC`,
 		ownerID,
 	)
 	if err != nil {
@@ -120,7 +120,7 @@ func (r *ProjectRepository) Update(id uuid.UUID, name, description string) (*mod
 	if r.dialect.SupportsReturning() {
 		err := r.scanProject(p, r.db.QueryRow(
 			Q(r.dialect, `UPDATE projects SET name = $2, description = $3, updated_at = NOW()
-			 WHERE id = $1
+			 WHERE id = $1 AND deleted_at IS NULL
 			 RETURNING `+projectSelectColumns),
 			id, name, description,
 		))
@@ -132,7 +132,7 @@ func (r *ProjectRepository) Update(id uuid.UUID, name, description string) (*mod
 		if err != nil {
 			return nil, fmt.Errorf("updating project: %w", err)
 		}
-		selectQ := Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1`)
+		selectQ := Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id = $1 AND deleted_at IS NULL`)
 		if err := r.scanProject(p, r.db.QueryRow(selectQ, id)); err != nil {
 			return nil, fmt.Errorf("reading updated project: %w", err)
 		}
@@ -155,7 +155,7 @@ func (r *ProjectRepository) UpdateEmbedConfig(id uuid.UUID, allowedOrigins []str
 }
 
 func (r *ProjectRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM projects WHERE id = $1`), id)
+	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM projects WHERE id = $1 AND deleted_at IS NULL`), id)
 	if err != nil {
 		return fmt.Errorf("deleting project: %w", err)
 	}
@@ -191,7 +191,7 @@ func (r *ProjectRepository) ListByOwner(ownerID uuid.UUID) ([]models.Project, er
 }
 
 // ListAccessibleProjectIDs returns the ids of every project userID can access —
-// owned directly OR via membership in the project's organization. It is the
+// owned personally OR via current membership in the project's organization. It is the
 // set form of UserHasAccess, used to scope endpoints that operate across "all
 // my projects" (e.g. the global AI anomaly/rule listings) instead of a single
 // :id. Returns an empty slice (not nil error) when the user can access none.
@@ -200,15 +200,16 @@ func (r *ProjectRepository) ListAccessibleProjectIDs(userID uuid.UUID) ([]uuid.U
 	// model stays defined in exactly one place.
 	rows, err := r.db.Query(Q(r.dialect, `
 		SELECT p.id FROM projects p
-		WHERE p.owner_id = $1
+		WHERE p.deleted_at IS NULL AND ((p.organization_id IS NULL AND p.owner_id = $1)
 		   OR (
 			p.organization_id IS NOT NULL
 			AND EXISTS (
 				SELECT 1 FROM organization_members om
 				WHERE om.organization_id = p.organization_id
 				AND om.user_id = $2
+				AND om.role IN ('viewer','editor','promoter','admin')
 			)
-		)`), userID, userID)
+		))`), userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing accessible projects: %w", err)
 	}
@@ -225,14 +226,14 @@ func (r *ProjectRepository) ListAccessibleProjectIDs(userID uuid.UUID) ([]uuid.U
 	return ids, rows.Err()
 }
 
-// UserHasAccess returns (true, nil) when userID owns projectID OR is a
+// UserHasAccess returns (true, nil) when userID personally owns projectID OR is a
 // member of the organization the project belongs to. Returns (false, nil)
 // when the project exists but the user has no access path. Returns
 // (false, sql.ErrNoRows) when the project does not exist — callers should
 // surface this as 404 to avoid project-existence enumeration via 403/404
 // differential.
 func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, error) {
-	// Single round-trip: covers owner OR org-member. organization_id may be
+	// Single round-trip: covers personal owner OR current org-member. organization_id may be
 	// NULL when the project is not assigned to an org (single-user case);
 	// in that path only the owner check matches.
 	// userID is referenced twice (once for owner, once for org-member).
@@ -242,14 +243,15 @@ func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, er
 	query := Q(r.dialect, `
 		SELECT EXISTS (
 			SELECT 1 FROM projects p
-			WHERE p.id = $1 AND (
-				p.owner_id = $2
+			WHERE p.id = $1 AND p.deleted_at IS NULL AND (
+				(p.organization_id IS NULL AND p.owner_id = $2)
 				OR (
 					p.organization_id IS NOT NULL
 					AND EXISTS (
 						SELECT 1 FROM organization_members om
 						WHERE om.organization_id = p.organization_id
 						AND om.user_id = $3
+						AND om.role IN ('viewer','editor','promoter','admin')
 					)
 				)
 			)
@@ -264,7 +266,7 @@ func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, er
 		// the right status. A separate existence check keeps the security
 		// model honest: leaking existence is itself a finding.
 		var exists bool
-		if err := r.db.QueryRow(Q(r.dialect, `SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1)`), projectID).Scan(&exists); err != nil {
+		if err := r.db.QueryRow(Q(r.dialect, `SELECT EXISTS (SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL)`), projectID).Scan(&exists); err != nil {
 			return false, fmt.Errorf("checking project existence: %w", err)
 		}
 		if !exists {
@@ -272,4 +274,19 @@ func (r *ProjectRepository) UserHasAccess(userID, projectID uuid.UUID) (bool, er
 		}
 	}
 	return allowed, nil
+}
+
+// UserHasRole checks live ownership/membership for a project. Unknown roles fail closed.
+func (r *ProjectRepository) UserHasRole(userID, projectID uuid.UUID, required string) (bool, error) {
+	var role string
+	err := r.db.QueryRow(Q(r.dialect, `SELECT CASE WHEN organization_id IS NULL AND owner_id = $1 THEN 'admin' ELSE
+ COALESCE((SELECT role FROM organization_members WHERE organization_id = projects.organization_id AND user_id = $2), '') END
+ FROM projects WHERE id = $3 AND deleted_at IS NULL`), userID, userID, projectID).Scan(&role)
+	if err != nil {
+		return false, err
+	}
+	levels := map[string]int{"viewer": 1, "editor": 2, "promoter": 3, "admin": 4}
+	actual, ok := levels[role]
+	need, valid := levels[required]
+	return ok && valid && actual >= need, nil
 }

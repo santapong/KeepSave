@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Layers, RotateCcw, CheckCircle2, XCircle } from 'lucide-react';
+import { Layers, RotateCcw, CheckCircle2, XCircle } from '@/components/icons';
 import { TypedConfirmModal } from './TypedConfirmModal';
 
 interface PromotionsListProps {

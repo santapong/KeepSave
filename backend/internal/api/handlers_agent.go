@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
 
@@ -53,16 +54,11 @@ func (h *AgentHandler) CreateLease(c *gin.Context) {
 		return
 	}
 
-	// Use a synthetic API key ID from context
-	userID, authedOK := getUserID(c)
-	if !authedOK {
-		return
-	}
 	duration := time.Duration(req.DurationMin) * time.Minute
 
-	lease, err := h.leaseService.CreateLease(userID, projectID, req.Environment, req.SecretKeys, duration, c.ClientIP())
+	lease, err := h.leaseService.CreateLeaseAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.Environment, req.SecretKeys, duration, c.ClientIP())
 	if err != nil {
-		WrapError(c, err)
+		grantError(c, err)
 		return
 	}
 
@@ -91,23 +87,11 @@ func (h *AgentHandler) MintAgentToken(c *gin.Context) {
 		RespondError(c, http.StatusBadRequest, "invalid lease ID")
 		return
 	}
-	userID, authedOK := getUserID(c)
-	if !authedOK {
-		return
-	}
 	ttl := time.Duration(req.DurationMin) * time.Minute
 
-	minted, err := h.agentTokenService.MintToken(userID, projectID, leaseID, ttl, c.ClientIP())
+	minted, err := h.agentTokenService.MintTokenAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, leaseID, ttl, c.ClientIP())
 	if err != nil {
-		if errors.Is(err, service.ErrLeaseNotActive) {
-			WrapError(c, ErrNotFound)
-			return
-		}
-		if errors.Is(err, service.ErrLeaseProjectMismatch) {
-			RespondError(c, http.StatusForbidden, "lease not authorized for this project")
-			return
-		}
-		WrapError(c, err)
+		grantError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, minted)
@@ -128,12 +112,8 @@ func (h *AgentHandler) RevokeAgentToken(c *gin.Context) {
 		WrapError(c, Wrap(ErrInvalidInput, err))
 		return
 	}
-	userID, authedOK := getUserID(c)
-	if !authedOK {
-		return
-	}
-	if err := h.agentTokenService.RevokeToken(userID, projectID, req.JTI, c.ClientIP()); err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+	if err := h.agentTokenService.RevokeTokenAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.JTI, c.ClientIP()); err != nil {
+		grantError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -141,17 +121,17 @@ func (h *AgentHandler) RevokeAgentToken(c *gin.Context) {
 
 // ListLeases returns active leases for the current agent.
 func (h *AgentHandler) ListLeases(c *gin.Context) {
-	userID, authedOK := getUserID(c)
-	if !authedOK {
+	v, ok := c.Get("api_key_id")
+	id, valid := v.(uuid.UUID)
+	if !ok || !valid {
+		WrapError(c, ErrForbidden)
 		return
 	}
-
-	leases, err := h.leaseService.ListActiveLeases(userID)
+	leases, err := h.leaseService.ListActiveLeases(id)
 	if err != nil {
 		WrapError(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"leases": leases})
 }
 
@@ -170,21 +150,27 @@ func (h *AgentHandler) RevokeLease(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
-	if !authedOK {
-		return
-	}
-
-	if err := h.leaseService.RevokeLease(leaseID, projectID, userID, c.ClientIP()); err != nil {
-		if errors.Is(err, service.ErrLeaseNotFound) {
-			WrapError(c, ErrNotFound)
-			return
-		}
-		WrapError(c, err)
+	if err := h.leaseService.RevokeLeaseAuthorized(c.Request.Context(), PrincipalFromContext(c), leaseID, projectID, c.ClientIP()); err != nil {
+		grantError(c, err)
 		return
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func grantError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, auth.ErrSessionInvalid):
+		WrapError(c, ErrUnauthorized)
+	case errors.Is(err, auth.ErrSessionUnavailable):
+		WrapError(c, ErrServiceUnavailable)
+	case errors.Is(err, service.ErrLeaseAuthority), errors.Is(err, service.ErrLeaseProjectMismatch):
+		WrapError(c, ErrForbidden)
+	case errors.Is(err, service.ErrLeaseNotFound), errors.Is(err, service.ErrLeaseNotActive), errors.Is(err, service.ErrAgentTokenNotFound):
+		WrapError(c, ErrNotFound)
+	default:
+		WrapError(c, err)
+	}
 }
 
 // GetActivitySummary returns agent activity summary.

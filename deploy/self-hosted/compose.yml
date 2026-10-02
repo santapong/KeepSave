@@ -1,0 +1,141 @@
+# Core control-host reference only; no connector runner or production acceptance.
+# Supply private files from outside this checkout. No dev credentials/fallbacks.
+name: keepsave-core
+services:
+  db:
+    image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    env_file: ${KEEPSAVE_DATABASE_ENV_FILE:?supply private PostgreSQL env file}
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/run/keepsave/tls/server.crt", "-c", "ssl_key_file=/run/keepsave/tls/server.key"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - type: bind
+        source: ${KEEPSAVE_DATABASE_TLS_DIRECTORY:?supply PostgreSQL certificate directory}
+        target: /run/keepsave/tls
+        read_only: true
+        bind: { create_host_path: false }
+    networks: [database]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /run/postgresql, /var/run/postgresql]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    mem_limit: 1g
+    cpus: 1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -t 2"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  api:
+    image: keepsave-core:local
+    build: { context: ../../backend }
+    env_file: ${KEEPSAVE_RUNTIME_ENV_FILE:?supply private backend env file}
+    environment:
+      KEEPSAVE_ENV: production
+      KEEPSAVE_KEY_PROVIDER: vault
+      PORT: "8080"
+      CORS_ORIGINS: https://app.keepsave.draveniq.dev
+      SOCIAL_AUTH_ORIGIN: https://app.keepsave.draveniq.dev
+      KEEPSAVE_PLATFORM_ADMIN_EMAILS: ""
+      TRUSTED_PROXIES: "${KEEPSAVE_PROXY_IP:-172.28.96.2}/32"
+    volumes:
+      - type: bind
+        source: ${KEEPSAVE_DATABASE_CA_FILE:?supply database CA certificate}
+        target: /run/keepsave/db-ca.crt
+        read_only: true
+        bind: { create_host_path: false }
+    networks: [database, proxy]
+    depends_on: { db: { condition: service_healthy } }
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 1g
+    cpus: 2
+
+  worker:
+    image: keepsave-core:local
+    entrypoint: [/app/keepsave-worker]
+    env_file: ${KEEPSAVE_RUNTIME_ENV_FILE:?supply private backend env file}
+    environment:
+      KEEPSAVE_ENV: production
+      KEEPSAVE_KEY_PROVIDER: vault
+      CORS_ORIGINS: https://app.keepsave.draveniq.dev
+      SOCIAL_AUTH_ORIGIN: https://app.keepsave.draveniq.dev
+      KEEPSAVE_PLATFORM_ADMIN_EMAILS: ""
+      KEEPSAVE_BACKUP_DIRECTORY: /private/backups
+      KEEPSAVE_RECOVERY_VERIFIED: ${KEEPSAVE_RECOVERY_VERIFIED:-false}
+    volumes:
+      - type: bind
+        source: ${KEEPSAVE_DATABASE_CA_FILE:?supply database CA certificate}
+        target: /run/keepsave/db-ca.crt
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${KEEPSAVE_BACKUP_DIRECTORY:?supply private backup directory owned by uid65532}
+        target: /private/backups
+        bind: { create_host_path: false }
+    networks: [database, proxy]
+    depends_on: { db: { condition: service_healthy } }
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1
+
+  frontend:
+    build: { context: ../../frontend }
+    networks: [proxy]
+    depends_on: { api: { condition: service_started } }
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  tls:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    user: "65532:65532"
+    environment:
+      KEEPSAVE_APP_DOMAIN: app.keepsave.draveniq.dev
+    ports: ["80:8080", "443:8443", "443:8443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - type: bind
+        source: ${KEEPSAVE_TLS_DATA_DIRECTORY:?supply private TLS storage directory owned by uid65532}
+        target: /data
+        bind: { create_host_path: false }
+    networks:
+      proxy:
+        ipv4_address: ${KEEPSAVE_PROXY_IP:-172.28.96.2}
+    depends_on: { frontend: { condition: service_healthy } }
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, "/config:uid=65532,gid=65532,mode=0700"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    cpus: 0.5
+
+networks:
+  database: { internal: true }
+  proxy:
+    ipam:
+      config:
+        - subnet: ${KEEPSAVE_PROXY_SUBNET:-172.28.96.0/28}
+volumes:
+  pgdata:

@@ -1,11 +1,14 @@
 # Integrations
 
-Everything that plugs into KeepSave, in one place.
+Integration inventory, reconciled 2026-10-02. Supported local exercises and
+remaining client gates are in the [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md).
+MCP execution, old OAuth issuance, SSO and webhook automation are unavailable
+in the current core profile; their guides are legacy/design references.
 
 There are two kinds. **First-party integrations** ship in this repository and
 are how most people wire KeepSave into a codebase or pipeline. **Partner
-integrations** are separate products that use KeepSave as their secret vault,
-identity provider, or MCP host — each has its own guide.
+integrations** are separate products that use KeepSave as their secret vault or historical integration target — each has its own guide. A guide
+does not establish a current end-to-end acceptance result.
 
 ---
 
@@ -24,21 +27,20 @@ authenticates with a scoped API key and caches in memory only.
 | Node.js | [`sdks/nodejs/`](../sdks/nodejs/) | `@keepsave/sdk` |
 | Python | [`sdks/python/`](../sdks/python/) | `keepsave` |
 
-> **Note on the Go SDK.** It ships as a single source file with no `go.mod`
-> of its own, and the repository has no root module — the only module is
-> `backend/`. So it cannot be `go get`-ed at
-> `github.com/santapong/KeepSave/sdks/go` today; vendor the file, or give the
-> directory its own `go.mod`. Tracked in
-> [`FOLLOWUPS.md`](FOLLOWUPS.md).
+> **Go SDK status.** `sdks/go/go.mod` now declares the standalone local module
+> `github.com/santapong/KeepSave/sdks/go`, and CI has a dedicated SDK test job.
+> No new published module version/tag or remote `go get` acceptance is claimed.
+> Use a local module replacement for this uncommitted candidate; published
+> distribution remains the tracked release step in [FOLLOWUPS](FOLLOWUPS.md).
 
 The pattern is the same in all three: the only configuration your service needs
 is a KeepSave URL, an API key, and a project ID. Everything else is fetched.
 
 ```python
-from keepsave import KeepSave
+from keepsave import KeepSaveClient
 
-ks = KeepSave(url=os.environ["KEEPSAVE_URL"], api_key=os.environ["KEEPSAVE_API_KEY"])
-secrets = ks.get_secrets(project_id=os.environ["KEEPSAVE_PROJECT_ID"], environment="prod")
+ks = KeepSaveClient(os.environ["KEEPSAVE_URL"], api_key=os.environ["KEEPSAVE_API_KEY"])
+secrets = ks.list_secrets(os.environ["KEEPSAVE_PROJECT_ID"], "alpha")
 ```
 
 ### CI/CD
@@ -55,10 +57,10 @@ being deployed.
 
 | Integration | Path |
 |---|---|
-| Terraform provider | [`integrations/terraform/`](../integrations/terraform/) |
+| Terraform data-source consumer | [`integrations/terraform/`](../integrations/terraform/) |
 
-Manage projects, environments and API keys declaratively, so vault topology is
-reviewed in the same pull request as the infrastructure that consumes it.
+The existing Terraform adapter consumes permitted secret values; it is not a
+full KeepSave resource provider. Review its state/output handling before use.
 
 ### Embeddable widget
 
@@ -81,14 +83,12 @@ including why wildcard `postMessage` targets are forbidden.
 
 ### MCP clients
 
-Any MCP-speaking client (Claude Desktop, Claude Code, or your own agent) can use
-KeepSave's gateway as a single endpoint for every registered tool. KeepSave
-resolves each server's secrets and injects them as environment variables at call
-time, so the agent never receives the credential.
-
-```bash
-curl http://localhost:8080/api/v1/mcp/config -H "Authorization: Bearer <jwt>"
-```
+Standards-based `/mcp` and resource-bound Codex OAuth are M2. The current core
+refuses API-host gateway execution/build/install/config generation. Registry and
+catalog metadata do not establish client compatibility or credential confinement.
+The approved M3 broker makes structured authenticated GitHub requests and keeps
+GitHub App tokens from the connector/model; social GitHub login is separate.
+See the [ordered architecture plan](ARCHITECTURE.md).
 
 ---
 
@@ -109,22 +109,18 @@ for that product specifically.
 
 ## The shape of an integration
 
-Every integration above follows the same five steps. If you are wiring up
-something new, this is the path:
+For an authorized core vault integration, use these steps:
 
-1. **Create a project** — the unit of isolation. Secrets, API keys and OAuth
-   clients are all scoped to it.
+1. **Create a project** — the vault scope. Explicit workspace attachment requires
+   stored personal ownership and destination administrator authority.
 2. **Import secrets** — bulk-import an existing `.env`, or push keys
    individually. Values are sealed with AES-256-GCM before they reach storage.
 3. **Issue a scoped API key** — read-only, bound to one project and one
    environment, so a compromised runtime key cannot reach production.
-4. **Register an MCP server** *(optional)* — point KeepSave at a GitHub repo and
-   declare `env_mappings`. The gateway injects those secrets at call time.
-5. **Register an OAuth client** *(optional)* — use KeepSave as the identity
-   provider instead of standing up a second one.
-
-Steps 1–3 are the minimum. Full command sequences for each are in
-[`system/03-api-reference.md`](system/03-api-reference.md).
+MCP/provider/harness setup is deferred to the specific M2–M4 slices. Core vault
+clients receive authorized plaintext; caching cannot recall previously returned
+data after revocation. The [API contract](system/03-api-reference.md) describes
+current paths and safe revision/idempotency behavior.
 
 ## Adding a new integration
 

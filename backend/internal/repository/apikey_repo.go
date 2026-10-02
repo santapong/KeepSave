@@ -90,6 +90,35 @@ func (r *APIKeyRepository) GetByHashedKey(hashedKey string) (*models.APIKey, err
 	return k, nil
 }
 
+func (r *APIKeyRepository) GetByID(id uuid.UUID) (*models.APIKey, error) {
+	k := &models.APIKey{}
+	var env sql.NullString
+
+	if r.dialect.DBType() == DBTypePostgres {
+		err := r.db.QueryRow(
+			`SELECT id, name, hashed_key, user_id, project_id, scopes, environment, expires_at, created_at
+			 FROM api_keys WHERE id = $1`,
+			id,
+		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, &k.Scopes, &env, dbTime(&k.ExpiresAt), dbTime(&k.CreatedAt))
+		if err != nil {
+			return nil, fmt.Errorf("getting api key by hash: %w", err)
+		}
+	} else {
+		err := r.db.QueryRow(
+			Q(r.dialect, `SELECT id, name, hashed_key, user_id, project_id, scopes, environment, expires_at, created_at
+			 FROM api_keys WHERE id = $1`),
+			id,
+		).Scan(&k.ID, &k.Name, &k.HashedKey, &k.UserID, &k.ProjectID, &k.Scopes, &env, dbTime(&k.ExpiresAt), dbTime(&k.CreatedAt))
+		if err != nil {
+			return nil, fmt.Errorf("getting api key by hash: %w", err)
+		}
+	}
+	if env.Valid {
+		k.Environment = &env.String
+	}
+	return k, nil
+}
+
 func (r *APIKeyRepository) ListByUserID(userID uuid.UUID) ([]models.APIKey, error) {
 	rows, err := r.db.Query(
 		Q(r.dialect, `SELECT id, name, user_id, project_id, scopes, environment, expires_at, created_at

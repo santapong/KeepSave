@@ -12,26 +12,8 @@ import (
 
 func newLeaseTestService(t *testing.T) (*LeaseService, *sql.DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatalf("sqlite open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Exec(`CREATE TABLE secret_leases (
-		id TEXT PRIMARY KEY,
-		api_key_id TEXT,
-		project_id TEXT NOT NULL,
-		environment TEXT,
-		secret_keys TEXT,
-		granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		expires_at TIMESTAMP,
-		revoked INTEGER NOT NULL DEFAULT 0,
-		revoked_at TIMESTAMP
-	)`); err != nil {
-		t.Fatalf("ddl: %v", err)
-	}
-	dialect := repository.NewDialect(repository.DBTypeSQLite)
-	return NewLeaseService(db, dialect, nil), db
+	db, dialect := newA02TestDB(t, ddlSecretLeases)
+	return NewLeaseService(db, dialect, repository.NewAuditRepository(db, dialect)), db
 }
 
 // TestRevokeLease_ScopedToProject verifies AUTH-04: a lease can only be revoked
@@ -42,10 +24,12 @@ func TestRevokeLease_ScopedToProject(t *testing.T) {
 	projectA := uuid.New()
 	projectB := uuid.New()
 	leaseID := uuid.New()
+	actor := uuid.New()
+	seedLeaseParent(t, db, actor, projectA)
 	if _, err := db.Exec(
 		`INSERT INTO secret_leases (id, api_key_id, project_id, environment, secret_keys, expires_at, revoked)
 		 VALUES (?, ?, ?, 'alpha', '[]', CURRENT_TIMESTAMP, 0)`,
-		leaseID.String(), uuid.New().String(), projectA.String(),
+		leaseID.String(), actor.String(), projectA.String(),
 	); err != nil {
 		t.Fatalf("seed lease: %v", err)
 	}
@@ -59,7 +43,7 @@ func TestRevokeLease_ScopedToProject(t *testing.T) {
 	}
 
 	// Wrong project: no-op + not-found.
-	if err := svc.RevokeLease(leaseID, projectB, uuid.New(), ""); !errors.Is(err, ErrLeaseNotFound) {
+	if err := svc.RevokeLease(leaseID, projectB, actor, ""); !errors.Is(err, ErrLeaseNotFound) {
 		t.Fatalf("cross-project revoke err = %v, want ErrLeaseNotFound", err)
 	}
 	if isRevoked() {
@@ -67,10 +51,35 @@ func TestRevokeLease_ScopedToProject(t *testing.T) {
 	}
 
 	// Owning project: revoked.
-	if err := svc.RevokeLease(leaseID, projectA, uuid.New(), ""); err != nil {
+	if err := svc.RevokeLease(leaseID, projectA, actor, ""); err != nil {
 		t.Fatalf("same-project revoke err = %v, want nil", err)
 	}
 	if !isRevoked() {
 		t.Fatal("lease not revoked by its owning project")
+	}
+}
+
+// Legacy service fixtures deliberately use the same UUID for key and actor;
+// real-router integration tests assert the distinct database identities.
+func seedLeaseParent(t *testing.T, db *sql.DB, id, project uuid.UUID) {
+	t.Helper()
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS agent_token_issuance(jti TEXT PRIMARY KEY,lease_id TEXT,project_id TEXT,user_id TEXT,expires_at TIMESTAMP)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, ddl := range []string{`CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,owner_id TEXT,organization_id TEXT,deleted_at TIMESTAMP)`, `CREATE TABLE IF NOT EXISTS organization_members(organization_id TEXT,user_id TEXT,role TEXT)`} {
+		if _, err := db.Exec(ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO projects(id,owner_id) VALUES(?,?)`, project, id); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY,name TEXT,hashed_key TEXT,user_id TEXT,project_id TEXT,scopes TEXT,environment TEXT,expires_at TIMESTAMP,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`INSERT INTO api_keys(id,name,hashed_key,user_id,project_id,scopes) VALUES(?, 'fixture', 'unused', ?, ?, '["read","write"]')`, id, id, project)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

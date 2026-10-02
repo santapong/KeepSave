@@ -42,7 +42,7 @@ func newAuditHandlerEnv(t *testing.T) *auditHandlerEnv {
 	t.Cleanup(func() { _ = db.Close() })
 
 	for _, ddl := range []string{
-		`CREATE TABLE projects (
+		`CREATE TABLE projects (deleted_at TEXT,
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			description TEXT,
@@ -84,7 +84,8 @@ func newAuditHandlerEnv(t *testing.T) *auditHandlerEnv {
 		)`,
 		`CREATE TABLE organization_members (
 			organization_id TEXT NOT NULL,
-			user_id TEXT NOT NULL
+			user_id TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'editor'
 		)`,
 		// a02-shape audit_log: DB-default id + created_at so the unchained
 		// AuditRepository.Create insert lands cleanly on SQLite.

@@ -5,11 +5,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/service"
 )
 
 type AuthHandler struct {
 	authService *service.AuthService
+	social      *SocialAuthHandler
 }
 
 func NewAuthHandler(authService *service.AuthService) *AuthHandler {
@@ -23,8 +25,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.authService.Register(req.Email, req.Password)
+	resp, err := h.authService.RegisterContext(c.Request.Context(), req.Email, req.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if errors.Is(err, auth.ErrSessionUnavailable) {
+			WrapError(c, ErrServiceUnavailable)
+			return
+		}
 		if errors.Is(err, service.ErrUserExists) {
 			RespondError(c, http.StatusConflict, "email already registered")
 			return
@@ -69,8 +75,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.authService.Login(req.Email, req.Password, c.GetString("client_ip"))
+	resp, err := h.authService.LoginContext(c.Request.Context(), req.Email, req.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if errors.Is(err, auth.ErrSessionUnavailable) {
+			WrapError(c, ErrServiceUnavailable)
+			return
+		}
 		// Locked accounts get a distinct status (429) to make rate-stuffing
 		// tools back off; the message is intentionally generic so it does
 		// not confirm the email exists.

@@ -32,7 +32,7 @@ func newPromoEnv(t *testing.T) *promoEnv {
 	t.Cleanup(func() { _ = db.Close() })
 	for _, ddl := range []string{
 		`CREATE TABLE projects (
-			id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, owner_id TEXT NOT NULL,
+			id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, owner_id TEXT NOT NULL, deleted_at TIMESTAMP,
 			encrypted_dek BLOB, dek_nonce BLOB,
 			allowed_origins TEXT NOT NULL DEFAULT '[]', embed_policy_enabled INTEGER NOT NULL DEFAULT 0,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`,

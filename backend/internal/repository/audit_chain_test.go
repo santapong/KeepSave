@@ -23,6 +23,11 @@ func newChainAuditRepo(t *testing.T) (*AuditRepository, *sql.DB) {
 	)`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
+	for _, stmt := range splitSQLStatements(loadSQLiteMigration(t, "016_transactional_audit.sql")) {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
 	repo := NewAuditRepository(db, dialect)
 	key := make([]byte, 32)
 	for i := range key {

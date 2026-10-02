@@ -1,204 +1,101 @@
-# KeepSave Threat Model
+# KeepSave threat model — current core candidate
 
-**Version:** 1.2.1 | **Last review:** 2026-05-15 (audit team sweep delta) | **Previous:** 1.2.0 (2026-05-12)
+Reconciled 2026-10-02 (Asia/Bangkok) against the local unreleased implementation.
+This is a source/evidence update, not an independent security sign-off or a
+production risk rating. Historical May audit findings remain in
+`docs/audits/`; they must not be treated as the current implementation state.
+The [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md) separates
+executed synthetic checks from review, provider UAT and operational gates.
 
-> **2026-05-15:** 5 new rows + 4 residual-risk updates from audit team sweep (`docs/audits/SECURITY_AUDIT_2026-05-15.md`).
+## Assets and trust assumptions
 
-This document is the canonical threat model. Re-baseline cadence: after every Type-1 change and at minimum monthly (`docs/ROLES.md` §6). All STRIDE entries are anchored to file:line refs so they can be re-verified mechanically.
+Protect wrapping keys, project key versions, current/historical plaintext,
+encrypted backups and snapshot material, human session authority, API-key and
+agent parent lineage, organization membership, immutable audit identity and
+future broker credentials. Identity and resource metadata can remain plaintext;
+not every database column is encrypted.
 
-## Trust boundaries
+The browser, SDK, CLI, model, skill text, repository content and client-reported
+harness identity are untrusted. Authentication identifies a caller; stored
+resource resolution and live policy authorize an operation. The control host,
+trusted recovery CLI, database service and configured wrapping-key provider are
+operational trust dependencies. AES-GCM mitigates stolen ciphertext and
+tampering; it does not protect against a compromised API process that has key
+access. A hostile database operator can alter authoritative permissions or
+remove entire history; HMAC chaining is tamper evidence within its key-custody
+assumptions, not an external immutable receipt service.
 
-```
-[Browser / SDK / MCP client]
-   │  TLS (boundary 1: network)
-   ▼
-[Gin HTTP layer]
-   │  Auth middleware: JWT or API key (boundary 2: caller identity)
-   │  (backend/internal/api/middleware.go:59-120)
-   ▼
-[Service layer]
-   │
-   ├─► [crypto.Service + MasterKeyProvider]
-   │     │  (boundary 3: key custody)
-   │     │  ← Master key NEVER in DB
-   │     ▼
-   │   [KMS or env]
-   │
-   └─► [repository]
-         ▼
-       [Postgres]   ← all sensitive cols encrypted at rest
-```
+The intended application uses same-origin TLS at `app.keepsave.draveniq.dev`;
+marketing at `keepsave.draveniq.dev` stays static. No app production deployment,
+provider application or runner isolation is established by this change.
 
-Assets: master key (KEK), per-project DEKs, secret plaintext, OAuth client secrets, API key hashes, audit log, backup snapshots.
+## Current threat/control matrix
 
----
-
-## Findings new in v1.2.0 (re-baseline)
-
-The 30-day code audit surfaced gaps not present in v1.1.0. These are listed up front because they invalidate parts of the previous threat model.
-
-### Critical: Secret/Project/APIKey mutations are not audited
-- **Evidence:** `backend/internal/service/secret_service.go`, `project_service.go`, `apikey_service.go` do **not** have `auditRepo` fields and emit no audit events on Create/Update/Delete. Handlers (`backend/internal/api/handlers_secret.go:20-137`, etc.) do not write audit rows either.
-- **Implication:** "Repudiation" (the R in STRIDE) is currently **not mitigated** for the most important state-mutating endpoints. A compromised user account can create / modify / delete secrets with no in-product trail.
-- **Mitigation status:** **Open.** Tracked in `FOLLOWUPS.md` as P0; Backend 30-day work item.
-
-### Critical: No handler-level negative-auth tests
-- **Evidence:** Test files in `backend/internal/api/` cover health, rate-limit, highload only (`health_test.go`, `ratelimit_test.go`, `highload_test.go`). No test asserts a wrong-project ID, expired JWT, or revoked API key produces 401/403.
-- **Implication:** "Spoofing / Elevation" mitigations exist in middleware (`backend/internal/api/middleware.go:59-100+`) but are not verified by tests. A regression in the middleware would not be caught by CI.
-- **Mitigation status:** **Open.** QA + Backend 30-day work item.
-
-### High: Error responses leak DB and crypto details
-- **Evidence:** `handlers_auth.go:64`, `handlers_secret.go:35`, `handlers_promotion.go:48`, `handlers_intelligence.go:44, 49, 63, 90` return `err.Error()` directly. Service-layer error wrapping (`fmt.Errorf("decrypting: %w", err)`) preserves the underlying message; `pgx`, `pq`, and `crypto/cipher` errors reach clients.
-- **Implication:** "Information disclosure" — internal error text aids attacker enumeration (table names, column types, GCM "message authentication failed" telltales).
-- **Mitigation status:** **Open.** Backend 30-day work item.
-
-### High: Embed widget accepts auth from any origin
-- **Evidence:** `frontend/src/embed/auth.ts:21-26` listens for `keepsave-auth` messages without checking `ev.origin`. `frontend/src/embed/auth.ts:33` sends to `window.parent` with target origin `'*'`.
-- **Implication:** "Spoofing" — a malicious host page (or sibling iframe) can inject a fake auth token into the widget. The widget will use the attacker's credentials, leaking nothing directly but creating a confused-deputy on requests that depend on the widget's identity.
-- **Mitigation status:** **Open.** Frontend 30-day work item; full policy in `docs/EMBED_ORIGIN_POLICY.md`.
-
-### Medium: Repository layer is largely untested
-- **Evidence:** 20 code files under `backend/internal/repository/`, 1 test file (`audit_repo_test.go`, 4 tests).
-- **Implication:** Tampering / Integrity vectors at the DB boundary are not regression-tested. Schema or ORM-mapping regressions could silently corrupt encrypted columns.
-- **Mitigation status:** **Open.** QA 60-day work item.
-
----
-
-## 1. Vault (`crypto.Service` + `MasterKeyProvider`)
-
-| STRIDE | Threat                                       | Mitigation                                                  | File:line                                                       | Residual |
-|--------|----------------------------------------------|-------------------------------------------------------------|------------------------------------------------------------------|----------|
-| S      | Attacker forges KMS decrypt request          | Provider interface uses IAM role + audited KMS logs         | `crypto/keyprovider/` (AWS/GCP files exist, not yet wired)       | Low      |
-| T      | DEK or ciphertext tampered in DB             | AES-GCM auth tag rejects tampered input                     | `crypto/crypto.go:64-90` (decrypt)                               | Low      |
-| R      | Key rotation without audit trail             | `keyrotation_service` writes audit entries                  | (verify in 30d) — service exists; check audit emit               | Medium   |
-| R      | Audit-log row tamper / taxonomy gaps         | `audit_log` is plain table (no hash-chain/MAC); `role.changed`, `settings.changed` missing from `AUDIT_LOG_COVERAGE.md:21-43`; `AuditEntry` lacks `actor_type` (user vs api-key vs service-account). 2026-05-15: new row — taxonomy + tamper-evidence ADR pending (ADR-0010-adjacent). | `migrations/001_initial_schema.sql:66-77`, `docs/AUDIT_LOG_COVERAGE.md:21-43` | Medium   |
-| I      | Master key exfiltrated via logs              | Master key never logged; only cached in RAM                 | manual review                                                    | Low      |
-| I      | Webhook SSRF reaches IMDS / RFC1918 hosts    | None today; webhook URL is user-controlled with no allow/deny list. ADR for webhook-SSRF guard pending (Infisical Cand. 1 blocked-pending-SSRF-guard). | `backend/internal/service/webhook_service.go:136,158`            | **High** |
-| D      | KMS throttle stalls startup                  | MasterKeyProvider retries with backoff. 2026-05-15: threat is moot today since KMS adapters unwired (`main.go:247-248` bails "not implemented"); restores to Medium when FU#1 lands (ADR-0008/0009-adjacent). | `keyprovider/env.go` and KMS adapters                            | Medium (moot) |
-| E      | Compromised process reads RAM                | Container isolation, minimal image                          | `backend/Dockerfile`                                             | Medium   |
-
-**Open follow-ups:** secure-zero master key in memory on shutdown; verify keyrotation audit emission (likely missing per Critical finding above); hardware attestation for nodes handling master key.
-
-## 2. Authentication (`auth.JWT`, `auth.APIKey`, middleware)
-
-| STRIDE | Threat                                       | Mitigation                                                                 | File:line                                                | Residual |
-|--------|----------------------------------------------|----------------------------------------------------------------------------|-----------------------------------------------------------|----------|
-| S      | Forged JWT                                   | RS256 with per-kid keypair (private key encrypted at rest), verified by kid against JWKS; explicit alg allowlist rejects `none` + algorithm-confusion (RFC 8725); HS256 accepted only during the cutover window (ADR-0008) | `auth/auth.go` (ValidateToken keyfunc), `auth/keystore.go`, `api/middleware.go:59-100` | Low      |
-| S      | Forged API key                               | Hashed at rest (SHA-256); compared via constant-time helper                 | `auth/apikey.go:11-26`                                    | Low      |
-| T      | Token replay after revocation                | API key revocation = row delete. Agent tokens (jti-bearing) are short-lived (≤15 min) and revocable before expiry via a denylist — by jti or by lease-cascade (ADR-0021). Ordinary user JWTs still expire-only (24h, no jti ⇒ skip denylist). | `auth/auth.go` (Denylister check), `repository/token_denylist_repo.go` | Low (agent) / Medium (user) |
-| E      | Agent-token mint widens scope                | The lease's project/environment/secret-keys are embedded in the token at mint; `JWTAuthMiddleware` default-denies an agent token on every route except `GET /projects/:id/secrets[/:secretId]` and installs the lease scope as a read-only, env-locked, key-globbed API-key context, so `RequireProjectAccess`+`EnforceAPIKeyScope`+`APIKeyScopeAllowsKey` confine it to exactly its leased reads — never the owning user's access (ADR-0021 Amendment 2026-06-24). **Was High** (the original mint inherited full user authority); now Low. | `auth/auth.go` (Claims, GenerateAgentToken), `api/middleware.go` (JWTAuthMiddleware, agentTokenRouteAllowed, agentReadScopes), `service/agent_token_service.go` | Low |
-| R      | Login attempts not audited                   | Auth events not in audit log (verify in 30d)                                | `auth_service.go`                                         | Medium   |
-| I      | Auth error leaks user existence              | Login wraps `sql.ErrNoRows` as "invalid credentials" — verify             | `auth_service.go:70`                                      | Low      |
-| D      | Credential stuffing                          | Per-IP rate limit + exponential backoff                                     | `api/ratelimit*.go`                                       | Low      |
-| E      | API key scope escalation                     | `EnforceAPIKeyScope` holds keys to their action scope per method and to their environment lock; per-secret scope grammar (`action[:keyGlob]`, ADR-0022) further restricts key-scoped keys to matching keys at create/get/update/delete/list. Legacy bare scopes unchanged. | `api/middleware.go` (EnforceAPIKeyScope, apiKeyScopeAllowsKey), `api/handlers_secret.go` | Low |
-| E      | JWT lacks project bind                       | JWT carries `user_id` but no `project_id` claim; any authenticated user can present their valid JWT to any `/projects/:id/*` endpoint and bypass tenant isolation. None today; ADR-0005 (RequireProjectAccess middleware) lands the fix. | `backend/internal/auth/auth.go:11-62`                     | **High** |
-
-## 3. Promotion engine
-
-| STRIDE | Threat                                       | Mitigation                                                       | File:line                                              | Residual |
-|--------|----------------------------------------------|------------------------------------------------------------------|---------------------------------------------------------|----------|
-| T      | Secret modified between diff and apply       | Transactional apply; diff re-validated                            | `service/promotion_service.go:272-346`                  | Low      |
-| R      | Approver identity spoofed                    | Approver re-auths; audit captures `sub`                          | `service/promotion_service.go:215-240`                  | Low      |
-| R      | Approval decision merged with execution audit | No distinct `promotion_approved` event before execution (gap). 2026-05-15: A04-F1 approver=requester gap (separate row below) reinforces this; see ADR-0007 (approval audit split). | `service/promotion_service.go:215-240`                  | Medium   |
-| I      | Diff leaks plaintext                         | Diff redacts values; only keys + action shown                    | review needed                                           | Low      |
-| I      | Plaintext leak via `/promote/diff` response   | None today. Diff endpoint returns full plaintext `SourceValue` and `TargetValue`, contradicting the design intent that diffs are redacted; ADR for diff-redact pending. | `backend/internal/models/models.go:146-147`, `backend/internal/service/promotion_service.go:131,140` | **High** |
-| D      | Flapping promotions saturate DB              | Per-project rate limit                                            | `api/ratelimit*.go`                                     | Low      |
-| E      | Non-approver promotes to PROD                | PROD requires `promote` scope; pending record + separate approval | `service/promotion_service.go:186-195`                  | Low      |
-| E      | Requester self-approves                      | **Invariant not currently enforced at DB layer** (gap)            | open follow-up                                          | Medium   |
-
-## 4. Embed widget (browser trust domain)
-
-| STRIDE | Threat                                                          | Mitigation                                                                | File:line                                | Residual |
-|--------|------------------------------------------------------------------|---------------------------------------------------------------------------|------------------------------------------|----------|
-| S      | Malicious host page injects fake `keepsave-auth` postMessage    | **None today** — listener has no origin check                              | `frontend/src/embed/auth.ts:21-26`       | **High** |
-| T      | Malicious page modifies revealed-secret DOM                     | Shadow DOM isolates widget                                                | `frontend/src/embed/keepsave-widget.ts`  | Low      |
-| I      | Secret exfiltration via postMessage to `*`                      | **No outbound message currently carries a secret;** code-review forbidden | policy + review                          | Low      |
-| I      | Secret persisted to localStorage / IndexedDB                    | Embed code does not use storage (verified)                                | `frontend/src/embed/` (no storage refs)  | Low      |
-| E      | Privilege escalation via attribute injection                    | `project-id` / `api-key` attributes are host-trusted by construction      | `keepsave-widget.ts:61, 65`              | Low      |
-
-## 5. MCP Gateway (carried from v1.1.0; unchanged)
-
-| STRIDE | Threat | Mitigation | Residual |
+| STRIDE | Threat | Current control / source | Practical limit / remaining acceptance |
 |---|---|---|---|
-| S | Malicious MCP server impersonates legit | Registry binds server to owner + signature | Medium |
-| T | Tool response tampered in transit | TLS to registered server; response schema check | Low |
-| I | Secret injected into wrong tool | Injection scoped per project + environment | Low |
-| D | Slow MCP server stalls gateway | Per-call 10s timeout + circuit breaker | Low |
-| E | Tool call bypasses auth | Gateway enforces JWT/API key before routing | Low |
+| S | Forged human token or legacy expire-only JWT | `auth/auth.go`, `service/session_service.go`, API middleware require tracked active sid/jti and token hash; 24h maximum. | HS256 signing secret and trusted DB remain critical. No human refresh flow; drain old binaries at cutover. |
+| S/E | Replayed or revoked human session | Session list/logout/owned revoke; database checks on each admission. Identity tests cover foreign targets, unavailable DB and rollback. | Already-admitted work may complete. Provider UAT and operational outage exercise remain separate. |
+| S | Social callback identity substitution | One-use state/PKCE, configured exact callbacks, Google identity verification and GitHub verified identity/email handling. | Fixtures do not prove operator configuration or real provider behavior. |
+| E | Automatic email linking or canonical collision grants another account | Migration020 canonical identities refuse ambiguity; explicit provider link requires originating active recently authenticated session. | Existing collisions need operator resolution; no automatic merge. |
+| E | Open signup creates operator privileges | Registration grants identity only; explicit transactional workspace create/admin membership. Immutable user-ID operator grant requires trusted CLI. | No global permission from an email claim; deprecated email-admin configuration is rejected. |
+| E | Wrong project/tenant, viewer credential read, forged resource IDs | Stored resource and policy checks in `repository/authority_store.go`, project access and authorized services; actual-router denial tests. | Legacy compatibility adapters are inventoried; they cannot be assumed migrated. |
+| E | Original project owner bypasses workspace demotion/removal | Personal owner authority applies only while organization is NULL; assigned project authority uses current membership for sessions, keys and policy. | Regression covers demotion/removal and personal compatibility; explicit cross-org transfer is deferred. |
+| E | Workspace assignment steals foreign project or broadens old delegation | Stored owner + destination administrator, active project, same-org idempotency, cross-org refusal, source key/lease revocation in one transaction. | No implicit account/workspace/project bootstrap. |
+| E | Lease or token broadens parent project/environment/keys/expiry | Parent identity and live lineage, persisted issuance and revocation, legacy scope adapter; `agent_token_service`, `policy`. | Vault leases are not future broker run grants. Granted plaintext cannot be recalled. |
+| E/I | Private workspace template is exposed or changed by a removed creator | Current stored membership for read/list/apply, current admin for workspace mutation, personal creator for personal mutation, strict human session; required metadata audit/outbox transaction. | Template defaults are ordinary configuration: use placeholders, not live credentials. Core global publication is refused; builtins remain available. |
+| T/R | Secret edit lacks a version or success is audited after failed mutation | PostgreSQL vault transaction joins current mutation, immutable revision, required audit and outbox; fixtures force audit failure. | PostgreSQL-only guarantees; unsupported versioned history/recovery refuse 503. No old writer may resume after enrollment. |
+| T | Concurrent restore/edit silently loses a newer value | Project serialization and expected current revision; restore appends rather than overwrites history. | Callers must supply explicit restore preconditions; stale revision returns conflict. |
+| T/I | Rotation strands history or promotion snapshots | Versioned wrapped project keys retained while ciphertext/snapshot references remain; journal adapters and rotation/promotion tests. | Recovery material must be retained externally. No speculative key purge. |
+| T/R | DELETE changes hashed audit identities through FK actions | Migration 023 preserves immutable audit project/user IDs; project tombstones retain resource identity. | Applied migration and restart-chain verification are required; never recompute prior hashes to hide a mismatch. |
+| I | Delete treated as erasure or restore resurrects a deleted credential | Secret/project tombstones deny active authority; no undelete in selected/version restore. | Encrypted history/key retention is indefinite in this release; revoked upstream secrets still need provider-side rotation. |
+| T/I | Corrupt backup, wrong recovery key or partial recovery | Authenticated bundle verification, metadata preview, selected revision checks; CLI recovery refuses occupied/nonempty-schema targets before migration. External-file seven-check isolated recovery passed. | External key custody and production backup storage operation remain release gates. Recovery excludes authority. |
+| T/R | Duplicate jobs or stale worker acknowledges another attempt | `internal/jobs` leases, fencing, bounded retries and persisted uncertain states; PostgreSQL queue tests. | External effects are not atomic with DB; uncertain attempts require reconciliation. |
+| T/I | Backup retention deletes only recoverable copy or hides failure | Opt-in scheduling, verified catalog dependencies, thirty daily/minimum two, manual bundles held; audited delete-pending before unlink and failure state. | Worker defaults off until recovery confirmation; no historical key deletion. Operational storage failure drill remains separate. |
+| I | Secret/token in error, response, log or metrics | Safe error envelope and logging redaction; metadata-only history list/backup preview/session catalog. | Explicit vault reads/exports contain authorized plaintext. Do not advertise credential confinement before broker delivery. |
+| I/D | User-controlled connector command/build or outbound webhook | Core composition disables connector build/execute/install/config generation and unfinished webhook operations. | Legacy source remains an inventory, not an approved runtime. Restricted runner tests are M3. |
+| D | Oversized request / recovery bundle exhausts API | 1 MiB general body limit; exact recovery endpoints 90 MiB, corresponding proxy limit; bounded vault selections and worker resources. | No capacity/availability numbers are measured yet; DB-backed cross-replica admission remains M5. |
+| S/I | Forged proxy origin/IP or leaked application token | Explicit trusted-proxy list, allowed origins, TLS/reference security headers; proxy does not log OAuth callback query. | CORS is browser isolation, not caller authorization. Host/browser compromise can steal a valid bearer token. |
+| E | Unfinished integration advertised as enforced policy | Core capability refusal for AI, policy metadata, legacy OAuth, enterprise SSO, replay and plugin execution. | SDK/widget/CLI compatibility UAT is separate. `/api/docs` covers the bounded core, not every legacy route. |
 
-## 6. MCP tool execution (new, 2026-05-15)
+The source paths are intentionally file-level because this working tree changes
+rapidly. Exact executed evidence and dates belong in the acceptance ledger rather
+than stale line-number claims.
 
-Covers the execution path that §5 does not: command spawning by the gateway and build/install jobs by the registry. §5 covers transport and routing; §6 covers what happens when the gateway *runs* a registered server.
+## Broker, runner and skill threats — future required controls
 
-| STRIDE | Threat                                                                                                        | Mitigation                                                                                  | File:line                                                                | Residual |
-|--------|---------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|----------|
-| T      | Authenticated user registers MCP server with malicious `EntryCommand`; gateway then execs the stored command with decrypted secrets in env. | None today; ADR-0010 (MCP command-execution hardening) pending.                              | `backend/internal/api/handlers_mcp_gateway.go:327-339`                    | **High** (authenticated RCE primitive) |
-| D      | `RegisterServer` / `RebuildServer` spawn unbounded goroutines running `git clone` + `npm/pip install` + `go build` with no timeout. | None today.                                                                                  | `backend/internal/api/handlers_mcp.go:47, :163`                           | **High** (user-triggered DoS) |
+M2–M5 are unimplemented acceptance programs, not current mitigations. Their
+security contract remains: audience/resource/client-bound OAuth, exact PKCE and
+callback, atomic authorization-code consumption, refresh replay detection,
+installation-qualified tool identity, schema/artifact digests and real Codex
+contract checks. Public dynamic registration is deferred.
 
-## 7. Secret-version retention (new, 2026-05-15)
+Provider use must be opt-in through an approved binding and attenuated run. A
+run ID is not bearer authority. At admission and broker use, intersect current
+membership, organization/project policy, parent grant, approved artifact/profile,
+repository/commit/action and expiry. Deny overrides allow; unavailable authority
+denies. The broker receives structured identifiers and makes the authenticated
+GitHub request; no arbitrary upstream URL or provider token reaches the connector
+or model.
 
-| STRIDE | Threat                                                                                              | Mitigation                                                                | File:line                                                                              | Residual |
-|--------|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|----------|
-| I      | Deleted secrets retain their value via `SecretVersion` history; if a version was leaked and the secret is later "deleted", the leaked value still grants access. | None today — separate ADR for shred-on-delete required.                    | `backend/migrations/003_secret_versions.sql:2-16`, `backend/internal/repository/version_repo.go` | Medium   |
+The separate runner must prove read-only filesystem, limited scratch/resources,
+no host home/socket/database/vault keys, broker-only network, signed tenant-bound
+identity, replay denial, cancellation, timeout and crash recovery. Skill text and
+repository instructions cannot expand grants. Immutable instruction-only skills
+and profiles bind approval to exact digests and policy revisions. Administrator
+Codex requirements are verified on the supported version; editable defaults and
+self-reported harness names are not enforcement or device attestation.
 
----
+Revocation denies new operations after commit; already-dispatched work may
+complete. Repository data returned to Codex reaches its configured model and
+cannot be recalled. Self-hosting does not imply a local model or an administrator-
+proof developer device.
 
-## Assumptions (verify at each re-baseline)
+## Review and operational gates
 
-- Kubernetes or equivalent container runtime with network policies.
-- Postgres with `sslmode=require`, offline encrypted backups.
-- Master key managed by KMS in production (`EnvProvider` is dev-only per ADR-0004).
-- Operators keep host OS and container images patched.
-- HTTPS termination in front of the API; TLS not terminated at the Go process (verify per environment via `docs/SECRET_SOURCES.md`).
-
-## Out-of-scope
-
-- Compromise of the integrator's own host page (the embed widget cannot defend against an attacker with full DOM control on the host).
-- Compromise of the customer-side runtime that holds API keys (we provide rotation; secure runtime storage is the customer's problem).
-- Physical compromise of the database or KMS hardware.
-
-## §8. Cross-origin trust boundary (added per ADR-0016, 2026-05-18)
-
-ADR-0016 splits the frontend (Vercel) and backend (container platform) onto distinct origins. This widens the trust boundary — there is now a public-internet hop between the React SPA and the Gin API that previously was a same-origin call.
-
-| Component | Trust | Notes |
-|---|---|---|
-| Vercel-hosted SPA | Untrusted (any browser may load it; integrity gated by Vercel + SRI) | Build artifacts are public. No secrets in `import.meta.env.VITE_*`. |
-| Public internet between SPA and API | Untrusted | Confidentiality + integrity from TLS only. No mTLS today. |
-| Container-hosted Gin API | Trusted | Holds master key in memory. CORS allow-list is the boundary control. |
-
-### STRIDE rows for the new boundary
-
-| # | Threat | Mitigation | Residual |
-|---|---|---|---|
-| §8/S | Attacker hosts a malicious SPA at `https://evil.example` and tricks a user into pasting their bearer token | Bearer tokens stored in `localStorage` are origin-bound by the browser; CORS allow-list refuses requests from non-allowlisted origins; embed widget refuses `postMessage` from non-allowlisted hosts (ADR-0006) | Low |
-| §8/T | MITM on the public-internet hop | TLS required (`https://` only; `KEEPSAVE_ENV=production` rejects `sslmode=disable`); HSTS emitted when TLS terminates at the Go process | Low — TLS at managed Vercel/Fly/Cloud Run edges |
-| §8/R | Origin spoofing in CORS preflight (the `Origin` header is set by the browser; an attacker tool may forge it) | Reflected `Access-Control-Allow-Origin` is only echoed when the value matches the exact-list or single-glob in `CORS_ORIGINS`; SOP still applies in real browsers | Low — non-browser callers can already use the API directly |
-| §8/I | A second Vercel deploy under an attacker-controlled team subdomain matches a too-permissive glob pattern | Glob patterns reject 2+ wildcards (`compileOriginPatterns` in `backend/internal/api/middleware.go`); operators must use the **single-`*`** form and pin the team suffix; runbook documents the convention | Low if convention is followed; Medium if operators use overly broad globs |
-| §8/D | Preflight floods aimed at exhausting backend CPU | Existing per-IP rate limiter applies to OPTIONS too; preflight returns 204 cheaply | Low |
-| §8/E | Cookie-based session bypass | `Access-Control-Allow-Credentials` is unconditionally false; bearer-token only. Cookie auth is a Type-1 ADR away — do not enable without a new threat-model pass | None today |
-
-### Operational invariants
-
-- `Access-Control-Allow-Credentials` MUST stay `false`. Enabling it without re-doing this section opens up CSRF on cross-origin POSTs.
-- `CORS_ORIGINS=*` is forbidden in production (`internal/config/config.go` startup check).
-- Glob patterns are single-wildcard only. Multi-wildcard entries are dropped at parse time (`backend/internal/api/middleware.go::compileOriginPatterns`).
-- `Vary: Origin` is emitted whenever an allow-list match reflects the origin (prevents cache poisoning by intermediaries).
-
-### Files for verification
-
-- `backend/internal/api/middleware.go` (`CORSMiddleware`, `matchOrigin`, `compileOriginPatterns`)
-- `backend/internal/api/cors_test.go` (allow-list matrix + no-credentials assertion)
-- `backend/internal/config/config.go:82-87` (production refuses `CORS_ORIGINS=*`)
-- `frontend/src/api/client.ts:24-31` (`VITE_API_BASE_URL` resolution)
-- `docs/adr/0016-deployment-topology.md` §Consequences/Security
-- `docs/DEPLOYMENT_PLAN.md` §4.4 (operator CORS guidance)
-
-## Change log
-
-- **1.2.4 (2026-06-24):** Full-codebase security-review remediation on PR #63. Rewrote the §2/E *Agent-token mint widens scope* row (was **High** in practice — the original mint inherited the owning user's full authority; now Low) for the embedded-lease-scope + default-deny confinement fix (ADR-0021 Amendment 2026-06-24). Companion broken-access-control fixes (cross-tenant IDOR in the AI anomaly/rule, drift-schedule, recommendation, template, application, access-policy surfaces; org-quota membership; platform-plugin admin gate; webhook-delivery scoping) landed in the same PR — all reuse the existing project/owner-binding + `RequireProjectAccess`/`requireOrgRole`/`RequirePlatformAdmin` primitives.
-- **1.2.3 (2026-06-23):** §2 auth refresh for the auth-chain work on PR #63. Updated the *Forged JWT* row for RS256/JWKS + algorithm-confusion guard (ADR-0008) and the *Token replay after revocation* row for the short-lived agent-token denylist (ADR-0021); added a §2/E row for the agent-token mint path (lease→token, no scope widening); rewrote the *API key scope escalation* row (was **High**, now Low) for the enforced action scope + per-secret scope grammar (ADR-0022).
-- **1.2.2 (2026-05-18):** Added §8 (cross-origin trust boundary per ADR-0016 acceptance). Updated mitigations columns referencing the audit S-B2/S-B3/S-B4/S-B5/S-B6 fixes that landed in PR #54.
-- **1.2.1 (2026-05-15):** Audit team sweep delta (`docs/audits/SECURITY_AUDIT_2026-05-15.md`). 5 new STRIDE rows (§2/E JWT-no-project-bind, §3/I Diff plaintext, §1/I webhook SSRF, §1/R audit-log tamper + taxonomy gaps, §6/T MCP entry-command RCE, §6/D MCP build DoS, §7/I secret-version retention) and 4 residual-risk updates (§2/E API key scope -> High; §3/R approval-merge cross-refs ADR-0007; §1/T KMS throttle noted moot pending FU#1; §1/R audit-log row added). New top-level sections §6 (MCP tool execution) and §7 (Secret-version retention).
-- **1.2.0 (2026-05-12):** Re-baselined during 30-day plan. Added Section 4 (embed widget). Added "Findings new in v1.2.0" block with four critical/high open gaps. Added file:line refs throughout. Added "Assumptions" verification cadence and "Out-of-scope" list.
-- **1.1.0 (2026-04-19):** STRIDE pass on vault, OAuth, MCP, promotion. Pre-30-day-plan baseline.
+Independent Security Engineer/Tech Lead review is pending for Type-1 changes.
+Before production require real Google/GitHub UAT, coordinated migration/session/
+journal cutover, independent external-backup isolated recovery, deployment TLS/
+origin validation, outage/restart/upgrade tests and supported-client contracts.
+No unmeasured residual-risk score, throughput, uptime or exactly-once claim is
+made. See [architecture](ARCHITECTURE.md), [core ADR](adr/0028-core-identity-and-vault-release.md)
+and [self-hosted reference](../deploy/self-hosted/README.md).

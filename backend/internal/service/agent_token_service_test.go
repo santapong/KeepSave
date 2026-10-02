@@ -33,6 +33,7 @@ func TestAgentTokenService_MintRevoke(t *testing.T) {
 
 	actor := uuid.New()
 	projectID := uuid.New()
+	seedLeaseParent(t, db, actor, projectID)
 	lease, err := leaseSvc.CreateLease(actor, projectID, "alpha", []string{"DATABASE_URL"}, time.Hour, "10.0.0.1")
 	if err != nil {
 		t.Fatalf("CreateLease: %v", err)
@@ -100,6 +101,7 @@ func TestAgentTokenService_MintErrors(t *testing.T) {
 	actor := uuid.New()
 	projectID := uuid.New()
 	otherProject := uuid.New()
+	seedLeaseParent(t, db, actor, projectID)
 	lease, err := leaseSvc.CreateLease(actor, projectID, "alpha", []string{"K"}, time.Hour, "10.0.0.1")
 	if err != nil {
 		t.Fatalf("CreateLease: %v", err)

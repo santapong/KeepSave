@@ -1,179 +1,68 @@
 import type { ComponentType } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
-  LayoutGrid,
-  FolderClosed,
-  Building2,
-  Boxes,
-  Server,
-  ShieldCheck,
-  AppWindow,
-  Bot,
-  BookOpen,
-  LogOut,
-  Moon,
-  Sun,
-} from 'lucide-react';
+import { FolderClosed, Building2, Boxes, OrbitHub, KeyRound, ShieldCheck, AppWindow, Bot, BookOpen, LogOut, Moon, Sun, PanelLeftClose, PanelLeftOpen, ArrowUpRight } from '@/components/icons';
 import { useTheme } from '@/hooks/useTheme';
-import { cn } from '@/lib/utils';
-import { MotionToggle } from './cosmic/MotionToggle';
 import { Brand } from './cosmic/Brand';
+import { useCapabilities, routeCapability } from '../hooks/useCapabilities';
 
 interface SidebarProps {
   user: { email: string } | null;
   collapsed: boolean;
   onToggle: () => void;
   onLogout: () => void;
+  onNavigate?: () => void;
+  mobile?: boolean;
 }
-
-interface NavItem {
-  path: string;
-  label: string;
-  icon: ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
-  count?: string;
-}
-
-interface NavSection {
-  label: string;
-  items: NavItem[];
-}
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    label: 'Overview',
-    items: [{ path: '/admin', label: 'Dashboard', icon: LayoutGrid }],
-  },
-  {
-    label: 'Vault',
-    items: [
-      { path: '/', label: 'Projects', icon: FolderClosed },
-      { path: '/organizations', label: 'Organizations', icon: Building2 },
-      { path: '/templates', label: 'Templates', icon: Boxes },
-    ],
-  },
-  {
-    label: 'Platform',
-    items: [
-      { path: '/mcp-hub', label: 'MCP Hub', icon: Server },
-      { path: '/oauth-clients', label: 'OAuth Clients', icon: ShieldCheck },
-      { path: '/applications', label: 'Applications', icon: AppWindow },
-    ],
-  },
-  {
-    label: 'Intelligence',
-    items: [
-      { path: '/ai', label: 'AI Intelligence', icon: Bot },
-      { path: '/help', label: 'Docs', icon: BookOpen },
-    ],
-  },
+interface NavItem { path: string; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number }> }
+const sections: { label: string; items: NavItem[] }[] = [
+  { label: 'Workspace', items: [
+    { path: '/', label: 'Projects', icon: FolderClosed },
+    { path: '/organizations', label: 'Organizations', icon: Building2 },
+    { path: '/templates', label: 'Templates', icon: Boxes },
+  ] },
+  { label: 'Connections', items: [
+    { path: '/applications', label: 'Applications', icon: AppWindow },
+    { path: '/mcp-hub', label: 'MCP Hub', icon: OrbitHub },
+    { path: '/oauth-clients', label: 'OAuth Clients', icon: KeyRound },
+  ] },
+  { label: 'Tools', items: [
+    { path: '/ai', label: 'AI Intelligence', icon: Bot },
+    { path: '/admin', label: 'Administration', icon: ShieldCheck },
+  ] },
 ];
 
-function isActive(currentPath: string, itemPath: string): boolean {
-  if (itemPath === '/') return currentPath === '/' || currentPath.startsWith('/projects');
-  return currentPath.startsWith(itemPath);
-}
-
-export function Sidebar({ user, onLogout }: SidebarProps) {
-  const location = useLocation();
-  const { theme, toggle: toggleTheme } = useTheme();
-
-  const initial = user?.email?.charAt(0).toUpperCase() ?? 'S';
-  const name = user?.email?.split('@')[0] ?? 'guest';
-
-  return (
-    <aside className="cz-rail">
-      <Brand className="cz-wordmark" size={36} />
-
-      <Link to="/organizations" className="cz-org" style={{ textDecoration: 'none' }}>
-        <span className="cz-nm">Your workspace</span>
-        <Building2 size={14} />
-      </Link>
-
-      <nav className="cz-nav">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.label}>
-            <div className="cz-nav-section">{section.label}</div>
-            {section.items.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(location.pathname, item.path);
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn('cz-nav-item', active && 'cz-active')}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  <Icon className="cz-ic" size={16} strokeWidth={1.6} />
-                  <span className="cz-lb">{item.label}</span>
-                  {item.count && <span className="cz-ct">{item.count}</span>}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      <div className="cz-rail-foot">
-        <div className="cz-row"><span>Vault storage</span><b>Encrypted at rest</b></div>
-
-        <div className="cz-user-row">
-          <span className="cz-avatar">{initial}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                color: 'var(--cz-ink)',
-                fontSize: 13,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {name}
-            </div>
-            <div className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 10 }}>
-              Signed in
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onLogout}
-            title="Sign out"
-            aria-label="Sign out"
-            style={{
-              background: 'transparent',
-              border: 0,
-              color: 'var(--cz-accent-hi)',
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
-
-        <div className="cz-row" style={{ marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            className="cz-faint"
-            style={{
-              background: 'transparent',
-              border: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              fontFamily: 'var(--cz-mono)',
-              fontSize: 11,
-            }}
-          >
-            {theme === 'dark' ? <Moon size={13} /> : <Sun size={13} />}
-            {theme === 'dark' ? 'Dark' : 'Light'}
-          </button>
-          <MotionToggle />
-        </div>
+export function Sidebar({ user, collapsed, onToggle, onLogout, onNavigate, mobile = false }: SidebarProps) {
+  const { pathname } = useLocation();
+  const { unavailable } = useCapabilities();
+  const { theme, toggle } = useTheme();
+  const active = (path: string) => path === '/' ? pathname === '/' || pathname.startsWith('/projects') : pathname.startsWith(path);
+  return <aside className={`ks-sidebar ${collapsed ? 'ks-sidebar-collapsed' : ''} ${mobile ? 'ks-sidebar-mobile' : ''}`}>
+    <div className="ks-sidebar-brand"><Brand size={35} onNavigate={onNavigate} />
+      {!mobile && <button type="button" className="ks-icon-button ks-collapse" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggle}>{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button>}
+    </div>
+    <div className="ks-sidebar-caption"><span className="ks-small-orbit" /> YOUR WORKSPACE</div>
+    <nav className="ks-navigation" aria-label="Workspace navigation">
+      {sections.map((section) => <div className="ks-nav-section" key={section.label}>
+        <div className="ks-nav-label">{section.label}</div>
+        {section.items.map(({ path, label, icon: Icon }) => routeCapability(path) && unavailable(routeCapability(path)!) ? <span key={path} className="ks-nav-link" aria-disabled="true" title={`${label}: unavailable in this release`} style={{ opacity: .45 }}><Icon size={18} strokeWidth={1.6} /><span>{label} · Planned</span></span> : <Link key={path} to={path} onClick={onNavigate} className={`ks-nav-link ${active(path) ? 'ks-nav-active' : ''}`} aria-label={label} aria-current={active(path) ? 'page' : undefined} title={collapsed ? label : undefined}>
+          <Icon size={18} strokeWidth={1.6} /><span>{label}</span>{active(path) && <i aria-hidden="true" />}
+        </Link>)}
+      </div>)}
+    </nav>
+    <div className="ks-sidebar-bottom">
+      <Link className="ks-nav-link ks-help-link" to="/help" onClick={onNavigate} aria-label="Documentation" title={collapsed ? 'Documentation' : undefined}><BookOpen size={17} /><span>Documentation</span><ArrowUpRight size={13} /></Link>
+      <div className="ks-account-row">
+        <Link to="/account" className="ks-account-link" onClick={onNavigate} aria-label="Account settings" title={user?.email || 'Account settings'}>
+          <span className="ks-account-avatar">{user?.email?.charAt(0).toUpperCase() || 'K'}</span>
+          <span className="ks-account-copy"><strong>{user?.email?.split('@')[0] || 'Your account'}</strong><span>Account settings</span></span>
+        </Link>
       </div>
-    </aside>
-  );
+      <div className="ks-sidebar-utilities">
+        <button type="button" className="ks-utility-button" onClick={toggle} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+          {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}<span>{theme === 'dark' ? 'Dark mode' : 'Light mode'}</span>
+        </button>
+        <button type="button" className="ks-icon-button" onClick={onLogout} title="Sign out" aria-label="Sign out"><LogOut size={16} /></button>
+      </div>
+    </div>
+  </aside>;
 }

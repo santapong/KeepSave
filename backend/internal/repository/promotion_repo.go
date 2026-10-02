@@ -36,7 +36,7 @@ func (r *PromotionRepository) Create(
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING id, project_id, source_environment, target_environment, status, requested_by, approved_by, keys_filter, override_policy, notes, created_at, completed_at`,
 			id, projectID, sourceEnv, targetEnv, requestedBy, pq.Array(keysFilter), overridePolicy, notes,
-		).Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, pq.Array(&p.KeysFilter), &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt))
+		).Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, &p.KeysFilter, &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating promotion request: %w", err)
 		}
@@ -63,7 +63,7 @@ func (r *PromotionRepository) GetByID(id uuid.UUID) (*models.PromotionRequest, e
 			`SELECT id, project_id, source_environment, target_environment, status, requested_by, approved_by, keys_filter, override_policy, notes, created_at, completed_at
 			 FROM promotion_requests WHERE id = $1`,
 			id,
-		).Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, pq.Array(&p.KeysFilter), &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt))
+		).Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, &p.KeysFilter, &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt))
 		if err != nil {
 			return nil, fmt.Errorf("getting promotion request: %w", err)
 		}
@@ -95,7 +95,7 @@ func (r *PromotionRepository) ListByProjectID(projectID uuid.UUID) ([]models.Pro
 	for rows.Next() {
 		var p models.PromotionRequest
 		if r.dialect.DBType() == DBTypePostgres {
-			if err := rows.Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, pq.Array(&p.KeysFilter), &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt)); err != nil {
+			if err := rows.Scan(&p.ID, &p.ProjectID, &p.SourceEnvironment, &p.TargetEnvironment, &p.Status, &p.RequestedBy, &p.ApprovedBy, &p.KeysFilter, &p.OverridePolicy, &p.Notes, dbTime(&p.CreatedAt), dbTime(&p.CompletedAt)); err != nil {
 				return nil, fmt.Errorf("scanning promotion request: %w", err)
 			}
 		} else {

@@ -71,10 +71,10 @@ func (r *TemplateRepository) GetByIDForUser(id, userID uuid.UUID) (*models.Secre
 		 FROM secret_templates
 		 WHERE id = $1 AND (
 			is_global = `+r.dialect.BoolLiteral(true)+`
-			OR created_by = $2
+			OR (organization_id IS NULL AND created_by = $2)
 			OR (organization_id IS NOT NULL AND EXISTS (
 				SELECT 1 FROM organization_members om
-				WHERE om.organization_id = secret_templates.organization_id AND om.user_id = $3))
+				WHERE om.organization_id = secret_templates.organization_id AND om.user_id = $3 AND om.role IN ('viewer','editor','promoter','admin')))
 		 )`),
 		id, userID, userID,
 	).Scan(&t.ID, &t.Name, &t.Description, &t.Stack, &t.Keys, &t.CreatedBy, &t.OrganizationID, &t.IsGlobal, dbTime(&t.CreatedAt), dbTime(&t.UpdatedAt))
@@ -112,8 +112,8 @@ func (r *TemplateRepository) ListByOrganization(orgID uuid.UUID) ([]models.Secre
 func (r *TemplateRepository) ListByUser(userID uuid.UUID) ([]models.SecretTemplate, error) {
 	rows, err := r.db.Query(
 		Q(r.dialect, `SELECT id, name, description, stack, keys, created_by, organization_id, is_global, created_at, updated_at
-		 FROM secret_templates WHERE created_by = $1 OR is_global = `+r.dialect.BoolLiteral(true)+` ORDER BY stack, name`),
-		userID,
+		 FROM secret_templates WHERE (organization_id IS NULL AND created_by = $1) OR is_global = `+r.dialect.BoolLiteral(true)+` OR (organization_id IS NOT NULL AND EXISTS(SELECT 1 FROM organization_members om WHERE om.organization_id=secret_templates.organization_id AND om.user_id=$2 AND om.role IN ('viewer','editor','promoter','admin'))) ORDER BY stack, name`),
+		userID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing user templates: %w", err)

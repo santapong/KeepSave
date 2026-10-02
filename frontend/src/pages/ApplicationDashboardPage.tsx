@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
 import { Page, PageHeader, EmptyState } from '@/components/cosmic/primitives';
 import { TypedConfirmModal } from '@/components/TypedConfirmModal';
-import { Settings, Plus, Pencil, Trash2, Star } from 'lucide-react';
+import { AppWindow, Settings, Plus, Pencil, Trash2, Star } from '@/components/icons';
 
 export function ApplicationDashboardPage() {
   const [apps, setApps] = useState<DashboardApplication[]>([]);
@@ -237,8 +237,10 @@ function AppCard({
           <div className="w-12 h-12 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden shrink-0">
             {isImage ? (
               <img src={app.icon} alt={app.name} className="w-full h-full object-cover rounded-xl" />
+            ) : app.icon ? (
+              <span className="text-[28px]">{app.icon}</span>
             ) : (
-              <span className="text-[28px]">{app.icon || '\uD83C\uDF10'}</span>
+              <AppWindow size={28} className="text-primary" />
             )}
           </div>
           <div className="flex gap-1">
@@ -300,7 +302,7 @@ function AddEditForm({
   const [name, setName] = useState(app?.name || '');
   const [url, setUrl] = useState(app?.url || '');
   const [description, setDescription] = useState(app?.description || '');
-  const [icon, setIcon] = useState(app?.icon || '\uD83D\uDE80');
+  const [icon, setIcon] = useState(app?.icon || '');
   const [category, setCategory] = useState(app?.category || 'General');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -363,14 +365,16 @@ function AddEditForm({
           <div className="relative w-14 h-14 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden cursor-pointer shrink-0">
             {icon.startsWith('data:image') ? (
               <img src={icon} alt="Icon" className="w-full h-full object-cover" />
-            ) : (
+            ) : icon ? (
               <span className="text-[28px]">{icon}</span>
+            ) : (
+              <AppWindow size={28} className="text-primary" />
             )}
-            <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+            <input type="file" accept="image/*" aria-label="Upload application icon" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
           </div>
           <div className="flex-1 space-y-1">
-            <Label>Icon (emoji or upload image)</Label>
-            <Input value={icon} onChange={(e) => setIcon(e.target.value || '\uD83D\uDE80')} maxLength={2} placeholder="Emoji" />
+            <Label htmlFor="app-icon">Icon (emoji or upload image)</Label>
+            <Input id="app-icon" value={icon.startsWith('data:image') ? '' : icon} onChange={(e) => setIcon(e.target.value)} maxLength={2} placeholder="Optional emoji" />
           </div>
         </div>
 

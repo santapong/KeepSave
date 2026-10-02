@@ -5,4 +5,4 @@ package version
 
 // Version is the semantic version surfaced by /healthz, /readyz, and the
 // startup log line.
-const Version = "1.1.0"
+const Version = "1.4.0-rc.1"

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>KeepSave — Field Twist — light surfaces</title>
+  <desc>Two sweeping light ribbons curl around an open core. An abstract adaptation of the curved polarization pattern in the EHT view of M87.</desc>
+  <defs>
+    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#a75625"/><stop offset="1" stop-color="#ba742e"/></linearGradient>
+    <linearGradient id="cool" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#9274cd"/><stop offset="1" stop-color="#654caa"/></linearGradient>
+  </defs>
+  <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool)"/>
+</svg>

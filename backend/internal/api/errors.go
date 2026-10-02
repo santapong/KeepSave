@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
 // ErrorResponse is the wire shape returned for every non-2xx response.
@@ -96,6 +97,17 @@ func RespondError(c *gin.Context, code int, message string) {
 func WrapError(c *gin.Context, err error) {
 	if err == nil {
 		return
+	}
+	if errors.Is(err, vault.ErrDenied) {
+		err = ErrForbidden
+	} else if errors.Is(err, vault.ErrConflict) {
+		err = ErrConflict
+	} else if errors.Is(err, vault.ErrNotFound) {
+		err = ErrNotFound
+	} else if errors.Is(err, vault.ErrInvalid) {
+		err = ErrInvalidInput
+	} else if errors.Is(err, vault.ErrNotEnrolled) {
+		err = WrapMessage(ErrServiceUnavailable, "project requires vault enrollment", nil)
 	}
 	var he *HTTPError
 	if errors.As(err, &he) {

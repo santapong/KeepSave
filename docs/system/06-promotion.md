@@ -1,5 +1,7 @@
 # 6. Promotion Engine
 
+> **Current scope — 2026-10-02.** Current PostgreSQL adapters use the shared vault journal and migration024 source-artifact binding; changed source and self-approval fail closed. Rotation retains snapshot key references. Older mechanism details below are a legacy reference; current acceptance is in the ledger. See the [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+
 > Part of the **[KeepSave System Documentation](./README.md)**.
 
 The promotion engine is KeepSave's differentiator: a controlled pipeline that moves secrets

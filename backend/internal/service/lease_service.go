@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -15,12 +17,14 @@ import (
 // exists in the given project — either it does not exist or it belongs to a
 // different project. Callers map this to a 404 (anti-enumeration).
 var ErrLeaseNotFound = errors.New("lease not found")
+var ErrLeaseAuthority = errors.New("lease exceeds parent authority")
 
 // LeaseService manages just-in-time secret leases for agents.
 type LeaseService struct {
 	db        *sql.DB
 	dialect   repository.Dialect
 	auditRepo *repository.AuditRepository
+	sessions  *SessionService
 }
 
 // NewLeaseService creates a new lease service.
@@ -30,38 +34,7 @@ func NewLeaseService(db *sql.DB, dialect repository.Dialect, auditRepo *reposito
 
 // CreateLease grants time-limited access to specific secrets.
 func (s *LeaseService) CreateLease(apiKeyID, projectID uuid.UUID, environment string, secretKeys []string, duration time.Duration, ipAddr string) (*models.SecretLease, error) {
-	lease := &models.SecretLease{}
-	id := uuid.New()
-	expiresAt := time.Now().Add(duration)
-	secretKeysVal := models.StringList(secretKeys)
-
-	if s.dialect.SupportsReturning() {
-		err := s.db.QueryRow(
-			`INSERT INTO secret_leases (id, api_key_id, project_id, environment, secret_keys, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked`,
-			id, apiKeyID, projectID, environment, secretKeysVal, expiresAt,
-		).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
-			&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked)
-		if err != nil {
-			return nil, fmt.Errorf("creating lease: %w", err)
-		}
-	} else {
-		insertQ := repository.Q(s.dialect, `INSERT INTO secret_leases (id, api_key_id, project_id, environment, secret_keys, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`)
-		_, err := s.db.Exec(insertQ, id, apiKeyID, projectID, environment, secretKeysVal, expiresAt)
-		if err != nil {
-			return nil, fmt.Errorf("creating lease: %w", err)
-		}
-		selectQ := repository.Q(s.dialect, `SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked FROM secret_leases WHERE id = $1`)
-		err = s.db.QueryRow(selectQ, id).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
-			&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked)
-		if err != nil {
-			return nil, fmt.Errorf("reading created lease: %w", err)
-		}
-	}
-	emitAudit(s.auditRepo, &apiKeyID, &projectID, "lease.created", environment,
-		models.JSONMap{"project_id": projectID.String(), "lease_id": lease.ID.String(), "secret_keys": secretKeys}, ipAddr)
-	return lease, nil
+	return s.CreateLeaseAuthorized(context.Background(), policy.Principal{Kind: policy.APIKey, SubjectID: apiKeyID}, projectID, environment, secretKeys, duration, ipAddr)
 }
 
 // GetActiveLease returns an active (non-expired, non-revoked) lease.
@@ -70,9 +43,12 @@ func (s *LeaseService) GetActiveLease(leaseID uuid.UUID) (*models.SecretLease, e
 	q := repository.Q(s.dialect, `SELECT id, api_key_id, project_id, environment, secret_keys, granted_at, expires_at, revoked, revoked_at
 		FROM secret_leases WHERE id = $1 AND revoked = `+s.dialect.BoolLiteral(false)+` AND expires_at > `+s.dialect.Now())
 	err := s.db.QueryRow(q, leaseID).Scan(&lease.ID, &lease.APIKeyID, &lease.ProjectID, &lease.Environment,
-		&lease.SecretKeys, &lease.GrantedAt, &lease.ExpiresAt, &lease.Revoked, &lease.RevokedAt)
+		&lease.SecretKeys, repository.ScanTime(&lease.GrantedAt), repository.ScanTime(&lease.ExpiresAt), &lease.Revoked, repository.ScanTime(&lease.RevokedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting active lease: %w", err)
+	}
+	if !lease.ExpiresAt.After(time.Now()) {
+		return nil, ErrLeaseNotFound
 	}
 	return lease, nil
 }
@@ -92,7 +68,7 @@ func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLeas
 	for rows.Next() {
 		var l models.SecretLease
 		if err := rows.Scan(&l.ID, &l.APIKeyID, &l.ProjectID, &l.Environment,
-			&l.SecretKeys, &l.GrantedAt, &l.ExpiresAt, &l.Revoked); err != nil {
+			&l.SecretKeys, repository.ScanTime(&l.GrantedAt), repository.ScanTime(&l.ExpiresAt), &l.Revoked); err != nil {
 			return nil, fmt.Errorf("scanning lease: %w", err)
 		}
 		leases = append(leases, l)
@@ -105,21 +81,7 @@ func (s *LeaseService) ListActiveLeases(apiKeyID uuid.UUID) ([]models.SecretLeas
 // to one project cannot revoke another project's lease by guessing its ID
 // (AUTH-04). Returns ErrLeaseNotFound when no matching row exists.
 func (s *LeaseService) RevokeLease(leaseID, projectID, actorID uuid.UUID, ipAddr string) error {
-	q := repository.Q(s.dialect, `UPDATE secret_leases SET revoked = `+s.dialect.BoolLiteral(true)+`, revoked_at = `+s.dialect.Now()+` WHERE id = $1 AND project_id = $2`)
-	res, err := s.db.Exec(q, leaseID, projectID)
-	if err != nil {
-		return fmt.Errorf("revoking lease: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("revoking lease: %w", err)
-	}
-	if n == 0 {
-		return ErrLeaseNotFound
-	}
-	emitAudit(s.auditRepo, &actorID, &projectID, "lease.revoked", "",
-		models.JSONMap{"lease_id": leaseID.String()}, ipAddr)
-	return nil
+	return s.RevokeLeaseAuthorized(context.Background(), policy.Principal{Kind: policy.Human, SubjectID: actorID, ActorID: actorID}, leaseID, projectID, ipAddr)
 }
 
 // AgentAnalyticsService tracks and analyzes agent activity.

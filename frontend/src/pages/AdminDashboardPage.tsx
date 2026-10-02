@@ -10,7 +10,7 @@ import {
   Calendar,
   Puzzle,
   RefreshCw,
-} from 'lucide-react';
+} from '@/components/icons';
 import { Page, PageHeader } from '@/components/cosmic/primitives';
 import { TimeRangeSelector } from '@/components/dashboard/TimeRangeSelector';
 import { OverviewTab } from '@/components/dashboard/OverviewTab';

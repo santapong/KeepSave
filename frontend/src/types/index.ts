@@ -27,6 +27,7 @@ export interface Environment {
 }
 
 export interface Secret {
+  revision?: number;
   id: string;
   project_id: string;
   environment_id: string;
