@@ -12,9 +12,9 @@ no host ports. Public metrics are refused at the proxy. The proxy overwrites
 forwarded client information; the API trusts only its explicit private IP.
 Change the proxy IP and subnet together if they overlap operator networks.
 
-The trusted worker runs only local outbox/backup jobs. It receives control-host
+The trusted worker runs local audit publication, lifecycle reminders, proof delivery (only after SMTP acceptance), expiration maintenance and outbox/backup jobs. It receives control-host
 key/database authority and private backup storage; it is not a connector
-runner. The future runner requires its own host and broker-only network boundary.
+runner. The implemented runner reference requires its own host and a restricted mTLS broker relay. See [runner reference](../runner/README.md) and [current setup](../../docs/design/2026-10-02-harness-neutral-platform/SETUP.md).
 
 ## Operator prerequisites
 
@@ -101,3 +101,19 @@ Keep local backup storage private, monitor durable job/catalog states, retain
 external copies and regularly repeat the isolated recovery drill. Never rollback
 an old binary onto an enrolled vault or restore source authorization tables from
 a vault bundle.
+
+## Optional isolated-runner listener
+
+The additive `runner-listener.compose.yml` exposes only the private direct mTLS
+listener. Set an explicit private `KEEPSAVE_PRIVATE_CONTROL_IP` and a restricted
+`KEEPSAVE_RUNNER_SERVER_TLS_DIRECTORY`; never route it through public Caddy.
+The API requires verified client certificates and enrolled fingerprints. Validate
+with both Compose files and `config --quiet`; deployment/enrollment still requires
+operator resources and acceptance. New identity/team/MCP/run flags default off.
+Admission and dispatch can be disabled while authorized status/cancel/revocation
+remain available. Real SMTP/GitHub/client/host acceptance is separate.
+
+The runtime worker requires canonical application origin for proof links. It
+receives no runner-listener key; mount runner TLS only into the API. Version2
+recovery requires explicit lifecycle custodian mapping; legacy version1 remains
+a reader contract. Do not use incompatible older readers/writers for rollback.

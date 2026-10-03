@@ -1,12 +1,24 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
 )
 
 func (r *ProjectRepository) Dialect() Dialect { return r.dialect }
+
+// GetByIDTx reads the result under the caller's current authority barrier.
+// Authorization and any required project lock belong to the caller.
+func (r *ProjectRepository) GetByIDTx(ctx context.Context, tx *sql.Tx, id uuid.UUID) (*models.Project, error) {
+	p := new(models.Project)
+	err := r.scanProject(p, tx.QueryRowContext(ctx, Q(r.dialect, `SELECT `+projectSelectColumns+` FROM projects WHERE id=$1 AND deleted_at IS NULL`), id))
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
 func (r *ProjectRepository) CreateTx(tx *sql.Tx, name, description string, owner uuid.UUID, cipher, nonce []byte) (*models.Project, error) {
 	id := uuid.New()
 	if _, err := ExecQ(tx, r.dialect, `INSERT INTO projects(id,name,description,owner_id,encrypted_dek,dek_nonce) VALUES($1,$2,$3,$4,$5,$6)`, id, name, description, owner, cipher, nonce); err != nil {

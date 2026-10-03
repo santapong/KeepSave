@@ -17,9 +17,11 @@ export function CapabilityProvider({ children }: { children: ReactNode }) {
 export function useCapabilities() {
   const state = useContext(CapabilityContext);
   return { ...state, enabled: (feature: string) => !!state.capabilities?.available.includes(feature),
-    unavailable: (feature: string) => !state.capabilities || (state.capabilities.restricted_profile && state.capabilities.unavailable.includes(feature)) };
+    unavailable: (feature: string) => !state.capabilities || !state.capabilities.available.includes(feature) };
 }
 export function routeCapability(path: string): string | null {
+  if (path.startsWith('/developer-access')) return 'controlled_tools';
+  if (path.startsWith('/notifications') || path.includes('/activity') || path.includes('/lifecycle')) return 'team_vault';
   if (path.startsWith('/mcp-hub')) return 'mcp_execution';
   if (path.startsWith('/oauth-clients')) return 'legacy_oauth';
   if (path.startsWith('/ai')) return 'experimental_intelligence';

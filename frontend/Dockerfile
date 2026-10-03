@@ -18,6 +18,11 @@ RUN npm run build
 # the emptyDir mounts declared in deployment-frontend.yaml.
 FROM nginxinc/nginx-unprivileged:1.30.5-alpine-slim@sha256:e28dcf0a161ddcbf228c7364b4a14f9bad4763ae8f5317c437b896afa3df4b84
 # tag: nginxinc/nginx-unprivileged:1.30.5-alpine-slim
+# The pinned nginx release includes PCRE2 10.48. Patch CVE-2026-103111 with
+# the exact fixed Alpine package until the upstream image incorporates it.
+USER 0
+RUN apk add --no-cache pcre2=10.49-r0
+USER 101
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 3000

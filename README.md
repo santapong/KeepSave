@@ -20,9 +20,79 @@ This is the **unreleased `v1.4.0-rc.1` core candidate**; see its
 verification do not establish production readiness. The
 [acceptance ledger](docs/validation/2026-10-01-core-release/ACCEPTANCE.md) records
 what is verified, what is preserved for compatibility, and what remains gated.
+The repository also contains the **unreleased harness-neutral source candidate**,
+extending that core baseline. See the
+[current implementation and acceptance record](docs/design/2026-10-02-harness-neutral-platform/README.md).
+The owner authorized source publication to `main` on October 3, 2026; this does
+not establish an accepted production release. New capabilities default off and
+still require provider, isolation, operational and independent review acceptance.
+See the [source-publication note](docs/releases/2026-10-03-source-publication.md).
+
 The existing static landing page is at [keepsave.draveniq.dev](https://keepsave.draveniq.dev/).
 `app.keepsave.draveniq.dev` is the intended application origin; this backend work
 has not deployed it.
+
+## What the operator needs to prepare
+
+Start with the application host, recovery setup and sign-in clients. The broker
+and runner can be prepared afterward. None of the items below is marked complete
+by local synthetic tests. Keep secrets in the installation's private secret
+store or a mode `0600` launch file outside Git; share only nonsecret identifiers,
+configuration locations and acceptance results.
+
+- [ ] **Application host and domain:** a control host for the frontend/API/trusted
+  worker, PostgreSQL 16, private backup/artifact storage and HTTPS at
+  `https://app.keepsave.draveniq.dev`. Prepare DNS/TLS and same-origin routing;
+  leave `https://keepsave.draveniq.dev` serving the landing page. Follow the
+  [self-hosted reference](deploy/self-hosted/README.md).
+- [ ] **Vault keys and recovery:** a private Vault Transit endpoint, least-privilege
+  token, Transit key name and recoverable wrapped master key; an independent
+  recovery-material copy and a fresh isolated PostgreSQL recovery target.
+  Retain the existing installation keys rather than replacing them. Complete the
+  [recovery drill](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#incident-and-recovery-procedures)
+  before enabling scheduled backups or admitting production vault traffic.
+- [ ] **Google sign-in:** separate development and production Web OAuth clients,
+  consent/branding/test-account setup, and backend-only `GOOGLE_CLIENT_ID` /
+  `GOOGLE_CLIENT_SECRET`. Production redirect:
+  `https://app.keepsave.draveniq.dev/auth/callback/google`.
+- [ ] **GitHub sign-in:** separate development and production OAuth apps and
+  backend-only `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`. Production redirect:
+  `https://app.keepsave.draveniq.dev/auth/callback/github`. Set
+  `SOCIAL_AUTH_ORIGIN` and `KEEPSAVE_APPLICATION_ORIGIN` to the application origin.
+  Use one exact selected loopback callback for development. Follow
+  [social-login setup](docs/SOCIAL_LOGIN_SETUP.md) and complete both providers'
+  real sign-in, repeat login, explicit linking and session-revocation exercises.
+- [ ] **Authenticated email:** an SMTP host/STARTTLS port, username, password and
+  permitted sender; configure `KEEPSAVE_SMTP_HOST`, `KEEPSAVE_SMTP_PORT`,
+  `KEEPSAVE_SMTP_USERNAME`, `KEEPSAVE_SMTP_PASSWORD` and `KEEPSAVE_SMTP_FROM`.
+  Verify certificates and actual mailbox receipt before recording
+  `KEEPSAVE_SMTP_ACCEPTED=true`. Contact verification, invitations and recovery
+  remain unavailable until this installation passes the
+  [mail acceptance requirements](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#configuration-and-startup).
+- [ ] **Separate GitHub App for tool access:** app/installation IDs, a private
+  signing key, repository Contents read permission, and disposable repositories
+  A and B. Select one nonproduction binding with stored repository ID, owner/name,
+  reference and environment. This is separate from GitHub sign-in. Record explicit
+  token-custody, A-success/B-denial and revocation evidence using the
+  [broker setup](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#github-profiles-and-clients).
+- [ ] **Separate runner host:** Linux with rootless Podman, seccomp and cgroups v2
+  CPU/memory/PID delegation; private control-host connectivity and independently
+  issued server/client certificates plus runner CA. Prepare reviewed connector
+  image digests and workload enrollment. The current development host lacks CPU
+  delegation and is refused. Use the [runner reference](deploy/runner/README.md)
+  and [private-listener setup](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#separate-runner-and-private-listener).
+- [ ] **Client qualification and team approval:** isolated Codex 0.153.3 and
+  Hermes 0.21.5 candidates, available loopback ports 17701/17702, a test developer
+  and a different eligible administrator to approve exact profile/package
+  digests. Preserve installed Hermes/provider/sessions/memory. Complete each
+  client's login, discovery, skill loading, allowed/denied reads, cancellation
+  and revoked-result checks; see [protocol qualification](docs/design/2026-10-02-harness-neutral-platform/PROTOCOL.md).
+- [ ] **Release acceptance:** named independent Security Engineer and Tech Lead
+  reviewers, green CI for the exact source revision, installation recovery,
+  worker/runner/database/Transit failure and compatible upgrade/rollback drills.
+  Keep admission/dispatch flags off until their applicable gates in the
+  [acceptance ledger](docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+  pass. A source push does not supply those signatures or operational evidence.
 
 ## Core behavior
 
@@ -48,7 +118,7 @@ returns 503; authorized ciphertext corruption returns a safe 500.
 
 The restricted application profile refuses experimental AI, enterprise SSO,
 policy metadata, legacy OAuth issuance, event replay, plugin execution and
-webhook automation. MCP execution and API-host connector builds remain disabled.
+webhook automation. Legacy API-host MCP execution and connector builds remain disabled. New delegated MCP and isolated tool access are opt-in local candidates.
 Their source and routes are retained for incremental migration.
 
 ## Architecture and next features
@@ -59,24 +129,31 @@ Handlers translate requests; authorized services own decisions and mutations.
 Typed dependency wiring replaces the growing positional router constructor,
 with a compatibility adapter retained for old callers.
 
-The approved next journey is controlled repository review through Codex:
-one explicitly approved GitHub repository, a resolved commit, a ten-minute run,
-a vetted connector on a separate restricted runner, and GitHub App credentials
-held by the broker. A connector requests a structured operation; the broker
-makes the authenticated provider request. **This broker, standards-based `/mcp`,
-private skills and managed Codex profiles are planned, not implemented here.**
-GitHub social sign-in is separate from a GitHub App provider connection.
+Shared policy, grants, runs and credential custody are harness-neutral. The local
+candidate implements resource-bound MCP/OAuth, immutable instruction-only skills,
+portable review profiles and native packages for **Codex and Hermes candidates**.
+Each client uses its own delegation and run. A trusted GitHub App broker performs
+bounded read-only operations against the stored repository and resolved commit;
+GitHub tokens remain inside custody. A separate rootless Podman supervisor receives
+one attempt-bound relay socket per connector. API-host execution stays disabled.
 
-See the [architecture proposal](docs/design/2026-09-28-backend-platform/README.md),
-[implementation checkpoint](docs/design/2026-09-28-backend-platform/IMPLEMENTATION.md),
-[core release ADR](docs/adr/0028-core-identity-and-vault-release.md) and
-[delivery dependencies](docs/design/2026-09-28-backend-platform/DELIVERY.md).
+These are locally implemented and synthetically tested components, **not published
+client support**. Real Codex/Hermes interoperability, live GitHub consent/content
+reads, SMTP acceptance and enforced runner isolation have not passed. The current
+host lacks delegated CPU control, so runner startup refuses execution. Additional
+harnesses implement the same packaging and protocol ports and require their own
+version-specific qualification.
 
-The [research-based product plan](docs/design/2026-10-02-product-roadmap/README.md)
-prioritizes setup, safe denial explanations, searchable audit, renewal ownership
-and team onboarding/offboarding, with proposed contracts, acceptance gates and
-primary-source evidence. These additions are planned; the selected Codex/GitHub
-broker program remains the strategic delivery path.
+Team-vault additions include separate lifecycle metadata and in-app reminders,
+verified-contact/invitation/recovery flows behind an SMTP acceptance gate, scoped
+offboarding previews/receipts, safe audit browsing/export and operator diagnostics.
+[Current architecture, setup and evidence](docs/design/2026-10-02-harness-neutral-platform/README.md)
+distinguish implemented, tested and pending behavior. The
+[earlier proposal](docs/design/2026-09-28-backend-platform/README.md),
+[core checkpoint](docs/design/2026-09-28-backend-platform/IMPLEMENTATION.md) and
+[product research](docs/design/2026-10-02-product-roadmap/README.md) retain historical
+planning context; single-harness and generic rollback statements are superseded by
+[ADR0029](docs/adr/0029-harness-neutral-platform.md).
 The older [architecture views](docs/ARCHITECTURE_VIEWS.md) describe legacy
 components; they do not prove runner isolation or current release acceptance.
 
@@ -147,12 +224,12 @@ metadata preview and explicit selected records with current revision checks.
 
 The maintained core OpenAPI source is
 [core.json](backend/internal/api/openapi/core.json), served at `/api/docs`.
-It describes identity, sessions, workspaces, projects, secret reads/writes,
+It describes identity, sessions, contacts, recovery, teams, lifecycle metadata, audit exports, delegated OAuth, tool profiles/runs, workspaces, projects, secret reads/writes,
 history, encrypted recovery, imports/exports, promotion, rotation, templates,
 audit and client delegation. Actual-router tests check mounted paths and
 response schemas. Compatibility surfaces outside this contract remain explicitly
-inventoried in the acceptance ledger. The core contract covers 52 paths,
-70 operations and 87 schemas, validated against actual handler responses.
+inventoried in the acceptance ledger. The core contract covers 112 paths,
+141 operations and 177 schemas, with actual handler-response contract tests.
 
 | Area | Paths |
 |---|---|

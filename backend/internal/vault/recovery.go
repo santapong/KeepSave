@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/policy"
 )
@@ -15,18 +16,23 @@ import (
 // RestoreSelection binds a selected backed-up value to the exact current
 // revision. Secret identifiers must still exist and be active in this project.
 type RestoreSelection struct {
-	SecretID         uuid.UUID `json:"secret_id"`
-	BackupRevision   int64     `json:"backup_revision"`
-	ExpectedRevision int64     `json:"expected_current_revision"`
+	SecretID                 uuid.UUID  `json:"secret_id"`
+	BackupRevision           int64      `json:"backup_revision"`
+	ExpectedRevision         int64      `json:"expected_current_revision"`
+	RestoreLifecycle         bool       `json:"restore_lifecycle,omitempty"`
+	ExpectedMetadataRevision int64      `json:"expected_metadata_revision,omitempty"`
+	MappedResponsibleUserID  *uuid.UUID `json:"mapped_responsible_user_id,omitempty"`
 }
 type RestoreDiff struct {
-	SecretID        uuid.UUID `json:"secret_id"`
-	Environment     string    `json:"environment"`
-	Key             string    `json:"key"`
-	BackupRevision  int64     `json:"backup_revision"`
-	CurrentRevision int64     `json:"current_revision"`
-	Status          string    `json:"status"`
-	Restorable      bool      `json:"restorable"`
+	SecretID                uuid.UUID  `json:"secret_id"`
+	Environment             string     `json:"environment"`
+	Key                     string     `json:"key"`
+	BackupRevision          int64      `json:"backup_revision"`
+	CurrentRevision         int64      `json:"current_revision"`
+	Status                  string     `json:"status"`
+	Restorable              bool       `json:"restorable"`
+	BackupLifecycle         *Lifecycle `json:"backup_lifecycle,omitempty"`
+	CurrentMetadataRevision int64      `json:"current_metadata_revision,omitempty"`
 }
 type RestorePreview struct {
 	ProjectID       uuid.UUID     `json:"project_id"`
@@ -48,7 +54,7 @@ func verifiedManifest(b Bundle, keys *crypto.Service) (manifest, error) {
 // PreviewRestore is a metadata-only diff. It does not create entries or read
 // plaintext into responses. Only administrators can inspect a complete backup.
 func (s *Service) PreviewRestore(ctx context.Context, p policy.Principal, project uuid.UUID, b Bundle) (RestorePreview, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return RestorePreview{}, err
 	}
@@ -67,14 +73,26 @@ func (s *Service) PreviewRestore(ctx context.Context, p policy.Principal, projec
 		return RestorePreview{}, ErrDenied
 	}
 	result := RestorePreview{ProjectID: project, BackupCreatedAt: m.CreatedAt, Records: []RestoreDiff{}}
+	lifecycle := map[uuid.UUID]Lifecycle{}
+	for _, l := range m.Lifecycle {
+		lifecycle[l.SecretID] = l
+	}
 	for _, entry := range m.Entries {
 		r := entry.Record
 		d := RestoreDiff{SecretID: r.ID, Environment: r.Environment, Key: r.Key, BackupRevision: r.Revision, Status: "missing"}
+		if life, ok := lifecycle[r.ID]; ok {
+			d.BackupLifecycle = &life
+		}
 		current, _, e := s.load(ctx, tx, project, r.ID)
 		if e != nil && !errors.Is(e, ErrNotFound) {
 			return RestorePreview{}, e
 		}
 		if e == nil {
+			life, err := lifecycleTx(ctx, tx, project, r.ID)
+			if err != nil {
+				return RestorePreview{}, err
+			}
+			d.CurrentMetadataRevision = life.Revision
 			d.CurrentRevision = current.Revision
 			d.Status = "changed"
 			d.Restorable = !current.Deleted && !r.Deleted && current.Environment == r.Environment && current.Key == r.Key
@@ -110,10 +128,21 @@ func (s *Service) RestoreSelected(ctx context.Context, p policy.Principal, proje
 	if len(selection) == 0 || len(selection) > 1000 {
 		return nil, ErrInvalid
 	}
-	tx, err := s.begin(ctx, project)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
+	extra := []uuid.UUID{}
+	for _, chosen := range selection {
+		if chosen.RestoreLifecycle && chosen.MappedResponsibleUserID != nil {
+			extra = append(extra, *chosen.MappedResponsibleUserID)
+		}
+	}
+	if err = authority.Postgres(s.db).LockProjectSubjects(ctx, tx, p, project, true, extra); err != nil {
+		tx.Rollback()
+		return nil, ErrDenied
+	}
+
 	defer tx.Rollback()
 	if err = s.permit(ctx, tx, p, policy.ManageProject, Record{ProjectID: project}); err != nil {
 		return nil, err
@@ -143,6 +172,10 @@ func (s *Service) RestoreSelected(ctx context.Context, p policy.Principal, proje
 		}
 		versions[v.SecretID][v.Revision] = v
 	}
+	lifecycle := map[uuid.UUID]Lifecycle{}
+	for _, l := range m.Lifecycle {
+		lifecycle[l.SecretID] = l
+	}
 	seen := map[uuid.UUID]bool{}
 	result := []Record{}
 	for _, chosen := range selection {
@@ -167,6 +200,28 @@ func (s *Service) RestoreSelected(ctx context.Context, p policy.Principal, proje
 		}
 		if err = s.permit(ctx, tx, p, policy.RestoreSecret, current); err != nil {
 			return nil, err
+		}
+		if chosen.RestoreLifecycle {
+			backed, ok := lifecycle[chosen.SecretID]
+			if !ok {
+				return nil, ErrInvalid
+			}
+			if backed.ResponsibleUserID != nil && chosen.MappedResponsibleUserID == nil {
+				return nil, ErrInvalid
+			}
+			existing, e := lifecycleTx(ctx, tx, project, chosen.SecretID)
+			if e != nil {
+				return nil, e
+			}
+			if existing.Revision != chosen.ExpectedMetadataRevision {
+				return nil, ErrConflict
+			}
+			if _, e = tx.ExecContext(ctx, `INSERT INTO vault_lifecycle(secret_id,project_id,responsible_user_id,declared_expires_at,renewal_at,provenance,revision) VALUES($1,$2,$3,$4,$5,$6,1) ON CONFLICT(secret_id) DO UPDATE SET responsible_user_id=EXCLUDED.responsible_user_id,declared_expires_at=EXCLUDED.declared_expires_at,renewal_at=EXCLUDED.renewal_at,provenance=EXCLUDED.provenance,revision=vault_lifecycle.revision+1,updated_at=NOW()`, chosen.SecretID, project, chosen.MappedResponsibleUserID, backed.DeclaredExpiresAt, backed.RenewalAt, backed.Provenance); e != nil {
+				return nil, e
+			}
+			if err = s.event(ctx, tx, p, current, "secret.lifecycle_restored"); err != nil {
+				return nil, err
+			}
 		}
 		// Record the admission before unwrapping the backed-up credential key.
 		next := current
@@ -205,13 +260,31 @@ func (s *Service) RestoreSelected(ctx context.Context, p policy.Principal, proje
 // records and history; no account, session, grant or promotion authority moves.
 // The caller must keep the target isolated until verification is complete.
 func (s *Service) RecoverToEmptyProject(ctx context.Context, p policy.Principal, target uuid.UUID, b Bundle, recoveryKeys *crypto.Service) (Verification, error) {
+	return s.RecoverToEmptyProjectWithOwnerMap(ctx, p, target, b, recoveryKeys, nil)
+}
+
+// Owner mappings are explicit current-target identities, not recovered authority.
+func (s *Service) RecoverToEmptyProjectWithOwnerMap(ctx context.Context, p policy.Principal, target uuid.UUID, b Bundle, recoveryKeys *crypto.Service, owners map[uuid.UUID]uuid.UUID) (Verification, error) {
 	if recoveryKeys == nil {
 		return Verification{}, ErrInvalid
 	}
-	tx, err := s.begin(ctx, target)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Verification{}, err
 	}
+	extra := []uuid.UUID{}
+	for source, mapped := range owners {
+		if source == uuid.Nil || mapped == uuid.Nil {
+			tx.Rollback()
+			return Verification{}, ErrInvalid
+		}
+		extra = append(extra, mapped)
+	}
+	if err = authority.Postgres(s.db).LockProjectSubjects(ctx, tx, p, target, true, extra); err != nil {
+		tx.Rollback()
+		return Verification{}, ErrDenied
+	}
+
 	defer tx.Rollback()
 	if err = s.permit(ctx, tx, p, policy.ManageProject, Record{ProjectID: target}); err != nil {
 		return Verification{}, err
@@ -292,6 +365,19 @@ func (s *Service) RecoverToEmptyProject(ctx context.Context, p policy.Principal,
 			return Verification{}, err
 		}
 	}
+	for _, l := range m.Lifecycle {
+		var mapped any
+		if l.ResponsibleUserID != nil {
+			owner, ok := owners[*l.ResponsibleUserID]
+			if !ok {
+				return Verification{}, ErrInvalid
+			}
+			mapped = owner
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO vault_lifecycle(secret_id,project_id,responsible_user_id,declared_expires_at,renewal_at,provenance,revision,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, l.SecretID, target, mapped, l.DeclaredExpiresAt, l.RenewalAt, l.Provenance, l.Revision, l.UpdatedAt); err != nil {
+			return Verification{}, err
+		}
+	}
 	for _, revision := range m.Revisions {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO vault_revisions(secret_id,project_id,revision,key_id,encrypted_value,nonce,operation,created_at,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, revision.SecretID, target, revision.Revision, revision.KeyID, revision.Ciphertext, revision.Nonce, revision.Operation, revision.CreatedAt, revision.ActorID); err != nil {
 			return Verification{}, err
@@ -328,13 +414,13 @@ func (s *Service) RecoverToEmptyProject(ctx context.Context, p policy.Principal,
 	if err = tx.Commit(); err != nil {
 		return Verification{}, err
 	}
-	return Verification{ProjectID: target, CreatedAt: m.CreatedAt, Entries: len(m.Entries), Revisions: len(m.Revisions), Keys: len(m.Keys), Snapshots: len(m.Snapshots)}, nil
+	return Verification{ProjectID: target, CreatedAt: m.CreatedAt, Entries: len(m.Entries), Revisions: len(m.Revisions), Keys: len(m.Keys), Snapshots: len(m.Snapshots), LifecycleRecords: len(m.Lifecycle)}, nil
 }
 
 // VerifyBundle authorizes verification as a project operation. Standalone
 // offline operators instead use VerifyBackup with independent recovery keys.
 func (s *Service) VerifyBundle(ctx context.Context, p policy.Principal, project uuid.UUID, b Bundle) (Verification, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Verification{}, err
 	}

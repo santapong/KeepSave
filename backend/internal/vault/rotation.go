@@ -10,7 +10,7 @@ import (
 // Rotate retains previous keys while current values move atomically to a fresh
 // key. Immutable revisions and promotion snapshots retain their key references.
 func (s *Service) Rotate(ctx context.Context, p policy.Principal, project uuid.UUID) (int, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return 0, err
 	}

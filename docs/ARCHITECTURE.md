@@ -1,5 +1,7 @@
 # KeepSave architecture and dependency map
 
+> Historical/core baseline view. The 2026-10-02 harness-neutral working-tree [implementation checkpoint](design/2026-10-02-harness-neutral-platform/README.md) supersedes single-harness and unimplemented-platform descriptions below. This file is retained as context, not current release evidence.
+
 Reconciled 2026-10-02 (Asia/Bangkok), unreleased core candidate. Source presence,
 local verification, independent review and production acceptance are separate
 states. The [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md)

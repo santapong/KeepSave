@@ -11,6 +11,12 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LandingPage } from './pages/LandingPage';
 import { SocialCallbackPage } from './pages/SocialCallbackPage';
+import { IdentityConfirmPage } from './pages/IdentityConfirmPage';
+import { RecoveryPage } from './pages/RecoveryPage';
+import { MCPConsentPage } from './pages/MCPConsentPage';
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const DeveloperAccessPage = lazy(() => import('./pages/DeveloperAccessPage').then(m => ({ default: m.DeveloperAccessPage })));
+
 const AccountConnectionsPage = lazy(() => import('./pages/AccountConnectionsPage').then((m) => ({ default: m.AccountConnectionsPage })));
 
 // Authenticated routes are code-split so heavy pages (and recharts, which
@@ -50,6 +56,9 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/mcp/consent" element={<MCPConsentPage authenticated={false} email={auth.user?.email} />} />
+          <Route path="/identity/confirm" element={<IdentityConfirmPage />} />
+          <Route path="/auth/recovery" element={<RecoveryPage />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
           <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
@@ -64,12 +73,18 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/mcp/consent" element={<MCPConsentPage authenticated={auth.authenticated} email={auth.user?.email} />} />
+        <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+        <Route path="/identity/confirm" element={<IdentityConfirmPage />} />
+        <Route path="/auth/recovery" element={<RecoveryPage />} />
         <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
         <Route path="*" element={<CapabilityProvider><Layout user={auth.user} onLogout={auth.logout}>
         <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/account" element={<AccountConnectionsPage />} />
+              <Route path="/notifications" element={<CapabilityGate feature="team_vault"><NotificationsPage /></CapabilityGate>} />
+              <Route path="/developer-access" element={<CapabilityGate feature="controlled_tools"><DeveloperAccessPage /></CapabilityGate>} />
               <Route path="/" element={<ProjectsPage />} />
               <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
               <Route path="/organizations" element={<OrganizationsPage />} />

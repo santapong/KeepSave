@@ -105,7 +105,7 @@ func (m *Maintenance) Schedule(ctx context.Context, now time.Time) error {
 }
 func (m *Maintenance) Step(ctx context.Context) error {
 	q := jobs.Queue{DB: m.Vault.db}
-	job, err := q.ClaimKinds(ctx, m.WorkerID, 5*time.Minute, []string{"vault.event", "identity.event", "org.event", "project.event", "template.event", "backup.event", "vault.backup"})
+	job, err := q.ClaimKinds(ctx, m.WorkerID, 5*time.Minute, []string{"vault.event", "identity.event", "org.event", "project.event", "template.event", "backup.event", "identity.authority_changed", "mcp.event", "tool.event", "audit.event", "vault.backup"})
 	if err != nil {
 		return err
 	}

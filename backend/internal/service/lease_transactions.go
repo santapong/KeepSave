@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
@@ -51,33 +53,44 @@ func (s *LeaseService) rowLock() string {
 	return ""
 }
 
-// lockGrantActorTx follows session -> project -> membership -> parent -> lease.
-// Membership changes and project tombstones cannot race an admitted mutation.
+// lockGrantActorTx follows subject -> organization/project -> membership ->
+// session -> parent -> lease. The policy decision still occurs under these locks.
 func (s *LeaseService) lockGrantActorTx(ctx context.Context, tx *sql.Tx, p policy.Principal, project uuid.UUID) error {
 	if p.Kind != policy.Human && p.Kind != policy.APIKey || p.SubjectID == uuid.Nil || p.ActorID == uuid.Nil {
 		return ErrLeaseAuthority
 	}
-	if p.Kind == policy.Human {
-		if p.SubjectID != p.ActorID {
-			return ErrLeaseAuthority
-		}
-		if s.sessions != nil {
+	if p.Kind == policy.Human && p.SubjectID != p.ActorID {
+		return ErrLeaseAuthority
+	}
+	if s.dialect.DBType() != repository.DBTypePostgres {
+		if p.Kind == policy.Human && s.sessions != nil {
 			if err := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); err != nil {
 				return err
 			}
 		}
-	}
-	var tenant uuid.NullUUID
-	query := `SELECT organization_id FROM projects WHERE id=$1 AND deleted_at IS NULL` + s.rowLock()
-	if err := tx.QueryRowContext(ctx, repository.Q(s.dialect, query), project).Scan(&tenant); err != nil {
-		return ErrLeaseAuthority
-	}
-	if tenant.Valid {
-		var role string
-		query = `SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2` + s.rowLock()
-		if err := tx.QueryRowContext(ctx, repository.Q(s.dialect, query), tenant.UUID, p.ActorID).Scan(&role); err != nil {
+		var tenant uuid.NullUUID
+		if err := tx.QueryRowContext(ctx, repository.Q(s.dialect, `SELECT organization_id FROM projects WHERE id=$1 AND deleted_at IS NULL`+s.rowLock()), project).Scan(&tenant); err != nil {
 			return ErrLeaseAuthority
 		}
+		if tenant.Valid {
+			var role string
+			if err := tx.QueryRowContext(ctx, repository.Q(s.dialect, `SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2`+s.rowLock()), tenant.UUID, p.ActorID).Scan(&role); err != nil {
+				return ErrLeaseAuthority
+			}
+		}
+		return nil
+	}
+	g := authority.Guard{DB: s.db, Dialect: s.dialect}
+	admission := p
+	admission.SessionID = uuid.Nil
+	if err := g.LockProject(ctx, tx, admission, project, true); err != nil {
+		return ErrLeaseAuthority
+	}
+	if p.Kind == policy.Human && s.sessions != nil {
+		if e := g.RequireSession(ctx, tx, p, false); e != nil {
+			return auth.ErrSessionInvalid
+		}
+		return nil
 	}
 	return nil
 }

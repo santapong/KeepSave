@@ -15,12 +15,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server ./cmd/server
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /keepsave-operator ./cmd/keepsave-operator
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /keepsave-vault ./cmd/keepsave-vault
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /keepsave-worker ./cmd/keepsave-worker
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /keepsave-harness ./cmd/keepsave-harness
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /keepsave ./cmd/keepsave
 
 # Runtime stage: distroless static (Debian 12) `nonroot` variant (INF-1/INF-2).
 # - No shell, no package manager, no libc beyond what a static Go binary needs.
 # - Ships CA certificates and /etc/passwd with a `nonroot` (uid/gid 65532) user.
 # - Already runs as non-root by default; we make it explicit below.
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 # tag: gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
@@ -31,6 +33,8 @@ COPY --from=builder --chown=65532:65532 /server /app/server
 COPY --from=builder --chown=65532:65532 /keepsave-operator /app/keepsave-operator
 COPY --from=builder --chown=65532:65532 /keepsave-vault /app/keepsave-vault
 COPY --from=builder --chown=65532:65532 /keepsave-worker /app/keepsave-worker
+COPY --from=builder --chown=65532:65532 /keepsave-harness /app/keepsave-harness
+COPY --from=builder --chown=65532:65532 /keepsave /app/keepsave
 COPY --from=builder --chown=65532:65532 /app/migrations /app/migrations
 
 # Run as the distroless `nonroot` user (uid/gid 65532) per audit S-M8.

@@ -22,6 +22,7 @@ const leakedDevMasterKeyHashHex = "f69968df7fb0fa71e2cdad7f258e0c1af7270a8cb759c
 const prodMinJWTSecretBytes = 32
 
 type Config struct {
+	Platform       Platform
 	SocialAuth     SocialAuth
 	DatabaseURL    string
 	DBMaxOpenConns int
@@ -176,7 +177,12 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	platform, err := loadPlatform(social)
+	if err != nil {
+		return nil, err
+	}
 	return &Config{
+		Platform:              platform,
 		SocialAuth:            social,
 		DatabaseURL:           databaseURL,
 		DBMaxOpenConns:        maxOpen,

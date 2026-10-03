@@ -239,7 +239,7 @@ export type RestoreVersionRequest = {
 };
 
 export type Bundle = {
-  "format": string;
+  "format": "keepsave.encrypted-vault.v1" | "keepsave.encrypted-vault.v2";
   "ciphertext": string;
   "nonce": string;
   "sha256": string;
@@ -252,6 +252,7 @@ export type Verification = {
   "revisions": number;
   "keys": number;
   "snapshots": number;
+  "lifecycle_records": number;
 };
 
 export type RestoreDiff = {
@@ -262,6 +263,8 @@ export type RestoreDiff = {
   "current_revision": number;
   "status": string;
   "restorable": boolean;
+  "backup_lifecycle"?: Lifecycle;
+  "current_metadata_revision"?: number;
 };
 
 export type RestorePreview = {
@@ -274,6 +277,9 @@ export type RestoreSelection = {
   "secret_id": string;
   "backup_revision": number;
   "expected_current_revision": number;
+  "restore_lifecycle"?: boolean;
+  "expected_metadata_revision"?: number;
+  "mapped_responsible_user_id"?: string | null;
 };
 
 export type RestoreSelectedRequest = {
@@ -551,425 +557,1512 @@ export type AppliedTemplateResponse = {
   "secrets": Array<Secret> | null;
 };
 
+export type Lifecycle = {
+  "secret_id": string;
+  "project_id": string;
+  "responsible_user_id": string | null;
+  "declared_expires_at": string | null;
+  "renewal_at": string | null;
+  "provenance": string;
+  "revision": number;
+  "updated_at": string;
+  "known": boolean;
+};
+
+export type LifecycleChange = {
+  "responsible_user_id": string | null;
+  "declared_expires_at": string | null;
+  "renewal_at": string | null;
+  "provenance": string;
+  "expected_revision": number;
+};
+
+export type Notification = {
+  "id": string;
+  "project_id": string;
+  "secret_id": string;
+  "key": string;
+  "threshold_days": 30 | 7 | 1;
+  "lifecycle_revision": number;
+  "created_at": string;
+  "read_at": string | null;
+};
+
+export type Notifications = {
+  "notifications": Array<Notification>;
+};
+
+export type SafeAuditEntry = {
+  "id": string;
+  "actor_id"?: string;
+  "project_id": string;
+  "action": string;
+  "environment"?: string;
+  "created_at": string;
+  "references": {
+  "secret_id"?: string;
+  "project_id"?: string;
+  "run_id"?: string;
+  "operation_id"?: string;
+  "approval_id"?: string;
+  "promotion_id"?: string;
+  "connection_id"?: string;
+  "binding_id"?: string;
+  "session_id"?: string;
+  "profile_id"?: string;
+  "artifact_id"?: string;
+};
+};
+
+export type SafeAuditPage = {
+  "entries": Array<SafeAuditEntry>;
+  "next_cursor"?: string;
+};
+
+export type SafeAuditSnapshot = {
+  "format": "keepsave.safe-audit.v1";
+  "entries": Array<SafeAuditEntry>;
+};
+
+export type AuditExportRequest = {
+  "from": string;
+  "to": string;
+  "action"?: string;
+  "environment"?: string;
+};
+
+export type AuditExport = {
+  "id": string;
+  "project_id": string;
+  "status": "pending" | "ready" | "failed";
+  "rows": number;
+  "expires_at": string;
+};
+
+export type ReadinessCheck = {
+  "name": string;
+  "state": string;
+  "message": string;
+};
+
+export type Readiness = {
+  "checked_at": string;
+  "status": string;
+  "checks": Array<ReadinessCheck>;
+  "external_reads": boolean;
+};
+
+export type LifecycleItem = {
+  "key": string;
+  "environment": string;
+  "lifecycle": Lifecycle;
+};
+
+export type LifecycleList = {
+  "records": Array<LifecycleItem>;
+};
+
+export type MCPOAuthError = {
+  "error": "invalid_request" | "invalid_grant" | "temporarily_unavailable";
+};
+
+export type MCPAuthorizationMetadata = {
+  "issuer": string;
+  "authorization_endpoint": string;
+  "token_endpoint": string;
+  "revocation_endpoint": string;
+  "response_types_supported": Array<"code">;
+  "grant_types_supported": Array<"authorization_code" | "refresh_token">;
+  "token_endpoint_auth_methods_supported": Array<"none">;
+  "code_challenge_methods_supported": Array<"S256">;
+  "scopes_supported": Array<"keepsave:tools" | "offline_access">;
+  "authorization_response_iss_parameter_supported": true;
+};
+
+export type MCPProtectedResourceMetadata = {
+  "resource": string;
+  "authorization_servers": Array<string>;
+  "scopes_supported": Array<"keepsave:tools">;
+  "bearer_methods_supported": Array<"header">;
+};
+
+export type MCPConsentRequest = {
+  "request_id": string;
+  "client_id": "keepsave-codex-linux-v1" | "keepsave-hermes-linux-v1";
+  "harness": "codex" | "hermes";
+  "resource": string;
+  "redirect_uri": "http://127.0.0.1:17701/callback" | "http://127.0.0.1:17702/callback";
+  "scope": "keepsave:tools" | "keepsave:tools offline_access";
+  "expires_at": string;
+};
+
+export type MCPConsentDecision = {
+  "request_id": string;
+  "approve": boolean;
+};
+
+export type MCPConsentRedirect = {
+  "redirect_url": string;
+};
+
+export type MCPTokenRequest = {
+  "grant_type": "authorization_code" | "refresh_token";
+  "client_id": "keepsave-codex-linux-v1" | "keepsave-hermes-linux-v1";
+  "resource": string;
+  "code"?: string;
+  "redirect_uri"?: "http://127.0.0.1:17701/callback" | "http://127.0.0.1:17702/callback";
+  "code_verifier"?: string;
+  "refresh_token"?: string;
+  "scope"?: "keepsave:tools" | "keepsave:tools offline_access";
+};
+
+export type MCPTokenResponse = {
+  "access_token": string;
+  "token_type": "Bearer";
+  "expires_in": number;
+  "refresh_token": string;
+  "scope": "keepsave:tools" | "keepsave:tools offline_access";
+};
+
+export type MCPRevocationRequest = {
+  "client_id": "keepsave-codex-linux-v1" | "keepsave-hermes-linux-v1";
+  "token": string;
+  "token_type_hint"?: "access_token" | "refresh_token";
+};
+
+export type MCPDelegation = {
+  "family_id": string;
+  "client_id": "keepsave-codex-linux-v1" | "keepsave-hermes-linux-v1";
+  "harness": "codex" | "hermes";
+  "resource": string;
+  "scope": "keepsave:tools" | "keepsave:tools offline_access";
+  "created_at": string;
+  "expires_at": string;
+  "requires_refresh": boolean;
+};
+
+export type MCPDelegations = {
+  "delegations": Array<MCPDelegation>;
+};
+
+export type IdentityMethod = {
+  "name": "password" | "google" | "github";
+  "usable": boolean;
+};
+
+export type IdentityMethods = {
+  "methods": Array<IdentityMethod>;
+};
+
+export type IdentityContact = {
+  "contact": string;
+  "verified_at": string;
+};
+
+export type IdentityContacts = {
+  "contacts": Array<IdentityContact>;
+};
+
+export type IdentityContactRequest = {
+  "contact": string;
+};
+
+export type IdentityProofRequest = {
+  "id": string;
+  "status": "pending" | "accepted";
+};
+
+export type IdentityProofRequested = {
+  "request": IdentityProofRequest;
+};
+
+export type IdentityProofBody = {
+  "proof": string;
+};
+
+export type IdentityPasswordReset = {
+  "id": string;
+  "proof": string;
+  "password": string;
+};
+
+export type IdentityDelivery = {
+  "state": "pending" | "dispatched" | "sent" | "failed" | "uncertain" | "cancelled";
+  "reason_code": string;
+};
+
+export type IdentityDeliveryStatus = {
+  "delivery": IdentityDelivery;
+};
+
+export type IdentityInvitationRequest = {
+  "target_user_id"?: string;
+  "contact": string;
+  "role": "viewer" | "editor" | "promoter" | "admin";
+};
+
+export type IdentityInvitation = {
+  "id": string;
+  "organization_id": string;
+  "role": "viewer" | "editor" | "promoter" | "admin";
+  "status": "pending";
+};
+
+export type IdentityInvitationCreated = {
+  "invitation": IdentityInvitation;
+};
+
+export type IdentityOwnedProject = {
+  "project_id": string;
+  "name": string;
+  "consequence": string;
+};
+
+export type IdentityOwnedCredential = {
+  "project_id": string;
+  "secret_id": string;
+  "environment": string;
+  "key": string;
+  "lifecycle_revision": number;
+  "secret_revision": number;
+  "consequence": string;
+};
+
+export type IdentityOffboarding = {
+  "id"?: string;
+  "preview_id": string;
+  "preview_expires_at": string;
+  "organization_id": string;
+  "user_id": string;
+  "authority_epoch": number;
+  "keys": number;
+  "leases": number;
+  "runs": number;
+  "status": "preview" | "locally_revoked";
+  "projects_requiring_reassignment": Array<IdentityOwnedProject>;
+  "credentials_requiring_reassignment": Array<IdentityOwnedCredential>;
+};
+
+export type IdentityOffboardingResponse = {
+  "offboarding": IdentityOffboarding;
+};
+
+export type IdentityOffboardingRequest = {
+  "preview_id": string;
+  "expected_authority_epoch": number;
+};
+
+export type ToolArtifact = {
+  "id": string;
+  "project_id": string;
+  "name": string;
+  "digest": string;
+};
+
+export type ToolManifest = {
+  "catalog_digest": string;
+  "artifact_digest": string;
+  "operations": Array<"repository_tree" | "read_file">;
+  "max_seconds": number;
+  "tool_seconds": number;
+  "max_response_bytes": number;
+  "max_provider_operations": number;
+  "max_total_bytes": number;
+  "max_concurrent": number;
+  "controls": "server_enforced";
+};
+
+export type ToolProfile = {
+  "id": string;
+  "project_id": string;
+  "artifact_id": string;
+  "digest": string;
+  "manifest": ToolManifest;
+  "approved": boolean;
+};
+
+export type ToolTarget = {
+  "repository_id": number;
+  "owner": string;
+  "repository": string;
+  "reference"?: string;
+  "commit"?: string;
+  "tree_sha"?: string;
+};
+
+export type ToolBinding = {
+  "environment_id": string;
+  "id": string;
+  "project_id": string;
+  "connection_id": string;
+  "target": ToolTarget;
+};
+
+export type ToolConnection = {
+  "id": string;
+  "project_id": string;
+  "app_id": number;
+  "installation_id": number;
+  "provider": "github_app";
+};
+
+export type ToolWorkload = {
+  "id": string;
+  "project_id": string;
+  "certificate_sha256": string;
+  "image_digest": string;
+};
+
+export type ToolGrant = {
+  "id": string;
+  "project_id": string;
+  "profile_id": string;
+  "package_id": string;
+  "binding_id": string;
+  "workload_id": string;
+  "actor_id": string;
+  "client_id": string;
+  "expires_at": string;
+};
+
+export type ToolRun = {
+  "id": string;
+  "project_id": string;
+  "profile_id": string;
+  "binding_id": string;
+  "client_id": string;
+  "owner_id": string;
+  "commit": string;
+  "expires_at": string;
+  "state": "preparing" | "active" | "failed" | "cancelled" | "revoked" | "expired";
+  "repository_id"?: number;
+  "repository"?: string;
+  "environment"?: string;
+  "environment_id"?: string;
+  "reference"?: string;
+  "installation_id"?: number;
+};
+
+export type ToolArguments = {
+  "path"?: string;
+};
+
+export type ToolOperation = {
+  "operation_id": string;
+  "run_id": string;
+  "status": "queued" | "leased" | "dispatched" | "succeeded" | "failed" | "uncertain" | "cancelled" | "expired";
+  "outcome"?: string;
+  "result"?: unknown;
+  "expires_at": string;
+  "receipt_id"?: string;
+  "cancel_requested": boolean;
+};
+
+export type ToolReceipt = {
+  "id": string;
+  "run_id": string;
+  "operation_id": string | null;
+  "action": string;
+  "outcome": string;
+  "details": {
+  [key: string]: unknown;
+};
+};
+
+export type ToolPackageManifest = {
+  "schema_version": string;
+  "package_version": string;
+  "harness": string;
+  "harness_version": string;
+  "sdk_version": string;
+  "protocol": string;
+  "os": string;
+  "endpoint": string;
+  "client_id": string;
+  "callback": string;
+  "profile_id": string;
+  "profile_digest": string;
+  "skill_name": string;
+  "artifact_digest": string;
+  "tree_digest": string;
+  "qualification": string;
+  "source_checked_at": string;
+  "profile_revision": number;
+  "required_controls": Array<string>;
+  "controls": {
+  [key: string]: string;
+};
+  "file_digests": {
+  [key: string]: string;
+};
+  "sources": Array<string>;
+};
+
+export type ToolPackage = {
+  "harness": string;
+  "version": string;
+  "format": string;
+  "files": {
+  [key: string]: string;
+};
+  "profile_digest": string;
+  "compatibility": {
+  [key: string]: string;
+};
+  "manifest": ToolPackageManifest;
+};
+
+export type ToolPackageMetadata = {
+  "id": string;
+  "profile_id": string;
+  "harness": string;
+  "version": string;
+  "digest": string;
+  "approved": boolean;
+};
+
+export type ToolPackageCreated = {
+  "id": string;
+  "digest": string;
+  "package": ToolPackage;
+};
+
+export type ToolConnectionCreated = {
+  "id": string;
+  "provider": "github_app";
+  "external_read": boolean;
+};
+
+export type ToolCheck = {
+  "id": string;
+  "connection_id": string;
+  "binding_id": string;
+  "provider": string;
+  "status": "succeeded" | "failed" | "uncertain";
+  "repository_id": number;
+  "commit"?: string;
+  "external_read": boolean;
+  "authorization_token_mint": boolean;
+  "repository_write": boolean;
+};
+
+export type ToolCatalogDefinition = {
+  "name": string;
+  "operation": string;
+  "installation": string;
+  "schema_digest": string;
+  "input_schema": {
+  [key: string]: unknown;
+};
+};
+
+export type ToolCatalog = {
+  "tools": Array<ToolCatalogDefinition>;
+  "catalog_digest": string;
+};
+
+export type ToolArtifacts = {
+  "artifacts": Array<ToolArtifact>;
+};
+
+export type ToolProfiles = {
+  "profiles": Array<ToolProfile>;
+};
+
+export type ToolPackages = {
+  "packages": Array<ToolPackageMetadata>;
+};
+
+export type ToolConnections = {
+  "connections": Array<ToolConnection>;
+};
+
+export type ToolBindings = {
+  "bindings": Array<ToolBinding>;
+};
+
+export type ToolWorkloads = {
+  "workloads": Array<ToolWorkload>;
+};
+
+export type ToolGrants = {
+  "grants": Array<ToolGrant>;
+};
+
+export type ToolRuns = {
+  "runs": Array<ToolRun>;
+};
+
+export type ToolReceipts = {
+  "receipts": Array<ToolReceipt>;
+};
+
+export type ToolArtifactInput = {
+  "name": string;
+  "source": string;
+};
+
+export type ToolProfileInput = {
+  "artifact_id": string;
+};
+
+export type ToolApprovalInput = {
+  "digest": string;
+};
+
+export type ToolPackageInput = {
+  "profile_id": string;
+  "harness": string;
+  "version": string;
+};
+
+export type ToolConnectionInput = {
+  "app_id": number;
+  "installation_id": number;
+  "private_key_pem": string;
+};
+
+export type ToolBindingInput = {
+  "connection_id": string;
+  "environment": "alpha" | "uat" | "development";
+  "target": ToolTarget;
+};
+
+export type ToolWorkloadInput = {
+  "certificate_sha256": string;
+  "image_digest": string;
+};
+
+export type ToolGrantInput = {
+  "profile_id": string;
+  "package_id": string;
+  "binding_id": string;
+  "workload_id": string;
+  "actor_id": string;
+  "client_id": string;
+  "expires_at": string;
+};
+
+export type ToolRunInput = {
+  "grant_id": string;
+  "family_id": string;
+  "client_id": string;
+  "request_key": string;
+  "reference"?: string;
+  "duration_seconds"?: number;
+};
+
+export type ToolOperationInput = {
+  "request_key": string;
+  "kind": "repository_tree" | "read_file";
+  "arguments": ToolArguments;
+};
+
+export type ToolCheckInput = {
+  "binding_id": string;
+  "allow_external_read": true;
+  "allow_authorization_token_mint": true;
+};
+
+export type RunnerOperationRequest = {
+  "operation_id": string;
+  "run_id": string;
+  "grant_id": string;
+  "attempt": number;
+  "fence": number;
+  "image_digest": string;
+  "request_digest": string;
+  "nonce": string;
+  "kind": "repository_tree" | "read_file";
+  "arguments": ToolArguments;
+};
+
+export type RunnerTicket = {
+  "ticket_id": string;
+  "operation_id": string;
+  "run_id": string;
+  "grant_id": string;
+  "attempt": number;
+  "fence": number;
+  "image_digest": string;
+  "request_digest": string;
+  "nonce": string;
+  "kind": "repository_tree" | "read_file";
+  "arguments": ToolArguments;
+  "expires_at": string;
+  "token": string;
+};
+
+export type RunnerClaimInput = {
+  "image_digest": string;
+};
+
+export type RunnerExecuteInput = {
+  "ticket_id": string;
+  "token": string;
+  "request": RunnerOperationRequest;
+};
+
+export type RunnerExecuteOutput = {
+  "result": unknown;
+  "outcome": "succeeded";
+  "receipt_id": string;
+};
+
+export type RunnerStatusInput = {
+  "ticket_id": string;
+  "token": string;
+};
+
+export type RunnerStatus = {
+  "active": boolean;
+};
+
 export interface CoreOperations {
-  getCapabilities: {
+  "getCapabilities": {
     method: "GET";
     path: "/capabilities";
     request: undefined;
     responses: { "200": Capabilities; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  register: {
+  "register": {
     method: "POST";
     path: "/auth/register";
     request: RegisterRequest;
     responses: { "201": AuthResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  login: {
+  "login": {
     method: "POST";
     path: "/auth/login";
     request: LoginRequest;
     responses: { "200": AuthResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  logout: {
+  "logout": {
     method: "POST";
     path: "/auth/logout";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getSignInProviders: {
+  "getSignInProviders": {
     method: "GET";
     path: "/auth/providers";
     request: undefined;
     responses: { "200": Providers; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  signInStart: {
+  "signInStart": {
     method: "POST";
     path: "/auth/social/{provider}/start";
     request: SocialStartRequest;
     responses: { "200": SocialStart; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  signInComplete: {
+  "signInComplete": {
     method: "POST";
     path: "/auth/social/{provider}/complete";
     request: SocialCompleteRequest;
     responses: { "200": AuthResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  linkStart: {
+  "linkStart": {
     method: "POST";
     path: "/account/connections/{provider}/start";
     request: SocialStartRequest;
     responses: { "200": SocialStart; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  linkComplete: {
+  "linkComplete": {
     method: "POST";
     path: "/account/connections/{provider}/complete";
     request: SocialCompleteRequest;
     responses: { "200": Linked; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getConnections: {
+  "getConnections": {
     method: "GET";
     path: "/account/connections";
     request: undefined;
     responses: { "200": Connections; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listHumanSessions: {
+  "listHumanSessions": {
     method: "GET";
     path: "/account/sessions";
     request: undefined;
     responses: { "200": Sessions; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  revokeHumanSession: {
+  "revokeHumanSession": {
     method: "DELETE";
     path: "/account/sessions/{sessionId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createWorkspace: {
+  "createWorkspace": {
     method: "POST";
     path: "/organizations";
     request: WorkspaceRequest;
     responses: { "201": OrganizationResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listWorkspaces: {
+  "listWorkspaces": {
     method: "GET";
     path: "/organizations";
     request: undefined;
     responses: { "200": Organizations; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getWorkspace: {
+  "getWorkspace": {
     method: "GET";
     path: "/organizations/{orgId}";
     request: undefined;
     responses: { "200": OrganizationResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  updateWorkspace: {
+  "updateWorkspace": {
     method: "PUT";
     path: "/organizations/{orgId}";
     request: WorkspaceRequest;
     responses: { "200": OrganizationResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  deleteEmptyWorkspace: {
+  "deleteEmptyWorkspace": {
     method: "DELETE";
     path: "/organizations/{orgId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  addWorkspaceMember: {
+  "addWorkspaceMember": {
     method: "POST";
     path: "/organizations/{orgId}/members";
     request: AddMemberRequest;
     responses: { "201": MemberResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listWorkspaceMembers: {
+  "listWorkspaceMembers": {
     method: "GET";
     path: "/organizations/{orgId}/members";
     request: undefined;
     responses: { "200": Members; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  updateWorkspaceRole: {
+  "updateWorkspaceRole": {
     method: "PUT";
     path: "/organizations/{orgId}/members/{userId}";
     request: RoleRequest;
     responses: { "200": MemberResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  removeWorkspaceMember: {
+  "removeWorkspaceMember": {
     method: "DELETE";
     path: "/organizations/{orgId}/members/{userId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listWorkspaceProjects: {
+  "listWorkspaceProjects": {
     method: "GET";
     path: "/organizations/{orgId}/projects";
     request: undefined;
     responses: { "200": Projects; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  assignPersonalProject: {
+  "assignPersonalProject": {
     method: "POST";
     path: "/organizations/{orgId}/projects";
     request: AssignProjectRequest;
     responses: { "200": Message; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createProject: {
+  "createProject": {
     method: "POST";
     path: "/projects";
     request: ProjectRequest;
     responses: { "201": ProjectResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listProjects: {
+  "listProjects": {
     method: "GET";
     path: "/projects";
     request: undefined;
     responses: { "200": Projects; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getProject: {
+  "getProject": {
     method: "GET";
     path: "/projects/{id}";
     request: undefined;
     responses: { "200": ProjectResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  updateProject: {
+  "updateProject": {
     method: "PUT";
     path: "/projects/{id}";
     request: ProjectRequest;
     responses: { "200": ProjectResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  deleteProject: {
+  "deleteProject": {
     method: "DELETE";
     path: "/projects/{id}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createSecret: {
+  "createSecret": {
     method: "POST";
     path: "/projects/{id}/secrets";
     request: CreateSecretRequest;
     responses: { "201": SecretResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listSecrets: {
+  "listSecrets": {
     method: "GET";
     path: "/projects/{id}/secrets";
     request: undefined;
     responses: { "200": Secrets; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  readSecretBatch: {
+  "readSecretBatch": {
     method: "POST";
     path: "/projects/{id}/secrets/batch";
     request: BatchRequest;
     responses: { "200": BatchResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getSecret: {
+  "getSecret": {
     method: "GET";
     path: "/projects/{id}/secrets/{secretId}";
     request: undefined;
     responses: { "200": SecretResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  updateSecret: {
+  "updateSecret": {
     method: "PUT";
     path: "/projects/{id}/secrets/{secretId}";
     request: UpdateSecretRequest;
     responses: { "200": SecretResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  deleteSecret: {
+  "deleteSecret": {
     method: "DELETE";
     path: "/projects/{id}/secrets/{secretId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listSecretHistory: {
+  "listSecretHistory": {
     method: "GET";
     path: "/projects/{id}/secrets/{secretId}/versions";
     request: undefined;
     responses: { "200": Array<Revision>; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  readSecretVersion: {
+  "readSecretVersion": {
     method: "GET";
     path: "/projects/{id}/secrets/{secretId}/versions/{version}";
     request: undefined;
     responses: { "200": Record; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  restoreSecretVersion: {
+  "restoreSecretVersion": {
     method: "POST";
     path: "/projects/{id}/secrets/{secretId}/versions/{version}/restore";
     request: RestoreVersionRequest;
     responses: { "200": Record; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createEncryptedBackup: {
+  "createEncryptedBackup": {
     method: "POST";
     path: "/projects/{id}/backups";
     request: undefined;
     responses: { "201": Bundle; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listEncryptedBackupMetadata: {
+  "listEncryptedBackupMetadata": {
     method: "GET";
     path: "/projects/{id}/backups";
     request: undefined;
     responses: { "200": Backups; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  verifyEncryptedBackup: {
+  "verifyEncryptedBackup": {
     method: "POST";
     path: "/projects/{id}/backups/verify";
     request: Bundle;
     responses: { "200": Verification; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  previewSelectedRestore: {
+  "previewSelectedRestore": {
     method: "POST";
     path: "/projects/{id}/backups/preview";
     request: Bundle;
     responses: { "200": RestorePreview; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  restoreSelectedRecords: {
+  "restoreSelectedRecords": {
     method: "POST";
     path: "/projects/{id}/backups/restore";
     request: RestoreSelectedRequest;
     responses: { "200": RestoredRecords; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  importEnvironment: {
+  "importEnvironment": {
     method: "POST";
     path: "/projects/{id}/env-import";
     request: ImportEnvironmentRequest;
     responses: { "200": ImportEnvironmentResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  exportEnvironment: {
+  "exportEnvironment": {
     method: "GET";
     path: "/projects/{id}/env-export";
     request: undefined;
     responses: { "200": ExportEnvironmentResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  rotateProjectKey: {
+  "rotateProjectKey": {
     method: "POST";
     path: "/projects/{id}/rotate-keys";
     request: undefined;
     responses: { "200": RotationResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  verifyProjectEncryption: {
+  "verifyProjectEncryption": {
     method: "GET";
     path: "/projects/{id}/verify-encryption";
     request: undefined;
     responses: { "200": EncryptionVerification; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  rotateOwnedProjectKeys: {
+  "rotateOwnedProjectKeys": {
     method: "POST";
     path: "/rotate-keys";
     request: undefined;
     responses: { "200": RotationsResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": PartialRotationFailure; "503": Error; };
   };
-  promoteEnvironment: {
+  "promoteEnvironment": {
     method: "POST";
     path: "/projects/{id}/promote";
     request: PromotionRequest;
     responses: { "200": PromotionResponse; "202": PromotionResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  diffEnvironments: {
+  "diffEnvironments": {
     method: "POST";
     path: "/projects/{id}/promote/diff";
     request: PromotionDiffRequest;
     responses: { "200": PromotionDiffResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listPromotions: {
+  "listPromotions": {
     method: "GET";
     path: "/projects/{id}/promotions";
     request: undefined;
     responses: { "200": PromotionsResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getPromotion: {
+  "getPromotion": {
     method: "GET";
     path: "/projects/{id}/promotions/{promotionId}";
     request: undefined;
     responses: { "200": PromotionResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  approvePromotion: {
+  "approvePromotion": {
     method: "POST";
     path: "/projects/{id}/promotions/{promotionId}/approve";
     request: undefined;
     responses: { "200": PromotionResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  rejectPromotion: {
+  "rejectPromotion": {
     method: "POST";
     path: "/projects/{id}/promotions/{promotionId}/reject";
     request: undefined;
     responses: { "200": PromotionResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  rollbackPromotion: {
+  "rollbackPromotion": {
     method: "POST";
     path: "/projects/{id}/promotions/{promotionId}/rollback";
     request: undefined;
     responses: { "200": MessageResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listProjectAudit: {
+  "listProjectAudit": {
     method: "GET";
     path: "/projects/{id}/audit-log";
     request: undefined;
     responses: { "200": AuditResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createAPIKey: {
+  "createAPIKey": {
     method: "POST";
     path: "/api-keys";
     request: CreateAPIKeyRequest;
     responses: { "201": CreateAPIKeyResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listAPIKeys: {
+  "listAPIKeys": {
     method: "GET";
     path: "/api-keys";
     request: undefined;
     responses: { "200": APIKeysResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  deleteAPIKey: {
+  "deleteAPIKey": {
     method: "DELETE";
     path: "/api-keys/{id}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createLease: {
+  "createLease": {
     method: "POST";
     path: "/projects/{id}/leases";
     request: CreateLeaseRequest;
     responses: { "201": LeaseResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listLeases: {
+  "listLeases": {
     method: "GET";
     path: "/projects/{id}/leases";
     request: undefined;
     responses: { "200": LeasesResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  revokeLease: {
+  "revokeLease": {
     method: "DELETE";
     path: "/projects/{id}/leases/{leaseId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  mintAgentToken: {
+  "mintAgentToken": {
     method: "POST";
     path: "/projects/{id}/agent-token";
     request: MintAgentTokenRequest;
     responses: { "201": MintAgentTokenResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  revokeAgentToken: {
+  "revokeAgentToken": {
     method: "POST";
     path: "/projects/{id}/agent-token/revoke";
     request: RevokeAgentTokenRequest;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  createTemplate: {
+  "createTemplate": {
     method: "POST";
     path: "/templates";
     request: CreateTemplateRequest;
     responses: { "201": TemplateResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listTemplates: {
+  "listTemplates": {
     method: "GET";
     path: "/templates";
     request: undefined;
     responses: { "200": TemplatesResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  listBuiltinTemplates: {
+  "listBuiltinTemplates": {
     method: "GET";
     path: "/templates/builtin";
     request: undefined;
     responses: { "200": TemplatesResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  getTemplate: {
+  "getTemplate": {
     method: "GET";
     path: "/templates/{templateId}";
     request: undefined;
     responses: { "200": TemplateResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  updateTemplate: {
+  "updateTemplate": {
     method: "PUT";
     path: "/templates/{templateId}";
     request: UpdateTemplateRequest;
     responses: { "200": TemplateResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  deleteTemplate: {
+  "deleteTemplate": {
     method: "DELETE";
     path: "/templates/{templateId}";
     request: undefined;
     responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
   };
-  applyTemplate: {
+  "applyTemplate": {
     method: "POST";
     path: "/templates/{templateId}/apply";
     request: ApplyTemplateRequest;
     responses: { "201": AppliedTemplateResponse; "400": Error; "401": Error; "403": Error; "404": Error; "409": Error; "429": Error; "500": Error; "503": Error; };
+  };
+  "getSecretLifecycle": {
+    method: "GET";
+    path: "/projects/{id}/secrets/{secretId}/lifecycle";
+    request: undefined;
+    responses: { "200": Lifecycle; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "updateSecretLifecycle": {
+    method: "PUT";
+    path: "/projects/{id}/secrets/{secretId}/lifecycle";
+    request: LifecycleChange;
+    responses: { "200": Lifecycle; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "listNotifications": {
+    method: "GET";
+    path: "/account/notifications";
+    request: undefined;
+    responses: { "200": Notifications; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "searchSafeAudit": {
+    method: "GET";
+    path: "/projects/{id}/audit";
+    request: undefined;
+    responses: { "200": SafeAuditPage; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "createAuditExport": {
+    method: "POST";
+    path: "/projects/{id}/audit/exports";
+    request: AuditExportRequest;
+    responses: { "201": AuditExport; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "downloadAuditExport": {
+    method: "GET";
+    path: "/projects/{id}/audit/exports/{exportId}";
+    request: undefined;
+    responses: { "200": SafeAuditSnapshot; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "getAuditExport": {
+    method: "GET";
+    path: "/projects/{id}/audit/exports/{exportId}/status";
+    request: undefined;
+    responses: { "200": AuditExport; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "inspectReadiness": {
+    method: "GET";
+    path: "/operator/readiness";
+    request: undefined;
+    responses: { "200": Readiness; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "listSecretLifecycle": {
+    method: "GET";
+    path: "/projects/{id}/secret-lifecycle";
+    request: undefined;
+    responses: { "200": LifecycleList; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "mcpProtectedResourceMetadata": {
+    method: "GET";
+    path: "/.well-known/oauth-protected-resource/mcp";
+    request: undefined;
+    responses: { "200": MCPProtectedResourceMetadata; "403": undefined; };
+  };
+  "mcpAuthorizationServerMetadata": {
+    method: "GET";
+    path: "/.well-known/oauth-authorization-server";
+    request: undefined;
+    responses: { "200": MCPAuthorizationMetadata; "403": undefined; };
+  };
+  "beginMCPAuthorization": {
+    method: "GET";
+    path: "/oauth/mcp/authorize";
+    request: undefined;
+    responses: { "303": undefined; "400": MCPOAuthError | Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "exchangeMCPToken": {
+    method: "POST";
+    path: "/oauth/mcp/token";
+    request: undefined;
+    responses: { "200": MCPTokenResponse; "400": MCPOAuthError | Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "revokeMCPTokenFamily": {
+    method: "POST";
+    path: "/oauth/mcp/revoke";
+    request: undefined;
+    responses: { "200": undefined; "400": MCPOAuthError | Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "previewMCPConsent": {
+    method: "GET";
+    path: "/mcp/consent";
+    request: undefined;
+    responses: { "200": MCPConsentRequest; "400": MCPOAuthError | Error; "401": Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "decideMCPConsent": {
+    method: "POST";
+    path: "/mcp/consent";
+    request: MCPConsentDecision;
+    responses: { "200": MCPConsentRedirect; "400": MCPOAuthError | Error; "401": Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "listOwnedMCPDelegations": {
+    method: "GET";
+    path: "/account/delegations";
+    request: undefined;
+    responses: { "200": MCPDelegations; "400": MCPOAuthError | Error; "401": MCPOAuthError | Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "revokeOwnedMCPDelegation": {
+    method: "DELETE";
+    path: "/account/delegations/{familyId}";
+    request: undefined;
+    responses: { "204": undefined; "400": MCPOAuthError | Error; "401": MCPOAuthError | Error; "403": undefined; "503": MCPOAuthError | Error; };
+  };
+  "requestAccountRecovery": {
+    method: "POST";
+    path: "/auth/recovery/request";
+    request: IdentityContactRequest;
+    responses: { "202": IdentityProofRequested; "400": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "resetAccountPassword": {
+    method: "POST";
+    path: "/auth/recovery/confirm";
+    request: IdentityPasswordReset;
+    responses: { "204": undefined; "400": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "listAccountMethods": {
+    method: "GET";
+    path: "/account/methods";
+    request: undefined;
+    responses: { "200": IdentityMethods; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "listVerifiedContacts": {
+    method: "GET";
+    path: "/account/contacts";
+    request: undefined;
+    responses: { "200": IdentityContacts; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "removeAccountMethod": {
+    method: "DELETE";
+    path: "/account/methods/{method}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "requestContactProof": {
+    method: "POST";
+    path: "/account/contact-proofs";
+    request: IdentityContactRequest;
+    responses: { "202": IdentityProofRequested; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "confirmVerifiedContact": {
+    method: "POST";
+    path: "/account/contact-proofs/{proofId}/confirm";
+    request: IdentityProofBody;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "getProofDelivery": {
+    method: "GET";
+    path: "/account/proofs/{proofId}";
+    request: undefined;
+    responses: { "200": IdentityDeliveryStatus; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "requestFreshProof": {
+    method: "POST";
+    path: "/account/proofs/{proofId}/resend";
+    request: undefined;
+    responses: { "202": IdentityProofRequested; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "createIdentityInvitation": {
+    method: "POST";
+    path: "/organizations/{orgId}/invitations";
+    request: IdentityInvitationRequest;
+    responses: { "201": IdentityInvitationCreated; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "revokeIdentityInvitation": {
+    method: "DELETE";
+    path: "/organizations/{orgId}/invitations/{invitationId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "acceptIdentityInvitation": {
+    method: "POST";
+    path: "/invitations/{invitationId}/accept";
+    request: IdentityProofBody;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "previewIdentityOffboarding": {
+    method: "POST";
+    path: "/organizations/{orgId}/members/{userId}/offboarding-preview";
+    request: undefined;
+    responses: { "200": IdentityOffboardingResponse; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "offboardIdentityMember": {
+    method: "POST";
+    path: "/organizations/{orgId}/members/{userId}/offboarding";
+    request: IdentityOffboardingRequest;
+    responses: { "200": IdentityOffboardingResponse; "400": Error; "401": Error; "403": Error; "409": Error; "500": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_catalog": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/catalog";
+    request: undefined;
+    responses: { "200": ToolCatalog; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_artifacts": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/artifacts";
+    request: undefined;
+    responses: { "200": ToolArtifacts; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_artifacts": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/artifacts";
+    request: ToolArtifactInput;
+    responses: { "201": ToolArtifact; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_artifacts_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/artifacts/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_profiles": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/profiles";
+    request: undefined;
+    responses: { "200": ToolProfiles; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_profiles": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/profiles";
+    request: ToolProfileInput;
+    responses: { "201": ToolProfile; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_profiles_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/profiles/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_packages": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/packages";
+    request: undefined;
+    responses: { "200": ToolPackages; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_packages": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/packages";
+    request: ToolPackageInput;
+    responses: { "201": ToolPackageCreated; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_packages_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/packages/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_packages_resourceId": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/packages/{resourceId}";
+    request: undefined;
+    responses: { "200": ToolPackage; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_connections": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/connections";
+    request: undefined;
+    responses: { "200": ToolConnections; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_connections": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/connections";
+    request: ToolConnectionInput;
+    responses: { "201": ToolConnectionCreated; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_connections_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/connections/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_bindings": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/bindings";
+    request: undefined;
+    responses: { "200": ToolBindings; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_bindings": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/bindings";
+    request: ToolBindingInput;
+    responses: { "201": ToolBinding; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_bindings_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/bindings/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_workloads": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/workloads";
+    request: undefined;
+    responses: { "200": ToolWorkloads; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_workloads": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/workloads";
+    request: ToolWorkloadInput;
+    responses: { "201": ToolWorkload; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_workloads_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/workloads/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_grants": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/grants";
+    request: undefined;
+    responses: { "200": ToolGrants; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_grants": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/grants";
+    request: ToolGrantInput;
+    responses: { "201": ToolGrant; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_delete__projects_id_tool-platform_grants_resourceId": {
+    method: "DELETE";
+    path: "/projects/{id}/tool-platform/grants/{resourceId}";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_profiles_resourceId_approve": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/profiles/{resourceId}/approve";
+    request: ToolApprovalInput;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_packages_resourceId_approve": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/packages/{resourceId}/approve";
+    request: ToolApprovalInput;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_connections_resourceId_check": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/connections/{resourceId}/check";
+    request: ToolCheckInput;
+    responses: { "200": ToolCheck; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_runs": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/runs";
+    request: ToolRunInput;
+    responses: { "201": ToolRun; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_runs": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/runs";
+    request: undefined;
+    responses: { "200": ToolRuns; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_runs_runId": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/runs/{runId}";
+    request: undefined;
+    responses: { "200": ToolRun; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_runs_runId_cancel": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/runs/{runId}/cancel";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_runs_runId_receipts": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/runs/{runId}/receipts";
+    request: undefined;
+    responses: { "200": ToolReceipts; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_runs_runId_operations": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/runs/{runId}/operations";
+    request: ToolOperationInput;
+    responses: { "202": ToolOperation; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_runs_runId_operations_operationId": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/runs/{runId}/operations/{operationId}";
+    request: undefined;
+    responses: { "200": ToolOperation; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_get__projects_id_tool-platform_runs_runId_operations_operationId_result": {
+    method: "GET";
+    path: "/projects/{id}/tool-platform/runs/{runId}/operations/{operationId}/result";
+    request: undefined;
+    responses: { "200": ToolOperation; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_runs_runId_operations_operationId_cancel": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/runs/{runId}/operations/{operationId}/cancel";
+    request: undefined;
+    responses: { "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__projects_id_tool-platform_runs_runId_operations_operationId_retry": {
+    method: "POST";
+    path: "/projects/{id}/tool-platform/runs/{runId}/operations/{operationId}/retry";
+    request: undefined;
+    responses: { "202": ToolOperation; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__runner_operations_claim": {
+    method: "POST";
+    path: "/runner/operations/claim";
+    request: RunnerClaimInput;
+    responses: { "200": RunnerTicket; "204": undefined; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__runner_operations_execute": {
+    method: "POST";
+    path: "/runner/operations/execute";
+    request: RunnerExecuteInput;
+    responses: { "200": RunnerExecuteOutput; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
+  };
+  "tool_post__runner_operations_status": {
+    method: "POST";
+    path: "/runner/operations/status";
+    request: RunnerStatusInput;
+    responses: { "200": RunnerStatus; "400": Error; "401": Error; "403": Error; "409": Error; "503": Error; };
   };
 }

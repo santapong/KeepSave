@@ -45,7 +45,15 @@ describe('social sign-in binding', () => {
   await expect(startSocialLogin('github')).rejects.toThrow('destination'); expect(sessionStorage.getItem(`keepsave_oauth:${state}`)).toBeNull();
  });
  it('fails closed when browser storage is unavailable', async () => {
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+  vi.spyOn(Object.getPrototypeOf(sessionStorage), 'setItem').mockImplementation(() => { throw new Error('blocked'); });
   await expect(startSocialLogin('google')).rejects.toThrow('Allow storage'); expect(fetchMock).not.toHaveBeenCalled();
+ });
+ it('binds the consent return to the provider proof and rejects arbitrary return URLs', async () => {
+  const returnTo = '/mcp/consent?request_id=55555555-1111-2222-3333-444444444444';
+  sessionStorage.setItem(`keepsave_oauth:${state}`, JSON.stringify({ ...pending, returnTo }));
+  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ token: 'jwt', user: { id: 'owner' } }) });
+  expect((await completeSocialLogin('github', `?code=code&state=${state}`)).returnTo).toBe(returnTo);
+  sessionStorage.setItem(`keepsave_oauth:${state}`, JSON.stringify({ ...pending, returnTo: 'https://evil.example' }));
+  expect((await completeSocialLogin('github', `?code=code&state=${state}`)).returnTo).toBeUndefined();
  });
 });

@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/models"
-	"time"
 )
 
 const RecentAuthenticationWindow = 10 * time.Minute
@@ -53,7 +55,7 @@ func (r *SessionRepository) LockActiveTx(ctx context.Context, tx *sql.Tx, user, 
 	var expires, created time.Time
 	q := `SELECT revoked,expires_at,created_at FROM session_tokens WHERE id=$1 AND user_id=$2`
 	if r.dialect.DBType() != DBTypeSQLite {
-		q += ` FOR UPDATE`
+		q += ` FOR SHARE`
 	}
 	err := tx.QueryRowContext(ctx, Q(r.dialect, q), id, user).Scan(&revoked, dbTime(&expires), dbTime(&created))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -72,6 +74,37 @@ func (r *SessionRepository) LockActiveTx(ctx context.Context, tx *sql.Tx, user, 
 }
 
 var ErrRecentAuthentication = errors.New("recent authentication required")
+
+// LockRevocationTargetsTx acquires the complete exclusive session set once.
+// Callers hold the exclusive subject barrier before invoking this method.
+func (r *SessionRepository) LockRevocationTargetsTx(ctx context.Context, tx *sql.Tx, user uuid.UUID, ids ...uuid.UUID) error {
+	set := map[uuid.UUID]bool{}
+	for _, id := range ids {
+		if id == uuid.Nil {
+			return auth.ErrSessionInvalid
+		}
+		set[id] = true
+	}
+	ordered := make([]uuid.UUID, 0, len(set))
+	for id := range set {
+		ordered = append(ordered, id)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].String() < ordered[j].String() })
+	query := `SELECT id FROM session_tokens WHERE id=$1 AND user_id=$2`
+	if r.dialect.DBType() != DBTypeSQLite {
+		query += ` FOR UPDATE`
+	}
+	for _, id := range ordered {
+		var found uuid.UUID
+		if err := tx.QueryRowContext(ctx, Q(r.dialect, query), id, user).Scan(&found); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sql.ErrNoRows
+			}
+			return auth.ErrSessionUnavailable
+		}
+	}
+	return nil
+}
 
 func (r *SessionRepository) List(ctx context.Context, user uuid.UUID) ([]models.SessionToken, error) {
 	rows, err := r.db.QueryContext(ctx, Q(r.dialect, `SELECT id,user_id,expires_at,revoked,COALESCE(ip_address,''),COALESCE(user_agent,''),created_at FROM session_tokens WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`), user)

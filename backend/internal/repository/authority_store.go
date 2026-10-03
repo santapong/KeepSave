@@ -36,7 +36,17 @@ func (s AuthorityStore) LoadAuthority(ctx context.Context, p policy.Principal, r
 			a.ExpiresAt = expiry.Time
 		}
 	}
-	if p.Kind == policy.Human && s.RequireHumanSession {
+	if p.Kind == policy.OAuthDelegation {
+		if s.Dialect.DBType() != DBTypePostgres || p.ParentGrantID == uuid.Nil || p.SessionID == uuid.Nil {
+			return a, errors.New("delegation missing")
+		}
+		var expiry time.Time
+		if err := s.DB.QueryRowContext(ctx, `SELECT LEAST(f.expires_at,c.expires_at) FROM mcp_oauth_families f JOIN mcp_oauth_consents c ON c.id=f.consent_id JOIN mcp_oauth_clients client ON client.client_id=c.client_id WHERE f.id=$1 AND c.user_id=$2 AND c.session_id=$3 AND f.revoked_at IS NULL AND c.revoked_at IS NULL AND client.enabled AND f.expires_at>NOW() AND c.expires_at>NOW()`, p.ParentGrantID, p.SubjectID, p.SessionID).Scan(&expiry); err != nil {
+			return a, err
+		}
+		a.ExpiresAt = expiry
+	}
+	if (p.Kind == policy.Human && s.RequireHumanSession) || p.Kind == policy.OAuthDelegation {
 		if p.SessionID == uuid.Nil {
 			return a, errors.New("human session missing")
 		}

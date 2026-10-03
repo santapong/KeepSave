@@ -12,10 +12,11 @@ import (
 type Kind string
 
 const (
-	Human      Kind = "human"
-	APIKey     Kind = "api_key"
-	AgentToken Kind = "agent_token"
-	Workload   Kind = "workload"
+	Human           Kind = "human"
+	APIKey          Kind = "api_key"
+	AgentToken      Kind = "agent_token"
+	Workload        Kind = "workload"
+	OAuthDelegation Kind = "oauth_delegation"
 )
 
 type Principal struct {
@@ -88,9 +89,12 @@ func (e Evaluator) Authorize(ctx context.Context, p Principal, action Action, r 
 	if e.Store == nil || p.SubjectID == uuid.Nil || r.ProjectID == uuid.Nil {
 		return deny, nil
 	}
-	if (!p.ExpiresAt.IsZero() && !p.ExpiresAt.After(time.Now())) || (p.Kind != Human && p.Kind != APIKey && p.Kind != AgentToken) {
+	if (!p.ExpiresAt.IsZero() && !p.ExpiresAt.After(time.Now())) || (p.Kind != Human && p.Kind != APIKey && p.Kind != AgentToken && p.Kind != OAuthDelegation) {
 		return deny, nil
 	} // workloads need explicit run authority
+	if p.Kind == OAuthDelegation && (p.ParentGrantID == uuid.Nil || r.Type != "tool_platform" || (action != ReadMetadata && action != ReadValue && action != IssueGrant)) {
+		return deny, nil
+	}
 	a, err := e.Store.LoadAuthority(ctx, p, r)
 	if err != nil {
 		return deny, err

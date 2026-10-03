@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/policy"
 )
 
@@ -65,7 +66,7 @@ func (s *Service) collectionPermit(ctx context.Context, tx *sql.Tx, p policy.Pri
 // Metadata authorizes the requested action without decrypting a value. A
 // write-only key can use WriteSecret; metadata never implies read authority.
 func (s *Service) Metadata(ctx context.Context, p policy.Principal, project, id uuid.UUID, action policy.Action) (Record, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Record{}, err
 	}
@@ -104,7 +105,7 @@ func (s *Service) readTx(ctx context.Context, tx *sql.Tx, p policy.Principal, r 
 // List filters denied keys before decryption. A failed authoritative lookup
 // fails the entire read rather than returning a partial apparent success.
 func (s *Service) List(ctx context.Context, p policy.Principal, project uuid.UUID, environment string) ([]Record, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +184,7 @@ func (s *Service) BatchRead(ctx context.Context, p policy.Principal, project uui
 			ordered = append(ordered, key)
 		}
 	}
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return BatchResult{}, err
 	}
@@ -249,7 +250,7 @@ func (s *Service) BatchRead(ctx context.Context, p policy.Principal, project uui
 // UpdateCurrent preserves last-write-wins for old clients when expected is nil,
 // while clients providing a revision gain an atomic stale-write check.
 func (s *Service) UpdateCurrent(ctx context.Context, p policy.Principal, project, id uuid.UUID, value string, expected *int64) (Record, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Record{}, err
 	}
@@ -274,7 +275,7 @@ func (s *Service) UpdateCurrent(ctx context.Context, p policy.Principal, project
 }
 
 func (s *Service) DeleteCurrent(ctx context.Context, p policy.Principal, project, id uuid.UUID, expected *int64) error {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return err
 	}
@@ -316,11 +317,61 @@ func (s *Service) PutMany(ctx context.Context, p policy.Principal, project uuid.
 		return result, ErrInvalid
 	}
 	sort.Strings(keys)
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return WriteResult{}, err
 	}
 	defer tx.Rollback()
+	result, err = s.putManyTx(ctx, tx, p, project, environment, values, overwrite, operation, keys)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	return result, tx.Commit()
+}
+
+// PutManyFromSource authorizes a stored template in the same transaction as all
+// resulting revisions. Discovery attributes are revalidated by the source port.
+func (s *Service) PutManyFromSource(ctx context.Context, p policy.Principal, project uuid.UUID, environment string, sourceOrganizations []uuid.UUID, source func(*sql.Tx) (map[string]string, error)) (WriteResult, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='15s'`); err != nil {
+		return WriteResult{}, err
+	}
+	if err = authority.Postgres(s.db).LockProjectOrganizations(ctx, tx, p, project, true, sourceOrganizations); err != nil {
+		return WriteResult{}, ErrDenied
+	}
+	values, err := source(tx)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	keys := []string{}
+	size := 0
+	if len(values) == 0 || len(values) > 1000 {
+		return WriteResult{}, ErrInvalid
+	}
+	for k, v := range values {
+		if !ValidKey(k) || len(v) > 1<<20 {
+			return WriteResult{}, ErrInvalid
+		}
+		keys = append(keys, k)
+		size += len(k) + len(v)
+	}
+	if size > 1<<20 {
+		return WriteResult{}, ErrInvalid
+	}
+	sort.Strings(keys)
+	result, err := s.putManyTx(ctx, tx, p, project, environment, values, true, "template", keys)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	return result, tx.Commit()
+}
+func (s *Service) putManyTx(ctx context.Context, tx *sql.Tx, p policy.Principal, project uuid.UUID, environment string, values map[string]string, overwrite bool, operation string, keys []string) (WriteResult, error) {
+	result := WriteResult{Created: []string{}, Updated: []string{}, Skipped: []string{}, Records: []Record{}}
+	var err error
 	var env uuid.UUID
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM environments WHERE project_id=$1 AND name=$2`, project, environment).Scan(&env); err != nil {
 		return WriteResult{}, ErrNotFound
@@ -358,9 +409,6 @@ func (s *Service) PutMany(ctx context.Context, p policy.Principal, project uuid.
 			result.Updated = append(result.Updated, key)
 		}
 		result.Records = append(result.Records, written)
-	}
-	if err = tx.Commit(); err != nil {
-		return WriteResult{}, err
 	}
 	return result, nil
 }

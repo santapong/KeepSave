@@ -10,7 +10,7 @@ import (
 // ArchiveProject retains recoverable ciphertext while removing all active authority.
 // The project lock serializes this operation against every journal mutation.
 func (s *Service) ArchiveProject(ctx context.Context, p policy.Principal, project uuid.UUID) error {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return err
 	}
@@ -20,6 +20,14 @@ func (s *Service) ArchiveProject(ctx context.Context, p policy.Principal, projec
 	}
 	if err = s.EnrollTx(ctx, tx, p, project); err != nil {
 		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE project_id=$1`, project); err != nil {
+		return err
+	}
+	if s.archive != nil {
+		if err = s.archive.ArchiveProjectTx(ctx, tx, project); err != nil {
+			return err
+		}
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT secret_id,key_id FROM vault_entries WHERE project_id=$1 AND NOT deleted ORDER BY secret_id`, project)
 	if err != nil {
@@ -53,9 +61,6 @@ func (s *Service) ArchiveProject(ctx context.Context, p policy.Principal, projec
 		if err = s.event(ctx, tx, p, r, "secret.deleted"); err != nil {
 			return err
 		}
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE project_id=$1`, project); err != nil {
-		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM secrets WHERE project_id=$1`, project); err != nil {
 		return err

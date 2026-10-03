@@ -29,7 +29,7 @@ for attempt in $(seq 1 60);do
 done
 if [ "$ready" != 1 ];then echo 'Disposable MySQL did not become ready' >&2;exit 1;fi
 # Cache volumes contain compiler/dependency artifacts, never application data.
-docker run --rm --cpus=2 --network "$network" --label keepsave.legacy-mysql-verification=core-20261002 -e CGO_ENABLED=1 -e KEEPSAVE_MYSQL_TEST=1 \
+docker run --rm --cpus=2 --memory=2g --network "$network" --label keepsave.legacy-mysql-verification=core-20261002 -e GOMAXPROCS=2 -e CGO_ENABLED=1 -e KEEPSAVE_MYSQL_TEST=1 \
  -v keepsave-go-mod:/go/pkg/mod -v keepsave-go-build:/root/.cache/go-build \
  -v "$repo_root/backend:/src" -w /src golang:1.27.1@sha256:e0174e51e81218523251d85d248a90d24c3d5e81543b4f07a5d66229397db190 \
  go test -race -p 2 -count=1 ./internal/api -run '^TestPlatformMySQLLegacy' -timeout 180s

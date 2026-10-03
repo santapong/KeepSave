@@ -58,12 +58,12 @@ docker exec "$database_container" psql -U keepsave_platform_test -d keepsave_pla
   -c "CREATE ROLE keepsave_social_test LOGIN PASSWORD 'local-test-only'" \
   -c "CREATE DATABASE keepsave_social_test OWNER keepsave_social_test" >/dev/null
 docker create --name "$test_container" --label "keepsave.test-run=$run_id" \
-  --cpus=2 --network "$network" -e GOMAXPROCS=2 \
+  --cpus=2 --memory=2g --network "$network" --add-host=example.com:93.184.216.34 -e GOMAXPROCS=2 \
   -e KEEPSAVE_PLATFORM_POSTGRES_TEST=1 -e KEEPSAVE_SOCIAL_POSTGRES_TEST=1 \
-  -v "$project_root/backend:/src" -w /src \
+  -v "$project_root/backend:/src" -v keepsave-neutral-go-build-20261002:/root/.cache/go-build -v keepsave-neutral-go-mod-20261002:/go/pkg/mod -w /src \
   golang:1.27.1@sha256:e0174e51e81218523251d85d248a90d24c3d5e81543b4f07a5d66229397db190 \
-  go test -p 2 -race -count=1 ./internal/api ./internal/service ./internal/repository ./cmd/keepsave-vault \
-    -run '^(TestPlatform|TestIdentity|TestSocialAuthPostgres)' -timeout 300s >/dev/null
+  go test -p 2 -race -count=1 ./internal/api ./internal/service ./internal/repository ./cmd/keepsave-vault ./internal/mcpauth ./internal/mcpgateway ./internal/harness ./internal/broker ./internal/runs ./internal/runner \
+    -timeout 300s "$@" >/dev/null
 test_created=1
 docker start -a "$test_container"
 # docker start reports daemon errors; inspect the actual test process exit code.

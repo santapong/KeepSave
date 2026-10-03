@@ -43,7 +43,11 @@ func (r *PlatformAdminRepository) SetGrant(ctx context.Context, user uuid.UUID, 
 	}
 	defer tx.Rollback()
 	var existing uuid.UUID
-	if err = tx.QueryRowContext(ctx, Q(r.dialect, `SELECT id FROM users WHERE id=$1`), user).Scan(&existing); err != nil {
+	lock := ""
+	if r.dialect.DBType() != DBTypeSQLite {
+		lock = " FOR UPDATE"
+	}
+	if err = tx.QueryRowContext(ctx, Q(r.dialect, `SELECT id FROM users WHERE id=$1`+lock), user).Scan(&existing); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("account not found")
 		}

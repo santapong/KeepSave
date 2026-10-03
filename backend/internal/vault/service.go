@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
@@ -33,10 +34,16 @@ type Service struct {
 	crypto    *crypto.Service
 	authorize AuthorizeTx
 	audit     Auditor
+	archive   ProjectArchive
+}
+type ProjectArchive interface {
+	ArchiveProjectTx(context.Context, *sql.Tx, uuid.UUID) error
 }
 
+func (s *Service) EnableProjectArchive(h ProjectArchive) { s.archive = h }
+
 func New(db *sql.DB, c *crypto.Service, authorize AuthorizeTx, audit Auditor) *Service {
-	return &Service{db, c, authorize, audit}
+	return &Service{db: db, crypto: c, authorize: authorize, audit: audit}
 }
 
 type Record struct {
@@ -58,22 +65,26 @@ type Revision struct {
 	ActorID   *uuid.UUID `json:"actor_id,omitempty"`
 }
 
-func (s *Service) begin(ctx context.Context, project uuid.UUID) (*sql.Tx, error) {
+func (s *Service) begin(ctx context.Context, p policy.Principal, project uuid.UUID) (*sql.Tx, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	var id uuid.UUID
-	// All vault writes lock the project first; rotation and history share the lock.
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM projects WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, project).Scan(&id); err != nil {
+	if _, err = tx.ExecContext(ctx, `SET LOCAL lock_timeout='5s'`); err != nil {
 		tx.Rollback()
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
 		return nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `SET LOCAL statement_timeout='15s'`); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err = authority.Postgres(s.db).LockProject(ctx, tx, p, project, true); err != nil {
+		tx.Rollback()
+		return nil, ErrDenied
 	}
 	return tx, nil
 }
+
 func (s *Service) permit(ctx context.Context, tx *sql.Tx, p policy.Principal, action policy.Action, r Record) error {
 	if s.authorize == nil || s.audit == nil {
 		return ErrDenied
@@ -85,6 +96,9 @@ func (s *Service) permit(ctx context.Context, tx *sql.Tx, p policy.Principal, ac
 	return nil
 }
 func (s *Service) event(ctx context.Context, tx *sql.Tx, p policy.Principal, r Record, action string) error {
+	return s.eventWithMetadataRevision(ctx, tx, p, r, action, 0)
+}
+func (s *Service) eventWithMetadataRevision(ctx context.Context, tx *sql.Tx, p policy.Principal, r Record, action string, metadataRevision int64) error {
 	actor := p.ActorID
 	if actor == uuid.Nil && p.Kind == policy.Human {
 		actor = p.SubjectID
@@ -93,6 +107,9 @@ func (s *Service) event(ctx context.Context, tx *sql.Tx, p policy.Principal, r R
 		return ErrDenied
 	}
 	details := models.JSONMap{"secret_id": r.ID.String(), "revision": r.Revision, "key": r.Key}
+	if metadataRevision > 0 {
+		details["metadata_revision"] = metadataRevision
+	}
 	if err := s.audit.CreateTx(tx, &actor, &r.ProjectID, action, r.Environment, details, ""); err != nil {
 		return err
 	}
@@ -106,7 +123,7 @@ func (s *Service) event(ctx context.Context, tx *sql.Tx, p policy.Principal, r R
 // Enroll captures existing encrypted values as a labeled baseline. The caller
 // must hold administrator authority; enrollment never invents earlier versions.
 func (s *Service) Enroll(ctx context.Context, p policy.Principal, project uuid.UUID) error {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return err
 	}
@@ -232,7 +249,7 @@ func (s *Service) append(ctx context.Context, tx *sql.Tx, p policy.Principal, r 
 
 // Put requires the expected current revision (zero means a new key).
 func (s *Service) Put(ctx context.Context, p policy.Principal, r Record, expected int64) (Record, error) {
-	tx, err := s.begin(ctx, r.ProjectID)
+	tx, err := s.begin(ctx, p, r.ProjectID)
 	if err != nil {
 		return Record{}, err
 	}
@@ -338,7 +355,7 @@ func (s *Service) readVersion(ctx context.Context, tx *sql.Tx, r Record, version
 	return crypto.Decrypt(dek, cipher, nonce)
 }
 func (s *Service) Read(ctx context.Context, p policy.Principal, project, id uuid.UUID, version int64) (Record, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Record{}, err
 	}
@@ -374,7 +391,7 @@ func (s *Service) Read(ctx context.Context, p policy.Principal, project, id uuid
 	return r, nil
 }
 func (s *Service) Restore(ctx context.Context, p policy.Principal, project, id uuid.UUID, version, expected int64) (Record, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Record{}, err
 	}
@@ -423,7 +440,7 @@ func (s *Service) Restore(ctx context.Context, p policy.Principal, project, id u
 	return r, nil
 }
 func (s *Service) History(ctx context.Context, p policy.Principal, project, id uuid.UUID) ([]Revision, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +474,7 @@ func (s *Service) History(ctx context.Context, p policy.Principal, project, id u
 }
 
 func (s *Service) Delete(ctx context.Context, p policy.Principal, project, id uuid.UUID, expected int64) error {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return err
 	}

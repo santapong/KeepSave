@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LoaderCircle } from '@/components/icons';
 import { getProviders, startSocialLogin, type Provider, type Providers } from '../../api/socialAuth';
-export function ProviderButtons({ busy = false, onBusyChange }: { busy?: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function ProviderButtons({ busy = false, onBusyChange, returnTo }: { busy?: boolean; onBusyChange?: (busy: boolean) => void; returnTo?: string }) {
   const [providers, setProviders] = useState<Providers | null>(null);
   const [pending, setPending] = useState<Provider | null>(null);
   const [error, setError] = useState('');
@@ -12,7 +12,7 @@ export function ProviderButtons({ busy = false, onBusyChange }: { busy?: boolean
   }, []);
   async function begin(provider: Provider) {
     setError(''); setPending(provider); onBusyChange?.(true);
-    try { await startSocialLogin(provider); }
+    try { if (returnTo) await startSocialLogin(provider, 'login', returnTo); else await startSocialLogin(provider); }
     catch (error) { setError(error instanceof Error ? error.message : 'Could not start sign-in.'); setPending(null); onBusyChange?.(false); }
   }
   const unavailable = providers && (!providers.github || !providers.google);

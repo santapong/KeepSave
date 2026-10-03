@@ -219,5 +219,16 @@ it('an earlier denied request does not erase a newly established browser session
  let finish!: (response: unknown) => void;
  global.fetch = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
  const oldRequest = listProjects(); const fresh = makeFakeJWT(7200); setToken(fresh);
- finish({ status: 401, ok: false }); await expect(oldRequest).rejects.toThrow('Session expired'); expect(getAuthToken()).toBe(fresh);
+ finish({ status: 401, ok: false }); await expect(oldRequest).rejects.toThrow('Your account changed'); expect(getAuthToken()).toBe(fresh);
+});
+
+it('refuses a successful response belonging to a previous account', async () => {
+ const { listProjects, getAuthToken } = await import('./client');
+ sessionStorage.clear(); setToken(makeFakeJWT(3600));
+ let finish!: (response: unknown) => void;
+ global.fetch = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+ const oldRequest = listProjects(); const fresh = makeFakeJWT(7200); setToken(fresh);
+ const body = vi.fn().mockResolvedValue({ projects: [{ id: 'former-account-project' }] });
+ finish({ status: 200, ok: true, json: body });
+ await expect(oldRequest).rejects.toThrow('Your account changed'); expect(body).not.toHaveBeenCalled(); expect(getAuthToken()).toBe(fresh);
 });

@@ -190,10 +190,18 @@ explicit linking and can recover without an email-based account takeover.
   failure and cross-instance old-session denial. No recovery authority in backups.
 - **Dependency/owner:** reviewed Identity proof/contact service; Backend + Security.
 
-## F07 — Controlled Codex repository review (strategic M2–M5)
+## F07 — Controlled access across harnesses (strategic M2–M5)
 
 **Journey:** an approved developer opens a ten-minute run, reviews repository A
-through Codex, is denied B and loses subsequent access after revocation.
+through a supported harness, is denied B and loses subsequent access after
+revocation. Codex is the first pilot candidate. The owner's 2 October correction
+requires a harness-neutral core and an extension path for future clients; it
+does not establish that every harness is already supported.
+
+- Keep shared principals, resources, policy, approvals, grants, broker custody
+  and receipts free of harness-specific types. Harness transport/configuration/
+  artifact adapters and provider operation adapters evolve independently.
+  Follow the [extension contract](README.md#harness-neutral-extension-contract).
 
 - M2: official Go MCP SDK, verified exact pins/versions, stateless transport,
   resource-bound OAuth consent, pre-registered client/S256 PKCE, atomic codes,
@@ -203,13 +211,22 @@ through Codex, is denied B and loses subsequent access after revocation.
   runner. Connector requests structured operations; Broker holds the token and
   performs the authenticated request. No arbitrary upstream URLs or API-host builds.
 - M4: immutable instruction-only private skills, digests/approvals/revocation,
-  pinned harness profiles, native installation and tested compatibility/export.
+  portable access profiles with pinned harness packages, native installation
+  and tested compatibility/export. Each export has an exact format/version/
+  digest; changed packaging cannot borrow an approval for another artifact.
   Separate server-enforced, administrator-configured and unverified controls.
+  Refuse a package/client that cannot honor required capabilities; never
+  silently drop restrictions. Client declarations cannot grant authority.
 - M5: complete control/runner self-hosting, consistent multiple APIs, durable
   external effects, upgrade/fault/recovery drills and measured capacity.
 - **Acceptance:** preserve the [existing pilot matrix](../2026-09-28-backend-platform/DELIVERY.md#first-pilot-review-this-repository-with-controlled-access),
   real Codex/GitHub UAT, stolen-runner/handle denial, expiry/policy changes,
   canaries absent and proven file/network/process/time/resource restrictions.
+  Before advertising broad harness support, run the same profile and allowed/
+  denied repository, expiry, revocation, cancellation and receipt cases through
+  two independent real harnesses. Pick the second from pilot demand; a generic
+  MCP fixture alone is not cross-harness acceptance. Publish a version/capability
+  matrix, not an unqualified universal-support claim.
 - **Dependency/owner:** existing M0/M1 contracts; Backend + Platform + Security.
   Skills do not grant authority. This is the established program, not a new
   parallel agent-hosting or model-credential product.
@@ -271,7 +288,8 @@ one approved destination with preview, change receipts and visible uncertainty.
 | TEAM-01 | F05 preview/offboard receipt on existing membership denial. | Mint race/two-API/unrelated-workspace matrix. |
 | AUTH-01 | F06 verified-contact/proof ADR and method safety. | Independent review plus replay/collision/last-method tests. |
 | TEAM-02 | F05 invitations using accepted contact/identity proof. | Atomic accept/inviter-revocation/role tests. |
-| MCP-01 | F07 M2 synthetic transport/OAuth/diagnostics slice. | Supported protocol/client matrix and cancellation; real Codex acceptance separately. |
+| MCP-01 | F07 M2 synthetic transport/OAuth/diagnostics and harness-neutral adapter contracts. | Supported protocol/client matrix and cancellation; real Codex acceptance separately. |
+| HARNESS-01 | F07 second independent harness adapter, selected from pilot use after MCP-01; include M4 packaging only when profiles exist. | Same authority/expiry/revoke matrix and safe capability mismatch; real harness evidence before broad compatibility claims. |
 | BROKER-01 | F07 M3 synthetic provider and independent runner slice. | Custody, A/B/ref/run denial, canaries and isolation tests. |
 
 Tickets are local proposed work items, not opened GitHub issues or assigned

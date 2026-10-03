@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/auditview"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
+	"github.com/santapong/KeepSave/backend/internal/diagnostics"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
@@ -67,11 +69,14 @@ func newCoreFixture(t *testing.T) *coreFixture {
 	templates.EnableVault(v)
 	templates.EnableSessions(sessions)
 	org := service.NewOrganizationService(repository.NewOrganizationRepository(f.db, f.d), ar)
+	org.EnableSessions(sessions)
 	versions := NewVersionHandler(repository.NewSecretVersionRepository(f.db, f.d), sr, pr, cs)
 	versions.EnableVault(v)
 	login := service.NewAuthService(ur, repository.NewAuthAttemptsRepository(f.db, f.d), ar, jwt)
 	login.EnableSessions(sessions)
-	r := NewRouter(Dependencies{CoreRelease: true, DisableLocalMCP: true, CORSOrigins: "http://localhost", PromotionsEnabled: true, JWTService: jwt, APIKeyRepo: f.keys, ProjectRepo: pr, AuthHandler: NewAuthHandler(login), SessionHandler: NewSessionHandler(sessions), ProjectHandler: NewProjectHandler(ps), SecretHandler: NewSecretHandler(ss), APIKeyHandler: NewAPIKeyHandler(apiKeys), PromotionHandler: NewPromotionHandler(promos), KeyRotationHandler: NewKeyRotationHandler(rotations), EnvFileHandler: NewEnvFileHandler(envs), TemplateHandler: NewTemplateHandler(templates), VersionHandler: versions, OrgHandler: NewOrganizationHandler(org), RecoveryHandler: NewRecoveryHandler(v), DB: f.db})
+	r := NewRouter(Dependencies{CoreRelease: true, DisableLocalMCP: true, CORSOrigins: "http://localhost", PromotionsEnabled: true, JWTService: jwt, APIKeyRepo: f.keys, ProjectRepo: pr, AuthHandler: NewAuthHandler(login), SessionHandler: NewSessionHandler(sessions), ProjectHandler: NewProjectHandler(ps), SecretHandler: NewSecretHandler(ss), APIKeyHandler: NewAPIKeyHandler(apiKeys), PromotionHandler: NewPromotionHandler(promos), KeyRotationHandler: NewKeyRotationHandler(rotations), EnvFileHandler: NewEnvFileHandler(envs), TemplateHandler: NewTemplateHandler(templates), VersionHandler: versions, OrgHandler: NewOrganizationHandler(org), RecoveryHandler: NewRecoveryHandler(v), TeamVaultHandler: NewTeamVaultHandler(v, auditview.New(f.db, func(ctx context.Context, tx *sql.Tx, p policy.Principal, a policy.Action, r policy.Resource) (policy.Decision, error) {
+		return (policy.Evaluator{Store: repository.AuthorityStore{DB: tx, Dialect: f.d, RequireHumanSession: true}}).Authorize(ctx, p, a, r)
+	}, ar), &diagnostics.Service{DB: f.db, Config: diagnostics.Config{PostgreSQL: true}}, true), OperatorAdminChecker: repository.NewPlatformAdminRepository(f.db, f.d, ar), DB: f.db})
 	c := &coreFixture{f, v, map[uuid.UUID]string{}, org}
 	f.r = r
 	f.jwt = jwt

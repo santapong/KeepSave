@@ -265,3 +265,15 @@
   [data-theme="light"] .ks-workspace-welcome .ks-workflow-steps b { font-size:11px; }
   [data-theme="light"] .ks-workspace-mode .ks-command-trigger { box-shadow:none; }
 }
+
+.ks-platform-form { display: grid; gap: 16px; margin: 24px 0; max-width: 640px; }
+.ks-platform-form label { display: grid; gap: 8px; color: var(--cz-ink-mute); font-size: 13px; }
+.ks-platform-form.cz-card { padding: 24px; }
+.ks-platform-form h2 { font-size: 18px; font-weight: 550; color: var(--cz-ink); }
+.ks-platform-form :is(input, select, textarea) { width: 100%; min-height: 44px; border: 1px solid var(--cz-rule); border-radius: 6px; padding: 10px 12px; background: var(--ks-field); color: var(--cz-ink); font-size: 13px; }
+.ks-platform-form textarea { min-height: 180px; resize: vertical; }
+.ks-platform-form :is(input, select, textarea):focus-visible { outline: 2px solid var(--cz-accent-hi); outline-offset: 2px; }
+.ks-platform-form button { justify-self: start; }
+.ks-platform-project { display: grid; gap: 8px; max-width: 400px; margin: 24px 0; font-size: 13px; color: var(--cz-ink-mute); }
+.ks-platform-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+.ks-platform-tabs [aria-pressed="true"] { border-color: var(--cz-accent-hi); }

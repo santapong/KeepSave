@@ -13,12 +13,14 @@ import { OrbitalPipeline } from '../components/cosmic/OrbitalPipeline';
 import { Page, PageHeader, SectionHead } from '../components/cosmic/primitives';
 import type { Project } from '../types';
 import { ProjectRecoveryPanel } from '../components/ProjectRecoveryPanel';
+import { SecretLifecyclePanel } from '../components/SecretLifecyclePanel';
+import { SafeAuditPanel } from '../components/SafeAuditPanel';
 import { useCapabilities } from '../hooks/useCapabilities';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Env = (typeof ENVIRONMENTS)[number];
 
-type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys' | 'recovery';
+type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys' | 'recovery' | 'lifecycle';
 
 export function ProjectDetailPage() {
   const { enabled } = useCapabilities();
@@ -39,15 +41,20 @@ export function ProjectDetailPage() {
     if (path.includes('/promotions')) return 'promotions';
     if (path.includes('/audit')) return 'audit';
     if (path.includes('/api-keys')) return 'api-keys';
+    if (path.includes('/lifecycle')) return 'lifecycle';
     if (path.includes('/recovery')) return 'recovery';
     return 'secrets';
   })();
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setProject(null);
+    setError('');
     getProject(id)
-      .then(setProject)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load project'));
+      .then(value => { if (active) setProject(value); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Failed to load project'); });
+    return () => { active = false; };
   }, [id]);
 
   // Task A.2: Export .env for the selected environment, triggers a download.
@@ -120,6 +127,7 @@ export function ProjectDetailPage() {
     { key: 'promotions', label: 'History', path: `/projects/${id}/promotions` },
     { key: 'audit', label: 'Audit', path: `/projects/${id}/audit` },
     { key: 'api-keys', label: 'API Keys', path: `/projects/${id}/api-keys` },
+    ...(enabled('team_vault') ? [{ key: 'lifecycle' as const, label: 'Lifecycle', path: `/projects/${id}/lifecycle` }] : []),
     ...(enabled('encrypted_recovery') ? [{ key: 'recovery' as const, label: 'Recovery', path: `/projects/${id}/recovery` }] : []),
   ];
 
@@ -224,7 +232,8 @@ export function ProjectDetailPage() {
             }
           />
           <Route path="promotions" element={<PromotionsList projectId={id!} />} />
-          <Route path="audit" element={<AuditLogViewer projectId={id!} />} />
+          <Route path="audit" element={enabled('team_vault') ? <SafeAuditPanel key={id} projectId={id!} /> : <AuditLogViewer projectId={id!} />} />
+          <Route path="lifecycle" element={enabled('team_vault') ? <SecretLifecyclePanel key={id} projectId={id!} /> : <p className="cz-muted">Lifecycle controls are unavailable on this installation.</p>} />
           <Route path="api-keys" element={<ProjectAPIKeysPanel projectId={id!} />} />
         </Routes>
       </div>

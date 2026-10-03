@@ -18,6 +18,7 @@ import (
 	"github.com/santapong/KeepSave/backend/migrations"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,7 @@ func run() error {
 	action := flag.String("action", "", "baseline, verify or recover-isolated")
 	path := flag.String("bundle", "", "external encrypted JSON bundle")
 	name := flag.String("target-name", "", "explicit isolated recovered project name")
+	ownerMapping := flag.String("map-lifecycle-owners-to-isolated-custodian", "", "comma-separated source owner UUIDs explicitly mapped to the new isolated custodian; no source authority is recovered")
 	isolated := flag.Bool("confirm-empty-isolated-database", false, "target is an isolated empty PostgreSQL database, never the live database")
 	flag.Parse()
 	if *action != "baseline" && *action != "verify" && *action != "recover-isolated" {
@@ -160,7 +162,17 @@ func run() error {
 		return err
 	}
 	p := policy.Principal{Kind: policy.Human, SubjectID: owner.ID, ActorID: owner.ID}
-	result, err := v.RecoverToEmptyProject(ctx, p, project.ID, bundle, keys)
+	owners := map[uuid.UUID]uuid.UUID{}
+	if *ownerMapping != "" {
+		for _, raw := range strings.Split(*ownerMapping, ",") {
+			source, e := uuid.Parse(strings.TrimSpace(raw))
+			if e != nil || source == uuid.Nil {
+				return fmt.Errorf("invalid lifecycle owner mapping")
+			}
+			owners[source] = owner.ID
+		}
+	}
+	result, err := v.RecoverToEmptyProjectWithOwnerMap(ctx, p, project.ID, bundle, keys, owners)
 	if err != nil {
 		return err
 	}
