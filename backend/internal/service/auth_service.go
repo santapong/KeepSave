@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
@@ -147,6 +149,18 @@ func (s *AuthService) LoginContext(ctx context.Context, email, password, ipAddr,
 	defer tx.Rollback()
 	var token string
 	if s.sessions != nil {
+		if err = (authority.Guard{Dialect: s.userRepo.Dialect()}).LockSubjects(ctx, tx, []uuid.UUID{user.ID}, true); err != nil {
+			return nil, auth.ErrSessionUnavailable
+		}
+		// A password validated before a recovery or method-removal commit may
+		// not mint a session after it. Compare the verified hash under the barrier.
+		var currentHash string
+		if err = tx.QueryRowContext(ctx, repository.Q(s.userRepo.Dialect(), `SELECT password_hash FROM users WHERE id=$1`), user.ID).Scan(&currentHash); err != nil {
+			return nil, auth.ErrSessionUnavailable
+		}
+		if currentHash != user.PasswordHash {
+			return nil, fmt.Errorf("invalid credentials")
+		}
 		token, err = s.sessions.IssueTx(ctx, tx, user, "password", ipAddr, ua)
 	} else {
 		token, err = s.jwtService.GenerateToken(user.ID, user.Email)

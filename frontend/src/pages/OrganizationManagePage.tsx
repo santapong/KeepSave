@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Page } from '@/components/cosmic/primitives';
 import { ArrowLeft, Users, FolderOpen, AlertCircle, Trash2, X } from '@/components/icons';
+import { OrganizationSafetyPanel } from '../components/OrganizationSafetyPanel';
+import { useAuth } from '../hooks/useAuth';
 
 const ACCENT_AVATAR = 'linear-gradient(135deg, var(--cz-accent-hi), var(--cz-plasma))';
 
@@ -20,6 +22,7 @@ export function OrganizationManagePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -316,6 +319,7 @@ export function OrganizationManagePage() {
                           className="h-7 w-7 text-destructive hover:bg-destructive/10"
                           onClick={() => setRemoveMemberId(m.user_id)}
                           title="Remove member"
+                          disabled={m.user_id === org.owner_id}
                         >
                           <X className="h-3.5 w-3.5" />
                         </Button>
@@ -396,6 +400,8 @@ export function OrganizationManagePage() {
           </div>
         </div>
       </Card>
+
+      <OrganizationSafetyPanel organization={org} members={members} isAdmin={members.some((member) => member.user_id === user?.id && member.role === 'admin')} onChanged={async () => { setMembers(await api.listOrgMembers(org.id)); }} />
 
       {/* Danger zone */}
       <div className="cz-danger-zone">

@@ -19,8 +19,10 @@ const sections: { label: string; items: NavItem[] }[] = [
     { path: '/', label: 'Projects', icon: FolderClosed },
     { path: '/organizations', label: 'Organizations', icon: Building2 },
     { path: '/templates', label: 'Templates', icon: Boxes },
+    { path: '/notifications', label: 'Renewal reminders', icon: BookOpen },
   ] },
   { label: 'Connections', items: [
+    { path: '/developer-access', label: 'Developer access', icon: OrbitHub },
     { path: '/applications', label: 'Applications', icon: AppWindow },
     { path: '/mcp-hub', label: 'MCP Hub', icon: OrbitHub },
     { path: '/oauth-clients', label: 'OAuth Clients', icon: KeyRound },

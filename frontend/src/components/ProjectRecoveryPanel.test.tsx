@@ -7,8 +7,18 @@ vi.mock('./TypedConfirmModal', () => ({ TypedConfirmModal: ({ open, onConfirm }:
 const bundle = { format: 'keepsave.encrypted-vault.v1', ciphertext: 'synthetic-encrypted-only', nonce: 'synthetic', sha256: 'synthetic' };
 beforeEach(() => {
  vi.clearAllMocks();
- vi.mocked(verifyEncryptedBackup).mockResolvedValue({ project_id: 'p', created_at: '2026-10-01T00:00:00Z', entries: 2, revisions: 4, keys: 1, snapshots: 0 });
+ vi.mocked(verifyEncryptedBackup).mockResolvedValue({ project_id: 'p', created_at: '2026-10-01T00:00:00Z', entries: 2, revisions: 4, keys: 1, snapshots: 0, lifecycle_records: 0 });
  vi.mocked(previewBackupRestore).mockResolvedValue({ project_id: 'p', backup_created_at: '2026-10-01T00:00:00Z', records: [{ secret_id: 'a', environment: 'alpha', key: 'ACTIVE', backup_revision: 2, current_revision: 3, status: 'different', restorable: true }, { secret_id: 'd', environment: 'alpha', key: 'DELETED', backup_revision: 1, current_revision: 0, status: 'deleted', restorable: false }] });
+});
+
+it('requires explicit current-member mapping before restoring lifecycle metadata', async () => {
+ vi.mocked(previewBackupRestore).mockResolvedValue({ project_id: 'p', backup_created_at: '2026-10-01T00:00:00Z', records: [{ secret_id: 'a', environment: 'alpha', key: 'ACTIVE', backup_revision: 2, current_revision: 3, status: 'changed', restorable: true, current_metadata_revision: 5, backup_lifecycle: { secret_id: 'a', project_id: 'p', known: true, revision: 2, responsible_user_id: 'source-member', declared_expires_at: null, renewal_at: null, provenance: '', updated_at: null } }] });
+ vi.mocked(restoreBackupRecords).mockResolvedValue({ records: [] }); await loadPreview();
+ fireEvent.click(screen.getByRole('checkbox', { name: 'Restore ACTIVE in alpha' })); fireEvent.click(screen.getByRole('checkbox', { name: 'Restore lifecycle for ACTIVE' }));
+ fireEvent.click(screen.getByRole('button', { name: 'Restore 1 selected records' })); fireEvent.click(screen.getByRole('button', { name: 'Confirm selected restore' }));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Choose a current responsible member'); expect(restoreBackupRecords).not.toHaveBeenCalled();
+ fireEvent.change(screen.getByLabelText('Current responsible member for ACTIVE'), { target: { value: 'current-member' } }); fireEvent.click(screen.getByRole('button', { name: 'Restore 1 selected records' })); fireEvent.click(screen.getByRole('button', { name: 'Confirm selected restore' }));
+ await waitFor(() => expect(restoreBackupRecords).toHaveBeenCalledWith('p', bundle, [{ secret_id: 'a', backup_revision: 2, expected_current_revision: 3, restore_lifecycle: true, expected_metadata_revision: 5, mapped_responsible_user_id: 'current-member' }]));
 });
 async function loadPreview() {
  render(<ProjectRecoveryPanel projectId="p" projectName="project" />);

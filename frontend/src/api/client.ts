@@ -201,7 +201,7 @@ export function isAuthenticated(): boolean {
   return exp > Date.now() / 1000 + 60;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -220,6 +220,8 @@ async function request<T>(
     headers,
   });
 
+  if (getToken() !== token) throw new Error('Your account changed. Reload before continuing.');
+
   if (response.status === 204) {
     return undefined as T;
   }
@@ -230,6 +232,7 @@ async function request<T>(
   }
 
   const data = await response.json();
+  if (getToken() !== token) throw new Error('Your account changed. Reload before continuing.');
   if (!response.ok) {
     const errorMessage =
       typeof data.error === 'object' && data.error !== null

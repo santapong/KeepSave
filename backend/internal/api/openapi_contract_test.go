@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/config"
 	"github.com/santapong/KeepSave/backend/internal/repository"
@@ -25,12 +26,31 @@ import (
 // The contract uses this deliberately small JSON Schema subset. Reject unknown
 // keywords so additions cannot silently stop being checked by the test validator.
 func validateContractValue(spec, schema map[string]interface{}, value interface{}, at string) error {
+	if len(schema) == 0 {
+		return nil
+	}
 	for keyword := range schema {
 		switch keyword {
-		case "$ref", "type", "format", "nullable", "properties", "required", "additionalProperties", "items", "enum", "minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "pattern":
+		case "oneOf", "$ref", "type", "format", "nullable", "properties", "required", "additionalProperties", "items", "enum", "minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "pattern":
 		default:
 			return fmt.Errorf("%s: unsupported schema keyword %s", at, keyword)
 		}
+	}
+	if choices, ok := schema["oneOf"].([]interface{}); ok {
+		matches := 0
+		for _, choice := range choices {
+			branch, ok := choice.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("invalid oneOf")
+			}
+			if validateContractValue(spec, branch, value, at) == nil {
+				matches++
+			}
+		}
+		if matches != 1 {
+			return fmt.Errorf("%s: oneOf matched %d branches", at, matches)
+		}
+		return nil
 	}
 	if name, ok := schema["$ref"].(string); ok {
 		components := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})
@@ -76,6 +96,11 @@ func validateContractValue(spec, schema map[string]interface{}, value interface{
 			if !exists {
 				if schema["additionalProperties"] == false {
 					return fmt.Errorf("%s: unexpected %s", at, key)
+				}
+				if shape, ok := schema["additionalProperties"].(map[string]interface{}); ok {
+					if err := validateContractValue(spec, shape, child, at+"."+key); err != nil {
+						return err
+					}
 				}
 				continue
 			}
@@ -212,7 +237,7 @@ func contractRouter(t *testing.T) *platformFixture {
 	login.EnableSessions(sessions)
 	h := NewAuthHandler(login)
 	h.SetSocial(NewSocialAuthHandler(service.NewSocialAuthService(config.SocialAuth{}, repository.NewSocialAuthRepository(f.db, f.d), audit, f.jwt)))
-	f.r = NewRouter(Dependencies{CoreRelease: true, DisableLocalMCP: true, CORSOrigins: "http://localhost", JWTService: f.jwt, APIKeyRepo: f.keys, ProjectRepo: repository.NewProjectRepository(f.db, f.d), AuthHandler: h, SessionHandler: NewSessionHandler(sessions), RecoveryHandler: NewRecoveryHandler(nil), OpenAPIHandler: NewOpenAPIHandler(), DB: f.db})
+	f.r = NewRouter(Dependencies{CoreRelease: true, DisableLocalMCP: true, CORSOrigins: "http://localhost", JWTService: f.jwt, APIKeyRepo: f.keys, ProjectRepo: repository.NewProjectRepository(f.db, f.d), AuthHandler: h, SessionHandler: NewSessionHandler(sessions), RecoveryHandler: NewRecoveryHandler(nil), OpenAPIHandler: NewOpenAPIHandler(), TeamVaultHandler: NewTeamVaultHandler(nil, nil, nil, false), IdentityPlatformHandler: NewIdentityPlatformHandler(nil), ToolPlatformHandler: NewToolPlatformHandler(nil), MCPPlatformHandler: NewMCPPlatformHandler(nil), DB: f.db})
 	return f
 }
 func TestPlatformCoreOpenAPIRoutesAndIdentity(t *testing.T) {
@@ -221,11 +246,22 @@ func TestPlatformCoreOpenAPIRoutesAndIdentity(t *testing.T) {
 	for _, route := range f.r.Routes() {
 		routes[route.Method+" "+route.Path] = true
 	}
+	private := RunnerRouter(NewToolPlatformHandler(nil)).(*gin.Engine)
+	for _, route := range private.Routes() {
+		routes[route.Method+" "+route.Path] = true
+	}
 	spec := openAPISpec()
 	for path, raw := range spec["paths"].(map[string]interface{}) {
-		for method := range raw.(map[string]interface{}) {
+		for method, operation := range raw.(map[string]interface{}) {
+			prefix := "/api/v1"
+			op := operation.(map[string]interface{})
+			if servers, ok := op["servers"].([]interface{}); ok && len(servers) == 1 {
+				if servers[0].(map[string]interface{})["url"] == "/" {
+					prefix = ""
+				}
+			}
 			route := strings.NewReplacer("{", ":", "}", "").Replace(path)
-			if !routes[strings.ToUpper(method)+" /api/v1"+route] {
+			if !routes[strings.ToUpper(method)+" "+prefix+route] {
 				t.Fatalf("contract route is not mounted: %s %s", method, path)
 			}
 		}

@@ -2,11 +2,14 @@ package api
 
 import (
 	"database/sql"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/santapong/KeepSave/backend/internal/auth"
 	"github.com/santapong/KeepSave/backend/internal/logging"
+	"github.com/santapong/KeepSave/backend/internal/mcpauth"
 	"github.com/santapong/KeepSave/backend/internal/metrics"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 	"github.com/santapong/KeepSave/backend/internal/tracing"
@@ -14,47 +17,53 @@ import (
 
 // Dependencies makes composition explicit; legacy SetupRouter remains a compatibility adapter.
 type Dependencies struct {
-	CoreRelease          bool
-	OperatorAdminChecker OperatorAdminChecker
-	SessionHandler       *SessionHandler
-	RecoveryHandler      *RecoveryHandler
-	DisableLocalMCP      bool
-	CORSOrigins          string
-	PromotionsEnabled    bool
-	PlatformAdminEmails  []string
-	TrustedProxies       []string
-	JWTService           *auth.JWTService
-	APIKeyRepo           *repository.APIKeyRepository
-	ProjectRepo          *repository.ProjectRepository
-	AuthHandler          *AuthHandler
-	ProjectHandler       *ProjectHandler
-	SecretHandler        *SecretHandler
-	APIKeyHandler        *APIKeyHandler
-	PromotionHandler     *PromotionHandler
-	KeyRotationHandler   *KeyRotationHandler
-	WebhookHandler       *WebhookHandler
-	VersionHandler       *VersionHandler
-	HealthHandler        *HealthHandler
-	OrgHandler           *OrganizationHandler
-	TemplateHandler      *TemplateHandler
-	EnvFileHandler       *EnvFileHandler
-	DepHandler           *DependencyHandler
-	MetricsHandler       *MetricsHandler
-	EnterpriseHandler    *EnterpriseHandler
-	AgentHandler         *AgentHandler
-	PlatformHandler      *PlatformHandler
-	OpenAPIHandler       *OpenAPIHandler
-	OAuthHandler         *OAuthHandler
-	MCPHubHandler        *MCPHubHandler
-	MCPGatewayHandler    *MCPGatewayHandler
-	ApplicationHandler   *ApplicationHandler
-	IntelligenceHandler  *IntelligenceHandler
-	EmbedHandler         *EmbedHandler
-	FeedbackHandler      *FeedbackHandler
-	AppMetrics           *metrics.AppMetrics
-	Tracer               *tracing.Tracer
-	DB                   *sql.DB
-	Logger               *logging.Logger
+	ToolPlatformHandler     *ToolPlatformHandler
+	TeamVaultHandler        *TeamVaultHandler
+	IdentityPlatformHandler *IdentityPlatformHandler
+	MCPPlatformHandler      *MCPPlatformHandler
+	MCPTransport            http.Handler
+	PlatformCapabilities    []string
+	CoreRelease             bool
+	OperatorAdminChecker    OperatorAdminChecker
+	SessionHandler          *SessionHandler
+	RecoveryHandler         *RecoveryHandler
+	DisableLocalMCP         bool
+	CORSOrigins             string
+	PromotionsEnabled       bool
+	PlatformAdminEmails     []string
+	TrustedProxies          []string
+	JWTService              *auth.JWTService
+	APIKeyRepo              *repository.APIKeyRepository
+	ProjectRepo             *repository.ProjectRepository
+	AuthHandler             *AuthHandler
+	ProjectHandler          *ProjectHandler
+	SecretHandler           *SecretHandler
+	APIKeyHandler           *APIKeyHandler
+	PromotionHandler        *PromotionHandler
+	KeyRotationHandler      *KeyRotationHandler
+	WebhookHandler          *WebhookHandler
+	VersionHandler          *VersionHandler
+	HealthHandler           *HealthHandler
+	OrgHandler              *OrganizationHandler
+	TemplateHandler         *TemplateHandler
+	EnvFileHandler          *EnvFileHandler
+	DepHandler              *DependencyHandler
+	MetricsHandler          *MetricsHandler
+	EnterpriseHandler       *EnterpriseHandler
+	AgentHandler            *AgentHandler
+	PlatformHandler         *PlatformHandler
+	OpenAPIHandler          *OpenAPIHandler
+	OAuthHandler            *OAuthHandler
+	MCPHubHandler           *MCPHubHandler
+	MCPGatewayHandler       *MCPGatewayHandler
+	ApplicationHandler      *ApplicationHandler
+	IntelligenceHandler     *IntelligenceHandler
+	EmbedHandler            *EmbedHandler
+	FeedbackHandler         *FeedbackHandler
+	AppMetrics              *metrics.AppMetrics
+	Tracer                  *tracing.Tracer
+	DB                      *sql.DB
+	Logger                  *logging.Logger
 }
 
 func SetupRouter(
@@ -169,6 +178,20 @@ func NewRouter(d Dependencies) *gin.Engine {
 	if logger != nil {
 		r.Use(logging.GinMiddleware(logger))
 	}
+	// Origin validation precedes CORS, including OPTIONS. Native authenticated
+	// clients may omit Origin; a present origin must match the canonical app.
+	if d.MCPPlatformHandler != nil && d.MCPPlatformHandler.service != nil {
+		r.Use(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			if path == "/mcp" || strings.HasPrefix(path, "/oauth/mcp/") || path == "/api/v1/mcp/consent" || strings.HasPrefix(path, "/api/v1/account/delegations") || strings.HasPrefix(path, "/.well-known/oauth-") {
+				if !mcpauth.OriginAllowed(d.MCPPlatformHandler.service.Config(), c.Request) {
+					c.AbortWithStatus(http.StatusForbidden)
+					return
+				}
+			}
+			c.Next()
+		})
+	}
 	r.Use(CORSMiddleware(corsOrigins))
 	r.Use(RateLimitMiddleware(NewRateLimiter(100, time.Second, 200)))
 	if appMetrics != nil {
@@ -183,6 +206,18 @@ func NewRouter(d Dependencies) *gin.Engine {
 	r.GET("/metrics", metricsHandler.Metrics)
 	r.GET("/api/docs", openAPIHandler.Spec)
 	r.GET("/.well-known/openid-configuration", coreRoute(d.CoreRelease, "legacy_oauth", oauthHandler.OpenIDConfiguration))
+	if d.MCPTransport != nil {
+		r.Any("/mcp", gin.WrapH(d.MCPTransport))
+	} else {
+		r.Any("/mcp", func(c *gin.Context) { WrapError(c, ErrServiceUnavailable) })
+	}
+	if h := d.MCPPlatformHandler; h != nil {
+		r.GET("/.well-known/oauth-protected-resource/mcp", h.ProtectedMetadata)
+		r.GET("/.well-known/oauth-authorization-server", h.AuthorizationMetadata)
+		r.GET("/oauth/mcp/authorize", h.Authorize)
+		r.POST("/oauth/mcp/token", RateLimitMiddleware(NewRateLimiter(20, time.Minute, 20)), h.Token)
+		r.POST("/oauth/mcp/revoke", h.Revoke)
+	}
 
 	v1 := r.Group("/api/v1")
 	{
@@ -213,7 +248,32 @@ func NewRouter(d Dependencies) *gin.Engine {
 			sessions.GET("", d.SessionHandler.List)
 			sessions.DELETE("/:sessionId", d.SessionHandler.Revoke)
 		}
-		v1.GET("/capabilities", coreCapabilities(d.CoreRelease, d.RecoveryHandler != nil && d.RecoveryHandler.vault != nil))
+		v1.GET("/capabilities", coreCapabilities(d.CoreRelease, d.RecoveryHandler != nil && d.RecoveryHandler.vault != nil, d.PlatformCapabilities...))
+		if h := d.IdentityPlatformHandler; h != nil {
+			h.RegisterRoutes(v1.Group("", RateLimitMiddleware(NewRateLimiter(10, time.Minute, 10))), v1.Group("", JWTAuthMiddleware(jwtService)))
+		}
+		if h := d.MCPPlatformHandler; h != nil {
+			consent := v1.Group("/mcp/consent", JWTAuthMiddleware(jwtService))
+			consent.GET("", h.ConsentPreview)
+			consent.POST("", h.Decide)
+			v1.GET("/account/delegations", JWTAuthMiddleware(jwtService), h.Delegations)
+			v1.DELETE("/account/delegations/:familyId", JWTAuthMiddleware(jwtService), h.RevokeDelegation)
+		}
+		if h := d.ToolPlatformHandler; h != nil {
+			h.RegisterRoutes(v1.Group("", JWTAuthMiddleware(jwtService)))
+		}
+		if h := d.TeamVaultHandler; h != nil {
+			v1.GET("/operator/readiness", JWTAuthMiddleware(jwtService), RequireOperatorAdmin(d.OperatorAdminChecker), h.Doctor)
+			v1.GET("/account/notifications", JWTAuthMiddleware(jwtService), h.Notifications)
+			team := v1.Group("/projects/:id", JWTAuthMiddleware(jwtService), RequireProjectAccess(projectRepo))
+			team.GET("/secret-lifecycle", h.LifecycleList)
+			team.GET("/secrets/:secretId/lifecycle", h.Lifecycle)
+			team.PUT("/secrets/:secretId/lifecycle", h.UpdateLifecycle)
+			team.GET("/audit", h.AuditSearch)
+			team.POST("/audit/exports", h.AuditExport)
+			team.GET("/audit/exports/:exportId", h.AuditDownload)
+			team.GET("/audit/exports/:exportId/status", h.AuditExportStatus)
+		}
 		users := v1.Group("/users")
 		if authHandler.social != nil {
 			social := authHandler.social

@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -25,12 +26,26 @@ var ErrOrganizationConflict = errors.New("workspace operation conflicts with cur
 var ErrWorkspaceInput = errors.New("invalid workspace request")
 
 type OrganizationService struct {
-	orgRepo   *repository.OrganizationRepository
-	auditRepo *repository.AuditRepository
+	orgRepo        *repository.OrganizationRepository
+	auditRepo      *repository.AuditRepository
+	sessions       *SessionService
+	principal      *policy.Principal
+	requestContext context.Context
 }
 
 func NewOrganizationService(orgRepo *repository.OrganizationRepository, auditRepo *repository.AuditRepository) *OrganizationService {
 	return &OrganizationService{orgRepo: orgRepo, auditRepo: auditRepo}
+}
+func (s *OrganizationService) EnableSessions(sessions *SessionService) { s.sessions = sessions }
+func (s *OrganizationService) requireSessionTx(tx *sql.Tx) error {
+	if s.principal == nil || s.sessions == nil {
+		return nil
+	}
+	p := s.principal
+	if p.Kind != policy.Human || p.ActorID != p.SubjectID || p.SubjectID == uuid.Nil {
+		return ErrOrgAccessDenied
+	}
+	return s.sessions.RequireActiveTx(s.requestContext, tx, p.SubjectID, p.SessionID)
 }
 
 func generateSlug(name string) string {
@@ -60,6 +75,9 @@ func (s *OrganizationService) CreateWorkspace(name string, ownerID uuid.UUID, ip
 	err := s.orgRepo.WithTx(func(tx *sql.Tx) error {
 		// Serializes caller-scoped idempotency before any workspace is inserted.
 		if err := s.orgRepo.LockUserTx(tx, ownerID); err != nil {
+			return err
+		}
+		if err := s.requireSessionTx(tx); err != nil {
 			return err
 		}
 		if requestKey != "" {
@@ -128,6 +146,9 @@ func (s *OrganizationService) Update(id, userID uuid.UUID, name, ipAddr string) 
 	}
 	var org *models.Organization
 	err := s.orgRepo.WithTx(func(tx *sql.Tx) error {
+		if err := s.orgRepo.LockSubjectsTx(tx, userID); err != nil {
+			return err
+		}
 		if _, err := s.requireRoleTx(tx, id, userID, "admin"); err != nil {
 			return err
 		}
@@ -143,6 +164,9 @@ func (s *OrganizationService) Update(id, userID uuid.UUID, name, ipAddr string) 
 
 func (s *OrganizationService) Delete(id, userID uuid.UUID, ipAddr string) error {
 	return s.orgRepo.WithTx(func(tx *sql.Tx) error {
+		if err := s.orgRepo.LockSubjectsTx(tx, userID); err != nil {
+			return err
+		}
 		org, err := s.requireRoleTx(tx, id, userID, "admin")
 		if err != nil {
 			return err
@@ -170,7 +194,10 @@ func (s *OrganizationService) AddMember(orgID, userID, targetUserID uuid.UUID, r
 	}
 	var member *models.OrgMember
 	err := s.orgRepo.WithTx(func(tx *sql.Tx) error {
-		org, err := s.requireRoleTx(tx, orgID, userID, "admin")
+		if err := s.orgRepo.LockSubjectsTx(tx, userID, targetUserID); err != nil {
+			return err
+		}
+		org, err := s.requireRoleTx(tx, orgID, userID, "admin", targetUserID)
 		if err != nil {
 			return err
 		}
@@ -199,7 +226,10 @@ func (s *OrganizationService) UpdateMemberRole(orgID, userID, targetUserID uuid.
 	}
 	var member *models.OrgMember
 	err := s.orgRepo.WithTx(func(tx *sql.Tx) error {
-		org, err := s.requireRoleTx(tx, orgID, userID, "admin")
+		if err := s.orgRepo.LockSubjectsTx(tx, userID, targetUserID); err != nil {
+			return err
+		}
+		org, err := s.requireRoleTx(tx, orgID, userID, "admin", targetUserID)
 		if err != nil {
 			return err
 		}
@@ -217,7 +247,10 @@ func (s *OrganizationService) UpdateMemberRole(orgID, userID, targetUserID uuid.
 
 func (s *OrganizationService) RemoveMember(orgID, userID, targetUserID uuid.UUID, ipAddr string) error {
 	return s.orgRepo.WithTx(func(tx *sql.Tx) error {
-		org, err := s.requireRoleTx(tx, orgID, userID, "admin")
+		if err := s.orgRepo.LockSubjectsTx(tx, userID, targetUserID); err != nil {
+			return err
+		}
+		org, err := s.requireRoleTx(tx, orgID, userID, "admin", targetUserID)
 		if err != nil {
 			return err
 		}
@@ -237,7 +270,17 @@ func (s *OrganizationService) AssignProject(orgID, userID, projectID uuid.UUID) 
 
 func (s *OrganizationService) AssignProjectWithAudit(orgID, userID, projectID uuid.UUID, ipAddr string) error {
 	return s.orgRepo.WithTx(func(tx *sql.Tx) error {
-		// Project first matches vault lock order and prevents concurrent reassignment.
+		// Discovery identifies the subject set; authority is rechecked after locks.
+		discovered, err := s.orgRepo.ProjectAssignmentTx(tx, projectID)
+		if err != nil || discovered.OwnerID != userID || discovered.DeletedAt.Valid {
+			return ErrOrgAccessDenied
+		}
+		if err = s.orgRepo.LockSubjectsTx(tx, userID, discovered.OwnerID); err != nil {
+			return err
+		}
+		if _, err = s.orgRepo.LockOrganizationTx(tx, orgID); err != nil {
+			return ErrOrgAccessDenied
+		}
 		project, err := s.orgRepo.LockProjectAssignmentTx(tx, projectID)
 		if err != nil || project.DeletedAt.Valid || project.OwnerID != userID {
 			return ErrOrgAccessDenied
@@ -266,14 +309,20 @@ func validWorkspaceName(name string) bool {
 	return name != "" && utf8.ValidString(name) && utf8.RuneCountInString(name) <= 255
 }
 
-func (s *OrganizationService) requireRoleTx(tx *sql.Tx, orgID, actorID uuid.UUID, role string) (*models.Organization, error) {
+func (s *OrganizationService) requireRoleTx(tx *sql.Tx, orgID, actorID uuid.UUID, role string, targets ...uuid.UUID) (*models.Organization, error) {
 	org, err := s.orgRepo.LockOrganizationTx(tx, orgID)
 	if err != nil {
 		return nil, ErrOrgAccessDenied
 	}
+	if err = s.orgRepo.LockMemberStatesTx(tx, orgID, append([]uuid.UUID{actorID}, targets...)...); err != nil {
+		return nil, err
+	}
 	member, err := s.orgRepo.GetMemberTx(tx, orgID, actorID)
 	if err != nil || !hasPermission(member.Role, role) {
 		return nil, ErrOrgAccessDenied
+	}
+	if err = s.requireSessionTx(tx); err != nil {
+		return nil, err
 	}
 	return org, nil
 }

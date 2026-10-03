@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
-	"time"
 )
 
 type SessionService struct {
@@ -20,6 +22,16 @@ type SessionService struct {
 
 func NewSessionService(db *sql.DB, d repository.Dialect, jwt *auth.JWTService, audit *repository.AuditRepository) *SessionService {
 	return &SessionService{db: db, repo: repository.NewSessionRepository(db, d), jwt: jwt, audit: audit, dialect: d}
+}
+
+// RevokeDelegationsForRecoveryTx is the identity module's narrow legacy grant
+// port. Its caller holds the exclusive subject barrier and records the required
+// proof-consumed audit/outbox after all identity and grant mutations.
+func (s *SessionService) RevokeDelegationsForRecoveryTx(ctx context.Context, tx *sql.Tx, user uuid.UUID) error {
+	if s == nil || s.repo == nil {
+		return auth.ErrSessionUnavailable
+	}
+	return s.repo.RevokeRecoveryDelegationsTx(ctx, tx, user)
 }
 
 func (s *SessionService) CheckHumanSession(ctx context.Context, c *auth.Claims, raw string) error {
@@ -44,6 +56,11 @@ func (s *SessionService) RequireRecent(ctx context.Context, user, id uuid.UUID) 
 	return s.RequireRecentTx(ctx, tx, user, id)
 }
 func (s *SessionService) IssueTx(ctx context.Context, tx *sql.Tx, user *models.User, method, ip, ua string) (string, error) {
+	if s.dialect.DBType() == repository.DBTypePostgres {
+		if err := (authority.Guard{DB: s.db, Dialect: s.dialect}).LockSubjects(ctx, tx, []uuid.UUID{user.ID}, true); err != nil {
+			return "", err
+		}
+	}
 	id := uuid.New()
 	expires := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
 	token, err := s.jwt.GenerateSessionToken(user.ID, user.Email, id, expires)
@@ -52,6 +69,15 @@ func (s *SessionService) IssueTx(ctx context.Context, tx *sql.Tx, user *models.U
 	}
 	if err = s.repo.CreateTx(ctx, tx, id, user.ID, auth.HashAPIKey(token), expires, ip, ua); err != nil {
 		return "", err
+	}
+	if s.dialect.DBType() == repository.DBTypePostgres {
+		recorded := method
+		if recorded != "password" && recorded != "google" && recorded != "github" {
+			recorded = "unknown"
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE session_tokens SET auth_method=$1 WHERE id=$2`, recorded, id); err != nil {
+			return "", err
+		}
 	}
 	if s.audit == nil {
 		return "", auth.ErrSessionUnavailable
@@ -84,6 +110,12 @@ func (s *SessionService) Revoke(ctx context.Context, user, current, target uuid.
 		return auth.ErrSessionUnavailable
 	}
 	defer tx.Rollback()
+	if err = (authority.Guard{DB: s.db, Dialect: s.dialect}).LockSubjects(ctx, tx, []uuid.UUID{user}, true); err != nil {
+		return err
+	}
+	if err = s.repo.LockRevocationTargetsTx(ctx, tx, user, current, target); err != nil {
+		return err
+	}
 	if err = s.RequireActiveTx(ctx, tx, user, current); err != nil {
 		return err
 	}

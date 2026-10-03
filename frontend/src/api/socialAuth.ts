@@ -1,9 +1,10 @@
 import { BASE_URL, getAuthToken, invalidateBrowserSession } from './client';
 import type { AuthResponse } from '../types';
+import { validConsentReturn } from '../lib/mcpReturnContext';
 export type Provider = 'github' | 'google';
 export type Providers = Record<Provider, boolean>;
 type Mode = 'login' | 'link';
-interface PendingFlow { verifier: string; provider: Provider; mode: Mode; expires: number }
+interface PendingFlow { verifier: string; provider: Provider; mode: Mode; expires: number; returnTo?: string }
 const prefix = 'keepsave_oauth:';
 
 async function request<T>(path: string, body?: unknown, authenticated = false): Promise<T> {
@@ -27,7 +28,7 @@ export const getProviders = () => request<Providers>('/auth/providers');
 export const getConnections = () => request<{ connected: Provider[]; available: Providers }>('/account/connections', undefined, true);
 function flowPath(provider: Provider, mode: Mode) { return mode === 'link' ? `/account/connections/${provider}` : `/auth/social/${provider}`; }
 
-export async function startSocialLogin(provider: Provider, mode: Mode = 'login'): Promise<void> {
+export async function startSocialLogin(provider: Provider, mode: Mode = 'login', returnTo?: string): Promise<void> {
   try {
     sessionStorage.setItem(`${prefix}probe`, '1'); sessionStorage.removeItem(`${prefix}probe`);
     for (const key of Object.keys(sessionStorage)) {
@@ -44,13 +45,13 @@ export async function startSocialLogin(provider: Provider, mode: Mode = 'login')
   const destination = new URL(result.authorization_url);
   const expected = provider === 'github' ? 'https://github.com/login/oauth/authorize' : 'https://accounts.google.com/o/oauth2/v2/auth';
   if (`${destination.origin}${destination.pathname}` !== expected || !/^[a-f0-9]{64}$/.test(result.state)) throw new Error('The sign-in destination could not be verified.');
-  const pending: PendingFlow = { verifier, provider, mode, expires: Date.now() + 600_000 };
+  const pending: PendingFlow = { verifier, provider, mode, expires: Date.now() + 600_000, ...(mode === 'login' && validConsentReturn(returnTo) ? { returnTo: validConsentReturn(returnTo) } : {}) };
   try { sessionStorage.setItem(`${prefix}${result.state}`, JSON.stringify(pending)); }
   catch { throw new Error('Allow storage for this site to sign in with a provider.'); }
   window.location.assign(result.authorization_url);
 }
 
-export async function completeSocialLogin(provider: string, query: string): Promise<{ mode: Mode; auth?: AuthResponse }> {
+export async function completeSocialLogin(provider: string, query: string): Promise<{ mode: Mode; auth?: AuthResponse; returnTo?: string }> {
   const params = new URLSearchParams(query);
   const state = params.get('state') || '';
   if ((provider !== 'github' && provider !== 'google') || !/^[a-f0-9]{64}$/.test(state)) throw new Error('This sign-in attempt could not be verified. Please start again.');
@@ -65,5 +66,5 @@ export async function completeSocialLogin(provider: string, query: string): Prom
   if (!code) throw new Error('No sign-in code was received. Please start again.');
   const result = await request<AuthResponse>(`${flowPath(provider, pending.mode)}/complete`, { code, state, code_verifier: pending.verifier }, pending.mode === 'link');
   if (pending.mode === 'login' && (!result.token || !result.user?.id)) throw new Error('The sign-in response could not be verified. Please start again.');
-  return { mode: pending.mode, ...(pending.mode === 'login' ? { auth: result } : {}) };
+  return { mode: pending.mode, ...(pending.mode === 'login' ? { auth: result, returnTo: validConsentReturn(pending.returnTo) } : {}) };
 }

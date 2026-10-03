@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
@@ -80,6 +81,11 @@ func (s *ProjectService) CreateAuthorized(ctx context.Context, p policy.Principa
 	var project *models.Project
 	err = s.projectRepo.WithTx(func(tx *sql.Tx) error {
 		var err error
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.projectRepo.Dialect()}).LockSubjects(ctx, tx, []uuid.UUID{p.SubjectID}, false); e != nil {
+				return e
+			}
+		}
 		if s.sessions != nil {
 			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
 				return e
@@ -242,6 +248,11 @@ func (s *ProjectService) DeleteAuthorized(ctx context.Context, p policy.Principa
 		return s.vault.ArchiveProject(ctx, p, id)
 	}
 	return s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.projectRepo.Dialect()}).LockProject(ctx, tx, p, id, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
 		if s.sessions != nil {
 			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
 				return e

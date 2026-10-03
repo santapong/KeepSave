@@ -1,0 +1,17 @@
+# Optional private mTLS listener on the control host. Never add it to public TLS.
+# Enable only after operator enrollment/isolation acceptance on a separate host.
+services:
+  api:
+    environment:
+      KEEPSAVE_RUNNER_LISTEN_ADDRESS: 0.0.0.0:8444
+      KEEPSAVE_RUNNER_TLS_CERT: /run/keepsave/runner-tls/server.crt
+      KEEPSAVE_RUNNER_TLS_KEY: /run/keepsave/runner-tls/server.key
+      KEEPSAVE_RUNNER_CLIENT_CA: /run/keepsave/runner-tls/runner-ca.crt
+    ports:
+      - "${KEEPSAVE_PRIVATE_CONTROL_IP:?explicit private control-host address}:8444:8444"
+    volumes:
+      - type: bind
+        source: ${KEEPSAVE_RUNNER_SERVER_TLS_DIRECTORY:?private server key and runner CA directory}
+        target: /run/keepsave/runner-tls
+        read_only: true
+        bind: { create_host_path: false }

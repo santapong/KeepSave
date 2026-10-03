@@ -45,6 +45,8 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
+	case "doctor":
+		err = cli.cmdDoctor(os.Args[2:])
 	case "pull":
 		err = cli.cmdPull(os.Args[2:])
 	case "run":
@@ -83,6 +85,7 @@ func printUsage() {
 	fmt.Println(`KeepSave CLI - Secure environment variable management
 
 Usage:
+  keepsave doctor           Read-only operator setup checks
   keepsave <command> [options]
 
 Commands:

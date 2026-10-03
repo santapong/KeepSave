@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/policy"
@@ -17,7 +18,13 @@ func (s *ProjectService) GetByIDAuthorized(ctx context.Context, p policy.Princip
 	if p.Kind != policy.Human || p.SubjectID == uuid.Nil || p.ActorID != p.SubjectID {
 		return nil, vault.ErrDenied
 	}
+	var result *models.Project
 	err := s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.projectRepo.Dialect()}).LockProject(ctx, tx, p, id, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
 		decision, err := (policy.Evaluator{Store: repository.AuthorityStore{DB: tx, Dialect: s.projectRepo.Dialect(), RequireHumanSession: s.sessions != nil}}).Authorize(ctx, p, policy.ReadMetadata, policy.Resource{Type: "project", ProjectID: id, ID: id})
 		if err != nil {
 			return err
@@ -25,18 +32,25 @@ func (s *ProjectService) GetByIDAuthorized(ctx context.Context, p policy.Princip
 		if !decision.Allowed {
 			return vault.ErrDenied
 		}
-		return nil
+		result, err = s.projectRepo.GetByIDTx(ctx, tx, id)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.projectRepo.GetByID(id)
+	return result, nil
 }
 func (s *ProjectService) UpdateAuthorized(ctx context.Context, p policy.Principal, id uuid.UUID, name, description, ip string) (*models.Project, error) {
 	if p.Kind != policy.Human || p.SubjectID == uuid.Nil || p.ActorID != p.SubjectID {
 		return nil, vault.ErrDenied
 	}
+	var result *models.Project
 	err := s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.projectRepo.Dialect()}).LockProject(ctx, tx, p, id, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
 		if s.sessions != nil {
 			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
 				return e
@@ -48,12 +62,17 @@ func (s *ProjectService) UpdateAuthorized(ctx context.Context, p policy.Principa
 		if e := s.projectRepo.UpdateMetadataTx(ctx, tx, id, name, description); e != nil {
 			return e
 		}
-		return s.projectEventTx(ctx, tx, p, id, "project.updated", models.JSONMap{"name": name}, ip)
+		if e := s.projectEventTx(ctx, tx, p, id, "project.updated", models.JSONMap{"name": name}, ip); e != nil {
+			return e
+		}
+		var e error
+		result, e = s.projectRepo.GetByIDTx(ctx, tx, id)
+		return e
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.projectRepo.GetByID(id)
+	return result, nil
 }
 func (s *ProjectService) projectEventTx(ctx context.Context, tx *sql.Tx, p policy.Principal, id uuid.UUID, action string, details models.JSONMap, ip string) error {
 	if err := s.auditRepo.CreateTx(tx, &p.ActorID, &id, action, "", details, ip); err != nil {
@@ -75,6 +94,11 @@ func (s *ProjectService) UpdateEmbedConfigAuthorized(ctx context.Context, p poli
 		}
 	}
 	return s.projectRepo.WithTx(func(tx *sql.Tx) error {
+		if s.projectRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.projectRepo.Dialect()}).LockProject(ctx, tx, p, id, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
 		if s.sessions != nil {
 			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
 				return e

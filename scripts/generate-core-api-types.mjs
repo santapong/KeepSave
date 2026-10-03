@@ -8,7 +8,9 @@ const spec = JSON.parse(readFileSync(contractPath, 'utf8'));
 
 function type(schema) {
   let result;
-  if (schema.$ref) result = schema.$ref.split('/').at(-1);
+  if (Object.keys(schema).length === 0) result = 'unknown';
+  else if (schema.oneOf) result = schema.oneOf.map(child => type(child)).join(' | ');
+  else if (schema.$ref) result = schema.$ref.split('/').at(-1);
   else if (schema.enum) result = schema.enum.map(value => JSON.stringify(value)).join(' | ');
   else if (schema.type === 'string') result = 'string';
   else if (schema.type === 'integer' || schema.type === 'number') result = 'number';
@@ -19,6 +21,9 @@ function type(schema) {
     const fields = Object.entries(schema.properties ?? {}).map(([name, child]) =>
       `  ${JSON.stringify(name)}${required.has(name) ? '' : '?'}: ${type(child)};`);
     if (schema.additionalProperties === true) fields.push('  [key: string]: unknown;');
+    else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+      fields.push(`  [key: string]: ${type(schema.additionalProperties)};`);
+    }
     result = `{\n${fields.join('\n')}\n}`;
   } else throw new Error(`Unsupported contract schema: ${JSON.stringify(schema)}`);
   return schema.nullable ? `${result} | null` : result;
@@ -38,7 +43,7 @@ for (const [path, item] of Object.entries(spec.paths)) {
       const schema = response.content?.['application/json']?.schema;
       return `${JSON.stringify(status)}: ${schema ? type(schema) : 'undefined'};`;
     });
-    lines.push(`  ${operation.operationId}: {`,
+    lines.push(`  ${JSON.stringify(operation.operationId)}: {`,
       `    method: ${JSON.stringify(method.toUpperCase())};`,
       `    path: ${JSON.stringify(path)};`,
       `    request: ${request ? type(request) : 'undefined'};`,

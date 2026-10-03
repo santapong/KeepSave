@@ -25,11 +25,11 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	org, err := h.orgService.CreateWorkspace(req.Name, userID, c.GetString("client_ip"), c.GetHeader("Idempotency-Key"))
+	org, err := h.orgService.CreateWorkspaceAuthorized(c.Request.Context(), PrincipalFromContext(c), req.Name, c.GetString("client_ip"), c.GetHeader("Idempotency-Key"))
 	if err != nil {
 		respondOrganizationError(c, err)
 		return
@@ -87,11 +87,11 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	org, err := h.orgService.Update(orgID, userID, req.Name, c.ClientIP())
+	org, err := h.orgService.UpdateAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, req.Name, c.ClientIP())
 	if err != nil {
 		respondOrganizationError(c, err)
 		return
@@ -107,11 +107,11 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.Delete(orgID, userID, c.ClientIP()); err != nil {
+	if err := h.orgService.DeleteAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, c.ClientIP()); err != nil {
 		respondOrganizationError(c, err)
 		return
 	}
@@ -138,11 +138,11 @@ func (h *OrganizationHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	member, err := h.orgService.AddMember(orgID, userID, targetUserID, req.Role, c.ClientIP())
+	member, err := h.orgService.AddMemberAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, targetUserID, req.Role, c.ClientIP())
 	if err != nil {
 		respondOrganizationError(c, err)
 		return
@@ -193,11 +193,11 @@ func (h *OrganizationHandler) UpdateMemberRole(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	member, err := h.orgService.UpdateMemberRole(orgID, userID, memberUserID, req.Role, c.ClientIP())
+	member, err := h.orgService.UpdateMemberRoleAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, memberUserID, req.Role, c.ClientIP())
 	if err != nil {
 		respondOrganizationError(c, err)
 		return
@@ -219,11 +219,11 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.RemoveMember(orgID, userID, memberUserID, c.ClientIP()); err != nil {
+	if err := h.orgService.RemoveMemberAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, memberUserID, c.ClientIP()); err != nil {
 		respondOrganizationError(c, err)
 		return
 	}
@@ -250,11 +250,11 @@ func (h *OrganizationHandler) AssignProject(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
-	if err := h.orgService.AssignProjectWithAudit(orgID, userID, projectID, c.GetString("client_ip")); err != nil {
+	if err := h.orgService.AssignProjectAuthorized(c.Request.Context(), PrincipalFromContext(c), orgID, projectID, c.GetString("client_ip")); err != nil {
 		respondOrganizationError(c, err)
 		return
 	}

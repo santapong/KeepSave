@@ -19,7 +19,7 @@ import (
 // Transaction serializes an authorized application mutation with the journal.
 // Adapters retain repository ownership; credential access stays in this package.
 func (s *Service) Transaction(ctx context.Context, p policy.Principal, project uuid.UUID, action policy.Action, fn func(*sql.Tx) error) error {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return err
 	}

@@ -1,5 +1,7 @@
 # Proposed backend architecture
 
+> Historical/core baseline view. The 2026-10-02 harness-neutral working-tree [implementation checkpoint](../2026-10-02-harness-neutral-platform/README.md) supersedes single-harness and unimplemented-platform descriptions below. This file is retained as context, not current release evidence.
+
 Status: design proposal, 2026-09-28. Existing behavior is documented in [REVIEW](REVIEW.md); everything described as a target below requires implementation and verification.
 
 ## 1. Pattern: modules around capabilities, adapters at the edges

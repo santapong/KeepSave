@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/policy"
@@ -39,6 +40,11 @@ func (s *APIKeyService) CreateAuthorized(ctx context.Context, p policy.Principal
 	}
 	var k *models.APIKey
 	err = s.apikeyRepo.WithTx(func(tx *sql.Tx) error {
+		if s.apikeyRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e := (authority.Guard{Dialect: s.apikeyRepo.Dialect()}).LockProject(ctx, tx, p, project, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
 		if s.sessions != nil {
 			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
 				return e
@@ -78,15 +84,21 @@ func (s *APIKeyService) DeleteAuthorized(ctx context.Context, p policy.Principal
 		return vault.ErrDenied
 	}
 	return s.apikeyRepo.WithTx(func(tx *sql.Tx) error {
-		if s.sessions != nil {
-			if e := s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
-				return e
-			}
-		}
 		k, e := s.apikeyRepo.GetByIDTx(ctx, tx, id)
 		if e != nil || k.UserID != p.SubjectID {
 			return vault.ErrNotFound
 		}
+		if s.apikeyRepo.Dialect().DBType() == repository.DBTypePostgres || s.sessions != nil {
+			if e = (authority.Guard{Dialect: s.apikeyRepo.Dialect()}).LockProject(ctx, tx, p, k.ProjectID, true); e != nil {
+				return vault.ErrDenied
+			}
+		}
+		if s.sessions != nil {
+			if e = s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID); e != nil {
+				return e
+			}
+		}
+
 		if e = s.projectRepo.RequireOwnedTx(ctx, tx, k.ProjectID, p.SubjectID); e != nil {
 			return vault.ErrDenied
 		}

@@ -1,0 +1,10 @@
+import { request } from './client';
+import type { LifecycleList, Lifecycle, LifecycleChange, Notifications, SafeAuditPage, SafeAuditSnapshot, AuditExport, AuditExportRequest } from './coreTypes';
+const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
+export const listLifecycle = (id: string) => request<LifecycleList>(`${projectPath(id)}/secret-lifecycle`);
+export const updateLifecycle = (id: string, secret: string, change: LifecycleChange) => request<Lifecycle>(`${projectPath(id)}/secrets/${encodeURIComponent(secret)}/lifecycle`, { method: 'PUT', body: JSON.stringify(change) });
+export const notifications = () => request<Notifications>('/account/notifications');
+export const searchAudit = (id: string, filter: URLSearchParams) => request<SafeAuditPage>(`${projectPath(id)}/audit?${filter}`);
+export const createAuditExport = (id: string, input: AuditExportRequest) => request<AuditExport>(`${projectPath(id)}/audit/exports`, { method: 'POST', body: JSON.stringify(input) });
+export const auditExportStatus = (id: string, exportId: string) => request<AuditExport>(`${projectPath(id)}/audit/exports/${encodeURIComponent(exportId)}/status`);
+export const downloadAuditExport = (id: string, exportId: string) => request<SafeAuditSnapshot>(`${projectPath(id)}/audit/exports/${encodeURIComponent(exportId)}`);

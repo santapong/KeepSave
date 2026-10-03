@@ -6,6 +6,7 @@ import { getAccountSessions, revokeAccountSession, invalidateBrowserSession } fr
 import { getConnections } from '../api/socialAuth';
 vi.mock('../api/client', () => ({ getAccountSessions: vi.fn(), revokeAccountSession: vi.fn(), invalidateBrowserSession: vi.fn() }));
 vi.mock('../api/socialAuth', () => ({ getConnections: vi.fn(), startSocialLogin: vi.fn() }));
+vi.mock('../api/identityPlatform', async importOriginal => ({ ...(await importOriginal<typeof import('../api/identityPlatform')>()), getIdentityAvailability: vi.fn().mockResolvedValue({ identity: false, email: false }) }));
 const sessions = [{ id: 'current', current: true, created_at: '2026-10-01T00:00:00Z', expires_at: '2026-10-02T00:00:00Z', status: 'active' as const, ip_address: '', user_agent: '' }];
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(getConnections).mockResolvedValue({ connected: [], available: { github: false, google: false } }); vi.mocked(getAccountSessions).mockResolvedValue({ sessions }); });
 it('shows current session and invalidates browser state after a confirmed revoke', async () => {

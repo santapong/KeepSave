@@ -98,7 +98,10 @@ func (r *OrganizationRepository) RemoveMemberTx(tx *sql.Tx, orgID, userID uuid.U
 	if err != nil {
 		return err
 	}
-	return requireAffectedRow(result)
+	if err := requireAffectedRow(result); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *OrganizationRepository) CountProjectsTx(tx *sql.Tx, orgID uuid.UUID) (int, error) {

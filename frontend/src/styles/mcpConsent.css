@@ -1,0 +1,9 @@
+.ks-consent-detail { padding:16px; margin-bottom:18px; border:1px solid #ffffff1c; border-radius:8px; background:#12101b; }
+.ks-consent-detail span { color:var(--auth-muted); font-size:11px; }
+.ks-consent-detail p { margin:8px 0 0; font-size:13px; overflow-wrap:anywhere; }
+.ks-consent-access { margin:0; padding-left:19px; font-size:13px; line-height:1.8; color:var(--auth-ink); }
+.ks-consent-access li + li { margin-top:8px; }
+.ks-consent-actions { display:grid; gap:10px; }
+.ks-consent-deny { min-height:44px; border:1px solid #ffffff30; border-radius:8px; background:transparent; color:var(--auth-ink); font:inherit; font-size:13px; cursor:pointer; }
+.ks-consent-deny:disabled { opacity:.6; cursor:wait; }
+.ks-consent-deny:enabled:hover { background:#ffffff0c; }

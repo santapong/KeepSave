@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/config"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
@@ -174,6 +176,24 @@ func (s *SocialAuthService) CompleteWithSession(ctx context.Context, provider, c
 		return nil, err
 	}
 	defer tx.Rollback()
+	// Discover only to determine the subject barrier. ResolveTx rechecks the
+	// provider binding after locks, before identity changes or session issuance.
+	var known uuid.UUID
+	err = tx.QueryRowContext(ctx, repository.Q(s.repo.Dialect(), `SELECT user_id FROM social_identities WHERE provider=$1 AND subject=$2`), provider, identity.Subject).Scan(&known)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if linkUser != nil {
+		if known != uuid.Nil && known != *linkUser {
+			return nil, repository.ErrSocialConflict
+		}
+		known = *linkUser
+	}
+	if known != uuid.Nil {
+		if err = (authority.Guard{Dialect: s.repo.Dialect()}).LockSubjects(ctx, tx, []uuid.UUID{known}, true); err != nil {
+			return nil, err
+		}
+	}
 	if linkUser != nil && s.sessions != nil {
 		if err = s.sessions.RequireRecentTx(ctx, tx, *linkUser, *linkSession); err != nil {
 			return nil, err

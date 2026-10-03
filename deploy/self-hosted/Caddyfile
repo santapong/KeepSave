@@ -14,8 +14,8 @@ https://{$KEEPSAVE_APP_DOMAIN:app.keepsave.draveniq.dev} {
 	}
 	# Access logging is omitted so OAuth codes never enter a request URI log.
 	@recovery path_regexp recovery ^/api/v1/projects/[^/]+/backups/(verify|preview|restore)$
-	@internal path /metrics /metrics/*
-	@api path /api/* /.well-known/* /healthz /readyz
+	@internal path /metrics /metrics/* /api/v1/runner/*
+	@api path /api/* /.well-known/* /mcp /oauth/mcp/* /healthz /readyz
 	route {
 		handle @recovery {
 			request_body {

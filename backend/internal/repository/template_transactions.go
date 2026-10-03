@@ -24,6 +24,9 @@ func (r *TemplateRepository) GetByIDTx(tx *sql.Tx, id uuid.UUID) (*models.Secret
 	}
 	return templateScan(QueryRowQ(tx, r.dialect, q, id))
 }
+func (r *TemplateRepository) DiscoverByIDTx(tx *sql.Tx, id uuid.UUID) (*models.SecretTemplate, error) {
+	return templateScan(QueryRowQ(tx, r.dialect, `SELECT `+templateColumns+` FROM secret_templates WHERE id=$1`, id))
+}
 func (r *TemplateRepository) CreateTx(tx *sql.Tx, id uuid.UUID, name, description, stack string, keys models.JSONMap, actor uuid.UUID, org *uuid.UUID, global bool) (*models.SecretTemplate, error) {
 	if _, err := ExecQ(tx, r.dialect, `INSERT INTO secret_templates(id,name,description,stack,keys,created_by,organization_id,is_global) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, id, name, description, stack, keys, actor, org, global); err != nil {
 		return nil, err
@@ -58,7 +61,7 @@ func (r *TemplateRepository) HasOrganizationRoleTx(tx *sql.Tx, user, org uuid.UU
 	var role string
 	q := `SELECT m.role FROM organization_members m WHERE m.organization_id=$1 AND m.user_id=$2 AND EXISTS(SELECT 1 FROM organizations o WHERE o.id=m.organization_id)`
 	if r.dialect.DBType() == DBTypePostgres {
-		q += ` FOR UPDATE OF m`
+		q += ` FOR SHARE OF m`
 	} else if r.dialect.DBType() == DBTypeMySQL {
 		q += ` FOR UPDATE`
 	}

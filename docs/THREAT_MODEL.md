@@ -1,4 +1,4 @@
-# KeepSave threat model — current core candidate
+# KeepSave threat model — core and harness-neutral local candidate
 
 Reconciled 2026-10-02 (Asia/Bangkok) against the local unreleased implementation.
 This is a source/evidence update, not an independent security sign-off or a
@@ -12,7 +12,7 @@ executed synthetic checks from review, provider UAT and operational gates.
 Protect wrapping keys, project key versions, current/historical plaintext,
 encrypted backups and snapshot material, human session authority, API-key and
 agent parent lineage, organization membership, immutable audit identity and
-future broker credentials. Identity and resource metadata can remain plaintext;
+broker credentials, OAuth families, proof delivery material, ephemeral results and enrolled runner identity. Identity and resource metadata can remain plaintext;
 not every database column is encrypted.
 
 The browser, SDK, CLI, model, skill text, repository content and client-reported
@@ -61,34 +61,37 @@ The source paths are intentionally file-level because this working tree changes
 rapidly. Exact executed evidence and dates belong in the acceptance ledger rather
 than stale line-number claims.
 
-## Broker, runner and skill threats — future required controls
+## Harness-neutral additions — implemented controls, pending qualification
 
-M2–M5 are unimplemented acceptance programs, not current mitigations. Their
-security contract remains: audience/resource/client-bound OAuth, exact PKCE and
-callback, atomic authorization-code consumption, refresh replay detection,
-installation-qualified tool identity, schema/artifact digests and real Codex
-contract checks. Public dynamic registration is deferred.
+The following source controls now exist in the local working tree. The
+[current acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+records synthetic evidence; they do not establish deployed mitigations.
 
-Provider use must be opt-in through an approved binding and attenuated run. A
-run ID is not bearer authority. At admission and broker use, intersect current
-membership, organization/project policy, parent grant, approved artifact/profile,
-repository/commit/action and expiry. Deny overrides allow; unavailable authority
-denies. The broker receives structured identifiers and makes the authenticated
-GitHub request; no arbitrary upstream URL or provider token reaches the connector
-or model.
+| Threat | Local control | Remaining boundary |
+|---|---|---|
+| Token replay/resource substitution | New opaque OAuth path: exact canonical resource/client/issuer/callback, S256, atomic code consumption, refresh-family rotation/replay revocation, current browser parent checks | Exact native client negotiation and real consent remain unqualified; no dynamic registration |
+| Removed/rejoined member retains authority | Sorted subject/project barriers and member authority epochs; revision-bound scoped offboard snapshot/execution; full dependent grants/runs cascade | Unrelated org/personal authority remains; old returned data cannot be recalled |
+| Last login method removed / proof theft | Remaining-method recent successful auth, hashed256-bit purpose/account proofs, expiry/attempt bounds; successful recovery atomically invalidates delegated/browser/link authority | Real SMTP acceptance gated; verified contact does not attest a person |
+| Proof leakage / repeated uncertain send | Vault-encrypted ephemeral delivery; ID-only jobs; clear browser fragments; STARTTLS certificate-verified SMTP; uncertain sends not automatically replayed | SMTP accepted is not delivered; operator mailbox/SMTP trust remains |
+| Audit/export exfiltration | Safe typed-reference projection, current admission/download, repeatable-read bounded snapshot, fenced publication, one-hour expiry | Raw legacy journal access is separately authorized; no immutable external notarization |
+| Wrong repository / altered profile | Stored binding/commit/client-family grant, independently approved source/profile/package digests, current policy/epoch checks at admission and broker redemption | Minimal fixed pilot profile; no universal harness/device enforcement |
+| Provider credential escape | Broker-held GitHub App keys/tokens; structured allowlisted tree/UTF8 file requests; no arbitrary upstream URL/header; bounded safe results and canary tests | API/broker/control-host compromise can obtain keys; live GitHub custody UAT still required |
+| Stolen runner ticket / duplicate dispatch | Direct TLS1.3 verified enrolled client certificate, short ticket bound to attempt/fence/run/digests/nonce; atomic redemption; current revalidation | Certificate identifies supervisor, not hardware; external effects are not exactly-once |
+| Connector host/network escape | Rootless Podman reference, readonly filesystem, Unix-only relay, networknone, CPU/memory/PID/scratch limits, no host credentials or engine socket | Actual kernel/runtime enforcement is unproven here; current host refuses missing CPU delegation |
+| Revocation followed by delivery | Current-authority result read, encrypted run-bounded result storage, separate external outcome/publication state; explicit cancel | Already-admitted provider calls may finish; downloaded content remains available to recipient/model |
+| Instruction/package tampering | Immutable instruction-only source, native tree manifests and digest-bound independent approval; no executable skill scripts | Native copies/metadata checks do not attest device or prove harness behavior |
 
-The separate runner must prove read-only filesystem, limited scratch/resources,
-no host home/socket/database/vault keys, broker-only network, signed tenant-bound
-identity, replay denial, cancellation, timeout and crash recovery. Skill text and
-repository instructions cannot expand grants. Immutable instruction-only skills
-and profiles bind approval to exact digests and policy revisions. Administrator
-Codex requirements are verified on the supported version; editable defaults and
-self-reported harness names are not enforcement or device attestation.
+GitHub social sign-in and GitHub App connections have separate identities and
+credentials. Model-provider credentials and subscription sessions are not held
+by this broker. Self-hosting KeepSave does not make the harness's selected model
+local; permitted repository content still reaches that model.
 
-Revocation denies new operations after commit; already-dispatched work may
-complete. Repository data returned to Codex reaches its configured model and
-cannot be recalled. Self-hosting does not imply a local model or an administrator-
-proof developer device.
+Lifecycle metadata is separate from credential-value revisions and contains
+only declared dates/provenance/responsibility. Recovery v2 adds encrypted lifecycle
+metadata with explicit current-member or isolated-custodian mapping. It imports
+no source identity/delegation/run/approval/session authority or ephemeral results.
+Legacy missing lifecycle metadata remains unknown, and retained key/history
+references prevent speculative purge.
 
 ## Review and operational gates
 

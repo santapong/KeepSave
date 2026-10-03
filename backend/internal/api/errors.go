@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/santapong/KeepSave/backend/internal/auth"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
@@ -98,7 +100,11 @@ func WrapError(c *gin.Context, err error) {
 	if err == nil {
 		return
 	}
-	if errors.Is(err, vault.ErrDenied) {
+	if errors.Is(err, auth.ErrSessionInvalid) {
+		err = ErrUnauthorized
+	} else if errors.Is(err, auth.ErrSessionUnavailable) {
+		err = ErrServiceUnavailable
+	} else if errors.Is(err, vault.ErrDenied) || errors.Is(err, authority.ErrDenied) {
 		err = ErrForbidden
 	} else if errors.Is(err, vault.ErrConflict) {
 		err = ErrConflict

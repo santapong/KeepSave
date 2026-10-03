@@ -8,15 +8,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Planned — research-based product development
+### Added — local harness-neutral platform candidate, 2026-10-02
 
-- Add a primary-source evidence register and complete delivery/backlog plan
-  for setup diagnostics, safe denial explanations, audit search, credential
-  ownership/reminders, invitations/offboarding and login-method recovery.
-  These are proposed features, not implementation claims. Preserve the existing
-  MCP → GitHub broker/runner → skills/profiles → team-operations sequence.
-- Reconcile historical backlog/non-goals with the integrated core source;
-  independent reviews, real provider UAT and production acceptance remain pending.
+- Shared authority barriers and membership epochs; parent/client-bound OAuth
+  delegations and runs; safe denial projection and current-authority result reads.
+- Login-method inventory/removal safety, contact verification, account recovery,
+  invitations and revision-bound scoped offboarding with durable receipts.
+  SMTP proofs are Vault-encrypted, hash-only at verification, and carried by
+  identifier-only jobs. Uncertain send attempts are not silently replayed.
+- Separate credential lifecycle metadata, declared renewal/expiry and responsible
+  members; deduplicated 30/7/1-day in-app reminders with current recipient checks.
+- Version2 encrypted recovery bundles retain lifecycle metadata, accept legacy
+  version1 bundles and require explicit responsible-member remapping. Recovery
+  excludes sessions, tokens, grants, approvals and ephemeral operation results.
+- Safe cursor audit browsing and bounded repeatable-read export snapshots, trusted
+  publication jobs, expiry and current-authority downloads; read-only doctor.
+- Official Go MCP SDK v1.8.0, stateless Streamable HTTP, the two selected protocol
+  lanes and a new opaque-token/S256 public-client OAuth service. Consent and
+  revocation controls remain separate from browser sessions and provider tokens.
+- Immutable instruction-only skills, portable profiles, independently approved
+  packages and candidate native exporters for Codex0.153.3/Hermes0.21.5.
+- GitHub App custody, explicit repository/environment bindings, preparing and
+  commit-bound runs, durable idempotent operations, budgets, attempt tickets,
+  encrypted short-lived results, cancellation and safe execution receipts.
+- Separate rootless Podman supervisor/connector reference and direct TLS1.3/mTLS
+  runner listener. The public application proxy refuses runner routes.
+- Account/team, lifecycle/audit and developer-access screens preserve the accepted
+  KeepSave design; generated types and actual-router management contracts expand.
+
+### Fixed — current authority and publication
+
+- Authority narrowing participates in shared stored-subject/project/session
+  barriers across session, lease, project, template and vault paths. Offboarding
+  previews capture one consistent snapshot and stale changes require a new review.
+- Project metadata is captured inside admitted transactions. A later authority
+  change cannot cause a second unguarded database read to expose newer metadata.
+- Failed audit publication terminates safely rather than remaining pending;
+  required-audit failures roll back local state. Account changes reject late
+  frontend responses; malformed/proof query logging is redacted.
+- Account recovery atomically expires retained legacy API keys, revokes their
+  leases and denylists recorded agent issuance with password/proof/session
+  changes. Late reset completion preserves a newer unrelated browser account.
+- Refresh the distroless runtime digest and pin the fixed PCRE2 10.49 Alpine
+  package in the frontend image after a check-date vulnerability scan. Runtime
+  users remain nonroot; scan receipts retain the unused OpenPGP module advisory.
+
+### Documentation — operator preparation, 2026-10-03
+
+- Add the operator preparation checklist for the application domain/host, Vault
+  Transit and recovery material, Google/GitHub OAuth apps, authenticated SMTP,
+  separate GitHub App, isolated runner, client qualification and release reviews.
+- Record owner-directed source publication separately from production acceptance;
+  retain dated validation receipts and outstanding gates.
+
+### Availability and validation
+
+- These additions extend base3878e69 as an unreleased source candidate. The owner
+  authorized `main` source publication on2026-10-03; this does not supply formal
+  review signatures, operational acceptance, a release tag or deployment.
+  New flags default off. See the
+  [current acceptance ledger](docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
+- Synthetic PostgreSQL/router/OAuth/broker/runner protocol tests establish only
+  their executed scenarios. Live Google/GitHub/SMTP and exact native client UAT,
+  rootless host isolation, operational drills and independent Security/Tech Lead
+  signatures remain required. CPU delegation is missing on the current host;
+  runner preflight fails closed. No production capability is inferred from source.
+- The older research plan remains historical context. External secret-delivery
+  adapters, script execution, model credentials, enterprise SSO and marketplaces
+  stay deferred. SQLite/MySQL compatibility does not establish platform parity.
 
 ## [1.4.0-rc.1] - 2026-10-02 (integrated source candidate; untagged)
 

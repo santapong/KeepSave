@@ -1,5 +1,7 @@
 # Backend platform implementation — local checkpoint
 
+> Historical/core baseline view. The 2026-10-02 harness-neutral working-tree [implementation checkpoint](../2026-10-02-harness-neutral-platform/README.md) supersedes single-harness and unimplemented-platform descriptions below. This file is retained as context, not current release evidence.
+
 Reconciled 2026-10-02 (Asia/Bangkok). The full M0–M5 release is not complete.
 This checkpoint supersedes the September 28 statement that vault HTTP adapters
 and backup maintenance were unwired. It does not claim provider UAT, production

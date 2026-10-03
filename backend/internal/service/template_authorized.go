@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
+	"github.com/santapong/KeepSave/backend/internal/authority"
 	"github.com/santapong/KeepSave/backend/internal/jobs"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/policy"
@@ -16,14 +17,47 @@ import (
 )
 
 func (s *TemplateService) EnableSessions(sessions *SessionService) { s.sessions = sessions }
-func (s *TemplateService) templateActorTx(ctx context.Context, tx *sql.Tx, p policy.Principal) error {
+func (s *TemplateService) templateActorTx(ctx context.Context, tx *sql.Tx, p policy.Principal, creator uuid.UUID, org *uuid.UUID) error {
 	if p.Kind != policy.Human || p.SubjectID == uuid.Nil || p.ActorID != p.SubjectID {
 		return vault.ErrDenied
+	}
+	if s.sessions == nil && org == nil {
+		return nil
+	} // Legacy fixture/operator adapter; production wiring requires sessions.
+	ids := []uuid.UUID{p.SubjectID}
+	if creator != uuid.Nil {
+		ids = append(ids, creator)
+	}
+	guard := authority.Guard{Dialect: s.templateRepo.Dialect()}
+	if err := guard.LockSubjects(ctx, tx, ids, false); err != nil {
+		return vault.ErrDenied
+	}
+	if org != nil && s.sessions != nil {
+		if e := guard.RequireOrg(ctx, tx, p, *org, "admin"); e != nil {
+			return vault.ErrDenied
+		}
+		return nil
+	}
+	if org != nil {
+		var id uuid.UUID
+		if err := tx.QueryRowContext(ctx, repository.Q(s.templateRepo.Dialect(), `SELECT id FROM organizations WHERE id=$1`+templateReadLock(s.templateRepo.Dialect())), *org).Scan(&id); err != nil {
+			return vault.ErrDenied
+		}
+		ok, err := s.templateRepo.HasOrganizationRoleTx(tx, p.SubjectID, *org, "admin")
+		if err != nil || !ok {
+			return vault.ErrDenied
+		}
 	}
 	if s.sessions != nil {
 		return s.sessions.RequireActiveTx(ctx, tx, p.SubjectID, p.SessionID)
 	}
 	return nil
+}
+func templateReadLock(d repository.Dialect) string {
+	if d.DBType() == repository.DBTypeSQLite {
+		return ""
+	}
+	return " FOR SHARE"
 }
 func validTemplate(name, stack string, keys models.JSONMap) bool {
 	return utf8.ValidString(name) && strings.TrimSpace(name) != "" && utf8.RuneCountInString(name) <= 255 && strings.TrimSpace(stack) != "" && keys != nil
@@ -73,7 +107,7 @@ func (s *TemplateService) CreateAuthorized(ctx context.Context, p policy.Princip
 	}
 	var result *models.SecretTemplate
 	err := s.templateRepo.WithTx(func(tx *sql.Tx) error {
-		if err := s.templateActorTx(ctx, tx, p); err != nil {
+		if err := s.templateActorTx(ctx, tx, p, uuid.Nil, org); err != nil {
 			return err
 		}
 		if global && s.sessions != nil {
@@ -103,10 +137,17 @@ func (s *TemplateService) UpdateAuthorized(ctx context.Context, p policy.Princip
 	}
 	var result *models.SecretTemplate
 	err := s.templateRepo.WithTx(func(tx *sql.Tx) error {
-		if err := s.templateActorTx(ctx, tx, p); err != nil {
-			return err
+		discovered, err := s.templateRepo.DiscoverByIDTx(tx, id)
+		if err != nil {
+			return ErrTemplateNotFound
+		}
+		if err = s.templateActorTx(ctx, tx, p, discovered.CreatedBy, discovered.OrganizationID); err != nil {
+			return ErrTemplateNotFound
 		}
 		stored, err := s.templateRepo.GetByIDTx(tx, id)
+		if err == nil && (stored.CreatedBy != discovered.CreatedBy || stored.OrganizationID == nil != (discovered.OrganizationID == nil) || stored.OrganizationID != nil && *stored.OrganizationID != *discovered.OrganizationID) {
+			return vault.ErrDenied
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTemplateNotFound
 		}
@@ -126,10 +167,17 @@ func (s *TemplateService) UpdateAuthorized(ctx context.Context, p policy.Princip
 }
 func (s *TemplateService) DeleteAuthorized(ctx context.Context, p policy.Principal, id uuid.UUID, ip string) error {
 	return s.templateRepo.WithTx(func(tx *sql.Tx) error {
-		if err := s.templateActorTx(ctx, tx, p); err != nil {
-			return err
+		discovered, err := s.templateRepo.DiscoverByIDTx(tx, id)
+		if err != nil {
+			return ErrTemplateNotFound
+		}
+		if err = s.templateActorTx(ctx, tx, p, discovered.CreatedBy, discovered.OrganizationID); err != nil {
+			return ErrTemplateNotFound
 		}
 		stored, err := s.templateRepo.GetByIDTx(tx, id)
+		if err == nil && (stored.CreatedBy != discovered.CreatedBy || stored.OrganizationID == nil != (discovered.OrganizationID == nil) || stored.OrganizationID != nil && *stored.OrganizationID != *discovered.OrganizationID) {
+			return vault.ErrDenied
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTemplateNotFound
 		}

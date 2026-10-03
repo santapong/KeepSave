@@ -15,7 +15,8 @@ import (
 	"time"
 )
 
-const BackupFormat = "keepsave.encrypted-vault.v1"
+const LegacyBackupFormat = "keepsave.encrypted-vault.v1"
+const BackupFormat = "keepsave.encrypted-vault.v2"
 const maxBundleSize = 64 << 20
 
 // Bundle uses the existing service-secret AES-GCM format. SHA256 detects
@@ -61,18 +62,20 @@ type manifest struct {
 	Revisions               []backupRevision
 	Snapshots               []backupSnapshot
 	Environments            []backupEnvironment
+	Lifecycle               []Lifecycle
 }
 type Verification struct {
-	ProjectID uuid.UUID `json:"project_id"`
-	CreatedAt time.Time `json:"created_at"`
-	Entries   int       `json:"entries"`
-	Revisions int       `json:"revisions"`
-	Keys      int       `json:"keys"`
-	Snapshots int       `json:"snapshots"`
+	ProjectID        uuid.UUID `json:"project_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	Entries          int       `json:"entries"`
+	Revisions        int       `json:"revisions"`
+	Keys             int       `json:"keys"`
+	Snapshots        int       `json:"snapshots"`
+	LifecycleRecords int       `json:"lifecycle_records"`
 }
 
 func (s *Service) Backup(ctx context.Context, p policy.Principal, project uuid.UUID) (Bundle, error) {
-	tx, err := s.begin(ctx, project)
+	tx, err := s.begin(ctx, p, project)
 	if err != nil {
 		return Bundle{}, err
 	}
@@ -147,6 +150,28 @@ func (s *Service) Backup(ctx context.Context, p policy.Principal, project uuid.U
 	}); err != nil {
 		return Bundle{}, err
 	}
+	if err = collect(ctx, tx, `SELECT secret_id,project_id,responsible_user_id,declared_expires_at,renewal_at,provenance,revision,updated_at FROM vault_lifecycle WHERE project_id=$1 ORDER BY secret_id`, project, func(rows *sql.Rows) error {
+		var l Lifecycle
+		var owner uuid.NullUUID
+		var expiry, renewal sql.NullTime
+		if e := rows.Scan(&l.SecretID, &l.ProjectID, &owner, &expiry, &renewal, &l.Provenance, &l.Revision, &l.UpdatedAt); e != nil {
+			return e
+		}
+		if owner.Valid {
+			l.ResponsibleUserID = &owner.UUID
+		}
+		if expiry.Valid {
+			l.DeclaredExpiresAt = &expiry.Time
+		}
+		if renewal.Valid {
+			l.RenewalAt = &renewal.Time
+		}
+		l.Known = true
+		m.Lifecycle = append(m.Lifecycle, l)
+		return nil
+	}); err != nil {
+		return Bundle{}, err
+	}
 	plain, err := json.Marshal(m)
 	if err != nil {
 		return Bundle{}, err
@@ -180,7 +205,7 @@ func collect(ctx context.Context, tx *sql.Tx, query string, project uuid.UUID, s
 	return rows.Err()
 }
 func (c *Bundle) decode(keys *crypto.Service) (manifest, error) {
-	if keys == nil || c.Format != BackupFormat || len(c.Ciphertext) > maxBundleSize+32 || len(c.Nonce) != 12 {
+	if keys == nil || (c.Format != BackupFormat && c.Format != LegacyBackupFormat) || len(c.Ciphertext) > maxBundleSize+32 || len(c.Nonce) != 12 {
 		return manifest{}, errors.New("invalid backup format")
 	}
 	digest := sha256.Sum256(c.Ciphertext)
@@ -201,7 +226,7 @@ func (c *Bundle) decode(keys *crypto.Service) (manifest, error) {
 	if err = dec.Decode(new(any)); err != io.EOF {
 		return m, errors.New("invalid backup trailing data")
 	}
-	if m.Format != BackupFormat || m.ProjectID == uuid.Nil {
+	if m.Format != c.Format || m.ProjectID == uuid.Nil || (m.Format == LegacyBackupFormat && len(m.Lifecycle) > 0) {
 		return m, errors.New("invalid backup identity")
 	}
 	return m, nil
@@ -244,6 +269,13 @@ func VerifyBackup(b Bundle, keys *crypto.Service) (Verification, error) {
 		}
 		entries[e.Record.ID] = e
 	}
+	lifecycleIDs := map[uuid.UUID]bool{}
+	for _, l := range m.Lifecycle {
+		if _, ok := entries[l.SecretID]; !ok || l.ProjectID != m.ProjectID || l.Revision < 1 || !l.Known || len(l.Provenance) > 500 || lifecycleIDs[l.SecretID] || l.ResponsibleUserID != nil && *l.ResponsibleUserID == uuid.Nil {
+			return Verification{}, errors.New("invalid lifecycle metadata")
+		}
+		lifecycleIDs[l.SecretID] = true
+	}
 	for _, v := range m.Revisions {
 		entry, exists := entries[v.SecretID]
 		if !exists || v.Revision != counts[v.SecretID]+1 || v.Revision > entry.Record.Revision {
@@ -283,5 +315,5 @@ func VerifyBackup(b Bundle, keys *crypto.Service) (Verification, error) {
 			return Verification{}, errors.New("snapshot recovery failed")
 		}
 	}
-	return Verification{m.ProjectID, m.CreatedAt, len(m.Entries), len(m.Revisions), len(m.Keys), len(m.Snapshots)}, nil
+	return Verification{ProjectID: m.ProjectID, CreatedAt: m.CreatedAt, Entries: len(m.Entries), Revisions: len(m.Revisions), Keys: len(m.Keys), Snapshots: len(m.Snapshots), LifecycleRecords: len(m.Lifecycle)}, nil
 }

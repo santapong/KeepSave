@@ -8,9 +8,12 @@ it does not claim new features, customer interviews or production acceptance.
 
 KeepSave should become the self-hosted place where a developer team can answer:
 **Who may use this credential, for what work, until when, and what happened?**
-Deepen the dependable vault and deliver the already selected controlled Codex
-workflow. Keep Go/Gin, PostgreSQL and the modular monolith; avoid another broad
-rewrite. Preserve the accepted Event Horizon/Field Twist interface.
+Deepen the dependable vault and deliver controlled developer-tool access through
+a harness-neutral core. On 2 October the owner clarified that KeepSave must
+support different harnesses and accommodate future technology. Codex remains
+the first pilot candidate, not a product restriction or a domain dependency.
+Keep Go/Gin, PostgreSQL and the modular monolith; avoid another broad rewrite.
+Preserve the accepted Event Horizon/Field Twist interface.
 
 The immediate recommendation is to finish core acceptance, then deliver safe
 denial explanations, audit search and credential renewal ownership. Team
@@ -42,7 +45,7 @@ independent Security Engineer/Tech Lead signatures or production acceptance.
 | Implemented; operational acceptance pending | Private backup maintenance, isolated recovery CLI and same-origin control-host deployment reference. Scheduling stays off until installation-specific recovery acceptance. |
 | Acceptance pending | Real Google/GitHub consent, independent reviews, remote CI, staging rollback, production TLS/Transit/storage and coordinated cutover. |
 | Unavailable in core | API-host MCP execution, legacy OAuth issuance, experimental AI/analytics, policy metadata controls, enterprise SSO/compliance, non-durable webhooks and plugin execution. |
-| Planned | Standards-based MCP, GitHub App broker/isolated runner, private skills, managed Codex profiles and measured team operations. |
+| Planned | Standards-based MCP, GitHub App broker/isolated runner, private skills, portable access profiles with harness adapters and measured team operations. |
 
 History, backups, session revocation and scope checks are foundations to reuse,
 not new roadmap discoveries. New guarantees remain PostgreSQL-only until parity
@@ -62,7 +65,7 @@ observed repository gaps and the [evidence register](RESEARCH.md).
 | P1 | Nobody owns renewal, and declared expiry is forgotten. | F04: ownership/lifecycle metadata and durable in-app reminders. | Documented product precedent; KeepSave demand unproven. |
 | P1 | Adding a teammate requires UUID exchange; removal lacks a complete summary. | F05: secure invitation flow and organization-scoped offboarding receipt. | Code gaps observed; removal already denies current access. |
 | P2 | Losing a login method can lock out a legitimate user. | F06: method safety, verified recovery design and session invalidation. | Code gap observed; auth review required. |
-| Strategic | An AI tool needs repository access without holding a provider token. | F07: existing M2–M4 controlled Codex/GitHub journey. | Owner-selected direction plus current product/security precedent. |
+| Strategic | Different AI tools need controlled access without holding provider tokens. | F07: harness-neutral M2–M4 access, initially exercised with Codex/GitHub. | Owner-selected direction plus current product/security precedent; compatibility requires per-client evidence. |
 | P2 | Installed configuration is mistaken for a healthy integration. | F08: connection diagnostics and selected read-only drift checks. | Source gap observed; depends on real M2/M3 resources. |
 | Later | Developers copy secrets into CI or hosting by hand. | F09: one explicitly authorized delivery adapter. | Vendor precedent only; choose a destination from pilot evidence. |
 
@@ -83,13 +86,16 @@ legacy packages already conform.
 | Promotion | Existing protected environment changes. | Exact artifact/revision-bound review and mutation, reused by future proposals. |
 | Audit and jobs | Cursor read models, receipts, notifications, retries and effect status. | Transactional append/outbox, leased work, safe filtered reads. |
 | MCP | Standards transport, consent, tool identity and diagnostics. | Protocol adapter calling authorized application services. |
-| Broker | GitHub connections, repository-bound runs and authenticated provider calls. | Structured permitted operations; no provider token export. |
-| Automation | Immutable instruction-only skills, pinned profiles and run receipts. | Artifact/compatibility checks and exact version references. |
+| Broker | Provider connections, repository-bound pilot runs and authenticated provider calls. | Provider-neutral permitted operations with vetted provider adapters; no provider token export. |
+| Automation | Immutable instruction-only skills, portable access profiles and run receipts. | Artifact/compatibility checks, harness-specific packaging and exact version references. |
 
 ```mermaid
 flowchart LR
-    UI[Web / CLI / SDK] --> APP[Authorized application services]
-    MCP[MCP adapter] --> APP
+    H[Different harnesses] --> AD[Harness adapters]
+    AD --> MCP[MCP adapter]
+    AD --> UI[Web / CLI / SDK]
+    UI --> APP[Authorized application services]
+    MCP --> APP
     APP --> ID[Current identity and policy]
     APP --> TX[PostgreSQL transaction]
     TX --> V[Vault / immutable versions]
@@ -111,6 +117,49 @@ Enforce boundaries with the existing architecture tests plus new module ports:
 handlers translate requests; modules do not import another module's repository;
 no parallel REST/MCP/SDK policy evaluator; no credential or process logic in UI.
 Retain typed dependency wiring and compatibility routes.
+
+### Harness-neutral extension contract
+
+This is a proposed architecture refinement following the owner's 2 October
+clarification; it does not claim new clients are implemented or verified.
+
+- **Shared core:** principals, resources, policy decisions, grants, approvals,
+  revocation, credential custody and receipts must not depend on a Codex type,
+  configuration file or client-reported harness name. The resource/operation
+  model owns permission semantics; adapters cannot reinterpret them.
+- **Independent adapters:** keep harness integration separate from provider
+  integration. A new harness handles transport, configuration export, artifact
+  packaging and compatibility checks. A new provider handles structured
+  upstream operations inside the trusted broker. Neither duplicates policy,
+  accesses another module's repository or exports provider credentials.
+- **Transport:** use standards-based MCP where the tested client supports it.
+  Supported REST/CLI/SDK paths reach the same authorized services. A future
+  transport gets its own thin adapter and contract tests; it does not require
+  a second authorization implementation. Raw vault export remains a separate,
+  explicitly permitted operation with its existing custody boundary.
+- **Portable profiles:** a versioned access profile records approved operations,
+  resources, artifact digests, duration/response limits and required controls.
+  Harness-specific packages reference that exact profile and record their own
+  format/version/digest. A changed export cannot reuse approval for a different
+  artifact. Never silently translate away a required restriction.
+- **Compatibility evidence:** record exact harness/version, transport,
+  authentication, tool schemas, cancellation, artifact format and supported
+  controls. Distinguish server-enforced controls, independently checked local
+  administrator controls and unverified claims. Missing required capabilities
+  refuse admission/export; optional capabilities may be omitted explicitly.
+  Client capability declarations are hints, not trusted identity or authority.
+- **Future integrations:** keep interfaces versioned and additive. Add only
+  narrow ports justified by an actual adapter; avoid speculative plugin systems,
+  arbitrary builds or executable skill translation. Support is published per
+  tested version/capability, never as a promise that every future client works.
+
+The portability acceptance gate exercises the same profile and policy matrix
+through two independent real harnesses: one allowed repository, one denied
+repository, expiry, revocation, cancellation and safe receipts. A generic MCP
+fixture is useful in CI but does not count as the second harness. Codex is the
+first candidate; select the second from pilot use and verify its current APIs.
+Unsupported local controls must be reported honestly and must not weaken the
+server boundary. This gate precedes advertising broad harness compatibility.
 
 ### Data and transaction rules
 
@@ -148,7 +197,7 @@ rotation/revocation. Report upstream work as pending, confirmed, failed,
 unsupported or uncertain. Never silently replay an uncertain external effect.
 Already returned plaintext cannot be recalled.
 
-Broker custody does not make Codex's model local: permitted repository content
+Broker custody does not make a harness's model local: permitted repository content
 still reaches its configured model. Administrator-managed harness restrictions
 are distinct from editable defaults; an unrestricted device administrator can
 bypass local tooling. No remote attestation is promised.
@@ -166,7 +215,7 @@ calendar commitment or measured velocity is implied.
 | R0: accept the core | Independent review, remote CI, real providers, recovery/key/storage and cutover/rollback drills; reconcile stale docs. | Integrated candidate. | Backend + Security + Platform. | No date promised; all applicable acceptance evidence recorded. |
 | R1: explain and operate | F01 setup/readiness, F02 denial diagnostics, F03 audit pagination/export. | Current authority/audit contracts; R0 before production. | Backend + client + Platform. | 3–5 engineer-weeks; fresh install and denial/incident journeys pass. |
 | R2: maintain a team | F04 lifecycle/in-app reminders, F05 invitations/offboarding; F06 method-safety first. | R1, notification primitive and verified-contact design. | Backend + Security + client. | 4–7 engineer-weeks; replay/race/recipient/offboarding tests and pilot tasks pass. |
-| R3: connect Codex | F07 M2 consent/protocol/diagnostics; synthetic work can proceed in parallel after auth design review. | Fixed authorization contracts; R0 before live pilot. | Backend + harness integration. | 2–4 engineer-weeks for a protocol slice; real client exit remains mandatory. |
+| R3: connect harnesses | F07 M2 consent/protocol/diagnostics and common adapter contracts; synthetic work can proceed in parallel after auth design review. | Fixed authorization contracts; R0 before live pilot. | Backend + harness integration. | Previous 2–4 engineer-week estimate covers the protocol slice only; estimate the second adapter after discovery. Real client acceptance remains mandatory. |
 | R4: broker a repository | F07 M3 connection/grant/broker/separate runner, F08 health receipts. | M1 audit primitives and accepted M2. | Backend + Platform + Security. | 4–7 engineer-weeks; A allowed/B denied, revocation and isolation proven. |
 | R5: govern skills and operate | F07 M4 manifests/profiles then M5 team fault/load/recovery/upgrades; complete F06 recovery. | M3 and reviewed auth/recovery design. | Backend + Platform + client. | Re-estimate after R4; no capacity/availability claim without measurements. |
 | R6: selected delivery | F09 one destination from demonstrated pilot need; optional change proposals. | Mature broker custody, effect reconciliation and demand evidence. | Backend + Platform. | Re-estimate after discovery; explicit external-write review required. |
@@ -176,9 +225,10 @@ implementation to one core slice and one synthetic protocol slice; finish a
 slice before expanding providers. Real provider setup, messaging, production
 changes and stable tagging require their applicable authorization and gates.
 
-The accepted initial harness remains Linux Codex, GitHub App read-only, one
-repository resolved to a commit per ten-minute run, thirty-second tool timeout
-and four-MiB maximum response, further constrained by remaining run limits.
+Linux Codex remains the initial pilot candidate within the harness-neutral
+design. GitHub App read-only, one repository resolved to a commit per ten-minute
+run, thirty-second tool timeout and four-MiB maximum response remain pilot
+defaults, further constrained by remaining run limits.
 Protocol/SDK/CLI pins in the existing proposal are compatibility candidates;
 reverify official support and actual client behavior when M2 starts.
 
@@ -194,6 +244,7 @@ reverify official support and actual client behavior when M2 starts.
 | Audit interfaces | Stable pagination ties, concurrent append, bounded filters/export, no credential/token/raw error leakage, old chain continuity. |
 | Clients | Actual OpenAPI responses/types, frontend tests/builds and browser flows; selected SDK/CLI/widget acceptance expanded per touched surface. |
 | MCP and broker | Real Codex login/list/call/cancel, wrong audience/origin, stolen handles, repo/ref/action denial, revoked runs, credential canaries, runner restrictions. |
+| Harness portability | Two independent real harnesses exercise the same profile and authorization cases; required capability gaps refuse safely, changed exports invalidate approval, self-reported harness names confer no authority. |
 | Operations | Fresh install, two API instances, worker failure, database outage, external backup restore, compatible upgrade/rollback and measured recovery time. |
 
 Retain race/shuffle, vet, bounded fuzz, dependency and container checks. Use real

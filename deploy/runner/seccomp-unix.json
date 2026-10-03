@@ -1,0 +1,20 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "syscalls": [
+    {
+      "names": ["read", "write", "readv", "writev", "pread64", "pwrite64", "close", "close_range", "openat", "newfstatat", "fstat", "stat", "lstat", "statx", "lseek", "access", "faccessat", "faccessat2", "readlink", "readlinkat", "getdents64", "mmap", "mprotect", "munmap", "mremap", "brk", "madvise", "rt_sigaction", "rt_sigprocmask", "rt_sigreturn", "sigaltstack", "futex", "futex_waitv", "set_tid_address", "set_robust_list", "rseq", "arch_prctl", "getpid", "getppid", "gettid", "getuid", "geteuid", "getgid", "getegid", "getgroups", "clock_gettime", "clock_getres", "gettimeofday", "nanosleep", "clock_nanosleep", "sched_yield", "sched_getaffinity", "getrandom", "uname", "getrlimit", "prlimit64", "epoll_create1", "epoll_ctl", "epoll_wait", "epoll_pwait", "epoll_pwait2", "eventfd2", "fcntl", "dup", "dup2", "dup3", "pipe2", "connect", "getsockopt", "setsockopt", "getsockname", "getpeername", "sendto", "recvfrom", "sendmsg", "recvmsg", "shutdown", "exit", "exit_group", "execve", "tgkill"],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": ["socket", "socketpair"],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [{"index": 0, "value": 1, "op": "SCMP_CMP_EQ"}]
+    },
+    {
+      "names": ["clone"],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [{"index": 0, "value": 2114060416, "valueTwo": 0, "op": "SCMP_CMP_MASKED_EQ"}]
+    }
+  ]
+}

@@ -9,6 +9,16 @@ and pending exit gates are in [IMPLEMENTATION](IMPLEMENTATION.md) and the
 The current bounded release is identity and reliable vault under ADR0028.
 The stage table is the delivery target; it does not mark every target delivered.
 
+**Owner clarification, 2026-10-02:** KeepSave must support different harnesses
+and accommodate future technology. Codex is the first pilot candidate, not a
+product restriction. Shared authorization, runs, custody and audit remain
+harness-neutral; transport/configuration/artifact adapters are separate from
+provider adapters. The [extension contract](../2026-10-02-product-roadmap/README.md#harness-neutral-extension-contract)
+and [F07](../2026-10-02-product-roadmap/BACKLOG.md#f07--controlled-access-across-harnesses-strategic-m2m5)
+refine the M2/M4 targets below. Require equivalent acceptance through two real
+harnesses before advertising broad compatibility. Other custody, isolation,
+review and first-provider defaults remain unchanged; new support is still planned.
+
 ## Delivery rules
 
 Use bounded feature branches off the verified integration branch, preserve the accepted frontend, and integrate one tested capability at a time. A directory-wide rewrite is not a prerequisite. The existing dirty frontend/social-auth/scope baseline is preserved in the feature checkout; do not discard it or silently claim integration/release. Each subsequent capability remains a bounded vertical slice.
@@ -23,7 +33,7 @@ Each item owns a user outcome, an authorization matrix, a failure test, and a ro
 | M1 — Reliable vault lifecycle | Unit of Work and audit append; complete key/version design; create/update/import/template/promotion history; restore as new revision; encrypted recoverable bundle; key/backup/corruption drill | M0; accepted key/audit ADRs | Concurrent edit/rotation, stale restore rejection, complete rollback/history after rotation, transaction failure rollback, clean restore from external bundle + recovery keys, deletion/retention tests |
 | M2 — MCP interoperability | Pinned Go SDK spike; `/mcp` transport/auth adapter; namespaced tool identity, bounded schemas; typed UI catalog; diagnostics; replace unverified generated client instructions | M0; approved protocol/auth design | Exact client/SDK/protocol matrix, real discovery/list/call/cancel, wrong audience/origin, expired/invalid token, malformed/oversized output, duplicate tool names, actual frontend response contract |
 | M3 — Broker and isolated pilot | Workload enrollment, run grants/lineage, provider connection, brokered operation, one vetted connector, independent restricted runner, audit receipts/revoke | M0, M1 audit primitives, M2; accepted runner/credential ADR | End-to-end first pilot below; no access to API secrets/host files, no unauthorized egress, revoke/outage denials, queue/time/memory bounds, crash/unknown-outcome handling |
-| M4 — Private skills and harness profiles | Immutable skill catalog, review/revocation, requested capabilities, official skills-extension adapter where supported, one harness adapter/profile, compatibility report | M3 | Artifact tamper and same-name origin tests, fresh approval after changes, nested-skill boundaries, profile capability mismatch denied, secrets absent from bundles and model context |
+| M4 — Private skills and harness profiles | Immutable skill catalog, review/revocation, requested capabilities, official skills-extension adapter where supported, portable access profiles and separately versioned harness packages, compatibility report | M3 | Artifact/export tamper and same-name origin tests, fresh approval after changes, nested-skill boundaries, required capability mismatch denied, secrets absent from bundles and model context; two-harness portability evidence before broad support claims |
 | M5 — Team scale and enterprise readiness | DB-serialized audit head, durable outbox/jobs/webhooks, shared admission limits, migration coordination, signing-key/cache coherence, backup operations; separate runner host and measured self-hosted team operation; enterprise SSO/cloud-KMS expansion deferred | M1–M4 for the relevant product paths | Two-replica fault/load runs, cross-instance revoke behavior, tenant isolation, queue recovery, restore-time measurements, chosen read-only GitHub/Codex live verification and operational runbook |
 
 M1 and the M2 protocol spike can proceed independently after the authorization contract is settled. M3 may reuse M1’s audit work before the entire recovery UI is finished, but no broader production rollout should precede a successful recovery drill. M4 does not unblock unsafe execution; it depends on it being controlled already.

@@ -57,3 +57,11 @@ func TestRedactQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestProofAndMalformedQueriesFailClosed(t *testing.T) {
+	for _, raw := range []string{"proof=private-canary", "PrOoF=private-canary", "proof=private-canary&bad=%zz", "contact=private-canary"} {
+		if strings.Contains(redactQuery(raw), "private-canary") {
+			t.Fatal("proof escaped redaction")
+		}
+	}
+}

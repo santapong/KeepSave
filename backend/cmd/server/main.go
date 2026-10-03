@@ -164,6 +164,7 @@ func main() {
 	keyRotationService := service.NewKeyRotationService(projectRepo, secretRepo, envRepo, auditRepo, cryptoSvc)
 	webhookService := service.NewWebhookService(auditRepo)
 	orgService := service.NewOrganizationService(orgRepo, auditRepo)
+	orgService.EnableSessions(sessions)
 	templateService := service.NewTemplateService(templateRepo, secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
 	templateService.EnableSessions(sessions)
 	envFileService := service.NewEnvFileService(secretRepo, projectRepo, envRepo, auditRepo, cryptoSvc)
@@ -259,7 +260,7 @@ func main() {
 	}
 	logger.Info("platform roles use operator-issued database grants", nil)
 
-	router := api.NewRouter(api.Dependencies{
+	dependencies := api.Dependencies{
 		CoreRelease:          true,
 		OperatorAdminChecker: operatorAdmins,
 		SessionHandler:       api.NewSessionHandler(sessions),
@@ -301,7 +302,12 @@ func main() {
 		DB:                   db,
 		Logger:               logger,
 		DisableLocalMCP:      true,
-	})
+	}
+	if err := configurePlatform(&dependencies, cfg, db, dialect, cryptoSvc, auditRepo, versionedVault, sessions); err != nil {
+		logger.Error("platform configuration is invalid; refusing startup", nil)
+		os.Exit(1)
+	}
+	router := api.NewRouter(dependencies)
 
 	// Background workers (pruner, etc.) share a context that the signal
 	// handler cancels at shutdown so they exit cleanly with the HTTP server.
@@ -354,7 +360,20 @@ func main() {
 	// Run the listener in a goroutine so the main goroutine can wait on a
 	// shutdown signal. http.ErrServerClosed is the expected return after
 	// srv.Shutdown; anything else is a startup failure.
-	serverErr := make(chan error, 1)
+	serverErr := make(chan error, 2)
+	runnerServer, e := runnerListener(cfg.Platform, dependencies.ToolPlatformHandler)
+	if e != nil {
+		logger.Error("runner listener configuration invalid", nil)
+		os.Exit(1)
+	}
+	if runnerServer != nil {
+		go func() {
+			err := runnerServer.ListenAndServeTLS("", "")
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- err
+			}
+		}()
+	}
 	go func() {
 		var err error
 		if tlsEnabled {
@@ -382,6 +401,7 @@ func main() {
 		logger.Info("shutdown signal received", map[string]interface{}{"signal": sig.String()})
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 		defer shutdownCancel()
+		closeRunner(shutdownCtx, runnerServer)
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			logger.Error("graceful shutdown failed", map[string]interface{}{"error": err.Error()})
 			os.Exit(1)

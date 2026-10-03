@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowRight, Eye, EyeOff } from '@/components/icons';
 import { login as apiLogin } from '../api/client';
 import { AuthShell } from '../components/auth/AuthShell';
 import { ProviderButtons } from '../components/auth/ProviderButtons';
 import type { User } from '../types';
+import { loginConsentReturn } from '../lib/mcpReturnContext';
 
 export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [email, setEmail] = useState('');
@@ -14,16 +15,18 @@ export function LoginPage({ onLogin }: { onLogin: (user: User, token: string) =>
   const [loading, setLoading] = useState(false);
   const [providerPending, setProviderPending] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = loginConsentReturn(location.search);
   async function handleSubmit(event: FormEvent) {
     event.preventDefault(); if (loading || providerPending) return;
     setError(''); setLoading(true);
-    try { const result = await apiLogin(email, password); onLogin(result.user, result.token); navigate('/', { replace: true }); }
+    try { const result = await apiLogin(email, password); onLogin(result.user, result.token); navigate(returnTo || '/', { replace: true }); }
     catch (error) { setError(error instanceof Error ? error.message : 'Login failed. Please try again.'); }
     finally { setLoading(false); }
   }
   return <AuthShell>
     <h2>Sign in</h2><p className="ks-auth-lead">Continue to your KeepSave workspace.</p>
-    <ProviderButtons busy={loading} onBusyChange={setProviderPending} />
+    <ProviderButtons busy={loading} onBusyChange={setProviderPending} returnTo={returnTo} />
     <div className="ks-auth-divider"><span>or continue with email</span></div>
     {error && <div className="ks-auth-error" role="alert">{error}</div>}
     <form onSubmit={handleSubmit} className="ks-auth-form" aria-busy={loading}>

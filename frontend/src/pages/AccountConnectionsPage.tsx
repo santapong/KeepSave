@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { getConnections, startSocialLogin, type Provider, type Providers } from '../api/socialAuth';
 import { getAccountSessions, revokeAccountSession, invalidateBrowserSession, type AccountSession } from '../api/client';
 import '../styles/auth.css';
+import { AccountSafety } from '../components/AccountSafety';
+import { AccountDelegations } from '../components/AccountDelegations';
 
 export function AccountConnectionsPage() {
   const [connections, setConnections] = useState<{ connected: Provider[]; available: Providers } | null>(null);
@@ -43,6 +45,8 @@ export function AccountConnectionsPage() {
       return <div key={provider} className="ks-connections-row"><div><strong>{provider === 'github' ? 'GitHub' : 'Google'}</strong><p>{connected ? 'Connected to this account' : available ? 'Use this provider to sign in next time.' : 'Awaiting provider setup.'}</p></div>
         <button className="cz-btn" disabled={!!pending || !available || connected} onClick={() => void connect(provider)}>{connected ? 'Connected' : pending === provider ? 'Connecting…' : 'Connect'}</button></div>;
     })}</div>
+    <AccountSafety />
+    <AccountDelegations />
     <section aria-labelledby="account-sessions-title" style={{ marginTop: 36 }}>
       <h2 id="account-sessions-title">Your sessions</h2>
       <p className="cz-muted">Sessions expire after 24 hours. Revoking a session blocks its next request.</p>

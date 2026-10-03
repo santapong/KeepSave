@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { completeSocialLogin } from '../api/socialAuth';
 import { AuthShell } from '../components/auth/AuthShell';
 import type { User } from '../types';
+import { validConsentReturn } from '../lib/mcpReturnContext';
 
 export function SocialCallbackPage({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const { provider = '' } = useParams();
@@ -20,7 +21,7 @@ export function SocialCallbackPage({ onLogin }: { onLogin: (user: User, token: s
     attempt.current.then((result) => {
       if (!active) return;
       if (result.auth) onLogin(result.auth.user, result.auth.token);
-      navigate(result.mode === 'link' ? '/account?connected=1' : '/', { replace: true });
+      navigate(result.mode === 'link' ? '/account?connected=1' : validConsentReturn(result.returnTo) || '/', { replace: true });
     }).catch((error) => { if (active) setError(error instanceof Error ? error.message : 'Sign-in could not be completed.'); });
     return () => { active = false; };
   }, [provider, query, onLogin, navigate]);

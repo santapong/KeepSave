@@ -253,30 +253,45 @@ func (s *TemplateService) ApplyTemplateAuthorized(ctx context.Context, p policy.
 	if err != nil {
 		return nil, ErrTemplateNotFound
 	}
-	items, ok := tmpl.Keys["keys"].([]interface{})
-	if !ok {
-		return nil, vault.ErrInvalid
+	sourceOrgs := []uuid.UUID{}
+	if tmpl.OrganizationID != nil {
+		sourceOrgs = append(sourceOrgs, *tmpl.OrganizationID)
 	}
 	values := map[string]string{}
-	for _, item := range items {
-		entry, ok := item.(map[string]interface{})
+	result, err := s.vault.PutManyFromSource(ctx, p, project, environment, sourceOrgs, func(tx *sql.Tx) (map[string]string, error) {
+		current, e := s.templateRepo.GetByIDTx(tx, template)
+		if e != nil || current.CreatedBy != tmpl.CreatedBy || current.OrganizationID == nil != (tmpl.OrganizationID == nil) || current.OrganizationID != nil && *current.OrganizationID != *tmpl.OrganizationID {
+			return nil, ErrTemplateNotFound
+		}
+		if !current.IsGlobal && current.OrganizationID == nil && current.CreatedBy != p.ActorID {
+			return nil, ErrTemplateNotFound
+		}
+		tmpl = current
+		items, ok := tmpl.Keys["keys"].([]interface{})
 		if !ok {
 			return nil, vault.ErrInvalid
 		}
-		key, ok := entry["key"].(string)
-		if !ok || strings.TrimSpace(key) == "" {
-			return nil, vault.ErrInvalid
+		values = map[string]string{}
+		for _, item := range items {
+			entry, ok := item.(map[string]interface{})
+			if !ok {
+				return nil, vault.ErrInvalid
+			}
+			key, ok := entry["key"].(string)
+			if !ok || strings.TrimSpace(key) == "" {
+				return nil, vault.ErrInvalid
+			}
+			if _, exists := values[key]; exists {
+				return nil, vault.ErrInvalid
+			}
+			value, _ := entry["default_value"].(string)
+			if value == "" {
+				value = "CHANGEME"
+			}
+			values[key] = value
 		}
-		if _, exists := values[key]; exists {
-			return nil, vault.ErrInvalid
-		}
-		value, _ := entry["default_value"].(string)
-		if value == "" {
-			value = "CHANGEME"
-		}
-		values[key] = value
-	}
-	result, err := s.vault.PutMany(ctx, p, project, environment, values, true, "template")
+		return values, nil
+	})
 	if err != nil {
 		return nil, err
 	}
