@@ -12,6 +12,7 @@ import (
 	"github.com/santapong/KeepSave/backend/internal/crypto"
 	"github.com/santapong/KeepSave/backend/internal/models"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 )
 
 // diffHashLen is the number of hex chars returned for each diff hash. 16
@@ -39,6 +40,7 @@ var envOrder = map[string]int{
 }
 
 type PromotionService struct {
+	vault         *vault.Service
 	promotionRepo *repository.PromotionRepository
 	secretRepo    *repository.SecretRepository
 	projectRepo   *repository.ProjectRepository

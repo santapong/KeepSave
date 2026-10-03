@@ -1,3 +1,4 @@
+import { ArrowLeft, Plus } from '@/components/icons';
 import { useState, useEffect } from 'react';
 import { useParams, Link, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { getProject, exportEnv, rotateProjectKeys } from '../api/client';
@@ -9,15 +10,20 @@ import { ProjectAPIKeysPanel } from '../components/ProjectAPIKeysPanel';
 import { TypedConfirmModal } from '../components/TypedConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { OrbitalPipeline } from '../components/cosmic/OrbitalPipeline';
-import { Page, PageHeader, KpiStrip, Kpi, SectionHead } from '../components/cosmic/primitives';
+import { Page, PageHeader, SectionHead } from '../components/cosmic/primitives';
 import type { Project } from '../types';
+import { ProjectRecoveryPanel } from '../components/ProjectRecoveryPanel';
+import { SecretLifecyclePanel } from '../components/SecretLifecyclePanel';
+import { SafeAuditPanel } from '../components/SafeAuditPanel';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Env = (typeof ENVIRONMENTS)[number];
 
-type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys';
+type Tab = 'secrets' | 'promote' | 'promotions' | 'audit' | 'api-keys' | 'recovery' | 'lifecycle';
 
 export function ProjectDetailPage() {
+  const { enabled } = useCapabilities();
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState('');
@@ -35,14 +41,20 @@ export function ProjectDetailPage() {
     if (path.includes('/promotions')) return 'promotions';
     if (path.includes('/audit')) return 'audit';
     if (path.includes('/api-keys')) return 'api-keys';
+    if (path.includes('/lifecycle')) return 'lifecycle';
+    if (path.includes('/recovery')) return 'recovery';
     return 'secrets';
   })();
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setProject(null);
+    setError('');
     getProject(id)
-      .then(setProject)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load project'));
+      .then(value => { if (active) setProject(value); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Failed to load project'); });
+    return () => { active = false; };
   }, [id]);
 
   // Task A.2: Export .env for the selected environment, triggers a download.
@@ -115,27 +127,26 @@ export function ProjectDetailPage() {
     { key: 'promotions', label: 'History', path: `/projects/${id}/promotions` },
     { key: 'audit', label: 'Audit', path: `/projects/${id}/audit` },
     { key: 'api-keys', label: 'API Keys', path: `/projects/${id}/api-keys` },
+    ...(enabled('team_vault') ? [{ key: 'lifecycle' as const, label: 'Lifecycle', path: `/projects/${id}/lifecycle` }] : []),
+    ...(enabled('encrypted_recovery') ? [{ key: 'recovery' as const, label: 'Recovery', path: `/projects/${id}/recovery` }] : []),
   ];
 
-  const nameParts = project.name.split('-');
-  const head = nameParts[0];
-  const tail = nameParts.slice(1).join('-') || 'vault';
 
   return (
     <Page>
       <Link to="/" className="cz-btn cz-btn-ghost" style={{ marginBottom: 18, display: 'inline-flex' }}>
-        ← All projects
+        <ArrowLeft size={14} /> All projects
       </Link>
 
       <PageHeader
         eyebrow={`Project · prj_${project.id.slice(0, 6)}`}
-        title={<>{head} <em>/ {tail}</em></>}
+        title={project.name}
         sub={project.description || undefined}
         actions={
           <>
             <div style={{ position: 'relative' }}>
               <button className="cz-btn" disabled={exporting} onClick={() => setExportPickerOpen((v) => !v)}>
-                {exporting ? 'Exporting…' : 'Export .env'}
+                {exporting ? 'Exporting…' : 'Export plaintext .env'}
               </button>
               {exportPickerOpen && (
                 <div
@@ -173,36 +184,36 @@ export function ProjectDetailPage() {
               {rotating ? 'Rotating…' : 'Rotate all'}
             </button>
             <button className="cz-btn cz-btn-primary" onClick={() => navigate(`/projects/${id}/promote`)}>
-              + Promote
+              <Plus size={14} /> Promote
             </button>
           </>
         }
       />
 
-      <KpiStrip>
-        <Kpi label="Secrets" value="—" hint="this project" bars={[2, 3, 2, 4, 3, 5, 4, 5]} />
-        <Kpi label="Environments" value="03" hint="alpha · uat · prod" bars={[1, 2, 2, 3, 3, 3, 3, 3]} />
-        <Kpi label="Reads / hr" value="1,204" hint="+4% h/h" trend="up" bars={[6, 7, 8, 9, 8, 10, 11, 12]} flux />
-        <Kpi label="Drift" value="Δ0" hint="envs aligned" />
-      </KpiStrip>
+      <div className="ks-workspace-summary">
+        <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+        <span>Alpha · UAT · Production</span>
+        <span>Encrypted at rest · AES-256-GCM</span>
+      </div>
 
       {/* Tabs */}
-      <div className="cz-tabs">
+      <nav className="cz-tabs" aria-label="Project pages">
         {tabs.map((tab) => (
-          <button
+          <Link
             key={tab.key}
-            type="button"
-            onClick={() => navigate(tab.path)}
+            to={tab.path}
+            aria-current={currentTab === tab.key ? 'page' : undefined}
             className={`cz-tab ${currentTab === tab.key ? 'cz-on' : ''}`}
           >
             {tab.label}
-          </button>
+          </Link>
         ))}
-      </div>
+      </nav>
 
       <div style={{ marginTop: 8 }}>
         <Routes>
           <Route index element={<SecretsPanel projectId={id!} />} />
+          <Route path="recovery" element={enabled('encrypted_recovery') ? <ProjectRecoveryPanel key={id} projectId={id!} projectName={project.name} /> : <p className="cz-muted">Encrypted recovery is unavailable on this instance.</p>} />
           <Route
             path="promote"
             element={
@@ -221,7 +232,8 @@ export function ProjectDetailPage() {
             }
           />
           <Route path="promotions" element={<PromotionsList projectId={id!} />} />
-          <Route path="audit" element={<AuditLogViewer projectId={id!} />} />
+          <Route path="audit" element={enabled('team_vault') ? <SafeAuditPanel key={id} projectId={id!} /> : <AuditLogViewer projectId={id!} />} />
+          <Route path="lifecycle" element={enabled('team_vault') ? <SecretLifecyclePanel key={id} projectId={id!} /> : <p className="cz-muted">Lifecycle controls are unavailable on this installation.</p>} />
           <Route path="api-keys" element={<ProjectAPIKeysPanel projectId={id!} />} />
         </Routes>
       </div>
@@ -230,7 +242,7 @@ export function ProjectDetailPage() {
         open={rotateModalOpen}
         onOpenChange={setRotateModalOpen}
         title="Rotate all project keys"
-        description={`Rotate the data encryption keys for "${project.name}". All secrets will be re-encrypted under fresh DEKs. This operation cannot be undone and will take a few seconds.`}
+        description={`Rotate the data encryption keys for "${project.name}". Current secrets will use a fresh key. Retained history and promotion snapshots remain readable through their original keys.`}
         confirmPhrase={project.name}
         confirmLabel="Rotate keys"
         onConfirm={handleRotateAll}

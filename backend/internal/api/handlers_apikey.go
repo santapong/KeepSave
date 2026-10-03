@@ -26,7 +26,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -47,7 +47,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		expiresAt = &parsed
 	}
 
-	resp, err := h.apikeyService.Create(req.Name, userID, projectID, req.Scopes, req.Environment, expiresAt, c.GetString("client_ip"))
+	resp, err := h.apikeyService.CreateAuthorized(c.Request.Context(), PrincipalFromContext(c), req.Name, projectID, req.Scopes, req.Environment, expiresAt, c.ClientIP())
 	if err != nil {
 		if errors.Is(err, service.ErrProjectNotFound) {
 			RespondError(c, http.StatusNotFound, "project not found")
@@ -88,7 +88,7 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 }
 
 func (h *APIKeyHandler) Delete(c *gin.Context) {
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -99,8 +99,8 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.apikeyService.Delete(keyID, userID, c.GetString("client_ip")); err != nil {
-		RespondError(c, http.StatusNotFound, "api key not found")
+	if err := h.apikeyService.DeleteAuthorized(c.Request.Context(), PrincipalFromContext(c), keyID, c.ClientIP()); err != nil {
+		WrapError(c, err)
 		return
 	}
 

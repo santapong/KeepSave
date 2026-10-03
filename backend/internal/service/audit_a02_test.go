@@ -8,11 +8,13 @@ package service
 
 import (
 	"database/sql"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/santapong/KeepSave/backend/internal/repository"
+	"github.com/santapong/KeepSave/backend/migrations"
 )
 
 // auditRowsFor returns the number of audit_log rows for a given action that are
@@ -93,13 +95,31 @@ const ddlOrgMembers = `CREATE TABLE organization_members (
 // mutating lifecycle and asserts every action lands in the audit log,
 // attributed to the acting admin.
 func TestOrganizationService_EmitsAudit(t *testing.T) {
-	db, dialect := newA02TestDB(t, ddlOrganizations, ddlOrgMembers)
+	// Workspace transactions must be tested with real FK/idempotency schemas,
+	// not a handcrafted fixture that omits users and project relationships.
+	db, dialect, err := repository.NewDB("sqlite://" + filepath.Join(t.TempDir(), "workspace.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err = repository.RunMigrationsFS(db, dialect, migrations.FS); err != nil {
+		t.Fatal(err)
+	}
+	users := repository.NewUserRepository(db, dialect)
+	ownerUser, err := users.Create(uuid.NewString()+"@example.invalid", "!")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetUser, err := users.Create(uuid.NewString()+"@example.invalid", "!")
+	if err != nil {
+		t.Fatal(err)
+	}
 	svc := NewOrganizationService(
 		repository.NewOrganizationRepository(db, dialect),
 		repository.NewAuditRepository(db, dialect),
 	)
 
-	owner := uuid.New()
+	owner := ownerUser.ID
 	org, err := svc.Create("Acme Corp", owner, "10.0.0.1")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -111,7 +131,7 @@ func TestOrganizationService_EmitsAudit(t *testing.T) {
 	}
 	requireAuditRow(t, db, "org.updated", owner)
 
-	target := uuid.New()
+	target := targetUser.ID
 	if _, err := svc.AddMember(org.ID, owner, target, "editor", "10.0.0.1"); err != nil {
 		t.Fatalf("AddMember: %v", err)
 	}

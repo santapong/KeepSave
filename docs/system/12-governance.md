@@ -1,5 +1,7 @@
 # Governance
 
+> **Current scope — 2026-10-02.** The approved current core decision is ADR0028 and the longer program is ADR0023–0027. Sponsor authorization permits local implementation; independent Security Engineer/Tech Lead review remains a delivery gate. Older ADR counts and roadmap status below are historical. See the [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+
 > Part of the **[KeepSave System Documentation](./README.md)**.
 
 This chapter documents how KeepSave is governed as a project: the operating principles, the nine roles and who can veto crypto/auth/promotion changes, the Type-1/2/3 decision classes and their required process, the complete ADR index (0000–0016), the roadmap phases and the current phase, what the project explicitly will **not** build, the tracked-follow-up process, the per-role 30/60/90 plan, and the mandatory PR gates from `CLAUDE.md`. Because KeepSave handles other people's secrets, the governance is deliberately heavyweight: no role ships a PROD change alone.

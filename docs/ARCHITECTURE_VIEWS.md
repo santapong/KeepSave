@@ -1,5 +1,7 @@
 # KeepSave — Architecture Views
 
+> Historical/core baseline view. The 2026-10-02 harness-neutral working-tree [implementation checkpoint](design/2026-10-02-harness-neutral-platform/README.md) supersedes single-harness and unimplemented-platform descriptions below. This file is retained as context, not current release evidence.
+
 Two complementary models describe this system, because they answer
 different questions:
 

@@ -31,19 +31,19 @@ func TestMatchKeyGlob(t *testing.T) {
 		pattern, key string
 		want         bool
 	}{
-		{"", "ANYTHING", true},          // empty = all (legacy)
-		{"*", "ANYTHING", true},         // star = all
-		{"DB_*", "DB_URL", true},        // prefix
-		{"DB_*", "DBURL", false},        // prefix must match literally
-		{"DB_*", "STRIPE_KEY", false},   // no match
-		{"*_URL", "DB_URL", true},       // suffix
-		{"*_URL", "DB_URLX", false},     // suffix anchored to end
-		{"DB_URL", "DB_URL", true},      // exact
-		{"DB_URL", "DB_URL2", false},    // exact, no partial
+		{"", "ANYTHING", true},             // empty = all (legacy)
+		{"*", "ANYTHING", true},            // star = all
+		{"DB_*", "DB_URL", true},           // prefix
+		{"DB_*", "DBURL", false},           // prefix must match literally
+		{"DB_*", "STRIPE_KEY", false},      // no match
+		{"*_URL", "DB_URL", true},          // suffix
+		{"*_URL", "DB_URLX", false},        // suffix anchored to end
+		{"DB_URL", "DB_URL", true},         // exact
+		{"DB_URL", "DB_URL2", false},       // exact, no partial
 		{"*CONFIG*", "APP_CONFIG_X", true}, // contains
 		{"*CONFIG*", "APP_CFG_X", false},   // contains miss
-		{"A*B*C", "AxxByyC", true},      // multi-segment in order
-		{"A*B*C", "AxxCyyB", false},     // out of order
+		{"A*B*C", "AxxByyC", true},         // multi-segment in order
+		{"A*B*C", "AxxCyyB", false},        // out of order
 	}
 	for _, tc := range cases {
 		if got := matchKeyGlob(tc.pattern, tc.key); got != tc.want {

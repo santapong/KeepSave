@@ -27,13 +27,14 @@ type CreateSecretRequest struct {
 }
 
 type UpdateSecretRequest struct {
-	Value string `json:"value" binding:"required"`
+	Value            string `json:"value" binding:"required"`
+	ExpectedRevision *int64 `json:"expected_revision" binding:"omitempty,min=1"`
 }
 
 type CreateAPIKeyRequest struct {
 	Name        string   `json:"name" binding:"required,min=1,max=255"`
 	ProjectID   string   `json:"project_id" binding:"required,uuid"`
-	Scopes      []string `json:"scopes" binding:"omitempty,dive,oneof=read write delete promote"`
+	Scopes      []string `json:"scopes" binding:"omitempty,max=100,dive,required,max=265"`
 	Environment *string  `json:"environment" binding:"omitempty,oneof=alpha uat prod"`
 	// ExpiresAt bounds the credential's lifetime per ADR-0009 / audit
 	// S-M4. Optional: when omitted the service defaults to now + 90d.

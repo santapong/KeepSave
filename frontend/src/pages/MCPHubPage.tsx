@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Trash2, RefreshCw, Download, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Download, CheckCircle2 } from '@/components/icons';
 import {
   Page,
   PageHeader,

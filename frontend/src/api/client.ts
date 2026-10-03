@@ -1,3 +1,4 @@
+import type { Capabilities, Session, Revision, Record as VaultRecord, Bundle, Verification, RestorePreview, RestoreSelection, RestoredRecords } from './coreTypes';
 import type {
   AuthResponse,
   Project,
@@ -45,6 +46,28 @@ export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
  * sessionStorage on boot so already-signed-in users aren't logged out.
  */
 export const JWT_STORAGE_KEY = 'keepsave_token';
+
+/** Clear browser identity only after an authoritative denial or committed logout. */
+function clearProviderProofs(): void {
+  try {
+    for (const key of Object.keys(sessionStorage)) if (key.startsWith('keepsave_oauth:')) sessionStorage.removeItem(key);
+  } catch { /* No provider proof can be reused without storage. */ }
+}
+
+export function invalidateBrowserSession(): void {
+  clearToken();
+  try { localStorage.removeItem('keepsave_user'); } catch { /* Storage may be disabled. */ }
+  window.dispatchEvent(new CustomEvent('keepsave:session-expired'));
+}
+
+export type AccountSession = Session;
+export const getAccountSessions = () => request<{ sessions: AccountSession[] }>('/account/sessions');
+export const revokeAccountSession = (id: string) => request<void>(`/account/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export async function logoutCurrentSession(): Promise<void> {
+  const startedToken = getAuthToken();
+  await request<void>('/auth/logout', { method: 'POST' });
+  if (getAuthToken() === startedToken) invalidateBrowserSession();
+}
 
 /** Legacy keys that may have been used by older builds. Kept narrow on purpose. */
 const LEGACY_JWT_KEYS = ['jwt', 'auth_token'] as const;
@@ -151,10 +174,12 @@ export function getAuthToken(): string | null {
 }
 
 export function setToken(token: string): void {
+  if (getToken() !== token) clearProviderProofs();
   tokenStore()?.setItem(JWT_STORAGE_KEY, token);
 }
 
 export function clearToken(): void {
+  clearProviderProofs();
   tokenStore()?.removeItem(JWT_STORAGE_KEY);
 }
 
@@ -176,7 +201,7 @@ export function isAuthenticated(): boolean {
   return exp > Date.now() / 1000 + 60;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -195,19 +220,19 @@ async function request<T>(
     headers,
   });
 
+  if (getToken() !== token) throw new Error('Your account changed. Reload before continuing.');
+
   if (response.status === 204) {
     return undefined as T;
   }
 
-  const data = await response.json();
-
-  if (response.status === 401) {
-    clearToken();
-    localStorage.removeItem('keepsave_user');
-    window.dispatchEvent(new CustomEvent('keepsave:session-expired'));
+  if (response.status === 401 && !['/auth/login', '/auth/register'].includes(path)) {
+    if (getToken() === token) invalidateBrowserSession();
     throw new Error('Session expired. Please log in again.');
   }
 
+  const data = await response.json();
+  if (getToken() !== token) throw new Error('Your account changed. Reload before continuing.');
   if (!response.ok) {
     const errorMessage =
       typeof data.error === 'object' && data.error !== null
@@ -289,13 +314,14 @@ export async function createSecret(
 export async function updateSecret(
   projectId: string,
   secretId: string,
-  value: string
+  value: string,
+  expectedRevision?: number
 ): Promise<Secret> {
   const data = await request<{ secret: Secret }>(
     `/projects/${projectId}/secrets/${secretId}`,
     {
       method: 'PUT',
-      body: JSON.stringify({ value }),
+      body: JSON.stringify({ value, ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }) }),
     }
   );
   return data.secret;
@@ -986,3 +1012,13 @@ export async function togglePlugin(pluginId: string, enabled: boolean): Promise<
 export async function deleteAccessPolicy(projectId: string, policyId: string): Promise<void> {
   await request(`/projects/${projectId}/access-policies/${policyId}`, { method: 'DELETE' });
 }
+
+
+// Reliable vault metadata and encrypted recovery contracts are generated from core OpenAPI.
+export const getCapabilities = () => request<Capabilities>('/capabilities');
+export const listSecretHistory = (project: string, secret: string) => request<Revision[]>(`/projects/${encodeURIComponent(project)}/secrets/${encodeURIComponent(secret)}/versions`);
+export const restoreSecretVersion = (project: string, secret: string, revision: number, expected: number) => request<VaultRecord>(`/projects/${encodeURIComponent(project)}/secrets/${encodeURIComponent(secret)}/versions/${revision}/restore`, { method: 'POST', body: JSON.stringify({ expected_current_revision: expected }) });
+export const createEncryptedBackup = (project: string) => request<Bundle>(`/projects/${encodeURIComponent(project)}/backups`, { method: 'POST' });
+export const verifyEncryptedBackup = (project: string, bundle: Bundle) => request<Verification>(`/projects/${encodeURIComponent(project)}/backups/verify`, { method: 'POST', body: JSON.stringify(bundle) });
+export const previewBackupRestore = (project: string, bundle: Bundle) => request<RestorePreview>(`/projects/${encodeURIComponent(project)}/backups/preview`, { method: 'POST', body: JSON.stringify(bundle) });
+export const restoreBackupRecords = (project: string, bundle: Bundle, records: RestoreSelection[]) => request<RestoredRecords>(`/projects/${encodeURIComponent(project)}/backups/restore`, { method: 'POST', body: JSON.stringify({ bundle, records }) });

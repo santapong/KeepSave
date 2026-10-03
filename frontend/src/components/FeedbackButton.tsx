@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquarePlus } from 'lucide-react';
+import { MessageSquarePlus } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,8 @@ const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
 
 const MAX_MESSAGE = 4000;
 
-// Floating feedback launcher, fixed at the bottom-left on every authenticated
-// screen. Opens a small dialog with a 3-way category selector and a textarea;
+// Floating desktop launcher; flows below the workspace on small screens so it
+// cannot cover controls. Opens a dialog with a category selector and a textarea;
 // submissions are filed as GitHub issues by the backend (feature-flagged).
 export function FeedbackButton() {
   const [open, setOpen] = useState(false);
@@ -75,9 +75,10 @@ export function FeedbackButton() {
         onClick={() => setOpen(true)}
         aria-label="Give feedback"
         title="Give feedback"
-        className="fixed bottom-6 left-6 z-[190] w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+        className="ks-feedback-launcher fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground border-none cursor-pointer flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
       >
         <MessageSquarePlus className="h-5 w-5" />
+        <span className="ks-feedback-label">Give feedback</span>
       </button>
 
       <Dialog

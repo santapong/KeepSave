@@ -227,9 +227,20 @@ class SimpleCache {
 
 // ── Client ──────────────────────────────────────────────────────────
 
+export interface AccountSession {
+  id: string;
+  current: boolean;
+  created_at: string;
+  expires_at: string;
+  status: 'active' | 'expired' | 'revoked';
+  ip_address: string;
+  user_agent: string;
+}
+
 export class KeepSaveClient {
   private baseUrl: string;
   private token: string | null;
+  private generation = 0;
   private apiKey: string | null;
   private readonly timeout: number;
   private readonly maxRetries: number;
@@ -258,6 +269,12 @@ export class KeepSaveClient {
     this.cache.clear();
   }
 
+  /** Change a bearer credential and discard identity-dependent cached values. */
+  setToken(token: string | null): void { this.clearCache(); this.generation++; this.token = token; }
+
+  /** Change an API key without changing the separate human bearer session. */
+  setApiKey(apiKey: string | null): void { this.clearCache(); this.generation++; this.apiKey = apiKey; }
+
   /** Get circuit breaker state (CLOSED / OPEN / HALF_OPEN). */
   getCircuitState(): string {
     return this.breaker?.getState() ?? 'DISABLED';
@@ -269,6 +286,7 @@ export class KeepSaveClient {
     method: string,
     path: string,
     body?: Record<string, unknown>,
+    human = false,
   ): Promise<T> {
     if (this.breaker && !this.breaker.canExecute()) {
       throw new CircuitBreakerOpenError();
@@ -278,7 +296,7 @@ export class KeepSaveClient {
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        const result = await this.doRequest<T>(method, path, body);
+        const result = await this.doRequest<T>(method, path, body, human);
         this.breaker?.onSuccess();
         return result;
       } catch (err) {
@@ -303,12 +321,15 @@ export class KeepSaveClient {
     method: string,
     path: string,
     body?: Record<string, unknown>,
+    human = false,
   ): Promise<T> {
+    const token = this.token, apiKey = this.apiKey;
+    if (human && !token) throw new KeepSaveError('A human bearer session is required', 401);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey;
-    } else if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    if (!human && apiKey) {
+      headers['X-API-Key'] = apiKey;
+    } else if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const controller = new AbortController();
@@ -324,6 +345,11 @@ export class KeepSaveClient {
 
       if (resp.status === 204) return {} as T;
 
+      if (resp.status === 401 && path !== '/auth/login' && path !== '/auth/register') {
+        this.clearCache();
+        if ((human || !apiKey) && this.token === token) this.setToken(null);
+        throw new KeepSaveError('Authentication was denied', 401);
+      }
       const data = await resp.json();
       if (!resp.ok) {
         const msg = data?.error?.message || data?.error || `Request failed: ${resp.status}`;
@@ -354,7 +380,7 @@ export class KeepSaveClient {
     const resp = await this.request<{ user: { id: string; email: string }; token: string }>(
       'POST', '/auth/register', { email, password },
     );
-    this.token = resp.token;
+    this.setToken(resp.token);
     return resp;
   }
 
@@ -362,8 +388,25 @@ export class KeepSaveClient {
     const resp = await this.request<{ user: { id: string; email: string }; token: string }>(
       'POST', '/auth/login', { email, password },
     );
-    this.token = resp.token;
+    this.setToken(resp.token);
     return resp;
+  }
+
+  /** Session endpoints always use the human bearer, even with an API key configured. */
+  async listSessions(): Promise<AccountSession[]> {
+    const response = await this.request<{ sessions: AccountSession[] }>('GET', '/account/sessions', undefined, true);
+    return response.sessions || [];
+  }
+
+  async revokeSession(id: string): Promise<void> {
+    await this.request('DELETE', `/account/sessions/${encodeURIComponent(id)}`, undefined, true);
+  }
+
+  /** Clear the bearer only after confirmed server revocation. Retain the API key. */
+  async logout(): Promise<void> {
+    const startedToken = this.token;
+    await this.request('POST', '/auth/logout', undefined, true);
+    if (this.token === startedToken) this.setToken(null);
   }
 
   // ── Projects ────────────────────────────────────────────────────
@@ -391,7 +434,7 @@ export class KeepSaveClient {
   // ── Secrets ─────────────────────────────────────────────────────
 
   async listSecrets(projectId: string, environment: string): Promise<Secret[]> {
-    const cacheKey = `secrets:${projectId}:${environment}`;
+    const cacheKey = `secrets:${projectId}:${environment}:${this.generation}`;
     const cached = this.cache.get<Secret[]>(cacheKey);
     if (cached) return cached;
 

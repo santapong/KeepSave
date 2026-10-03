@@ -153,8 +153,8 @@ describe('API Client requests', () => {
       json: () => Promise.resolve({ error: 'unauthorized' }),
     });
 
-    const { login } = await import('./client');
-    await expect(login('bad@example.com', 'wrong')).rejects.toThrow('Session expired');
+    const { listProjects } = await import('./client');
+    await expect(listProjects()).rejects.toThrow('Session expired');
   });
 
   it('handles 204 No Content responses', async () => {
@@ -173,4 +173,62 @@ describe('API Client requests', () => {
       expect.objectContaining({ method: 'DELETE' })
     );
   });
+});
+
+
+describe('server session controls', () => {
+  beforeEach(() => { localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks(); });
+  it('retains identity and provider proofs when logout is unavailable', async () => {
+    const { logoutCurrentSession, getAuthToken } = await import('./client');
+    setToken(makeFakeJWT(3600)); const token = getAuthToken();
+    localStorage.setItem('keepsave_user', '{"id":"owner"}');
+    sessionStorage.setItem('keepsave_oauth:pending', 'proof');
+    global.fetch = vi.fn().mockResolvedValue({ status: 503, ok: false, json: async () => ({ error: 'unavailable' }) });
+    await expect(logoutCurrentSession()).rejects.toThrow('unavailable');
+    expect(getAuthToken()).toBe(token); expect(localStorage.getItem('keepsave_user')).not.toBeNull();
+    expect(sessionStorage.getItem('keepsave_oauth:pending')).toBe('proof');
+  });
+  it('clears identity and link proofs only after confirmed logout', async () => {
+    const { logoutCurrentSession, getAuthToken } = await import('./client');
+    setToken(makeFakeJWT(3600)); localStorage.setItem('keepsave_user', '{"id":"owner"}');
+    sessionStorage.setItem('keepsave_oauth:pending', 'proof');
+    global.fetch = vi.fn().mockResolvedValue({ status: 204, ok: true });
+    await logoutCurrentSession(); expect(getAuthToken()).toBeNull();
+    expect(localStorage.getItem('keepsave_user')).toBeNull(); expect(sessionStorage.getItem('keepsave_oauth:pending')).toBeNull();
+  });
+  it('clears state on a protected 401 even when its response is not JSON', async () => {
+    const { listProjects, getAuthToken } = await import('./client'); setToken(makeFakeJWT(3600));
+    global.fetch = vi.fn().mockResolvedValue({ status: 401, ok: false, json: async () => { throw new Error('not JSON'); } });
+    await expect(listProjects()).rejects.toThrow('Session expired'); expect(getAuthToken()).toBeNull();
+  });
+  it('a failed password sign-in does not invalidate another current session', async () => {
+    const { login, getAuthToken } = await import('./client'); setToken(makeFakeJWT(3600)); const previous = getAuthToken();
+    global.fetch = vi.fn().mockResolvedValue({ status: 401, ok: false, json: async () => ({ error: { message: 'Invalid credentials' } }) });
+    await expect(login('bad@example.com', 'wrong')).rejects.toThrow('Invalid credentials'); expect(getAuthToken()).toBe(previous);
+  });
+  it('identity replacement discards pending provider proofs', () => {
+    setToken(makeFakeJWT(3600)); sessionStorage.setItem('keepsave_oauth:pending', 'proof');
+    setToken(makeFakeJWT(7200)); expect(sessionStorage.getItem('keepsave_oauth:pending')).toBeNull();
+  });
+});
+
+
+it('an earlier denied request does not erase a newly established browser session', async () => {
+ const { listProjects, getAuthToken } = await import('./client');
+ sessionStorage.clear(); setToken(makeFakeJWT(3600));
+ let finish!: (response: unknown) => void;
+ global.fetch = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+ const oldRequest = listProjects(); const fresh = makeFakeJWT(7200); setToken(fresh);
+ finish({ status: 401, ok: false }); await expect(oldRequest).rejects.toThrow('Your account changed'); expect(getAuthToken()).toBe(fresh);
+});
+
+it('refuses a successful response belonging to a previous account', async () => {
+ const { listProjects, getAuthToken } = await import('./client');
+ sessionStorage.clear(); setToken(makeFakeJWT(3600));
+ let finish!: (response: unknown) => void;
+ global.fetch = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+ const oldRequest = listProjects(); const fresh = makeFakeJWT(7200); setToken(fresh);
+ const body = vi.fn().mockResolvedValue({ projects: [{ id: 'former-account-project' }] });
+ finish({ status: 200, ok: true, json: body });
+ await expect(oldRequest).rejects.toThrow('Your account changed'); expect(body).not.toHaveBeenCalled(); expect(getAuthToken()).toBe(fresh);
 });

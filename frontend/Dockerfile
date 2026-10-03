@@ -1,6 +1,6 @@
 # Build stage. Digest-pinned for supply-chain integrity (INF-2).
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS build
-# tag: node:20-alpine
+FROM node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
+# tag: node:24.21.0-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -13,11 +13,16 @@ RUN npm run build
 # for the Option-C self-hosted path - the Vercel deploy ignores this
 # image entirely.
 #
-# Digest-pinned to the 1.27-alpine release (INF-2). The unprivileged image
+# Digest-pinned to the 1.30.5-alpine-slim release (INF-2). The unprivileged image
 # already runs as non-root; readOnlyRootFilesystem in Helm is satisfied by
 # the emptyDir mounts declared in deployment-frontend.yaml.
-FROM nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
-# tag: nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.30.5-alpine-slim@sha256:e28dcf0a161ddcbf228c7364b4a14f9bad4763ae8f5317c437b896afa3df4b84
+# tag: nginxinc/nginx-unprivileged:1.30.5-alpine-slim
+# The pinned nginx release includes PCRE2 10.48. Patch CVE-2026-103111 with
+# the exact fixed Alpine package until the upstream image incorporates it.
+USER 0
+RUN apk add --no-cache pcre2=10.49-r0
+USER 101
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 3000

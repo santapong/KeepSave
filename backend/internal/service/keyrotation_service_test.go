@@ -169,6 +169,8 @@ func newRotationTestEnv(t *testing.T) *rotationTestEnv {
 			name TEXT NOT NULL,
 			description TEXT,
 			owner_id TEXT NOT NULL,
+			organization_id TEXT,
+	deleted_at TIMESTAMP,
 			encrypted_dek BLOB,
 			dek_nonce BLOB,
 			allowed_origins TEXT NOT NULL DEFAULT '[]',
@@ -176,6 +178,7 @@ func newRotationTestEnv(t *testing.T) *rotationTestEnv {
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE organization_members(organization_id TEXT, user_id TEXT, role TEXT)`,
 		`CREATE TABLE environments (
 			id TEXT PRIMARY KEY,
 			project_id TEXT NOT NULL,

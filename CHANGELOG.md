@@ -8,6 +8,186 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — local harness-neutral platform candidate, 2026-10-02
+
+- Shared authority barriers and membership epochs; parent/client-bound OAuth
+  delegations and runs; safe denial projection and current-authority result reads.
+- Login-method inventory/removal safety, contact verification, account recovery,
+  invitations and revision-bound scoped offboarding with durable receipts.
+  SMTP proofs are Vault-encrypted, hash-only at verification, and carried by
+  identifier-only jobs. Uncertain send attempts are not silently replayed.
+- Separate credential lifecycle metadata, declared renewal/expiry and responsible
+  members; deduplicated 30/7/1-day in-app reminders with current recipient checks.
+- Version2 encrypted recovery bundles retain lifecycle metadata, accept legacy
+  version1 bundles and require explicit responsible-member remapping. Recovery
+  excludes sessions, tokens, grants, approvals and ephemeral operation results.
+- Safe cursor audit browsing and bounded repeatable-read export snapshots, trusted
+  publication jobs, expiry and current-authority downloads; read-only doctor.
+- Official Go MCP SDK v1.8.0, stateless Streamable HTTP, the two selected protocol
+  lanes and a new opaque-token/S256 public-client OAuth service. Consent and
+  revocation controls remain separate from browser sessions and provider tokens.
+- Immutable instruction-only skills, portable profiles, independently approved
+  packages and candidate native exporters for Codex0.153.3/Hermes0.21.5.
+- GitHub App custody, explicit repository/environment bindings, preparing and
+  commit-bound runs, durable idempotent operations, budgets, attempt tickets,
+  encrypted short-lived results, cancellation and safe execution receipts.
+- Separate rootless Podman supervisor/connector reference and direct TLS1.3/mTLS
+  runner listener. The public application proxy refuses runner routes.
+- Account/team, lifecycle/audit and developer-access screens preserve the accepted
+  KeepSave design; generated types and actual-router management contracts expand.
+
+### Fixed — current authority and publication
+
+- Authority narrowing participates in shared stored-subject/project/session
+  barriers across session, lease, project, template and vault paths. Offboarding
+  previews capture one consistent snapshot and stale changes require a new review.
+- Project metadata is captured inside admitted transactions. A later authority
+  change cannot cause a second unguarded database read to expose newer metadata.
+- Failed audit publication terminates safely rather than remaining pending;
+  required-audit failures roll back local state. Account changes reject late
+  frontend responses; malformed/proof query logging is redacted.
+- Account recovery atomically expires retained legacy API keys, revokes their
+  leases and denylists recorded agent issuance with password/proof/session
+  changes. Late reset completion preserves a newer unrelated browser account.
+- Refresh the distroless runtime digest and pin the fixed PCRE2 10.49 Alpine
+  package in the frontend image after a check-date vulnerability scan. Runtime
+  users remain nonroot; scan receipts retain the unused OpenPGP module advisory.
+
+### Documentation — operator preparation, 2026-10-03
+
+- Add the operator preparation checklist for the application domain/host, Vault
+  Transit and recovery material, Google/GitHub OAuth apps, authenticated SMTP,
+  separate GitHub App, isolated runner, client qualification and release reviews.
+- Record owner-directed source publication separately from production acceptance;
+  retain dated validation receipts and outstanding gates.
+
+### Availability and validation
+
+- These additions extend base3878e69 as an unreleased source candidate. The owner
+  authorized `main` source publication on2026-10-03; this does not supply formal
+  review signatures, operational acceptance, a release tag or deployment.
+  New flags default off. See the
+  [current acceptance ledger](docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
+- Synthetic PostgreSQL/router/OAuth/broker/runner protocol tests establish only
+  their executed scenarios. Live Google/GitHub/SMTP and exact native client UAT,
+  rootless host isolation, operational drills and independent Security/Tech Lead
+  signatures remain required. CPU delegation is missing on the current host;
+  runner preflight fails closed. No production capability is inferred from source.
+- The older research plan remains historical context. External secret-delivery
+  adapters, script execution, model credentials, enterprise SSO and marketplaces
+  stay deferred. SQLite/MySQL compatibility does not establish platform parity.
+
+## [1.4.0-rc.1] - 2026-10-02 (integrated source candidate; untagged)
+
+This candidate adds revocable identity and a reliable PostgreSQL vault. It is
+not a production release. Sponsor-directed develop integration is recorded;
+independent reviews, remote CI, staging rollback
+acceptance and real provider consent remain pending; see the
+[candidate notes](docs/releases/v1.4.0-rc.1.md).
+
+### Compatibility and upgrade requirements
+
+- Existing human tokens require reauthentication. Drain older APIs before the
+  tracked-session cutover; binaries without session enforcement cannot serve
+  traffic or be used for rollback afterward.
+- Enroll existing PostgreSQL vault records as a labeled baseline after older
+  writers are drained. Retain journal/key dependencies and use only a compatible
+  reviewed rollback binary. New history/recovery guarantees are PostgreSQL-only.
+- The restricted core profile refuses unfinished capabilities explicitly;
+  preserved source is not a support or execution claim.
+- Align backend health version, frontend package metadata and the maintained
+  core OpenAPI version to `1.4.0-rc.1`. SDK package versions remain independent;
+  the Go module is available locally, with remote publication still pending.
+
+### Added — core identity and reliable vault candidate
+
+- Google and GitHub sign-in configuration, verified provider identities,
+  one-time state/S256 PKCE and explicit recent-session account linking. Real
+  provider registration and UAT remain operator acceptance gates.
+- Database-backed human sessions with metadata listing, logout and individual
+  revocation; open registration grants no global administrator authority.
+  Trusted-host operator commands bind administrator grants to stored user IDs.
+- Transactional workspace creation, administrator membership, required audit
+  and PostgreSQL outbox; caller-scoped `Idempotency-Key` retries and distinct
+  UUID-suffixed slugs. Personal projects remain supported.
+- PostgreSQL versioned vault adapters for core writes, imports, templates,
+  promotions, rollback and key rotation; metadata history, explicit version
+  reads and restoration that appends a new revision with a stale-write guard.
+- Encrypted backup verification, selected live restoration and an explicit
+  isolated-target recovery command. Recovery never recreates source authority.
+- A trusted local worker and backup metadata catalog. Daily scheduling is
+  disabled until an operator records isolated recovery acceptance. Private
+  storage, deterministic jobs, catalog verification and visible retention
+  failures preserve retry and key dependencies.
+- A standalone local Go SDK module and dedicated test job; published module
+  distribution remains a separate release step.
+- One embedded core OpenAPI source, actual-router response contract tests and
+  generated frontend wire types with CI drift checking.
+
+### Fixed — authority and consistency
+
+- Lease parent identity, project/environment/key/expiry narrowing and sibling
+  API-key denial; token issuance and revocation are persisted and audited.
+  Lease and agent-token mutations now join required audit and PostgreSQL outbox
+  transactions, with current session/parent/membership checks and rollback tests.
+- MCP private-server visibility, installer ownership and project binding.
+- Workspace owner demotion/removal, arbitrary project reassignment and
+  nonempty organization deletion. First personal-project attachment revokes
+  previous delegated credentials; cross-organization transfers remain refused.
+  Assigned projects follow current workspace membership even for the original
+  owner: demotion narrows credential access and removal denies subsequent calls.
+- Project/secret deletion retains encrypted tombstones, historical key
+  dependencies and stable audited IDs. Required audit failure rolls back core
+  mutations instead of recording misleading success.
+- Viewer project metadata uses current stored authority. Core history/recovery
+  refuses unsupported non-PostgreSQL execution, and authorized ciphertext
+  corruption surfaces a safe server error rather than a misleading 404.
+- Private workspace template reads/listing/application use current membership;
+  creator provenance cannot bypass removal. Metadata changes require current
+  workspace admin or personal creator, a tracked session, and transactional
+  audit/outbox. Core global publication is refused; builtins remain available.
+  Template defaults remain ordinary configuration, not encrypted vault records.
+- Persisted serialized audit-chain head and PostgreSQL job leases/fencing;
+  uncertain external effects are not blindly replayed.
+
+### Changed — restricted release and validation
+
+- Upgrade `golang.org/x/crypto` to v0.56.0, `x/net` to v0.57.0, `x/text` to
+  v0.41.0 and `x/sys` to v0.47.0. Pin govulncheck v1.8.0 for Go 1.27 support;
+  the final scan found no called/imported-package vulnerabilities. The unimported
+  `x/crypto/openpgp` module advisory remains disclosed, not presented as fixed.
+- The running application uses a restricted core profile. Legacy OAuth
+  issuance, experimental intelligence, policy metadata, enterprise SSO,
+  webhook automation, event replay and plugin execution return explicit
+  capability-unavailable responses. API-host MCP builds/execution stay off.
+- The bounded MySQL 8.4 legacy identity/session/scoped CRUD/batch and workspace
+  role exercise passed; PostgreSQL-only history/recovery still returns explicit
+  capability refusal on unsupported dialects.
+- Replace the frontend nginx runtime with the digest-pinned
+  `nginx-unprivileged:1.30.5-alpine-slim` after the old base scan exposed
+  40 high/two critical findings; the replacement scan reported zero findings.
+- CI and container builds pin Go 1.27.1 and Node 24.21.0; the module
+  minimum is Go 1.26.0 for current dependency compatibility. The PostgreSQL harness
+  creates unique synthetic Docker resources, waits for TCP readiness, bounds
+  build parallelism, ignores operator DSNs and cleans up only its own resources.
+  Existing integration/release checks and `develop` pull-request triggers remain.
+- Container CI pins Trivy 0.74.0 and reviewed immutable scan/setup actions,
+  disables binary caching and verifies the published archive checksum before
+  extraction. Nested action metadata and YAML/shell checks are recorded; remote
+  GitHub Actions execution is still pending.
+- Additive migrations 015–025 preserve compatibility. PostgreSQL startup
+  requires coordinated baseline enrollment after older writers are drained;
+  rollback must respect the new journal/key format and retained references.
+- Architecture, threat and system references are rebased to the current core
+  candidate and preserve the explicit future broker/runner enforcement boundary.
+- README and the capability acceptance ledger separate implemented local
+  behavior, compatibility source, unavailable features and the approved future
+  MCP/broker/runner/skills program. This is unreleased; independent security
+  review, real social-provider UAT and production deployment are not claimed.
+- A separate same-origin control-host deployment reference with TLS, private
+  PostgreSQL, API, frontend and worker. Its structure is validated; it has not
+  been deployed and does not establish runner isolation or M5 acceptance.
+
 ### Changed — documentation
 
 - **`README.md` is about KeepSave only.** 637 lines down to ~300. The
@@ -24,10 +204,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed — documentation accuracy
 
-- The Go SDK was documented as `go get`-able. It is not: `sdks/go/` sits
-  in no Go module (the only `go.mod` is `backend/go.mod`), so that command
-  fails. `docs/INTEGRATIONS.md` now states the real situation and it is
-  tracked in `docs/FOLLOWUPS.md`.
+- **Historical finding, 2026-08-11:** the Go SDK was documented as `go get`-able
+  while `sdks/go/` had no module. The 2026-10-02 local candidate now includes its
+  standalone `go.mod` and test job. Publishing/tagging and remote module
+  resolution remain separate release steps; this preserves the earlier finding
+  without claiming it is still the current source state.
 
 ---
 

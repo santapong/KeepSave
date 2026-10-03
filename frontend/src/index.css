@@ -1,5 +1,5 @@
 @import "./styles/cosmic.css";
-@import "./styles/landing.css";
+@import "./styles/workspace.css";
 @import "tailwindcss";
 
 @custom-variant dark (&:is([data-theme="dark"] *));

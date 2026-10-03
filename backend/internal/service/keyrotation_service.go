@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"github.com/santapong/KeepSave/backend/internal/vault"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/crypto"
@@ -12,6 +14,7 @@ import (
 
 // KeyRotationService handles master key rotation and re-encryption of secrets.
 type KeyRotationService struct {
+	vault       *vault.Service
 	projectRepo *repository.ProjectRepository
 	secretRepo  *repository.SecretRepository
 	envRepo     *repository.EnvironmentRepository
@@ -39,6 +42,9 @@ func NewKeyRotationService(
 // RotateProjectKey generates a new DEK for a project and re-encrypts all secrets.
 // Emits one key.dek_rotated audit row (docs/AUDIT_LOG_COVERAGE.md) on success.
 func (s *KeyRotationService) RotateProjectKey(projectID, actorID uuid.UUID, ipAddr string) (*RotationResult, error) {
+	if s.vault != nil {
+		return s.RotateProjectKeyAuthorized(context.Background(), humanPrincipal(actorID), projectID, ipAddr)
+	}
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)
@@ -153,6 +159,9 @@ func (s *KeyRotationService) RotateAllProjects(ownerID uuid.UUID, ipAddr string)
 
 // VerifyProjectEncryption checks that all secrets can be decrypted with the current DEK.
 func (s *KeyRotationService) VerifyProjectEncryption(projectID uuid.UUID) ([]models.Secret, error) {
+	if s.vault != nil {
+		return nil, vault.ErrDenied
+	}
 	project, err := s.projectRepo.GetByID(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("getting project: %w", err)

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -9,12 +10,11 @@ import (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
-	// TokenType is "agent" for short-lived agent tokens (ADR-0021); empty for
-	// ordinary user tokens. LeaseID is set only on agent tokens and binds the
-	// token to the JIT lease it was minted from, enabling lease-cascade
-	// revocation. The jti (RegisteredClaims.ID) is the denylist key.
+	UserID    uuid.UUID `json:"user_id"`
+	Email     string    `json:"email"`
+	SessionID string    `json:"sid,omitempty"`
+	// TokenType explicitly distinguishes human sessions and confined agent tokens.
+	// Empty type is accepted only by legacy fixtures without human-session enforcement.
 	TokenType string     `json:"token_type,omitempty"`
 	LeaseID   *uuid.UUID `json:"lease_id,omitempty"`
 	// Agent-token scope (ADR-0021). For TokenType=="agent" these mirror the
@@ -60,7 +60,22 @@ type JWTService struct {
 
 	// denylist, when set, is consulted by ValidateToken for tokens that carry a
 	// jti (agent tokens, ADR-0021). User tokens have no jti and skip it.
-	denylist Denylister
+	denylist      Denylister
+	humanSessions HumanSessionValidator
+}
+
+// HumanSessionValidator checks current authoritative state, never a cached allow.
+type HumanSessionValidator interface {
+	CheckHumanSession(context.Context, *Claims, string) error
+}
+
+func (s *JWTService) EnableHumanSessions(v HumanSessionValidator) { s.humanSessions = v }
+
+func (s *JWTService) GenerateSessionToken(userID uuid.UUID, email string, sid uuid.UUID, expires time.Time) (string, error) {
+	if userID == uuid.Nil || sid == uuid.Nil || !expires.After(time.Now()) || expires.After(time.Now().Add(24*time.Hour)) {
+		return "", fmt.Errorf("invalid human session")
+	}
+	return s.signClaims(&Claims{UserID: userID, Email: email, TokenType: "human", SessionID: sid.String(), RegisteredClaims: jwt.RegisteredClaims{ID: sid.String(), IssuedAt: jwt.NewNumericDate(time.Now()), ExpiresAt: jwt.NewNumericDate(expires)}})
 }
 
 func NewJWTService(secret string) *JWTService {
@@ -90,6 +105,7 @@ func (s *JWTService) EnableDenylist(d Denylister) {
 	s.denylist = d
 }
 
+// GenerateToken preserves legacy fixture compatibility. Production human issuance uses GenerateSessionToken.
 func (s *JWTService) GenerateToken(userID uuid.UUID, email string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
@@ -142,7 +158,7 @@ func (s *JWTService) GenerateAgentToken(userID uuid.UUID, email string, leaseID,
 }
 
 // signClaims signs claims with RS256 via the keystore when one is configured,
-// falling back to HS256 (legacy). Shared by GenerateToken/GenerateAgentToken.
+// falling back to HS256 (legacy). Shared by legacy, human-session, and agent token issuance.
 func (s *JWTService) signClaims(claims *Claims) (string, error) {
 	// Prefer RS256 via the keystore; fall back to HS256 when no keystore is set.
 	if s.keystore != nil {
@@ -167,6 +183,10 @@ func (s *JWTService) signClaims(claims *Claims) (string, error) {
 }
 
 func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
+	return s.ValidateTokenContext(context.Background(), tokenString)
+}
+
+func (s *JWTService) ValidateTokenContext(ctx context.Context, tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		alg, _ := token.Header["alg"].(string)
@@ -219,7 +239,18 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 	// Revocation check (ADR-0021): only agent tokens carry a jti, so user tokens
 	// skip the denylist entirely (no hot-path cost). A revoked jti or a
 	// revoked/expired owning lease invalidates the token.
-	if s.denylist != nil && claims.ID != "" {
+	if claims.TokenType != "" && claims.TokenType != "human" && claims.TokenType != "agent" {
+		return nil, fmt.Errorf("unknown token type")
+	}
+	if claims.TokenType != "agent" && s.humanSessions != nil {
+		if claims.TokenType != "human" || claims.SessionID == "" || claims.ID != claims.SessionID || claims.ExpiresAt == nil || claims.UserID == uuid.Nil {
+			return nil, fmt.Errorf("human session requires reauthentication")
+		}
+		if err := s.humanSessions.CheckHumanSession(ctx, claims, tokenString); err != nil {
+			return nil, err
+		}
+	}
+	if s.denylist != nil && claims.TokenType == "agent" && claims.ID != "" {
 		revoked, derr := s.denylist.IsTokenRevoked(claims.ID, claims.LeaseID)
 		if derr != nil {
 			return nil, fmt.Errorf("checking token revocation: %w", derr)

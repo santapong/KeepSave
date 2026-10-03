@@ -1,11 +1,10 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { register as apiRegister } from '../api/client';
-import { Singularity } from '../components/cosmic/Singularity';
-import { KsMark } from '../components/cosmic/KsMark';
+import { BlackHoleScene } from '../components/cosmic/BlackHoleScene';
+import { Brand } from '../components/cosmic/Brand';
+import { ArrowLeft, ArrowRight, LockKeyhole } from '@/components/icons';
 import { Starfield } from '../components/cosmic/Starfield';
-import { CometField } from '../components/cosmic/CometField';
-import { useCosmicEntrance } from '../hooks/useCosmicEntrance';
 import type { User } from '../types';
 
 interface RegisterPageProps {
@@ -14,9 +13,9 @@ interface RegisterPageProps {
 
 const INCLUDED: Array<[string, string]> = [
   ['Encrypted at rest', 'AES-256-GCM'],
-  ['Lease-based access', 'just-in-time'],
-  ['Audited end to end', 'tamper-evident'],
-  ['Self-host or hosted', 'docker compose'],
+  ['Scoped access', 'API keys'],
+  ['Change history', 'audit trail'],
+  ['Self-hostable', 'docker compose'],
 ];
 
 export function RegisterPage({ onLogin }: RegisterPageProps) {
@@ -44,29 +43,18 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
     }
   }
 
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useCosmicEntrance(rootRef, '.cz-login-aside-head, .cz-login-aside-body > *, .cz-login-aside-foot, .cz-login-card > *');
-
-
   return (
-    <div className="cz-login-root" ref={rootRef}>
+    <div className="cz-login-root">
       <Starfield />
-      {/* Centred on the viewport, not on the left pane: <CometField/> is a
-          full-viewport canvas whose comets orbit the origin, which maps to
-          the centre of the screen. With the hole drawn in the aside the
-          comets were orbiting a point where nothing was rendered. */}
-      <div className="cz-cosmos-hole" aria-hidden="true">
-        <Singularity size={560} resolutionScale={0.5} />
-      </div>
-      <CometField />
 
       {/* Hero pane */}
       <aside className="cz-login-aside">
+        <div className="cz-login-aside-bg">
+          <BlackHoleScene />
+        </div>
+
         <div className="cz-login-aside-head">
-          <span className="cz-pill cz-pill-go">
-            <span className="cz-dot cz-dot-go" /> All systems operational
-          </span>
+          <span className="cz-brand-kicker"><span /> KEEPSAVE / EVENT HORIZON</span>
         </div>
 
         <div className="cz-login-aside-body">
@@ -77,8 +65,8 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
             <em>secrets properly.</em>
           </h1>
           <p className="cz-login-sub">
-            An encrypted vault, OAuth 2.0 identity provider, and central MCP hub for the teams
-            whose agents and pipelines reach into production.
+            Give your projects one encrypted home, with scoped access, a durable history,
+            and a clear path between environments.
           </p>
 
           <div className="cz-login-stats">
@@ -98,7 +86,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
 
         <div className="cz-login-aside-foot">
           <span>KeepSave · 2026</span>
-          <span>build 14.0</span>
+          <span>Environment secrets, kept together.</span>
         </div>
       </aside>
 
@@ -106,28 +94,22 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
       <main className="cz-login-main">
         <div className="cz-login-card">
           <div className="cz-login-card-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <KsMark />
-              <span className="cz-mk" style={{ fontWeight: 500, fontSize: 20 }}>
-                Keep<em style={{ fontStyle: 'normal', color: 'var(--cz-accent-hi)' }}>save</em>
-              </span>
-            </div>
-            <span className="cz-faint" style={{ fontFamily: 'var(--cz-mono)', fontSize: 11 }}>
-              v14.0
-            </span>
+            <Brand size={40} />
+            <span className="cz-vault-badge"><LockKeyhole size={12} /> VAULT</span>
           </div>
 
           <h2 className="cz-login-h2">Create account</h2>
           <p className="cz-login-lead">
-            Already have an account? <Link to="/login">Sign in →</Link>
+            Already have an account? <Link to="/login">Sign in <ArrowRight size={14} /></Link>
           </p>
 
           <form className="cz-login-form" onSubmit={handleSubmit} style={{ marginTop: 22 }}>
-            {error && <div className="cz-login-error">{error}</div>}
+            {error && <div className="cz-login-error" role="alert">{error}</div>}
 
             <div className="cz-login-field">
               <label htmlFor="register-email">Email</label>
               <input
+                autoComplete="email"
                 id="register-email"
                 className="cz-input"
                 type="email"
@@ -142,6 +124,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               <input
                 id="register-password"
                 className="cz-input"
+                autoComplete="new-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -155,6 +138,7 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               <input
                 id="register-confirm"
                 className="cz-input"
+                autoComplete="new-password"
                 type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
@@ -169,14 +153,15 @@ export function RegisterPage({ onLogin }: RegisterPageProps) {
               style={{ justifyContent: 'center', width: '100%' }}
               disabled={loading}
             >
-              {loading ? 'Creating account…' : 'Create account →'}
+              {loading ? 'Creating account…' : <>Create account <ArrowRight size={16} /></>}
             </button>
           </form>
 
           <div className="cz-login-divider" />
           <div className="cz-login-fine">
+            <Link to="/"><ArrowLeft size={14} /> Back to KeepSave</Link>
             <span>Encrypted at rest · AES-256-GCM</span>
-            <span>CSRF · HSTS · CSP</span>
+            <span>Scoped access</span>
           </div>
         </div>
       </main>

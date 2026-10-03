@@ -28,10 +28,14 @@ func RunMigrationsFS(db *sql.DB, dialect Dialect, fsys fs.FS) error {
 	}
 
 	// Create schema_migrations table using dialect-appropriate SQL
+	defaultTime := dialect.Now()
+	if dialect.DBType() == DBTypeSQLite {
+		defaultTime = "(" + defaultTime + ")"
+	}
 	createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version VARCHAR(255) PRIMARY KEY,
 		applied_at %s NOT NULL DEFAULT %s
-	)`, schemaTimestamp(dialect), dialect.Now())
+	)`, schemaTimestamp(dialect), defaultTime)
 	_, err := db.Exec(createTable)
 	if err != nil {
 		return fmt.Errorf("creating schema_migrations table: %w", err)
@@ -86,12 +90,28 @@ func RunMigrationsFS(db *sql.DB, dialect Dialect, fsys fs.FS) error {
 			return fmt.Errorf("beginning transaction for %s: %w", file, err)
 		}
 
-		// For SQLite, execute statements one at a time since SQLite
-		// doesn't support multiple statements in a single Exec
-		if dialect.DBType() == DBTypeSQLite {
+		// SQLite and the default MySQL connection deliberately do not accept
+		// multiple statements in one Exec. Keep that restriction for ordinary
+		// queries and execute these shipped migrations statement by statement.
+		// MySQL DDL implicitly commits; this does not promise atomic DDL.
+		if dialect.DBType() == DBTypeSQLite || dialect.DBType() == DBTypeMySQL {
 			stmts := splitSQLStatements(string(content))
+			if dialect.DBType() == DBTypeMySQL && file == "008_promotion_self_approval_check.sql" {
+				// MySQL forbids that CHECK alongside approved_by's SET NULL
+				// foreign key. Preserve its behavior using database triggers.
+				// This adapter applies only when the original version is absent.
+				stmts = []string{
+					`CREATE TRIGGER promotion_no_self_approval_insert BEFORE INSERT ON promotion_requests FOR EACH ROW BEGIN IF NEW.approved_by IS NOT NULL AND NEW.approved_by=NEW.requested_by THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='promotion self approval forbidden'; END IF; END`,
+					`CREATE TRIGGER promotion_no_self_approval_update BEFORE UPDATE ON promotion_requests FOR EACH ROW BEGIN IF NEW.approved_by IS NOT NULL AND NEW.approved_by=NEW.requested_by THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='promotion self approval forbidden'; END IF; END`,
+				}
+			}
 			for _, stmt := range stmts {
 				stmt = strings.TrimSpace(stmt)
+				if dialect.DBType() == DBTypeMySQL {
+					// Preserve applied file identities while making the legacy
+					// TEXT empty default valid on the supported MySQL 8 line.
+					stmt = strings.ReplaceAll(stmt, "TEXT DEFAULT ''", "TEXT DEFAULT ('')")
+				}
 				if stmt == "" {
 					continue
 				}

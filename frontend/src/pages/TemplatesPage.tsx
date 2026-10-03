@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Trash2, Play } from 'lucide-react';
+import { Trash2, Play } from '@/components/icons';
 import { Page, PageHeader, KpiStrip, Kpi, SectionHead, Chip, EmptyState } from '../components/cosmic/primitives';
 
 export function TemplatesPage() {
@@ -151,7 +151,7 @@ export function TemplatesPage() {
       </KpiStrip>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-48 w-full rounded-lg" />
           ))}
@@ -162,7 +162,7 @@ export function TemplatesPage() {
           {builtinTemplates.length === 0 ? (
             <p className="cz-mute" style={{ marginBottom: 28 }}>No builtin templates available.</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, marginBottom: 34 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16, marginBottom: 34 }}>
               {builtinTemplates.map((tmpl, idx) => {
                 const cardId = `builtin-${idx}`;
                 return (
@@ -197,7 +197,7 @@ export function TemplatesPage() {
               Create a template to apply a set of secret keys to any project in one step.
             </EmptyState>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
               {templates.map((tmpl) => (
                 <TemplateCard
                   key={tmpl.id}

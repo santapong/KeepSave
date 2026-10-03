@@ -395,7 +395,14 @@ func (h *MCPGatewayHandler) resolveSecretEnvVars(server *models.MCPServerWithToo
 		// map an arbitrary project_id and exfiltrate another tenant's
 		// plaintext secrets (DB-01). Skip silently — consistent with the
 		// other failure branches and leaking nothing about project existence.
-		allowed, err := h.projectRepo.UserHasAccess(userID, projectID)
+		if h.mcpRepo == nil {
+			return nil, errors.New("installation authority unavailable")
+		}
+		installation, err := h.mcpRepo.GetInstallation(userID, server.ID)
+		if err != nil || !installation.Enabled || installation.ProjectID == nil || *installation.ProjectID != projectID {
+			continue
+		}
+		allowed, err := h.projectRepo.UserHasRole(userID, projectID, "editor")
 		if err != nil || !allowed {
 			log.Printf("mcp gateway: denied secret mapping env_var=%s project=%s user=%s", envName, projectID, userID)
 			continue

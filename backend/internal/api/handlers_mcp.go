@@ -80,7 +80,11 @@ func (h *MCPHubHandler) GetServer(c *gin.Context) {
 		return
 	}
 
-	server, err := h.mcpService.GetServer(serverID)
+	userID, authedOK := getUserID(c)
+	if !authedOK {
+		return
+	}
+	server, err := h.mcpService.GetServerForUser(serverID, userID)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, "server not found")
 		return
@@ -202,6 +206,15 @@ func (h *MCPHubHandler) RebuildServer(c *gin.Context) {
 		return
 	}
 
+	userID, ok := getUserID(c)
+	if !ok {
+		return
+	}
+	server, err := h.mcpService.GetServerForUser(serverID, userID)
+	if err != nil || server.OwnerID != userID {
+		WrapError(c, ErrNotFound)
+		return
+	}
 	// Trigger the rebuild on the bounded builder. 429 when the concurrency
 	// limit is saturated so an authenticated caller cannot spawn unbounded
 	// rebuild goroutines/subprocesses.
@@ -254,7 +267,7 @@ func (h *MCPHubHandler) InstallServer(c *gin.Context) {
 
 	inst, err := h.mcpService.InstallServer(userID, mcpServerID, projectID, config, c.ClientIP())
 	if err != nil {
-		WrapError(c, Wrap(ErrInvalidInput, err))
+		WrapError(c, Wrap(ErrNotFound, err))
 		return
 	}
 

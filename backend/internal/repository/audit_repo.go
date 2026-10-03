@@ -20,96 +20,75 @@ type AuditRepository struct {
 	db      *sql.DB
 	dialect Dialect
 
-	// Audit hash chain (ADR-0019). When chainKey is non-nil every Create is a
-	// keyed, serialized append: entry_hash = HMAC(chainKey, prev_hash ||
-	// canonical(row)), with prev_hash linking to the previous row. lastEntryHash
-	// is the in-process chain tip; the mu mutex serializes appends (correct for
-	// the single-instance topology, ADR-0016 — multi-instance would add a DB
-	// advisory lock). Inert (plain inserts) until SetChainKey is called.
-	mu            sync.Mutex
-	chainKey      []byte
-	lastEntryHash string
+	// Immutable after startup; the database head serializes every chained append.
+	mu       sync.Mutex
+	chainKey []byte
 }
 
 func NewAuditRepository(db *sql.DB, dialect Dialect) *AuditRepository {
 	return &AuditRepository{db: db, dialect: dialect}
 }
 
-// SetChainKey enables the tamper-evident hash chain (ADR-0019) and primes the
-// in-memory tip from the existing chain (epoch handoff across restarts).
+// SetChainKey configures the existing HMAC format. Database migrations bootstrap
+// its durable head. Startup must call VerifyChain before accepting traffic.
 func (r *AuditRepository) SetChainKey(key []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.chainKey = key
-	r.lastEntryHash = r.computeTip()
+	r.chainKey = append([]byte(nil), key...)
 }
 
-// computeTip returns the chain tip — the entry_hash that no row references as
-// its prev_hash. This is order-independent (it follows the links, not
-// created_at, which is too coarse to order same-instant appends). Empty when
-// there is no chain yet.
-func (r *AuditRepository) computeTip() string {
-	rows, err := r.db.Query(Q(r.dialect, `SELECT prev_hash, entry_hash FROM audit_log WHERE entry_hash IS NOT NULL`))
-	if err != nil {
-		return ""
+func (r *AuditRepository) chainSecret() []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]byte(nil), r.chainKey...)
+}
+
+// lockHead is a write lock on SQLite and a row lock on PostgreSQL/MySQL.
+// It must be the final shared serialization point after domain rows are locked.
+func (r *AuditRepository) lockHead(tx *sql.Tx) (string, error) {
+	if _, err := tx.Exec(`UPDATE audit_chain_head SET revision=revision WHERE id=1`); err != nil {
+		return "", err
 	}
-	defer rows.Close()
-	prevs := map[string]bool{}
-	var entries []string
-	for rows.Next() {
-		var prev, entry sql.NullString
-		if err := rows.Scan(&prev, &entry); err != nil {
-			return ""
-		}
-		prevs[prev.String] = true
-		if entry.Valid {
-			entries = append(entries, entry.String)
-		}
-	}
-	for _, e := range entries {
-		if !prevs[e] {
-			return e
-		}
-	}
-	return ""
+	var head string
+	err := tx.QueryRow(`SELECT entry_hash FROM audit_chain_head WHERE id=1`).Scan(&head)
+	return head, err
 }
 
 func (r *AuditRepository) Create(userID, projectID *uuid.UUID, action, environment string, details models.JSONMap, ipAddress string) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = r.CreateTx(tx, userID, projectID, action, environment, details, ipAddress); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// CreateTx appends in the caller's transaction. A failed audit prevents the
+// associated mutation from committing; no process-local tip can escape rollback.
+func (r *AuditRepository) CreateTx(tx *sql.Tx, userID, projectID *uuid.UUID, action, environment string, details models.JSONMap, ipAddress string) error {
 	dv, err := details.Value()
 	if err != nil {
 		return fmt.Errorf("marshaling audit details: %w", err)
 	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.chainKey == nil {
-		// Unchained (pre-ADR-0019 / tests): plain insert, DB-default id + created_at.
-		_, err = r.db.Exec(
-			Q(r.dialect, `INSERT INTO audit_log (user_id, project_id, action, environment, details, ip_address)
-			 VALUES ($1, $2, $3, $4, $5, $6)`),
-			userID, projectID, action, environment, dv, ipAddress,
-		)
-		if err != nil {
-			return fmt.Errorf("creating audit entry: %w", err)
-		}
-		return nil
+	key := r.chainSecret()
+	if len(key) == 0 {
+		_, err = tx.Exec(Q(r.dialect, `INSERT INTO audit_log(user_id,project_id,action,environment,details,ip_address) VALUES($1,$2,$3,$4,$5,$6)`), userID, projectID, action, environment, dv, ipAddress)
+		return err
 	}
-
-	// Chained append: link to the in-memory tip and stamp this row's hash.
-	prevHash := r.lastEntryHash
-	entryHash := computeEntryHash(r.chainKey, prevHash,
-		uuidStr(userID), uuidStr(projectID), action, environment,
-		canonicalizeJSON(toBytes(dv)), ipAddress)
-	id := uuid.New()
-	_, err = ExecQ(r.db, r.dialect, `INSERT INTO audit_log (id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		id, userID, projectID, action, environment, dv, ipAddress, prevHash, entryHash)
+	prev, err := r.lockHead(tx)
+	if err != nil {
+		return fmt.Errorf("locking audit head: %w", err)
+	}
+	entry := computeEntryHash(key, prev, uuidStr(userID), uuidStr(projectID), action, environment, canonicalizeJSON(toBytes(dv)), ipAddress)
+	_, err = tx.Exec(Q(r.dialect, `INSERT INTO audit_log(id,user_id,project_id,action,environment,details,ip_address,prev_hash,entry_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`), uuid.New(), userID, projectID, action, environment, dv, ipAddress, prev, entry)
 	if err != nil {
 		return fmt.Errorf("creating audit entry: %w", err)
 	}
-	r.lastEntryHash = entryHash
-	return nil
+	_, err = tx.Exec(Q(r.dialect, `UPDATE audit_chain_head SET entry_hash=$1,revision=revision+1 WHERE id=1`), entry)
+	return err
 }
 
 func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]models.AuditEntry, error) {
@@ -129,7 +108,7 @@ func (r *AuditRepository) ListByProjectID(projectID uuid.UUID, limit int) ([]mod
 	var entries []models.AuditEntry
 	for rows.Next() {
 		var e models.AuditEntry
-		if err := rows.Scan(&e.ID, &e.UserID, &e.ProjectID, &e.Action, &e.Environment, &e.Details, &e.IPAddress, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.ProjectID, &e.Action, &e.Environment, &e.Details, &e.IPAddress, dbTime(&e.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning audit entry: %w", err)
 		}
 		entries = append(entries, e)
@@ -153,10 +132,7 @@ func (r *AuditRepository) DeleteOlderThan(days int) (int64, error) {
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.chainKey != nil {
+	if len(r.chainSecret()) != 0 {
 		return r.pruneChained(cutoff)
 	}
 
@@ -179,10 +155,19 @@ func (r *AuditRepository) DeleteOlderThan(days int) (int64, error) {
 // called with r.mu held. It walks the chain from genesis (prev_hash=="") in
 // link order, deletes the leading run of rows whose created_at < cutoff, sets
 // the first surviving row's prev_hash to "" (new genesis), and recomputes
-// entry_hash for every surviving row forward — updating r.lastEntryHash to the
+// entry_hash for every surviving row forward — updating the durable head to the
 // new tip so subsequent appends stay contiguous.
 func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
-	rows, err := r.db.Query(Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash, created_at
+	key := r.chainSecret()
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	if _, err = r.lockHead(tx); err != nil {
+		return 0, err
+	}
+	rows, err := tx.Query(Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash, created_at
 		 FROM audit_log WHERE entry_hash IS NOT NULL`))
 	if err != nil {
 		return 0, fmt.Errorf("reading audit chain for prune: %w", err)
@@ -203,9 +188,13 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 		var action, ipAddress string
 		var detailsRaw []byte
 		var createdAt time.Time
-		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash, &createdAt); err != nil {
+		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash, dbTime(&createdAt)); err != nil {
 			rows.Close()
 			return 0, fmt.Errorf("scanning audit chain row for prune: %w", err)
+		}
+		if _, exists := byPrev[prevHash.String]; exists {
+			rows.Close()
+			return 0, fmt.Errorf("audit chain fork")
 		}
 		byPrev[prevHash.String] = &chainRow{
 			id: id, userID: userID.String, projectID: projectID.String,
@@ -227,10 +216,18 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 		if !ok {
 			break
 		}
+		want := computeEntryHash(key, cur, row.userID, row.projectID, row.action, row.environment, canonicalizeJSON(row.details), row.ipAddress)
+		if want != row.entryHash {
+			return 0, fmt.Errorf("audit chain integrity failure")
+		}
 		ordered = append(ordered, row)
+		delete(byPrev, cur)
 		cur = row.entryHash
 	}
 
+	if len(byPrev) != 0 {
+		return 0, fmt.Errorf("audit chain is disconnected")
+	}
 	// The delete set is the leading run older than cutoff. Audit is append-only
 	// so the oldest rows are the earliest links; stop at the first survivor.
 	deleteCount := 0
@@ -247,12 +244,8 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 
 	// Delete the old prefix AND re-anchor the survivors ATOMICALLY: a partial
 	// prune would leave the tamper-evident chain broken (VerifyChain failing at
-	// the boundary). r.lastEntryHash is updated only after the tx commits, so the
+	// the boundary). the durable head is updated only after the tx commits, so the
 	// in-memory tip can never diverge from the persisted chain.
-	tx, err := r.db.Begin()
-	if err != nil {
-		return 0, fmt.Errorf("begin prune tx: %w", err)
-	}
 	for _, row := range ordered[:deleteCount] {
 		if _, err := tx.Exec(Q(r.dialect, `DELETE FROM audit_log WHERE id = $1`), row.id); err != nil {
 			tx.Rollback()
@@ -264,7 +257,7 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 	// the new genesis at prev_hash="". No survivors => empty chain, new tip "".
 	prev := ""
 	for _, row := range ordered[deleteCount:] {
-		entry := computeEntryHash(r.chainKey, prev, row.userID, row.projectID, row.action, row.environment, canonicalizeJSON(row.details), row.ipAddress)
+		entry := computeEntryHash(key, prev, row.userID, row.projectID, row.action, row.environment, canonicalizeJSON(row.details), row.ipAddress)
 		if _, err := tx.Exec(
 			Q(r.dialect, `UPDATE audit_log SET prev_hash = $1, entry_hash = $2 WHERE id = $3`),
 			prev, entry, row.id,
@@ -274,10 +267,12 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 		}
 		prev = entry
 	}
+	if _, err = tx.Exec(Q(r.dialect, `UPDATE audit_chain_head SET entry_hash=$1,revision=revision+1 WHERE id=1`), prev); err != nil {
+		return 0, err
+	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit prune tx: %w", err)
 	}
-	r.lastEntryHash = prev
 	return int64(deleteCount), nil
 }
 
@@ -286,14 +281,21 @@ func (r *AuditRepository) pruneChained(cutoff time.Time) (int64, error) {
 // mismatch, or a row left unreachable by a deletion/insertion — or (nil, nil)
 // when the whole chain verifies. Order-independent. Requires the chain key.
 func (r *AuditRepository) VerifyChain() (*uuid.UUID, error) {
-	r.mu.Lock()
-	key := r.chainKey
-	r.mu.Unlock()
-	if key == nil {
+	key := r.chainSecret()
+	if len(key) == 0 {
 		return nil, fmt.Errorf("audit chain key is not configured")
 	}
 
-	rows, err := r.db.Query(Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	head, err := r.lockHead(tx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(Q(r.dialect, `SELECT id, user_id, project_id, action, environment, details, ip_address, prev_hash, entry_hash
 		 FROM audit_log WHERE entry_hash IS NOT NULL`))
 	if err != nil {
 		return nil, fmt.Errorf("reading audit chain: %w", err)
@@ -314,6 +316,9 @@ func (r *AuditRepository) VerifyChain() (*uuid.UUID, error) {
 		var detailsRaw []byte
 		if err := rows.Scan(&id, &userID, &projectID, &action, &environment, &detailsRaw, &ipAddress, &prevHash, &entryHash); err != nil {
 			return nil, fmt.Errorf("scanning audit chain row: %w", err)
+		}
+		if _, exists := byPrev[prevHash.String]; exists {
+			return &id, nil
 		}
 		byPrev[prevHash.String] = chainRow{
 			id: id, userID: userID.String, projectID: projectID.String,
@@ -348,6 +353,9 @@ func (r *AuditRepository) VerifyChain() (*uuid.UUID, error) {
 			broken := row.id
 			return &broken, nil
 		}
+	}
+	if head != cur {
+		return nil, fmt.Errorf("audit head does not match chain")
 	}
 	return nil, nil
 }

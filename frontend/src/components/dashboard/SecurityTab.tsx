@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Shield, AlertOctagon, Ban, Timer, Search } from 'lucide-react';
+import { Shield, AlertOctagon, Ban, Timer, Search } from '@/components/icons';
 import {
   PieChart,
   Pie,

@@ -241,13 +241,29 @@ func (s *DriftService) RunScheduledChecks() (int, error) {
 		return 0, err
 	}
 	defer rows.Close()
-	ran := 0
+	type scheduledCheck struct {
+		id, projectID  uuid.UUID
+		source, target string
+	}
+	var due []scheduledCheck
 	for rows.Next() {
-		var schedID, projID uuid.UUID
-		var srcEnv, tgtEnv string
-		if err := rows.Scan(&schedID, &projID, &srcEnv, &tgtEnv); err != nil {
-			continue
+		var check scheduledCheck
+		if err := rows.Scan(&check.id, &check.projectID, &check.source, &check.target); err != nil {
+			return 0, err
 		}
+		due = append(due, check)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	// Release the read connection before looking up projects or writing drift
+	// results. SQLite and a one-connection remote pool would otherwise deadlock.
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	ran := 0
+	for _, check := range due {
+		schedID, projID, srcEnv, tgtEnv := check.id, check.projectID, check.source, check.target
 		var ownerID uuid.UUID
 		s.db.QueryRow(`SELECT owner_id FROM projects WHERE id = $1`, projID).Scan(&ownerID)
 		if ownerID == uuid.Nil {

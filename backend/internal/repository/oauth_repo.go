@@ -46,7 +46,7 @@ func (r *OAuthRepository) GetClientByClientID(clientID string) (*models.OAuthCli
 	err := r.db.QueryRow(query, clientID).Scan(
 		&client.ID, &client.ClientID, &client.ClientSecretHash, &client.Name, &client.Description,
 		&client.OwnerID, &client.RedirectURIs, &client.Scopes, &client.GrantTypes,
-		&client.LogoURL, &client.HomepageURL, &client.IsPublic, &client.CreatedAt, &client.UpdatedAt,
+		&client.LogoURL, &client.HomepageURL, &client.IsPublic, dbTime(&client.CreatedAt), dbTime(&client.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting oauth client: %w", err)
@@ -61,7 +61,7 @@ func (r *OAuthRepository) GetClientByID(id uuid.UUID) (*models.OAuthClient, erro
 	err := r.db.QueryRow(query, id).Scan(
 		&client.ID, &client.ClientID, &client.ClientSecretHash, &client.Name, &client.Description,
 		&client.OwnerID, &client.RedirectURIs, &client.Scopes, &client.GrantTypes,
-		&client.LogoURL, &client.HomepageURL, &client.IsPublic, &client.CreatedAt, &client.UpdatedAt,
+		&client.LogoURL, &client.HomepageURL, &client.IsPublic, dbTime(&client.CreatedAt), dbTime(&client.UpdatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting oauth client by id: %w", err)
@@ -84,7 +84,7 @@ func (r *OAuthRepository) ListClientsByOwner(ownerID uuid.UUID) ([]models.OAuthC
 		if err := rows.Scan(
 			&c.ID, &c.ClientID, &c.ClientSecretHash, &c.Name, &c.Description,
 			&c.OwnerID, &c.RedirectURIs, &c.Scopes, &c.GrantTypes,
-			&c.LogoURL, &c.HomepageURL, &c.IsPublic, &c.CreatedAt, &c.UpdatedAt,
+			&c.LogoURL, &c.HomepageURL, &c.IsPublic, dbTime(&c.CreatedAt), dbTime(&c.UpdatedAt),
 		); err != nil {
 			return nil, fmt.Errorf("scanning oauth client: %w", err)
 		}
@@ -127,7 +127,7 @@ func (r *OAuthRepository) GetAuthorizationCode(code string) (*models.OAuthAuthor
 		FROM oauth_authorization_codes WHERE code = $1`)
 	err := r.db.QueryRow(query, code).Scan(
 		&ac.ID, &ac.Code, &ac.ClientID, &ac.UserID, &ac.RedirectURI, &ac.Scopes,
-		&ac.CodeChallenge, &ac.CodeChallengeMethod, &ac.ExpiresAt, &ac.Used, &ac.CreatedAt,
+		&ac.CodeChallenge, &ac.CodeChallengeMethod, dbTime(&ac.ExpiresAt), &ac.Used, dbTime(&ac.CreatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting authorization code: %w", err)
@@ -162,7 +162,7 @@ func (r *OAuthRepository) GetTokenByAccessHash(hash string) (*models.OAuthToken,
 		FROM oauth_tokens WHERE access_token_hash = $1`)
 	err := r.db.QueryRow(query, hash).Scan(
 		&token.ID, &token.AccessTokenHash, &token.RefreshTokenHash, &token.ClientID, &token.UserID,
-		&token.Scopes, &token.TokenType, &token.ExpiresAt, &token.RefreshExpiresAt, &token.Revoked, &token.CreatedAt,
+		&token.Scopes, &token.TokenType, dbTime(&token.ExpiresAt), dbTime(&token.RefreshExpiresAt), &token.Revoked, dbTime(&token.CreatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting token by access hash: %w", err)
@@ -176,7 +176,7 @@ func (r *OAuthRepository) GetTokenByRefreshHash(hash string) (*models.OAuthToken
 		FROM oauth_tokens WHERE refresh_token_hash = $1`)
 	err := r.db.QueryRow(query, hash).Scan(
 		&token.ID, &token.AccessTokenHash, &token.RefreshTokenHash, &token.ClientID, &token.UserID,
-		&token.Scopes, &token.TokenType, &token.ExpiresAt, &token.RefreshExpiresAt, &token.Revoked, &token.CreatedAt,
+		&token.Scopes, &token.TokenType, dbTime(&token.ExpiresAt), dbTime(&token.RefreshExpiresAt), &token.Revoked, dbTime(&token.CreatedAt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting token by refresh hash: %w", err)

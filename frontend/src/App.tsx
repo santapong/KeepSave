@@ -2,18 +2,26 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
+import { CapabilityProvider, CapabilityGate } from './hooks/useCapabilities';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackButton } from './components/FeedbackButton';
 import { Toaster } from './components/ui/toaster';
-import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { LandingPage } from './pages/LandingPage';
+import { SocialCallbackPage } from './pages/SocialCallbackPage';
+import { IdentityConfirmPage } from './pages/IdentityConfirmPage';
+import { RecoveryPage } from './pages/RecoveryPage';
+import { MCPConsentPage } from './pages/MCPConsentPage';
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const DeveloperAccessPage = lazy(() => import('./pages/DeveloperAccessPage').then(m => ({ default: m.DeveloperAccessPage })));
+
+const AccountConnectionsPage = lazy(() => import('./pages/AccountConnectionsPage').then((m) => ({ default: m.AccountConnectionsPage })));
 
 // Authenticated routes are code-split so heavy pages (and recharts, which
 // only the admin dashboard uses) load on demand instead of in the initial
-// bundle. Landing/Login/Register stay eager — Landing is the logged-out
-// first paint and sign-in is one click from it.
+// bundle. Login/Register stay eager — they are the logged-out first paint.
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })));
 const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })));
@@ -48,11 +56,12 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
-          {/* Public front door. Anything else a logged-out visitor asks for
-              still falls through to the login form, so deep links keep
-              working and land on sign-in rather than marketing. */}
+          <Route path="/mcp/consent" element={<MCPConsentPage authenticated={false} email={auth.user?.email} />} />
+          <Route path="/identity/confirm" element={<IdentityConfirmPage />} />
+          <Route path="/auth/recovery" element={<RecoveryPage />} />
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+          <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
           <Route path="/register" element={<RegisterPage onLogin={auth.login} />} />
           <Route path="*" element={<LoginPage onLogin={auth.login} />} />
         </Routes>
@@ -63,27 +72,37 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout user={auth.user} onLogout={auth.logout}>
+      <Routes>
+        <Route path="/mcp/consent" element={<MCPConsentPage authenticated={auth.authenticated} email={auth.user?.email} />} />
+        <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+        <Route path="/identity/confirm" element={<IdentityConfirmPage />} />
+        <Route path="/auth/recovery" element={<RecoveryPage />} />
+        <Route path="/auth/callback/:provider" element={<SocialCallbackPage onLogin={auth.login} />} />
+        <Route path="*" element={<CapabilityProvider><Layout user={auth.user} onLogout={auth.logout}>
         <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
+              <Route path="/account" element={<AccountConnectionsPage />} />
+              <Route path="/notifications" element={<CapabilityGate feature="team_vault"><NotificationsPage /></CapabilityGate>} />
+              <Route path="/developer-access" element={<CapabilityGate feature="controlled_tools"><DeveloperAccessPage /></CapabilityGate>} />
               <Route path="/" element={<ProjectsPage />} />
               <Route path="/projects/:id/*" element={<ProjectDetailPage />} />
               <Route path="/organizations" element={<OrganizationsPage />} />
               <Route path="/organizations/:id" element={<OrganizationManagePage />} />
               <Route path="/templates" element={<TemplatesPage />} />
-              <Route path="/mcp-hub" element={<MCPHubPage />} />
-              <Route path="/oauth-clients" element={<OAuthClientsPage />} />
+              <Route path="/mcp-hub" element={<CapabilityGate feature="mcp_execution"><MCPHubPage /></CapabilityGate>} />
+              <Route path="/oauth-clients" element={<CapabilityGate feature="legacy_oauth"><OAuthClientsPage /></CapabilityGate>} />
               <Route path="/applications" element={<ApplicationDashboardPage />} />
               <Route path="/applications/settings" element={<ApplicationSettingsPage />} />
-              <Route path="/ai/*" element={<AIIntelligencePage />} />
+              <Route path="/ai/*" element={<CapabilityGate feature="experimental_intelligence"><AIIntelligencePage /></CapabilityGate>} />
               <Route path="/admin/*" element={<AdminDashboardPage />} />
               <Route path="/help" element={<HelpPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
-      </Layout>
+        </Layout></CapabilityProvider>} />
+      </Routes>
       <FeedbackButton />
       <Toaster />
     </BrowserRouter>

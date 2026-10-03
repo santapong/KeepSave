@@ -22,6 +22,8 @@ import (
 // concurrent-build semaphore is saturated. Callers (the MCP handlers) surface
 // this as HTTP 429 so an authenticated user cannot spawn unbounded build
 // goroutines / subprocesses (DoS bound).
+var ErrLocalMCPDisabled = errors.New("API-host connectors are disabled; use an approved isolated runner")
+
 var ErrBuildQueueFull = errors.New("mcp build queue is full; retry later")
 
 const (
@@ -35,6 +37,7 @@ const (
 )
 
 type MCPBuilderService struct {
+	disabled bool
 	mcpRepo  *repository.MCPRepository
 	buildDir string
 
@@ -51,6 +54,9 @@ type MCPBuilderService struct {
 	mu      sync.RWMutex
 	baseCtx context.Context
 }
+
+// NewDisabledMCPBuilderService never creates build directories or subprocesses.
+func NewDisabledMCPBuilderService() *MCPBuilderService { return &MCPBuilderService{disabled: true} }
 
 func NewMCPBuilderService(mcpRepo *repository.MCPRepository) *MCPBuilderService {
 	buildDir := os.Getenv("MCP_BUILD_DIR")
@@ -117,6 +123,9 @@ func (s *MCPBuilderService) EnqueueRebuild(serverID uuid.UUID) error {
 }
 
 func (s *MCPBuilderService) enqueue(serverID uuid.UUID, rebuild bool) error {
+	if s.disabled {
+		return ErrLocalMCPDisabled
+	}
 	select {
 	case s.sem <- struct{}{}:
 		// Acquired a slot.
@@ -151,6 +160,9 @@ func (s *MCPBuilderService) BuildServer(serverID uuid.UUID) error {
 // exceeded deadline (build timeout) terminates the subprocess and fails the
 // build cleanly instead of orphaning it.
 func (s *MCPBuilderService) BuildServerCtx(ctx context.Context, serverID uuid.UUID) error {
+	if s.disabled {
+		return ErrLocalMCPDisabled
+	}
 	server, err := s.mcpRepo.GetServer(serverID)
 	if err != nil {
 		return fmt.Errorf("server not found: %w", err)
@@ -219,6 +231,9 @@ func (s *MCPBuilderService) RebuildServer(serverID uuid.UUID) error {
 
 // RebuildServerCtx is RebuildServer with an explicit context.
 func (s *MCPBuilderService) RebuildServerCtx(ctx context.Context, serverID uuid.UUID) error {
+	if s.disabled {
+		return ErrLocalMCPDisabled
+	}
 	cloneDir := filepath.Join(s.buildDir, serverID.String())
 	os.RemoveAll(cloneDir)
 	return s.BuildServerCtx(ctx, serverID)

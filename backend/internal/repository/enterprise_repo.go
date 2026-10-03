@@ -29,7 +29,7 @@ func (r *SSORepository) Upsert(config *models.SSOConfig) (*models.SSOConfig, err
 			RETURNING id, created_at, updated_at`,
 			id, config.OrganizationID, config.Provider, config.IssuerURL, config.ClientID,
 			config.ClientSecretEncrypted, config.ClientSecretNonce, config.Metadata, config.Enabled,
-		).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
+		).Scan(&config.ID, dbTime(&config.CreatedAt), dbTime(&config.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("upserting SSO config: %w", err)
 		}
@@ -44,7 +44,7 @@ func (r *SSORepository) Upsert(config *models.SSOConfig) (*models.SSOConfig, err
 			return nil, fmt.Errorf("upserting SSO config: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, created_at, updated_at FROM sso_configs WHERE organization_id = $1 AND provider = $2`)
-		err = r.db.QueryRow(selectQ, config.OrganizationID, config.Provider).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
+		err = r.db.QueryRow(selectQ, config.OrganizationID, config.Provider).Scan(&config.ID, dbTime(&config.CreatedAt), dbTime(&config.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading upserted SSO config: %w", err)
 		}
@@ -60,7 +60,7 @@ func (r *SSORepository) GetByOrgAndProvider(orgID uuid.UUID, provider string) (*
 		orgID, provider,
 	).Scan(&config.ID, &config.OrganizationID, &config.Provider, &config.IssuerURL, &config.ClientID,
 		&config.ClientSecretEncrypted, &config.ClientSecretNonce, &config.Metadata, &config.Enabled,
-		&config.CreatedAt, &config.UpdatedAt)
+		dbTime(&config.CreatedAt), dbTime(&config.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting SSO config: %w", err)
 	}
@@ -81,7 +81,7 @@ func (r *SSORepository) ListByOrg(orgID uuid.UUID) ([]models.SSOConfig, error) {
 	for rows.Next() {
 		var c models.SSOConfig
 		if err := rows.Scan(&c.ID, &c.OrganizationID, &c.Provider, &c.IssuerURL, &c.ClientID,
-			&c.Metadata, &c.Enabled, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			&c.Metadata, &c.Enabled, dbTime(&c.CreatedAt), dbTime(&c.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning SSO config: %w", err)
 		}
 		configs = append(configs, c)
@@ -115,7 +115,7 @@ func (r *ComplianceRepository) Create(report *models.ComplianceReport) (*models.
 			`INSERT INTO compliance_reports (id, organization_id, report_type, status, generated_by)
 			VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
 			id, report.OrganizationID, report.ReportType, report.Status, report.GeneratedBy,
-		).Scan(&report.ID, &report.CreatedAt)
+		).Scan(&report.ID, dbTime(&report.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating compliance report: %w", err)
 		}
@@ -126,7 +126,7 @@ func (r *ComplianceRepository) Create(report *models.ComplianceReport) (*models.
 			return nil, fmt.Errorf("creating compliance report: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, created_at FROM compliance_reports WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&report.ID, &report.CreatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&report.ID, dbTime(&report.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created compliance report: %w", err)
 		}
@@ -144,7 +144,7 @@ func (r *ComplianceRepository) Complete(id uuid.UUID, data models.JSONMap) (*mod
 			RETURNING id, organization_id, report_type, status, data, generated_by, created_at, completed_at`),
 			id, data,
 		).Scan(&report.ID, &report.OrganizationID, &report.ReportType, &report.Status, &report.Data,
-			&report.GeneratedBy, &report.CreatedAt, &report.CompletedAt)
+			&report.GeneratedBy, dbTime(&report.CreatedAt), dbTime(&report.CompletedAt))
 		if err != nil {
 			return nil, fmt.Errorf("completing compliance report: %w", err)
 		}
@@ -155,7 +155,7 @@ func (r *ComplianceRepository) Complete(id uuid.UUID, data models.JSONMap) (*mod
 		}
 		selectQ := Q(r.dialect, `SELECT id, organization_id, report_type, status, data, generated_by, created_at, completed_at FROM compliance_reports WHERE id = $1`)
 		err = r.db.QueryRow(selectQ, id).Scan(&report.ID, &report.OrganizationID, &report.ReportType, &report.Status, &report.Data,
-			&report.GeneratedBy, &report.CreatedAt, &report.CompletedAt)
+			&report.GeneratedBy, dbTime(&report.CreatedAt), dbTime(&report.CompletedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading completed compliance report: %w", err)
 		}
@@ -177,7 +177,7 @@ func (r *ComplianceRepository) ListByOrg(orgID uuid.UUID) ([]models.ComplianceRe
 	for rows.Next() {
 		var rp models.ComplianceReport
 		if err := rows.Scan(&rp.ID, &rp.OrganizationID, &rp.ReportType, &rp.Status, &rp.Data,
-			&rp.GeneratedBy, &rp.CreatedAt, &rp.CompletedAt); err != nil {
+			&rp.GeneratedBy, dbTime(&rp.CreatedAt), dbTime(&rp.CompletedAt)); err != nil {
 			return nil, fmt.Errorf("scanning compliance report: %w", err)
 		}
 		reports = append(reports, rp)
@@ -204,7 +204,7 @@ func (r *BackupRepository) Create(snapshot *models.BackupSnapshot) (*models.Back
 			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at`,
 			id, snapshot.ProjectID, snapshot.SnapshotType, snapshot.EncryptedData, snapshot.DataNonce,
 			snapshot.SizeBytes, snapshot.CreatedBy,
-		).Scan(&snapshot.ID, &snapshot.CreatedAt)
+		).Scan(&snapshot.ID, dbTime(&snapshot.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating backup snapshot: %w", err)
 		}
@@ -216,7 +216,7 @@ func (r *BackupRepository) Create(snapshot *models.BackupSnapshot) (*models.Back
 			return nil, fmt.Errorf("creating backup snapshot: %w", err)
 		}
 		selectQ := Q(r.dialect, `SELECT id, created_at FROM backup_snapshots WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&snapshot.ID, &snapshot.CreatedAt)
+		err = r.db.QueryRow(selectQ, id).Scan(&snapshot.ID, dbTime(&snapshot.CreatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created backup snapshot: %w", err)
 		}
@@ -237,7 +237,7 @@ func (r *BackupRepository) ListByProject(projectID uuid.UUID) ([]models.BackupSn
 	var snapshots []models.BackupSnapshot
 	for rows.Next() {
 		var s models.BackupSnapshot
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.SnapshotType, &s.SizeBytes, &s.CreatedBy, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.SnapshotType, &s.SizeBytes, &s.CreatedBy, dbTime(&s.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning backup: %w", err)
 		}
 		snapshots = append(snapshots, s)
@@ -281,7 +281,7 @@ func (r *SecurityEventRepository) ListRecent(limit int) ([]models.SecurityEvent,
 	for rows.Next() {
 		var e models.SecurityEvent
 		if err := rows.Scan(&e.ID, &e.EventType, &e.UserID, &e.IPAddress, &e.UserAgent,
-			&e.Details, &e.Severity, &e.CreatedAt); err != nil {
+			&e.Details, &e.Severity, dbTime(&e.CreatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning security event: %w", err)
 		}
 		events = append(events, e)

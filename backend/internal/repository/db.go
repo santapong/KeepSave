@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -11,6 +12,15 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// PoolOptions bounds database connections per API process. SQLite always uses
+// one connection; remote databases can be tuned for the deployment's budget.
+type PoolOptions struct {
+	MaxOpen int
+	MaxIdle int
+}
+
+func DefaultPoolOptions() PoolOptions { return PoolOptions{MaxOpen: 10, MaxIdle: 2} }
 
 // connMaxLifetime bounds connection age below the typical idle-termination
 // window of managed Postgres providers (Neon evicts at ~5min). Without this,
@@ -27,6 +37,13 @@ const (
 //   - mysql:// -> MySQL
 //   - sqlite://, file:, or .db/.sqlite path -> SQLite
 func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
+	return NewDBWithPool(databaseURL, DefaultPoolOptions())
+}
+
+func NewDBWithPool(databaseURL string, pool PoolOptions) (*sql.DB, Dialect, error) {
+	if pool.MaxOpen < 1 || pool.MaxIdle < 0 || pool.MaxIdle > pool.MaxOpen {
+		return nil, nil, fmt.Errorf("invalid database pool: require max open >= 1 and 0 <= max idle <= max open")
+	}
 	dbType := DetectDBType(databaseURL)
 	dialect := NewDialect(dbType)
 
@@ -39,8 +56,8 @@ func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening postgres database: %w", err)
 		}
-		db.SetMaxOpenConns(25)
-		db.SetMaxIdleConns(5)
+		db.SetMaxOpenConns(pool.MaxOpen)
+		db.SetMaxIdleConns(pool.MaxIdle)
 		db.SetConnMaxLifetime(connMaxLifetime)
 		db.SetConnMaxIdleTime(connMaxIdleTime)
 
@@ -53,13 +70,16 @@ func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening mysql database: %w", err)
 		}
-		db.SetMaxOpenConns(25)
-		db.SetMaxIdleConns(5)
+		db.SetMaxOpenConns(pool.MaxOpen)
+		db.SetMaxIdleConns(pool.MaxIdle)
 		db.SetConnMaxLifetime(connMaxLifetime)
 		db.SetConnMaxIdleTime(connMaxIdleTime)
 
 	case DBTypeSQLite:
-		dsn := sqliteDSN(databaseURL)
+		dsn, dsnErr := sqliteDSN(databaseURL)
+		if dsnErr != nil {
+			return nil, nil, dsnErr
+		}
 		db, err = sql.Open("sqlite3", dsn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("opening sqlite database: %w", err)
@@ -68,19 +88,17 @@ func NewDB(databaseURL string) (*sql.DB, Dialect, error) {
 		db.SetMaxOpenConns(1)
 		db.SetMaxIdleConns(1)
 
-		// Enable WAL mode and foreign keys
-		if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-			return nil, nil, fmt.Errorf("setting WAL mode: %w", err)
-		}
-		if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-			return nil, nil, fmt.Errorf("enabling foreign keys: %w", err)
-		}
+		// Connection-local pragmas are supplied through the DSN, so replacement
+		// connections also enforce foreign keys and wait for short write locks.
 
 	default:
 		return nil, nil, fmt.Errorf("unsupported database type: %s", dbType)
 	}
 
-	if err := db.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
 		return nil, nil, fmt.Errorf("pinging database: %w", err)
 	}
 
@@ -120,11 +138,20 @@ func mysqlURLToDSN(rawURL string) (string, error) {
 }
 
 // sqliteDSN normalizes a SQLite connection string.
-func sqliteDSN(rawURL string) string {
-	if rawURL == ":memory:" {
-		return rawURL
-	}
+func sqliteDSN(rawURL string) (string, error) {
 	rawURL = strings.TrimPrefix(rawURL, "sqlite://")
 	rawURL = strings.TrimPrefix(rawURL, "sqlite:")
-	return rawURL
+	name, query, _ := strings.Cut(rawURL, "?")
+	params, err := url.ParseQuery(query)
+	if err != nil {
+		return "", fmt.Errorf("invalid SQLite connection options")
+	}
+	params.Del("_fk")
+	params.Del("_journal")
+	params.Set("_foreign_keys", "on")
+	params.Set("_journal_mode", "WAL")
+	if !params.Has("_busy_timeout") && !params.Has("_timeout") {
+		params.Set("_busy_timeout", "5000")
+	}
+	return name + "?" + params.Encode(), nil
 }

@@ -4,7 +4,7 @@ import {
   Wrench,
   Download,
   BarChart3,
-} from 'lucide-react';
+} from '@/components/icons';
 import {
   BarChart,
   Bar,

@@ -1,301 +1,336 @@
+![KeepSave — Your secrets. In the right orbit.](docs/assets/keepsave-banner.png)
+
 # KeepSave
 
 [![Release](https://img.shields.io/github/v/release/santapong/KeepSave?style=flat-square&color=8b5cf6&labelColor=0b0a12)](https://github.com/santapong/KeepSave/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/santapong/KeepSave/ci.yml?branch=main&style=flat-square&label=CI&color=4fe3b8&labelColor=0b0a12)](https://github.com/santapong/KeepSave/actions)
-[![Go](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat-square&labelColor=0b0a12)](https://go.dev)
+[![CI](https://img.shields.io/github/actions/workflow/status/santapong/KeepSave/ci.yml?branch=develop&style=flat-square&label=CI&color=4fe3b8&labelColor=0b0a12)](https://github.com/santapong/KeepSave/actions)
+[![Go](https://img.shields.io/badge/Go-1.27.1-00ADD8?style=flat-square&labelColor=0b0a12)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&labelColor=0b0a12)](https://react.dev)
 [![License](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square&labelColor=0b0a12)](#license)
 
-**Your agents need secrets. Your repo doesn't.**
+**Your secrets. In the right orbit.**
 
-KeepSave is an encrypted vault, an OAuth 2.0 identity provider, and an MCP
-server hub in one service. It seals every value with AES-256-GCM under a
-per-project key, then releases it to your agents, pipelines and MCP servers on
-demand — so it never lands in a `.env`, a prompt, or a chat log.
+KeepSave stores encrypted project credentials and controls access to them across
+Alpha, UAT and production. The current backend work focuses on a dependable
+core: sign-in, revocable human sessions, team workspaces, scoped credential
+access, immutable secret history and recoverable encrypted backups.
 
----
+This is the **unreleased `v1.4.0-rc.1` core candidate**; see its
+[candidate notes](docs/releases/v1.4.0-rc.1.md). Local implementation and synthetic
+verification do not establish production readiness. The
+[acceptance ledger](docs/validation/2026-10-01-core-release/ACCEPTANCE.md) records
+what is verified, what is preserved for compatibility, and what remains gated.
+The repository also contains the **unreleased harness-neutral source candidate**,
+extending that core baseline. See the
+[current implementation and acceptance record](docs/design/2026-10-02-harness-neutral-platform/README.md).
+The owner authorized source publication to `main` on October 3, 2026; this does
+not establish an accepted production release. New capabilities default off and
+still require provider, isolation, operational and independent review acceptance.
+See the [source-publication note](docs/releases/2026-10-03-source-publication.md).
 
-## The problem
+The existing static landing page is at [keepsave.draveniq.dev](https://keepsave.draveniq.dev/).
+`app.keepsave.draveniq.dev` is the intended application origin; this backend work
+has not deployed it.
 
-AI agents and CI pipelines need API keys, database URLs and feature flags. The
-usual answers all leak:
+## What the operator needs to prepare
 
-- `.env` files get committed, copied into Slack, and pasted into prompts.
-- Promoting config from Alpha to UAT to PROD is manual, so it drifts — and the
-  one time it doesn't drift, nobody can prove it.
-- MCP servers each need their own tokens, so every new tool multiplies the
-  number of places a credential lives.
+Start with the application host, recovery setup and sign-in clients. The broker
+and runner can be prepared afterward. None of the items below is marked complete
+by local synthetic tests. Keep secrets in the installation's private secret
+store or a mode `0600` launch file outside Git; share only nonsecret identifiers,
+configuration locations and acceptance results.
 
-The failure mode is never the encryption. It's the copy someone made.
+- [ ] **Application host and domain:** a control host for the frontend/API/trusted
+  worker, PostgreSQL 16, private backup/artifact storage and HTTPS at
+  `https://app.keepsave.draveniq.dev`. Prepare DNS/TLS and same-origin routing;
+  leave `https://keepsave.draveniq.dev` serving the landing page. Follow the
+  [self-hosted reference](deploy/self-hosted/README.md).
+- [ ] **Vault keys and recovery:** a private Vault Transit endpoint, least-privilege
+  token, Transit key name and recoverable wrapped master key; an independent
+  recovery-material copy and a fresh isolated PostgreSQL recovery target.
+  Retain the existing installation keys rather than replacing them. Complete the
+  [recovery drill](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#incident-and-recovery-procedures)
+  before enabling scheduled backups or admitting production vault traffic.
+- [ ] **Google sign-in:** separate development and production Web OAuth clients,
+  consent/branding/test-account setup, and backend-only `GOOGLE_CLIENT_ID` /
+  `GOOGLE_CLIENT_SECRET`. Production redirect:
+  `https://app.keepsave.draveniq.dev/auth/callback/google`.
+- [ ] **GitHub sign-in:** separate development and production OAuth apps and
+  backend-only `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`. Production redirect:
+  `https://app.keepsave.draveniq.dev/auth/callback/github`. Set
+  `SOCIAL_AUTH_ORIGIN` and `KEEPSAVE_APPLICATION_ORIGIN` to the application origin.
+  Use one exact selected loopback callback for development. Follow
+  [social-login setup](docs/SOCIAL_LOGIN_SETUP.md) and complete both providers'
+  real sign-in, repeat login, explicit linking and session-revocation exercises.
+- [ ] **Authenticated email:** an SMTP host/STARTTLS port, username, password and
+  permitted sender; configure `KEEPSAVE_SMTP_HOST`, `KEEPSAVE_SMTP_PORT`,
+  `KEEPSAVE_SMTP_USERNAME`, `KEEPSAVE_SMTP_PASSWORD` and `KEEPSAVE_SMTP_FROM`.
+  Verify certificates and actual mailbox receipt before recording
+  `KEEPSAVE_SMTP_ACCEPTED=true`. Contact verification, invitations and recovery
+  remain unavailable until this installation passes the
+  [mail acceptance requirements](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#configuration-and-startup).
+- [ ] **Separate GitHub App for tool access:** app/installation IDs, a private
+  signing key, repository Contents read permission, and disposable repositories
+  A and B. Select one nonproduction binding with stored repository ID, owner/name,
+  reference and environment. This is separate from GitHub sign-in. Record explicit
+  token-custody, A-success/B-denial and revocation evidence using the
+  [broker setup](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#github-profiles-and-clients).
+- [ ] **Separate runner host:** Linux with rootless Podman, seccomp and cgroups v2
+  CPU/memory/PID delegation; private control-host connectivity and independently
+  issued server/client certificates plus runner CA. Prepare reviewed connector
+  image digests and workload enrollment. The current development host lacks CPU
+  delegation and is refused. Use the [runner reference](deploy/runner/README.md)
+  and [private-listener setup](docs/design/2026-10-02-harness-neutral-platform/SETUP.md#separate-runner-and-private-listener).
+- [ ] **Client qualification and team approval:** isolated Codex 0.153.3 and
+  Hermes 0.21.5 candidates, available loopback ports 17701/17702, a test developer
+  and a different eligible administrator to approve exact profile/package
+  digests. Preserve installed Hermes/provider/sessions/memory. Complete each
+  client's login, discovery, skill loading, allowed/denied reads, cancellation
+  and revoked-result checks; see [protocol qualification](docs/design/2026-10-02-harness-neutral-platform/PROTOCOL.md).
+- [ ] **Release acceptance:** named independent Security Engineer and Tech Lead
+  reviewers, green CI for the exact source revision, installation recovery,
+  worker/runner/database/Transit failure and compatible upgrade/rollback drills.
+  Keep admission/dispatch flags off until their applicable gates in the
+  [acceptance ledger](docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+  pass. A source push does not supply those signatures or operational evidence.
 
-## What KeepSave does
+## Core behavior
 
-| | |
+| Capability | Behavior and limits |
 |---|---|
-| **Encrypted vault** | AES-256-GCM envelope encryption, per-project data keys, master key held in a KMS and never written to the database |
-| **Environment promotion** | Alpha → UAT → PROD with diff review, audit trail, rollback, and optional multi-party approval on PROD |
-| **Scoped agent access** | Read-only API keys bound to one project and one environment, so a leaked runtime key cannot reach production |
-| **OAuth 2.0 provider** | A full identity provider — authorization code, client credentials, PKCE, refresh token, OIDC discovery |
-| **MCP server hub** | Register servers from GitHub, browse a marketplace, and route tool calls through one gateway that injects secrets as env vars at call time |
-| **Embeddable widget** | A `<keepsave-widget>` Web Component that drops into any site with one `<script>` tag |
+| Sign-in | Password registration/login, plus Google and GitHub when operator configuration is present. Provider identity is verified; an email collision requires explicit linking from the existing account. |
+| Human sessions | Database-backed 24-hour sessions, metadata listing, logout and individual revocation. Legacy untracked human JWTs are refused by the running application. There is no human refresh-token flow in this slice. |
+| Workspaces | A user explicitly creates a named organization and becomes its administrator. Creation joins membership and audit in one transaction; an optional `Idempotency-Key` makes retries safe. Registration creates no default projects or global permissions. |
+| Project access | Personal projects remain supported. Attaching one requires its stored owner and a destination administrator. Cross-organization transfer is refused; successful first attachment ends existing delegated keys and leases. Assigned projects then use current workspace membership, including for the original owner. |
+| Vault | AES-256-GCM envelope encryption and project keys. Credential access checks current stored ownership, membership, scope and expiry. API-key reads deliberately return authorized values to the caller. |
+| History and rotation | PostgreSQL journal adapters capture core mutation paths, retain referenced key versions and append restoration as a new revision with a concurrency precondition. Existing values require explicit baseline enrollment. |
+| Encrypted recovery | PostgreSQL backup download/catalog, verification, metadata preview and selected-record restoration. A trusted worker schedules private encrypted backups only after operator-confirmed recovery acceptance. Deleted records and authorization state are not resurrected. |
+| Audit | Core mutations join required audit and PostgreSQL outbox writes in their transaction. The audit-chain head is persisted and serialized in the database. |
+| Templates | Private workspace templates require current membership to read/apply and current admin to change. Personal templates belong to their creator. Metadata changes require a current human session and required audit; core global publication is refused. Defaults are ordinary config: store examples/placeholders, not live credentials. |
 
-The load-bearing property across all of it: **the agent never receives the
-credential.** The gateway resolves it, hands it to the server as an environment
-variable, writes an audit event, and returns only the tool result.
+The repository also contains promotion, import/export, templates, scoped API
+keys and agent leases. Their acceptance status is recorded individually in the
+ledger. SQLite supports the legacy/local profile. A disposable MySQL 8.4 exercise
+passed the bounded legacy identity/session/scoped-vault and workspace-role
+profile; it does not establish journal/recovery parity. The versioned vault and
+durable jobs are **PostgreSQL-only** until parity is tested. Unsupported core history/recovery
+returns 503; authorized ciphertext corruption returns a safe 500.
 
-## Architecture
+The restricted application profile refuses experimental AI, enterprise SSO,
+policy metadata, legacy OAuth issuance, event replay, plugin execution and
+webhook automation. Legacy API-host MCP execution and connector builds remain disabled. New delegated MCP and isolated tool access are opt-in local candidates.
+Their source and routes are retained for incremental migration.
 
-![C4 Level 2 — KeepSave containers](docs/diagrams/c4-2-container.svg)
+## Architecture and next features
 
-The crypto layer is only ever reached through the service layer, and the MCP
-gateway resolves secrets through that same path rather than reading storage
-directly. Nothing bypasses it.
+The target remains a Go/Gin **modular monolith** with PostgreSQL transactions:
+identity, policy, vault, promotion, broker, MCP, automation, audit and jobs.
+Handlers translate requests; authorized services own decisions and mutations.
+Typed dependency wiring replaces the growing positional router constructor,
+with a compatibility adapter retained for old callers.
 
-For the full picture — C4 levels 1–3 and the 4+1 views (logical, process,
-development, physical, and a scenario walkthrough of an agent tool call) — see
-[`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md).
+Shared policy, grants, runs and credential custody are harness-neutral. The local
+candidate implements resource-bound MCP/OAuth, immutable instruction-only skills,
+portable review profiles and native packages for **Codex and Hermes candidates**.
+Each client uses its own delegation and run. A trusted GitHub App broker performs
+bounded read-only operations against the stored repository and resolved commit;
+GitHub tokens remain inside custody. A separate rootless Podman supervisor receives
+one attempt-bound relay socket per connector. API-host execution stays disabled.
 
-### Environment promotion
+These are locally implemented and synthetically tested components, **not published
+client support**. Real Codex/Hermes interoperability, live GitHub consent/content
+reads, SMTP acceptance and enforced runner isolation have not passed. The current
+host lacks delegated CPU control, so runner startup refuses execution. Additional
+harnesses implement the same packaging and protocol ports and require their own
+version-specific qualification.
 
-![Environment promotion pipeline](docs/diagrams/flow-promotion.svg)
+Team-vault additions include separate lifecycle metadata and in-app reminders,
+verified-contact/invitation/recovery flows behind an SMTP acceptance gate, scoped
+offboarding previews/receipts, safe audit browsing/export and operator diagnostics.
+[Current architecture, setup and evidence](docs/design/2026-10-02-harness-neutral-platform/README.md)
+distinguish implemented, tested and pending behavior. The
+[earlier proposal](docs/design/2026-09-28-backend-platform/README.md),
+[core checkpoint](docs/design/2026-09-28-backend-platform/IMPLEMENTATION.md) and
+[product research](docs/design/2026-10-02-product-roadmap/README.md) retain historical
+planning context; single-harness and generic rollback statements are superseded by
+[ADR0029](docs/adr/0029-harness-neutral-platform.md).
+The older [architecture views](docs/ARCHITECTURE_VIEWS.md) describe legacy
+components; they do not prove runner isolation or current release acceptance.
 
-Every hop previews its diff before applying, writes an audit row when it does,
-and can be rolled back. The whole pipeline has a kill switch:
-`KEEPSAVE_PROMOTIONS_ENABLED=false` makes `/promote` and `/approve` return 503.
+## Local development
 
----
-
-## Quick start
-
-**Prerequisites:** Docker and Docker Compose. For local development, Go 1.24+
-and Node.js 20+.
+**Prerequisites:** Docker and Docker Compose. CI and container builds pin Go
+**1.27.1** and Node.js **24.21.0**. The Go module minimum is now 1.26.0.
 
 ```bash
 git clone https://github.com/santapong/KeepSave.git
 cd KeepSave
-
-# The master key never lives in the database — generate it and keep it out.
-export MASTER_KEY=$(openssl rand -base64 32)
-
-docker-compose up --build
+cp .env.example .env
+# Configure disposable local keys and PostgreSQL settings in .env.
+docker compose up --build
 ```
 
-API on `http://localhost:8080`, dashboard on `http://localhost:3000`.
+The development Compose bundle exposes the API at `http://localhost:8080` and
+the frontend at `http://localhost:3002`. It is not the planned production
+self-hosted bundle. Keep recovery material outside the database and back it up
+separately; loss of the wrapping key can make encrypted values unrecoverable.
 
-<details>
-<summary>Running the services directly</summary>
+To run the services directly, export the process configuration. Copying an
+`.env` file alone does not configure a Go process; Compose reads dotenv values
+for its own interpolation, while `config.Load()` reads `os.Getenv`. Source only
+a trusted local shell-compatible file:
 
 ```bash
-# Backend
 cd backend
-cp .env.example .env        # configure database and keys
+cp .env.example .env
+# Configure disposable local database/key settings in this trusted file.
+# Go reads exported process variables; it does not load .env automatically.
+set -a
+. ./.env
+set +a
 go run ./cmd/server
+```
 
-# Frontend
+```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-</details>
+Follow [social sign-in setup](docs/SOCIAL_LOGIN_SETUP.md) to register Google and
+GitHub applications and configure exact callbacks on the application origin.
+Provider buttons reflect configuration availability. No provider secrets,
+provider applications, DNS records or production services are created by tests.
 
-### First secret, end to end
+Existing PostgreSQL installations need a coordinated journal cutover. Drain
+older API/worker processes, preserve an external backup and its recovery key,
+apply additive migrations, and run the trusted-host `keepsave-vault -action
+baseline` command before admitting traffic with the new binary. This command
+labels current encrypted values as a baseline; it does not invent old history.
+Startup refuses active projects that remain unenrolled. Migration 023 preserves
+project tombstones and immutable audit identity fields; 024 binds promotion
+approval to the captured source artifact; 025 adds the durable backup catalog.
+Do not resume old writers after enrollment. The new container includes operator binaries, invoked explicitly
+through an alternate entrypoint; they are never HTTP endpoints.
+
+`keepsave-vault -action verify -bundle <path>` verifies an external encrypted
+bundle and prints metadata. `recover-isolated` requires an explicitly confirmed
+fresh PostgreSQL database with no non-system tables and a new project name. Use separate target configuration
+and documented recovery material; it refuses existing non-system tables before migration and does not
+restore source accounts, grants or sessions. Live recovery instead uses the
+metadata preview and explicit selected records with current revision checks.
+
+## API contract
+
+The maintained core OpenAPI source is
+[core.json](backend/internal/api/openapi/core.json), served at `/api/docs`.
+It describes identity, sessions, contacts, recovery, teams, lifecycle metadata, audit exports, delegated OAuth, tool profiles/runs, workspaces, projects, secret reads/writes,
+history, encrypted recovery, imports/exports, promotion, rotation, templates,
+audit and client delegation. Actual-router tests check mounted paths and
+response schemas. Compatibility surfaces outside this contract remain explicitly
+inventoried in the acceptance ledger. The core contract covers 112 paths,
+141 operations and 177 schemas, with actual handler-response contract tests.
+
+| Area | Paths |
+|---|---|
+| Sign-in | `/api/v1/auth/register`, `/login`, `/providers`, `/social/:provider/start`, `/social/:provider/complete`, `/logout` |
+| Sessions and linking | `/api/v1/account/sessions`, `/account/connections` |
+| Workspaces | `/api/v1/organizations`, members and explicit personal-project attachment |
+| Projects and credentials | `/api/v1/projects`, `/:id/secrets`, `/:id/secrets/batch` |
+| History | `/:id/secrets/:secretId/versions`, explicit version reads and `/restore` |
+| Recovery | `/:id/backups`, `/verify`, `/preview`, `/restore` |
+| Imports and exports | `/:id/env-import`, `/:id/env-export` |
+| Key continuity | `/:id/rotate-keys`, `/:id/verify-encryption` |
+| Promotion | `/:id/promote`, `/:id/promote/diff`, `/:id/promotions`, approval/reject/rollback |
+| Templates | `/api/v1/templates`, `/builtin`, `/:templateId`, `/:templateId/apply` |
+| Client delegation | `/api/v1/api-keys`, `/:id/leases`, `/:id/agent-token` and revocation |
+| Audit | `/:id/audit-log` |
+| Capability metadata | `/api/v1/capabilities` |
+| Operations | `/healthz`, `/readyz`, `/metrics` |
+
+Restore requests supply the expected current revision. List-history and recovery
+preview responses contain metadata; explicit current or historical secret reads
+contain values. Error responses use the existing safe `{error: ...}` envelope.
+
+Generate frontend wire types after changing the contract:
 
 ```bash
-# 1. Register, and create a project — the unit of isolation
-curl -X POST localhost:8080/api/v1/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"a-strong-password"}'
-
-# 2. Store a secret in the alpha environment
-curl -X POST localhost:8080/api/v1/projects/$PROJECT/secrets \
-  -H "Authorization: Bearer $JWT" \
-  -d '{"key":"DATABASE_URL","value":"postgres://…","environment":"alpha"}'
-
-# 3. Issue a read-only key for an agent, scoped to alpha only
-curl -X POST localhost:8080/api/v1/api-keys \
-  -H "Authorization: Bearer $JWT" \
-  -d '{"name":"my-agent","project_id":"'$PROJECT'","scopes":["read"],"environment":"alpha"}'
-
-# 4. The agent fetches what it needs, and nothing else
-curl "localhost:8080/api/v1/projects/$PROJECT/secrets?environment=alpha" \
-  -H "X-API-Key: ks_live_…"
+node scripts/generate-core-api-types.mjs
+node scripts/generate-core-api-types.mjs --check
 ```
 
-## API
+## Verification
 
-| Area | Base path | What lives there |
-|---|---|---|
-| Auth | `/api/v1/auth` | Register, login, JWT issue and refresh |
-| API keys | `/api/v1/api-keys` | Scoped machine credentials for agents and CI |
-| Projects & secrets | `/api/v1/projects` | Projects, environments, sealed values |
-| Promotion | `/api/v1/projects/:id/promote` | Diff preview, apply, approve, rollback |
-| OAuth 2.0 | `/api/v1/oauth`, `/.well-known/openid-configuration` | Clients, authorize, token, OIDC discovery |
-| MCP hub | `/api/v1/mcp` | Server registry, marketplace, installations, gateway |
-| Health & metrics | `/healthz`, `/metrics` | Liveness and Prometheus |
+```bash
+# Creates only unique disposable Docker resources, with no published DB port.
+# Ignores an operator DATABASE_URL; cleanup removes only this run's resources.
+./scripts/test-platform-postgres.sh
 
-Full request and response shapes, including every error code, are in
-[`docs/system/03-api-reference.md`](docs/system/03-api-reference.md). An OpenAPI
-specification ships with the backend.
+cd backend
+go test -race -shuffle=on ./...
+go vet ./...
 
-## Security
+cd ../frontend
+npm ci
+npm test -- --maxWorkers=2
+npm run lint
+npm run build:all
+```
 
-KeepSave holds other people's secrets, so the guarantees are the product:
+The PostgreSQL harness applies the shipped migrations and runs authorization,
+transaction, concurrency, identity/session and API-contract fixtures. CI retains
+race, vet, formatting, fuzz, dependency, frontend, container, SAST, CodeQL and
+Robot checks on `develop` and `main`. A workflow file is not evidence that remote
+CI ran; exact executed checks and remaining gates belong in the ledger.
 
-- **Sealed before storage.** AES-256-GCM envelope encryption with per-project
-  data keys. No secret value is written to disk unsealed.
-- **The master key is never in the database.** It comes from a KMS or an
-  env-provided root key, and unwraps data keys in memory.
-- **Least privilege by construction.** API keys are scoped per-project and
-  per-environment; PROD promotion can require multi-party approval.
-- **Nothing leaks through errors.** Handlers never return raw error strings —
-  see [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md).
-- **Every mutation is audited.** State-mutating handlers must emit an event from
-  the canonical taxonomy, and the test must assert the row was written.
-- **Hardened by default.** Rate limiting keyed on a derived client IP
-  (`TRUSTED_PROXIES` defaults to trusting no proxy, so `X-Forwarded-For` cannot
-  spoof it), CSRF protection, security headers, and CORS restricted for the
-  embeddable widget.
+## Recovery and security boundaries
 
-The STRIDE pass with `file:line` references is in
-[`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md); release posture is in
-[`SECURITY_AUDIT.md`](SECURITY_AUDIT.md).
+Project and secret deletion revoke active authority and retain tombstones,
+encrypted history and dependent keys. This slice does not automatically purge
+history or key versions. Audit retention remains 365 days. The intended daily
+backup policy is 02:00 UTC, 30 verified daily bundles and at least two verified
+copies, with manual/pre-upgrade bundles held separately. The trusted worker
+implements this schedule and retention through durable jobs and a metadata
+catalog. `KEEPSAVE_RECOVERY_VERIFIED` defaults to false; automatic scheduling and retention
+must stay disabled until private storage, verified key dependencies and an
+operator recovery drill are configured. Failed retention stays visible.
 
-## Tech stack
+The [control-host reference bundle](deploy/self-hosted/README.md) places TLS,
+frontend, API, PostgreSQL and the trusted worker on one host without publishing
+database/API ports. It uses the existing Vault Transit key integration and
+private operator-supplied files. Configuration validation is not production
+deployment or M5 acceptance; the connector runner remains a separate milestone.
 
-| Layer | Technology |
-|---|---|
-| Backend | Go 1.24 with Gin |
-| Database | PostgreSQL 16, MySQL, SQLite |
-| Encryption | AES-256-GCM, envelope encryption |
-| Auth | JWT, scoped API keys, OAuth 2.0 provider |
-| Frontend | React 19, TypeScript, Vite, Tailwind v4 |
-| Embed SDK | Web Components with Shadow DOM |
-| MCP hub | GitHub integration and process runner |
-| Deploy | Docker Compose, Helm |
-| Observability | Prometheus metrics, OpenTelemetry |
+KeepSave controls operations routed through it. Revocation denies later
+admissions after its database commit; already admitted work may finish and
+returned values cannot be recalled. The future broker prevents provider-token
+release for its own integrations; ordinary vault clients still receive the
+values they are permitted to read. Managed Codex settings will add local
+restrictions but cannot attest to an unrestricted device administrator.
+
+Relevant authorization, custody, key continuity and audit changes require the
+repository's independent Security/Tech Lead review before integration/release.
+User approval of implementation does not imply those reviews have occurred.
+See [development rules](CLAUDE.md), [threat model](docs/THREAT_MODEL.md),
+[security audit](SECURITY_AUDIT.md) and [secret sources](docs/SECRET_SOURCES.md).
 
 ## Repository layout
 
-```
-keepsave/
-├── backend/              # Go (Gin) REST API
-│   ├── cmd/server/       # entry point
-│   ├── internal/
-│   │   ├── api/          # handlers, middleware
-│   │   ├── auth/         # JWT + API keys
-│   │   ├── crypto/       # AES-256-GCM         ← Security Engineer veto
-│   │   ├── service/      # business logic
-│   │   ├── promotion/    # promotion engine    ← Security Engineer veto
-│   │   └── repository/   # SQL, driver-agnostic
-│   └── migrations/       # embedded in the binary
-├── frontend/             # React 19 + Vite dashboard, and the embed widget
-├── sdks/                 # Go · Node.js · Python
-├── integrations/         # GitHub Action · GitLab CI · Terraform
-├── helm/                 # Kubernetes chart
-└── docs/                 # architecture, ADRs, threat model, runbook
+```text
+backend/                 Go/Gin services, policy, vault, jobs and repositories
+backend/migrations/      Additive embedded PostgreSQL, SQLite and MySQL migrations
+frontend/                Accepted KeepSave identity, workspace and auth UI
+sdks/                    Existing Go, Node.js and Python adapters
+integrations/            Existing CI/Terraform adapters
+scripts/                 Isolated PostgreSQL tests and contract type generation
+docs/                    Decisions, architecture, acceptance and operator notes
 ```
 
-## Integrations
-
-SDKs for Go, Node.js and Python; GitHub Actions, GitLab CI and a Terraform
-provider; the embeddable widget; and any MCP-speaking client.
-
-**→ [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)** covers all of them, plus the
-partner products that use KeepSave as their vault.
-
----
-
-## Documentation
-
-KeepSave handles other people's secrets, so the project runs on explicit
-decision records, role mandates and operating rituals rather than convention.
-
-**Start here**
-
-| Document | What it answers |
-|---|---|
-| [`CLAUDE.md`](CLAUDE.md) | Conventions, branch model, decision classes |
-| [`docs/ARCHITECTURE_VIEWS.md`](docs/ARCHITECTURE_VIEWS.md) | C4 levels 1–3 and the 4+1 views, as SVG |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Package dependency map and trust boundaries |
-| [`docs/system/`](docs/system/) | Per-subsystem reference, including the API |
-| [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) | Everything that plugs in |
-
-<details>
-<summary><strong>Decisions and architecture</strong></summary>
-
-- [`docs/adr/`](docs/adr/) — Architecture Decision Records; start with
-  [the README](docs/adr/README.md) for the lifecycle and index.
-  - [`0001`](docs/adr/0001-envelope-encryption.md) Envelope encryption with AES-256-GCM
-  - [`0002`](docs/adr/0002-auth-model.md) JWT for humans, API keys for agents
-  - [`0003`](docs/adr/0003-promotion-engine.md) Promotion engine: decrypt-and-rewrap
-  - [`0004`](docs/adr/0004-key-hierarchy.md) Two-level key hierarchy
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE pass with `file:line` refs.
-
-</details>
-
-<details>
-<summary><strong>Roles and execution</strong></summary>
-
-- [`docs/ROLES.md`](docs/ROLES.md) — 9-role operating model; the Security
-  Engineer holds veto over `internal/crypto`, `internal/auth` and the promotion
-  engine.
-- [`docs/ROLES_30_60_90.md`](docs/ROLES_30_60_90.md) — per-role 30/60/90 plan.
-- [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) — tracked debt with owner and due date.
-- [`docs/ROADMAP_NOT.md`](docs/ROADMAP_NOT.md) — explicit non-goals.
-- [`docs/ADLC.md`](docs/ADLC.md) — how AI-assisted work is sequenced and gated.
-
-</details>
-
-<details>
-<summary><strong>Operations and security</strong></summary>
-
-- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — lost master key, compromised API key,
-  DB failover, rotation drill, deploy rollback, break-glass secret read.
-- [`docs/SECRET_SOURCES.md`](docs/SECRET_SOURCES.md) — where KeepSave's own
-  secrets live per environment.
-- [`docs/PENTEST_CHECKLIST.md`](docs/PENTEST_CHECKLIST.md) — pre-release checklist.
-- [`docs/CI_PERMISSIONS.md`](docs/CI_PERMISSIONS.md) — least-privilege CI.
-- [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) — audit posture per release.
-
-</details>
-
-<details>
-<summary><strong>Engineering specs and tests</strong></summary>
-
-- [`docs/AUDIT_LOG_COVERAGE.md`](docs/AUDIT_LOG_COVERAGE.md) — event taxonomy and test obligations.
-- [`docs/ERROR_HANDLING_STANDARD.md`](docs/ERROR_HANDLING_STANDARD.md) — `httperror` and sanitisation.
-- [`docs/EMBED_STATE.md`](docs/EMBED_STATE.md) · [`docs/EMBED_ORIGIN_POLICY.md`](docs/EMBED_ORIGIN_POLICY.md) — widget state machine and cross-origin policy.
-- [`docs/UX_STATE_INVENTORY.md`](docs/UX_STATE_INVENTORY.md) — per-screen UX states.
-- [`tests/PYRAMID.md`](tests/PYRAMID.md) · [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) · [`tests/FLAKY.md`](tests/FLAKY.md)
-
-</details>
-
-<details>
-<summary><strong>Roadmap and changelogs</strong></summary>
-
-- [`Roadmap.md`](Roadmap.md) — vision, phases, completed milestones.
-- [`CHANGELOG.md`](CHANGELOG.md) — release-by-release notes.
-- [`PHASE15_CHANGELOG.md`](PHASE15_CHANGELOG.md) · [`PHASE16_CHANGELOG.md`](PHASE16_CHANGELOG.md) — phase summaries.
-
-</details>
-
-## Status
-
-Phases 1–13 are complete: core vault and promotion, organisations and templates,
-observability, OpenAPI, enterprise SSO and compliance, security hardening, agent
-leases and analytics, the platform event/plugin system, and the OAuth 2.0
-provider with the MCP server hub. See [`Roadmap.md`](Roadmap.md) for the detail
-and what comes next.
-
-## Contributing
-
-`main` and `develop` are the only permanent branches. Work happens on short-lived
-`feat/`, `test/` or `experiment/` branches off `develop`, and PRs are required to
-reach `main`. Changes to `internal/crypto`, `internal/auth` or the promotion
-engine are Type-1 decisions: they need an ADR and Security Engineer sign-off
-before implementation. See [`CLAUDE.md`](CLAUDE.md).
+SDK, widget and integration source availability does not establish end-to-end
+compatibility with the core candidate. See [integrations](docs/INTEGRATIONS.md)
+and the acceptance ledger before using them.
 
 ## License
 
-MIT
+The existing repository documentation labels KeepSave MIT. This checkout does
+not include a standalone license file.

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/models"
@@ -24,22 +25,22 @@ func (r *SecretRepository) Create(projectID, environmentID uuid.UUID, key string
 
 	if r.dialect.SupportsReturning() {
 		err := r.db.QueryRow(
-			`INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce)
+			`INSERT INTO secrets (id, project_id, environment_id, "key", encrypted_value, value_nonce)
 			 VALUES ($1, $2, $3, $4, $5, $6)
-			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`,
+			 RETURNING id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at`,
 			id, projectID, environmentID, key, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("creating secret: %w", err)
 		}
 	} else {
-		insertQ := Q(r.dialect, `INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce) VALUES ($1, $2, $3, $4, $5, $6)`)
+		insertQ := secretQuery(r.dialect, `INSERT INTO secrets (id, project_id, environment_id, "key", encrypted_value, value_nonce) VALUES ($1, $2, $3, $4, $5, $6)`)
 		_, err := r.db.Exec(insertQ, id, projectID, environmentID, key, encryptedValue, valueNonce)
 		if err != nil {
 			return nil, fmt.Errorf("creating secret: %w", err)
 		}
-		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		selectQ := secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading created secret: %w", err)
 		}
@@ -50,10 +51,10 @@ func (r *SecretRepository) Create(projectID, environmentID uuid.UUID, key string
 func (r *SecretRepository) GetByID(id uuid.UUID) (*models.Secret, error) {
 	s := &models.Secret{}
 	err := r.db.QueryRow(
-		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
+		secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at
 		 FROM secrets WHERE id = $1`),
 		id,
-	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting secret: %w", err)
 	}
@@ -62,8 +63,8 @@ func (r *SecretRepository) GetByID(id uuid.UUID) (*models.Secret, error) {
 
 func (r *SecretRepository) ListByProjectAndEnv(projectID, environmentID uuid.UUID) ([]models.Secret, error) {
 	rows, err := r.db.Query(
-		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
-		 FROM secrets WHERE project_id = $1 AND environment_id = $2 ORDER BY key`),
+		secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE project_id = $1 AND environment_id = $2 ORDER BY "key"`),
 		projectID, environmentID,
 	)
 	if err != nil {
@@ -74,7 +75,7 @@ func (r *SecretRepository) ListByProjectAndEnv(projectID, environmentID uuid.UUI
 	var secrets []models.Secret
 	for rows.Next() {
 		var s models.Secret
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning secret: %w", err)
 		}
 		secrets = append(secrets, s)
@@ -87,11 +88,11 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 
 	if r.dialect.SupportsReturning() {
 		err := r.db.QueryRow(
-			Q(r.dialect, `UPDATE secrets SET encrypted_value = $2, value_nonce = $3, updated_at = NOW()
+			secretQuery(r.dialect, `UPDATE secrets SET encrypted_value = $2, value_nonce = $3, updated_at = NOW()
 			 WHERE id = $1
-			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`),
+			 RETURNING id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at`),
 			id, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}
@@ -100,8 +101,8 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 		if err != nil {
 			return nil, fmt.Errorf("updating secret: %w", err)
 		}
-		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
-		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		selectQ := secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE id = $1`)
+		err = r.db.QueryRow(selectQ, id).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading updated secret: %w", err)
 		}
@@ -110,7 +111,7 @@ func (r *SecretRepository) Update(id uuid.UUID, encryptedValue, valueNonce []byt
 }
 
 func (r *SecretRepository) Delete(id uuid.UUID) error {
-	_, err := r.db.Exec(Q(r.dialect, `DELETE FROM secrets WHERE id = $1`), id)
+	_, err := r.db.Exec(secretQuery(r.dialect, `DELETE FROM secrets WHERE id = $1`), id)
 	if err != nil {
 		return fmt.Errorf("deleting secret: %w", err)
 	}
@@ -123,27 +124,27 @@ func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string
 
 	if r.dialect.SupportsReturning() {
 		err := r.db.QueryRow(
-			`INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce)
+			`INSERT INTO secrets (id, project_id, environment_id, "key", encrypted_value, value_nonce)
 			 VALUES ($1, $2, $3, $4, $5, $6)
-			 ON CONFLICT (environment_id, key) DO UPDATE
+			 ON CONFLICT (environment_id, "key") DO UPDATE
 			 SET encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = NOW()
-			 RETURNING id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at`,
+			 RETURNING id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at`,
 			id, projectID, environmentID, key, encryptedValue, valueNonce,
-		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("upserting secret: %w", err)
 		}
 	} else {
-		upsertClause := r.dialect.FormatUpsert("environment_id, key",
+		upsertClause := r.dialect.FormatUpsert(`environment_id, "key"`,
 			"encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = "+r.dialect.Now())
-		insertQ := Q(r.dialect, `INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce)
+		insertQ := secretQuery(r.dialect, `INSERT INTO secrets (id, project_id, environment_id, "key", encrypted_value, value_nonce)
 			 VALUES ($1, $2, $3, $4, $5, $6) `+upsertClause)
 		_, err := r.db.Exec(insertQ, id, projectID, environmentID, key, encryptedValue, valueNonce)
 		if err != nil {
 			return nil, fmt.Errorf("upserting secret: %w", err)
 		}
-		selectQ := Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE environment_id = $1 AND key = $2`)
-		err = r.db.QueryRow(selectQ, environmentID, key).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+		selectQ := secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at FROM secrets WHERE environment_id = $1 AND "key" = $2`)
+		err = r.db.QueryRow(selectQ, environmentID, key).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 		if err != nil {
 			return nil, fmt.Errorf("reading upserted secret: %w", err)
 		}
@@ -153,8 +154,8 @@ func (r *SecretRepository) Upsert(projectID, environmentID uuid.UUID, key string
 
 func (r *SecretRepository) ListByProject(projectID uuid.UUID) ([]models.Secret, error) {
 	rows, err := r.db.Query(
-		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
-		 FROM secrets WHERE project_id = $1 ORDER BY key`),
+		secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE project_id = $1 ORDER BY "key"`),
 		projectID,
 	)
 	if err != nil {
@@ -165,7 +166,7 @@ func (r *SecretRepository) ListByProject(projectID uuid.UUID) ([]models.Secret, 
 	var secrets []models.Secret
 	for rows.Next() {
 		var s models.Secret
-		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt)); err != nil {
 			return nil, fmt.Errorf("scanning secret: %w", err)
 		}
 		secrets = append(secrets, s)
@@ -176,10 +177,10 @@ func (r *SecretRepository) ListByProject(projectID uuid.UUID) ([]models.Secret, 
 func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (*models.Secret, error) {
 	s := &models.Secret{}
 	err := r.db.QueryRow(
-		Q(r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
-		 FROM secrets WHERE environment_id = $1 AND key = $2`),
+		secretQuery(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE environment_id = $1 AND "key" = $2`),
 		environmentID, key,
-	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	).Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if err != nil {
 		return nil, fmt.Errorf("getting secret by env and key: %w", err)
 	}
@@ -191,9 +192,9 @@ func (r *SecretRepository) GetByEnvAndKey(environmentID uuid.UUID, key string) (
 // the wrapped sql.ErrNoRows.
 func (r *SecretRepository) GetByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID, key string) (*models.Secret, error) {
 	s := &models.Secret{}
-	err := QueryRowQ(tx, r.dialect, `SELECT id, project_id, environment_id, key, encrypted_value, value_nonce, created_at, updated_at
-		 FROM secrets WHERE environment_id = $1 AND key = $2`, environmentID, key).
-		Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, &s.CreatedAt, &s.UpdatedAt)
+	err := QueryRowQ(tx, r.dialect, quoteSecretKey(r.dialect, `SELECT id, project_id, environment_id, "key", encrypted_value, value_nonce, created_at, updated_at
+		 FROM secrets WHERE environment_id = $1 AND "key" = $2`), environmentID, key).
+		Scan(&s.ID, &s.ProjectID, &s.EnvironmentID, &s.Key, &s.EncryptedValue, &s.ValueNonce, dbTime(&s.CreatedAt), dbTime(&s.UpdatedAt))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -207,10 +208,10 @@ func (r *SecretRepository) GetByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID,
 // ADR-0017). It does not read the row back — promotion does not need it.
 func (r *SecretRepository) UpsertTx(tx *sql.Tx, projectID, environmentID uuid.UUID, key string, encryptedValue, valueNonce []byte) error {
 	id := uuid.New()
-	upsertClause := r.dialect.FormatUpsert("environment_id, key",
+	upsertClause := r.dialect.FormatUpsert(`environment_id, "key"`,
 		"encrypted_value = EXCLUDED.encrypted_value, value_nonce = EXCLUDED.value_nonce, updated_at = "+r.dialect.Now())
-	_, err := ExecQ(tx, r.dialect, `INSERT INTO secrets (id, project_id, environment_id, key, encrypted_value, value_nonce)
-		 VALUES ($1, $2, $3, $4, $5, $6) `+upsertClause, id, projectID, environmentID, key, encryptedValue, valueNonce)
+	_, err := ExecQ(tx, r.dialect, quoteSecretKey(r.dialect, `INSERT INTO secrets (id, project_id, environment_id, "key", encrypted_value, value_nonce)
+		 VALUES ($1, $2, $3, $4, $5, $6) `+upsertClause), id, projectID, environmentID, key, encryptedValue, valueNonce)
 	if err != nil {
 		return fmt.Errorf("upserting secret: %w", err)
 	}
@@ -220,7 +221,7 @@ func (r *SecretRepository) UpsertTx(tx *sql.Tx, projectID, environmentID uuid.UU
 // DeleteByEnvAndKeyTx removes a secret inside tx. Used by promotion rollback to
 // undo keys the promotion added (ADR-0017).
 func (r *SecretRepository) DeleteByEnvAndKeyTx(tx *sql.Tx, environmentID uuid.UUID, key string) error {
-	_, err := ExecQ(tx, r.dialect, `DELETE FROM secrets WHERE environment_id = $1 AND key = $2`, environmentID, key)
+	_, err := ExecQ(tx, r.dialect, quoteSecretKey(r.dialect, `DELETE FROM secrets WHERE environment_id = $1 AND "key" = $2`), environmentID, key)
 	if err != nil {
 		return fmt.Errorf("deleting secret by env and key: %w", err)
 	}
@@ -235,4 +236,17 @@ func (r *SecretRepository) UpdateValueTx(tx *sql.Tx, id uuid.UUID, encryptedValu
 		return fmt.Errorf("updating secret: %w", err)
 	}
 	return nil
+}
+
+// SQL literals in this repository explicitly quote the reserved column. Only
+// that marker is converted for MySQL; placeholder binding remains unchanged.
+func quoteSecretKey(d Dialect, query string) string {
+	if d.DBType() == DBTypeMySQL {
+		return strings.ReplaceAll(query, `"key"`, "`key`")
+	}
+	return query
+}
+
+func secretQuery(d Dialect, query string) string {
+	return Q(d, quoteSecretKey(d, query))
 }

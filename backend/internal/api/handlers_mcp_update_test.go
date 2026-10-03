@@ -22,10 +22,10 @@ func TestUpdateServer_RejectsUnsafeEntryCommand(t *testing.T) {
 	r.PUT("/servers/:serverId", stubAuth(), h.UpdateServer)
 
 	for _, bad := range []string{
-		"node; rm -rf /",   // shell metacharacter
-		"/bin/sh",          // path separator
-		"bash -c evil",     // binary not in allow-list
-		"node $(whoami)",   // command substitution
+		"node; rm -rf /", // shell metacharacter
+		"/bin/sh",        // path separator
+		"bash -c evil",   // binary not in allow-list
+		"node $(whoami)", // command substitution
 	} {
 		body := `{"name":"srv","entry_command":"` + bad + `"}`
 		req, _ := http.NewRequest(http.MethodPut, "/servers/"+uuid.New().String(), strings.NewReader(body))

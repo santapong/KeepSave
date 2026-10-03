@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type User struct {
@@ -39,6 +40,7 @@ type Environment struct {
 }
 
 type Secret struct {
+	Revision       int64     `json:"revision,omitempty"`
 	ID             uuid.UUID `json:"id"`
 	ProjectID      uuid.UUID `json:"project_id"`
 	EnvironmentID  uuid.UUID `json:"environment_id"`
@@ -201,16 +203,13 @@ func (s *StringList) Scan(src interface{}) error {
 		*s = StringList{}
 		return nil
 	}
-	// Detect format: pg array {a,b,c} or JSON ["a","b","c"]
-	if strings.HasPrefix(data, "{") && !strings.HasPrefix(data, "{\"") && !strings.HasPrefix(data, "[") {
-		// PostgreSQL array format
-		inner := strings.TrimPrefix(data, "{")
-		inner = strings.TrimSuffix(inner, "}")
-		if inner == "" {
-			*s = StringList{}
-			return nil
+	// PostgreSQL quoted/escaped array elements require the driver parser.
+	if strings.HasPrefix(data, "{") {
+		var values []string
+		if err := pq.Array(&values).Scan(data); err != nil {
+			return fmt.Errorf("invalid database array")
 		}
-		*s = StringList(strings.Split(inner, ","))
+		*s = StringList(values)
 		return nil
 	}
 	// JSON format
@@ -375,6 +374,16 @@ type SessionToken struct {
 	IPAddress string    `json:"ip_address"`
 	UserAgent string    `json:"user_agent"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type SessionView struct {
+	ID        uuid.UUID `json:"id"`
+	Current   bool      `json:"current"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Status    string    `json:"status"`
+	IPAddress string    `json:"ip_address"`
+	UserAgent string    `json:"user_agent"`
 }
 
 // Phase 11: AI Agent Experience

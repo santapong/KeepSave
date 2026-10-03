@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -89,7 +90,20 @@ func RequireProjectAccess(projectRepo *repository.ProjectRepository) gin.Handler
 			return
 		}
 
-		allowed, err := projectRepo.UserHasAccess(userID, projectID)
+		if c.Request.Method == http.MethodDelete && c.FullPath() == "/api/v1/projects/:id" {
+			deleted, e := projectRepo.IsDeletedOwned(projectID, userID)
+			if e != nil {
+				WrapError(c, e)
+				c.Abort()
+				return
+			}
+			if deleted {
+				c.Next()
+				return
+			}
+		}
+		required := projectRequiredRole(c.Request.Method, c.FullPath())
+		allowed, err := projectRepo.UserHasRole(userID, projectID, required)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, "project not found")
@@ -108,4 +122,35 @@ func RequireProjectAccess(projectRepo *repository.ProjectRepository) gin.Handler
 
 		c.Next()
 	}
+}
+
+// Explicit capabilities for routes that read credential material or administer
+// trust. Unknown project mutations retain the conservative editor minimum.
+func projectRequiredRole(method, path string) string {
+	mutation := method != http.MethodGet && method != http.MethodHead
+	role := "viewer"
+	if mutation {
+		role = "editor"
+	}
+	if strings.Contains(path, "/secrets") || strings.HasSuffix(path, "/env-export") || strings.HasSuffix(path, "/verify-encryption") || strings.Contains(path, "/dependencies/") {
+		role = "editor"
+	}
+	if strings.HasSuffix(path, "/webhooks") || strings.HasSuffix(path, "/rotate-keys") || strings.HasSuffix(path, "/backups") {
+		role = "admin"
+	}
+	if strings.HasSuffix(path, "/versions") && method == http.MethodGet {
+		role = "viewer"
+	}
+	if strings.Contains(path, "/backups/") {
+		role = "admin"
+	}
+	if mutation {
+		if path == "/api/v1/projects/:id" || strings.HasSuffix(path, "/embed-config") || strings.HasSuffix(path, "/policy") || strings.Contains(path, "/access-policies") {
+			role = "admin"
+		}
+		if strings.Contains(path, "/promotions/") && (strings.HasSuffix(path, "/approve") || strings.HasSuffix(path, "/reject") || strings.HasSuffix(path, "/rollback")) {
+			role = "promoter"
+		}
+	}
+	return role
 }

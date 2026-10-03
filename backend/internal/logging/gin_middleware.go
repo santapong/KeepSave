@@ -2,6 +2,7 @@ package logging
 
 import (
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +26,10 @@ var sensitiveQueryParams = map[string]struct{}{
 	"secret":        {},
 	// email is enumeration-sensitive on routes like /users/lookup. Redact
 	// in logs; the application code can still read the query directly.
-	"email": {},
+	"email":   {},
+	"proof":   {},
+	"contact": {},
+	"state":   {},
 }
 
 // redactQuery returns raw with any sensitive parameter value replaced by
@@ -38,11 +42,11 @@ func redactQuery(raw string) string {
 	}
 	values, err := url.ParseQuery(raw)
 	if err != nil {
-		return raw
+		return "REDACTED"
 	}
 	dirty := false
 	for k := range values {
-		if _, sensitive := sensitiveQueryParams[k]; sensitive {
+		if _, sensitive := sensitiveQueryParams[strings.ToLower(k)]; sensitive {
 			values.Set(k, "REDACTED")
 			dirty = true
 		}

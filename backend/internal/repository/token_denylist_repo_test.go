@@ -42,9 +42,9 @@ func TestTokenDenylistRepository_CacheAndPrune(t *testing.T) {
 	}
 
 	repo := NewTokenDenylistRepository(db, dialect)
-	// A fresh repo has an empty cache: the externally-written jti is not yet seen.
-	if revoked, err := repo.IsTokenRevoked("other-instance-jti", nil); err != nil || revoked {
-		t.Fatalf("pre-refresh revoked=%v err=%v, want false/nil", revoked, err)
+	// Every cache miss checks the database; revocation is immediate across instances.
+	if revoked, err := repo.IsTokenRevoked("other-instance-jti", nil); err != nil || !revoked {
+		t.Fatalf("pre-refresh revoked=%v err=%v, want true/nil", revoked, err)
 	}
 	if err := repo.RefreshCache(); err != nil {
 		t.Fatalf("RefreshCache: %v", err)

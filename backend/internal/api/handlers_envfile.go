@@ -28,7 +28,7 @@ func (h *EnvFileHandler) Export(c *gin.Context) {
 		envName = "alpha"
 	}
 
-	content, err := h.envFileService.Export(projectID, envName)
+	content, err := h.envFileService.ExportAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, envName)
 	if err != nil {
 		WrapError(c, err)
 		return
@@ -57,12 +57,12 @@ func (h *EnvFileHandler) Import(c *gin.Context) {
 		return
 	}
 
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
 
-	result, err := h.envFileService.Import(projectID, req.Environment, req.Content, req.Overwrite, userID, c.ClientIP())
+	result, err := h.envFileService.ImportAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.Environment, req.Content, req.Overwrite, c.ClientIP())
 	if err != nil {
 		WrapError(c, err)
 		return

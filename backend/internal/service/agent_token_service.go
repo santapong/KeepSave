@@ -1,13 +1,13 @@
 package service
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/santapong/KeepSave/backend/internal/auth"
-	"github.com/santapong/KeepSave/backend/internal/models"
+	"github.com/santapong/KeepSave/backend/internal/policy"
 	"github.com/santapong/KeepSave/backend/internal/repository"
 )
 
@@ -44,58 +44,18 @@ type MintedAgentToken struct {
 // token bound to it. The token's subject is the lease's principal and its TTL
 // can never exceed the lease's remaining lifetime (enforced in auth).
 func (s *AgentTokenService) MintToken(actorID, projectID, leaseID uuid.UUID, requestedTTL time.Duration, ip string) (*MintedAgentToken, error) {
-	lease, err := s.leases.GetActiveLease(leaseID)
-	if err != nil {
-		// GetActiveLease only returns non-revoked, non-expired rows; anything
-		// else (missing/revoked/expired) is "not active" — do not leak which.
-		return nil, ErrLeaseNotActive
-	}
-	if lease.ProjectID != projectID {
-		return nil, ErrLeaseProjectMismatch
-	}
-	remaining := time.Until(lease.ExpiresAt)
-	if remaining <= 0 {
-		return nil, ErrLeaseNotActive
-	}
-
-	// Embed the lease's scope (project, environment, secret keys) in the token.
-	// This is the token's entire authority — it never widens to the owning
-	// user's access (ADR-0021). lease.APIKeyID is the lease's principal, used
-	// only for audit attribution; authorization downstream is keyed off the
-	// embedded lease scope, not this id.
-	token, jti, expiresAt, err := s.jwt.GenerateAgentToken(
-		lease.APIKeyID, "", leaseID, lease.ProjectID, lease.Environment, []string(lease.SecretKeys),
-		requestedTTL, remaining,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("minting agent token: %w", err)
-	}
-
-	emitAudit(s.auditRepo, &actorID, &projectID, "agent.token.minted", lease.Environment,
-		models.JSONMap{
-			"project_id": projectID.String(),
-			"lease_id":   leaseID.String(),
-			"jti":        jti,
-			"expires_at": expiresAt.UTC().Format(time.RFC3339),
-		}, ip)
-
-	return &MintedAgentToken{Token: token, TokenType: "agent", ExpiresAt: expiresAt, LeaseID: leaseID}, nil
+	return s.MintTokenAuthorized(context.Background(), policy.Principal{Kind: policy.Human, SubjectID: actorID, ActorID: actorID}, projectID, leaseID, requestedTTL, ip)
 }
 
-// RevokeToken adds an agent token's jti to the denylist (explicit single-token
-// revocation). expires_at on the denylist row is set conservatively to the max
-// agent-token lifetime so the row prunes shortly after the token would expire.
-func (s *AgentTokenService) RevokeToken(actorID, projectID uuid.UUID, jti, ip string) error {
-	if jti == "" {
-		return errors.New("jti required")
+// RevokeToken scopes the persisted issuance to its project and human owner.
+// API-key callers additionally supply their exact key ID; sibling keys cannot
+// revoke each other's tokens. Pre-migration tokens can be revoked by lease.
+func (s *AgentTokenService) RevokeToken(actorID, projectID uuid.UUID, jti, ip string, callerKey ...uuid.UUID) error {
+	p := policy.Principal{Kind: policy.Human, SubjectID: actorID, ActorID: actorID}
+	if len(callerKey) > 0 {
+		p.Kind, p.SubjectID = policy.APIKey, callerKey[0]
 	}
-	// Upper bound: a token cannot outlive maxAgentTokenTTL, so a row added now
-	// is safe to prune after that window even if the original expiry was sooner.
-	pruneAfter := time.Now().Add(auth.MaxAgentTokenTTL())
-	if err := s.denylist.Revoke(jti, nil, pruneAfter, "revoked via api"); err != nil {
-		return fmt.Errorf("revoking agent token: %w", err)
-	}
-	emitAudit(s.auditRepo, &actorID, &projectID, "agent.token.revoked", "",
-		models.JSONMap{"project_id": projectID.String(), "jti": jti}, ip)
-	return nil
+	return s.RevokeTokenAuthorized(context.Background(), p, projectID, jti, ip)
 }
+
+var ErrAgentTokenNotFound = errors.New("agent token not found")

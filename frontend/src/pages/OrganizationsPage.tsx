@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Users, FolderOpen, AlertCircle, Trash2 } from 'lucide-react';
+import { Users, FolderOpen, AlertCircle, Trash2 } from '@/components/icons';
 import { Page, PageHeader, KpiStrip, Kpi, EmptyState } from '../components/cosmic/primitives';
 
 const avatarStyle: CSSProperties = {
@@ -141,7 +141,7 @@ export function OrganizationsPage() {
       )}
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 16 }}>
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-40 w-full rounded-lg" />
           ))}
@@ -151,7 +151,7 @@ export function OrganizationsPage() {
           Create your first organization to manage teams and projects together.
         </EmptyState>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 16 }}>
           {orgs.map((org) => (
             <div key={org.id} className="cz-card cz-proj-card" style={{ cursor: 'default' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>

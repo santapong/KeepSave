@@ -27,6 +27,7 @@ export interface Environment {
 }
 
 export interface Secret {
+  revision?: number;
   id: string;
   project_id: string;
   environment_id: string;
@@ -135,9 +136,9 @@ export interface DependencyNode {
 }
 
 export interface ImportResult {
-  created: string[];
-  updated: string[];
-  skipped: string[];
+  created: string[] | null;
+  updated: string[] | null;
+  skipped: string[] | null;
 }
 
 // Phase 14: Application Dashboard types

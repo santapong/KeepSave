@@ -71,11 +71,11 @@ func TestTemplateRepo_AccessScoping(t *testing.T) {
 			t.Errorf("expected ErrNoRows, got %v", err)
 		}
 	}
-	mustRead(priv.ID, owner, true)      // owner reads own private
-	mustRead(priv.ID, other, false)     // stranger cannot read private (the IDOR)
-	mustRead(global.ID, other, true)    // global readable by anyone
-	mustRead(orgTmpl.ID, orgMember, true)  // org member reads org template
-	mustRead(orgTmpl.ID, other, false)     // non-member cannot
+	mustRead(priv.ID, owner, true)        // owner reads own private
+	mustRead(priv.ID, other, false)       // stranger cannot read private (the IDOR)
+	mustRead(global.ID, other, true)      // global readable by anyone
+	mustRead(orgTmpl.ID, orgMember, true) // org member reads org template
+	mustRead(orgTmpl.ID, other, false)    // non-member cannot
 
 	// --- Write access (owner-only) ---
 	if _, err := repo.Update(priv.ID, "x", "", "go", keys, other); !errors.Is(err, sql.ErrNoRows) {

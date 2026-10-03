@@ -74,7 +74,7 @@ type UpdateEmbedConfigRequest struct {
 // embed_policy_enabled=false to disable the widget; "*" as an origin is a
 // well-known footgun (the very class of bug ADR-0006 closes).
 func (h *EmbedHandler) UpdateEmbedConfig(c *gin.Context) {
-	userID, authedOK := getUserID(c)
+	_, authedOK := getUserID(c)
 	if !authedOK {
 		return
 	}
@@ -91,7 +91,7 @@ func (h *EmbedHandler) UpdateEmbedConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.projectService.UpdateEmbedConfig(projectID, userID, req.AllowedOrigins, req.EmbedPolicyEnabled, c.ClientIP()); err != nil {
+	if err := h.projectService.UpdateEmbedConfigAuthorized(c.Request.Context(), PrincipalFromContext(c), projectID, req.AllowedOrigins, req.EmbedPolicyEnabled, c.ClientIP()); err != nil {
 		if errors.Is(err, service.ErrWildcardOriginNotPermitted) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{
 				"error":  "wildcard_origin_not_permitted",

@@ -2,24 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/keepsave.svg" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" type="image/svg+xml" href="/keepsave-favicon.svg?v=field-twist-v2-3" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="KeepSave — encrypted environment-variable vault, OAuth 2.0 provider and MCP server hub for AI agents and development teams."
-    />
-    <!-- Event Horizon: Geist (display/UI) + Geist Mono (data/code).
-         Both are variable fonts, so one axis request covers every weight. -->
+    <!-- Event Horizon: shared Geist / Geist Mono typography from develop. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=Google+Sans:wght@500&display=swap"
       rel="stylesheet"
     />
-    <title>KeepSave</title>
+    <meta name="application-name" content="KeepSave" />
+    <meta name="description" content="KeepSave is an encrypted vault for environment secrets, with scoped access for applications and agents and reviewed promotions to production." />
+    <meta name="theme-color" content="#090812" />
+    <title>KeepSave — A home for your environment secrets</title>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main style="max-width: 48rem; margin: 4rem auto; padding: 1.5rem; font: 18px/1.7 system-ui, sans-serif; color: #f4f0ff; background: #090812; border-radius: 1rem;">
+        <img src="/keepsave.svg" width="48" height="48" alt="" />
+        <h1>KeepSave — a home for your secret keys.</h1>
+        <p>Store your application's keys in an encrypted project vault. Give applications and agents access to the environment they need, then review changes before promoting them to production.</p>
+        <ol>
+          <li><strong>Store:</strong> keep development, testing, and production values separate.</li>
+          <li><strong>Scope:</strong> limit a read-only API key to one project and environment.</li>
+          <li><strong>Review:</strong> compare changes and configure approvals for production.</li>
+        </ol>
+        <p>Enable JavaScript to use the interactive walkthrough or sign in.</p>
+        <a style="color: #c7b7ff" href="https://github.com/santapong/KeepSave#quick-start">Read the documentation and self-hosting guide →</a>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

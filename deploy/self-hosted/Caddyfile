@@ -1,0 +1,39 @@
+{
+	admin off
+	persist_config off
+	http_port 8080
+	https_port 8443
+}
+
+https://{$KEEPSAVE_APP_DOMAIN:app.keepsave.draveniq.dev} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+	# Access logging is omitted so OAuth codes never enter a request URI log.
+	@recovery path_regexp recovery ^/api/v1/projects/[^/]+/backups/(verify|preview|restore)$
+	@internal path /metrics /metrics/* /api/v1/runner/*
+	@api path /api/* /.well-known/* /mcp /oauth/mcp/* /healthz /readyz
+	route {
+		handle @recovery {
+			request_body {
+				max_size 90MiB
+			}
+			reverse_proxy api:8080
+		}
+		handle @internal {
+			respond 404
+		}
+		handle @api {
+			request_body {
+				max_size 1MiB
+			}
+			reverse_proxy api:8080
+		}
+		handle {
+			reverse_proxy frontend:3000
+		}
+	}
+}

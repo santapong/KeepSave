@@ -33,6 +33,7 @@ func TestLeaseService_EmitsAudit(t *testing.T) {
 
 	apiKeyID := uuid.New()
 	pid := uuid.New()
+	seedLeaseParent(t, db, apiKeyID, pid)
 	lease, err := svc.CreateLease(apiKeyID, pid, "alpha", []string{"DATABASE_URL"}, time.Hour, "10.6.6.6")
 	if err != nil {
 		t.Fatalf("CreateLease: %v", err)
@@ -41,7 +42,7 @@ func TestLeaseService_EmitsAudit(t *testing.T) {
 		t.Fatalf("lease.created rows=%d, want 1", got)
 	}
 
-	revoker := uuid.New()
+	revoker := apiKeyID
 	if err := svc.RevokeLease(lease.ID, pid, revoker, "10.6.6.6"); err != nil {
 		t.Fatalf("RevokeLease: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestMCPService_EmitsAudit(t *testing.T) {
 	}
 	requireAuditRow(t, db, "mcp.server_installed", installer)
 
-	editor := uuid.New()
+	editor := installer
 	if err := svc.UpdateInstallation(inst.ID, false, models.JSONMap{"opt": "v2"}, editor, "10.8.8.8"); err != nil {
 		t.Fatalf("UpdateInstallation: %v", err)
 	}
