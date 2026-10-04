@@ -16,7 +16,7 @@ RUN npm run build
 # Digest-pinned to the 1.30.5-alpine-slim release (INF-2). The unprivileged image
 # already runs as non-root; readOnlyRootFilesystem in Helm is satisfied by
 # the emptyDir mounts declared in deployment-frontend.yaml.
-FROM nginxinc/nginx-unprivileged:1.30.5-alpine-slim@sha256:e28dcf0a161ddcbf228c7364b4a14f9bad4763ae8f5317c437b896afa3df4b84
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine-slim@sha256:c81a27f28bc2d9c2da8998444e653c7b85b9bbbaa92e44ef18d8920784e06507
 # tag: nginxinc/nginx-unprivileged:1.30.5-alpine-slim
 # The pinned nginx release includes PCRE2 10.48. Patch CVE-2026-103111 with
 # the exact fixed Alpine package until the upstream image incorporates it.
