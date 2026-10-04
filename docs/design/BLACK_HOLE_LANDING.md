@@ -1,5 +1,7 @@
 # KeepSave — Event Horizon experience specification
 
+> **Historical visual specification, clarified 2026-10-04.** This records the September 9 scene, theme and verification passes. Later owner choices established the Event Horizon story and Field Twist mark; the [current brand guide](../BRANDING.md) identifies canonical assets and usage. Earlier renderer, palette, logo and rollout descriptions below remain historical rather than instructions to replace the accepted frontend. Current availability is maintained in the [documentation index](../README.md).
+
 Date: 2026-09-09. Scope: landing, authentication, and the complete frontend theme. User direction: moving black hole using Three.js and Anime.js; extend the black-hole design to all pages. This revision supersedes the earlier landing-only, static-CSS requirement. Implementation is local on `feature/realistic-product-and-efficiency`; not released.
 
 ## Intent and decision

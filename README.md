@@ -1,4 +1,4 @@
-![KeepSave — Your secrets. In the right orbit.](docs/assets/keepsave-banner.png)
+![KeepSave — Your secrets. In the right orbit.](docs/assets/keepsave-header.svg)
 
 # KeepSave
 
@@ -154,8 +154,11 @@ distinguish implemented, tested and pending behavior. The
 [product research](docs/design/2026-10-02-product-roadmap/README.md) retain historical
 planning context; single-harness and generic rollback statements are superseded by
 [ADR0029](docs/adr/0029-harness-neutral-platform.md).
-The older [architecture views](docs/ARCHITECTURE_VIEWS.md) describe legacy
-components; they do not prove runner isolation or current release acceptance.
+The refreshed [architecture views](docs/ARCHITECTURE_VIEWS.md) show the current
+candidate, trust boundaries and supporting flows. They do not prove runner
+isolation or release acceptance. Start in the [documentation hub](docs/README.md)
+for current guides, [branding](docs/BRANDING.md), the complete document inventory
+and historical evidence.
 
 ## Local development
 
@@ -261,10 +264,15 @@ node scripts/generate-core-api-types.mjs --check
 
 ## Verification
 
+The previous remote runs failed: the PostgreSQL script could not start, and the
+backend image security scan failed. The current docs/CI update repairs the script
+invocation and preserves the blocking image gate. See [current status](docs/STATUS.md)
+for exact run links and evidence limits. No green remote CI is claimed.
+
 ```bash
 # Creates only unique disposable Docker resources, with no published DB port.
 # Ignores an operator DATABASE_URL; cleanup removes only this run's resources.
-./scripts/test-platform-postgres.sh
+bash scripts/test-platform-postgres.sh
 
 cd backend
 go test -race -shuffle=on ./...
@@ -299,22 +307,26 @@ The [control-host reference bundle](deploy/self-hosted/README.md) places TLS,
 frontend, API, PostgreSQL and the trusted worker on one host without publishing
 database/API ports. It uses the existing Vault Transit key integration and
 private operator-supplied files. Configuration validation is not production
-deployment or M5 acceptance; the connector runner remains a separate milestone.
+deployment or M5 acceptance; the separate runner reference still requires real isolation acceptance.
 
 KeepSave controls operations routed through it. Revocation denies later
 admissions after its database commit; already admitted work may finish and
-returned values cannot be recalled. The future broker prevents provider-token
-release for its own integrations; ordinary vault clients still receive the
-values they are permitted to read. Managed Codex settings will add local
-restrictions but cannot attest to an unrestricted device administrator.
+returned values cannot be recalled. The candidate broker prevents provider-token
+release for its bounded integration; ordinary vault clients still receive the
+values they are permitted to read. Native harness settings may add separately qualified local
+restrictions; they cannot attest to an unrestricted device administrator.
 
 Relevant authorization, custody, key continuity and audit changes require the
 repository's independent Security/Tech Lead review before integration/release.
 User approval of implementation does not imply those reviews have occurred.
 See [development rules](CLAUDE.md), [threat model](docs/THREAT_MODEL.md),
-[security audit](SECURITY_AUDIT.md) and [secret sources](docs/SECRET_SOURCES.md).
+[historical security audit](docs/archive/SECURITY_AUDIT.md) and [secret sources](docs/SECRET_SOURCES.md).
 
 ## Repository layout
+
+The main project is `/mnt/data/company/apps/KeepSave` on `develop`. Supporting
+implementation and preserved landing worktrees live under
+`/mnt/data/company/.worktrees/KeepSave`; see [folder ownership](docs/PROJECT_STRUCTURE.md).
 
 ```text
 backend/                 Go/Gin services, policy, vault, jobs and repositories
@@ -322,8 +334,10 @@ backend/migrations/      Additive embedded PostgreSQL, SQLite and MySQL migratio
 frontend/                Accepted KeepSave identity, workspace and auth UI
 sdks/                    Existing Go, Node.js and Python adapters
 integrations/            Existing CI/Terraform adapters
-scripts/                 Isolated PostgreSQL tests and contract type generation
-docs/                    Decisions, architecture, acceptance and operator notes
+deploy/                  Separate control-host and runner-host references
+scripts/                 Isolated tests, contract types and branded diagrams
+docs/                    Current guides, decisions, diagrams and dated evidence
+docs/archive/            Preserved historical root notes and phase summaries
 ```
 
 SDK, widget and integration source availability does not establish end-to-end

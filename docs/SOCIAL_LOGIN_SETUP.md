@@ -1,6 +1,8 @@
-# GitHub and Google sign-in setup
+# KeepSave GitHub and Google sign-in setup
 
-Status checked 2026-10-02: provider adapters, browser flows, revocable sessions, and synthetic verification are implemented locally. Neither real provider app configuration nor real consent/sign-in UAT has been performed. The buttons correctly remain unavailable when a provider is unconfigured. Independent Security/Tech Lead review and deployment acceptance remain release gates.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
+
+Status reconciled 2026-10-04: provider adapters, browser flows, revocable sessions and method/proof services exist in the published source candidate. The canonical project is `/mnt/data/company/apps/KeepSave`. Neither real provider app configuration nor real consent/sign-in UAT has been performed. The buttons correctly remain unavailable when a provider is unconfigured. Independent Security/Tech Lead review and deployment acceptance remain release gates.
 
 KeepSave permits open registration using passwords or a verified Google/GitHub identity. Every new account starts without organization membership or global administrator authority. A developer creates or joins a separately authorized organization; signing in does not grant access to another team's projects.
 
@@ -25,7 +27,7 @@ Callbacks serve the frontend SPA, which posts the code to the API. Register exac
 
 S256 PKCE, random state, exact callback binding, and a fresh authenticated identity lookup protect the code flow. Provider tokens are used transiently for identity checks and are never returned to the browser or saved as vault credentials. Follow [GitHub's official code-flow requirements](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps).
 
-**This OAuth app is separate from the planned GitHub App credential broker.** Signing in requests no repository access and creates no provider binding, repository grant, or harness run. The future broker pilot needs a separately configured GitHub App installation with explicit repository permissions.
+**This OAuth app is separate from the GitHub App credential broker candidate.** Signing in requests no repository access and creates no provider binding, repository grant, or harness run. The separate broker pilot needs a separately configured GitHub App installation with explicit repository permissions.
 
 ## Google OAuth client
 
@@ -71,7 +73,7 @@ FROM (
 ) AS collisions;
 ```
 
-Password signup does not verify email ownership. Self-claimed email is never a global-admin credential. No signup, social callback, or migration automatically grants global administrator access, converts an email allowlist, or attaches a user to an existing organization. Social-only accounts have no usable password; provider unlinking and adding a password remain outside this release.
+Password signup does not verify email ownership. Self-claimed email is never a global-admin credential. No signup, social callback, or migration automatically grants global administrator access, converts an email allowlist, or attaches a user to an existing organization. Social-only accounts initially have no usable password. The default-off identity slice now inventories/removes login methods and provides SMTP-gated password recovery; real delivery/method acceptance is pending. Removing a method requires an actual recent successful authentication through a remaining method, not merely an old signed-in tab. See the section below; no automatic method conversion occurs.
 
 ## Browser sessions and cutover
 
@@ -116,6 +118,48 @@ Paths below are under `/api/v1`; frontend resource types are generated from the 
 
 Only `github` and `google` are valid providers. Start/complete share a ten-per-minute per-IP limiter with burst ten. Invalid/expired/revoked human sessions return 401; authoritative session database failure returns 503. Listing and session controls use `Cache-Control: no-store`. Session responses contain no credential or token hash.
 
+## Login methods, verified contacts and recovery
+
+The default-off PostgreSQL identity slice adds the following management routes
+under `/api/v1`. The sole [OpenAPI source](../backend/internal/api/openapi/core.json)
+defines request bodies; these routes do not expose proof strings.
+
+| Route | Behavior |
+|---|---|
+| `GET /account/methods` | Inventory the caller's current login methods |
+| `DELETE /account/methods/:method` | Refuse the last method; require recent successful remaining-method authentication |
+| `GET /account/contacts` | Current caller contact/verification metadata |
+| `POST /account/contact-proofs` and `POST /account/contact-proofs/:proofId/confirm` | Request/consume a purpose/account-bound contact proof |
+| `GET /account/proofs/:proofId` and `POST /account/proofs/:proofId/resend` | Owned proof status; explicit resend invalidates the old proof |
+| `POST /auth/recovery/request` and `POST /auth/recovery/confirm` | Enumeration-resistant initiation and proof-bound password recovery |
+
+Contact/recovery proofs use 256-bit random values, hashed verification storage,
+15-minute expiry and bounded attempts. Invitation proofs use a separate 24-hour
+lifetime. Browser links carry the proof in a fragment cleared before submitting
+it in a nonlogged body. Jobs carry delivery IDs only; necessary proof delivery
+material is short-lived Vault-encrypted ciphertext.
+
+Authenticated SMTP requires certificate-verified STARTTLS and no plaintext
+fallback. Configure `KEEPSAVE_APPLICATION_ORIGIN`,
+`KEEPSAVE_IDENTITY_ENABLED` and the private SMTP fields, then record a real
+installation-specific delivery exercise before setting `KEEPSAVE_SMTP_ACCEPTED`.
+A queued job or configured address is not accepted delivery. Report **SMTP
+accepted**, not delivered; uncertain sends are not automatically replayed.
+
+Successful recovery holds current user authority and atomically updates the
+password, consumes the proof, revokes browser/linking sessions, expires retained
+API keys, revokes related leases and denylists persisted agent issuance. Delegated
+OAuth subsequently fails its revoked browser-parent check. A missing revocation
+dependency or failed audit/transaction refuses recovery rather than partially
+resetting the account. Unrelated accounts retain their authority. Reauthenticate
+and create fresh authorized credentials afterward.
+
+Verified-contact invitations and scoped organization offboarding use separate
+current-authority checks. A verified email is not operator authority, device
+attestation or permission to join an arbitrary organization. See
+[setup](design/2026-10-02-harness-neutral-platform/SETUP.md) and
+[runbook](RUNBOOK.md) for the bounded team flow.
+
 ## Real-provider acceptance exercise — pending
 
 1. Record the application origin, provider app/client identifiers, configured callbacks, backend build, migration version, and browser version without secrets.
@@ -125,5 +169,7 @@ Only `github` and `google` are valid providers. Start/complete share a ten-per-m
 5. Exercise cancellation, callback mismatch, cross-tab callbacks, expired flow, reused code/state, swapped provider, wrong-session completion, and stale linking authentication.
 6. Create two human sessions. List/revoke the other session; its next protected request must return 401 while the current one remains usable. Confirm current-session logout and a failed-database logout outcome.
 7. Record the synthetic and real-provider results separately. Synthetic HTTP/JWKS fixtures, structural checks, and a configured button do not establish successful provider UAT.
+
+Use the accepted Field Twist mark and KeepSave branding in the provider consent applications while preserving recognizable native provider logos. Provider-console settings and publication requirements must be verified on the actual selected installation.
 
 Google/GitHub app creation and secrets remain operator setup work. No external consent flow or repository broker connection is claimed complete.

@@ -1,5 +1,7 @@
 # Credential entry-point inventory
 
+> **Inventory boundary, clarified 2026-10-04.** This table is the earlier identity/reliable-vault composition at its stated source revision; “current” below means that core checkpoint. It does not inventory every new harness-neutral entry point. The [maintained architecture](../../ARCHITECTURE.md) and [October checkpoint](../2026-10-02-harness-neutral-platform/README.md) cover delegated OAuth, runs, broker custody, encrypted results and the separate runner. Legacy MCP/OAuth refusals below remain distinct from the new feature-gated protocol services.
+
 Reconciled 2026-10-02 against candidate `8fa8d6e`, integrated into `develop` by
 `1fb27c4` on the renewed sponsor instruction. This inventories custody and authority in the current
 identity/reliable-vault composition. It does not declare preserved legacy

@@ -1,5 +1,7 @@
 # KeepSave <-> Seidr Integration (Planned)
 
+> Historical planned contract. The retained Seidr fixtures require repair and rerun; durable webhook delivery is not supported in the current profile. See [current integration limits](INTEGRATIONS.md), [fixture status](../tests/e2e/seidr/README.md) and [status](STATUS.md).
+
 **Status:** design only. No code ships in v1.1.0. This document defines the
 contract so that when Seidr is ready, both projects already agree on shape.
 

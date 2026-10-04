@@ -1,8 +1,12 @@
-# Flaky Test Tracker (QA 30-day)
+# KeepSave flaky-test tracker
 
 A flaky test — one that passes or fails for reasons unrelated to the code under test — is a *bug*, not an annoyance. Tolerating flakes erodes trust in CI: the first time engineers learn to re-run, they've lost the signal forever.
 
-This is QA / Test Engineer 30-day work item §3 from `docs/ROLES_30_60_90.md`.
+Source audit: October 4, 2026. The Phase-A process below remains guidance; it does
+not establish current staffing, a weekly automation or a green CI run. See the
+[testing chapter](../docs/system/11-testing.md),
+[acceptance ledger](../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+and [documentation hub](../docs/README.md).
 
 ---
 
@@ -12,7 +16,7 @@ A test is flaky if any of the following is true on `main`:
 
 - Failed at least once and passed at least once **without a code change between runs**, OR
 - Pass rate over the last 20 runs is < 99%, OR
-- Has any of these patterns in its body: `time.Sleep` without justification, hard-coded port number, dependence on wall-clock time without `clock` injection, `runtime.NumCPU()`-sensitive assertion, race-conditional setup.
+- A repeated unexplained failure needs triage. `time.Sleep`, shared fixed ports, wall-clock assumptions and race-sensitive setup are risk indicators, not by themselves evidence of a reproduced flake.
 
 ## Tracking surface
 
@@ -20,7 +24,7 @@ Lightweight on-purpose: a checked-in table here, owned per row.
 
 | ID    | Test (package + name)                                    | First seen | Symptom                                  | Owner   | Triage status |
 |-------|-----------------------------------------------------------|------------|-------------------------------------------|---------|---------------|
-| FL-001 | (placeholder — first real flake gets this number)         | YYYY-MM-DD | (e.g., timeout on shared port 8080)        | Backend | Open          |
+| — | No reproduced flake recorded in this tracker | — | Historical placeholder removed; not a claim that the suite is flake-free | QA | Not assessed |
 
 Rows stay until **closed by a code change** (link the commit SHA) or **deleted** (test removed). No row is closed by "ran it three times and it was fine."
 
@@ -77,8 +81,8 @@ The `t.Skip` comment is mandatory and includes the row ID, owner, and due date. 
 ## CI integration
 
 - The `go test` invocation passes `-shuffle=on` and `-race` (already true). This exposes more flakes early.
-- A weekly job runs the full test suite five times. Any test that fails any one of those five runs gets an automatic row added to this file via PR.
-- Coverage of "tests that touched real network" by static analysis (`semgrep` rule); fail PR if found.
+- The proposed weekly five-run job/automatic PR is not present in the checked workflow source. It remains future work; do not claim background capture.
+- Keep real provider calls out of synthetic fixtures. Existing SAST source does not prove an exhaustive real-network prohibition or current remote pass.
 
 ## Anti-patterns (rejected at review)
 
@@ -89,7 +93,7 @@ The `t.Skip` comment is mandatory and includes the row ID, owner, and due date. 
 
 ## Initial census
 
-As of `2026-05-12`, no documented flakes. This is either (a) the test suite is too small to have flakes yet — possible given the inverted pyramid documented in `tests/PYRAMID.md`, or (b) flakes exist but aren't being captured. The weekly 5x job (above) will tell us which.
+As of `2026-05-12`, no documented flakes. This is either (a) the test suite is too small to have flakes yet — possible given the inverted pyramid documented in `tests/PYRAMID.md`, or (b) flakes exist but aren't being captured. This dated observation is historical. The proposed weekly job is still unimplemented; no fresh pass-rate census was run in this documentation audit.
 
 ## References
 

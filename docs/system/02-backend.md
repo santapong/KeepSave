@@ -1,70 +1,67 @@
 # 2. Backend architecture
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
 
-## Composition and startup
+## Composition and process ownership
 
-`backend/cmd/server/main.go` loads validated configuration, opens the selected
-SQL database, applies additive migrations from the on-disk tree or embedded fallback, resolves the wrapping key,
-constructs repositories/services and enables database-backed human sessions.
-On PostgreSQL it wires the versioned vault and fails startup when active projects
-have not been explicitly baselined. `api.NewRouter(api.Dependencies{...})` is the
-typed composition contract; `SetupRouter` remains a fixture/legacy adapter.
-CoreRelease is enabled by the application composition.
+[`cmd/server`](../../backend/cmd/server/) loads exported configuration, opens SQL,
+applies additive migrations, obtains the wrapping key and constructs typed
+[`api.Dependencies`](../../backend/internal/api/router.go). The positional
+`SetupRouter` remains a legacy/fixture adapter. PostgreSQL startup refuses active
+vault projects without explicit journal baseline enrollment. The restricted
+application composition keeps API-host connector execution/builds disabled.
 
-The core profile deliberately refuses unfinished intelligence, enterprise SSO,
-policy metadata, legacy OAuth issuance, event replay, plugin mutation, webhook
-automation and MCP execution. Connector building is disabled. Retained source
-files do not imply the production API executes arbitrary tools.
+| Binary | Responsibility |
+|---|---|
+| `server` | Public application API/MCP; optional dedicated private mTLS runner listener. |
+| `keepsave-worker` | Trusted proof delivery, audit publication, reminders and opted-in backup maintenance. |
+| `keepsave-operator` | Operator grants keyed by immutable user ID; no email-based global authority. |
+| `keepsave-vault` | Trusted-host baseline, bundle verification and isolated recovery. |
+| `keepsave` | Existing API CLI plus read-only operator `doctor`. |
+| `keepsave-harness` | Native package export, metadata/digest check and safe unpack. |
+| `keepsave-runner` | Enrolled supervisor on a separate rootless Linux host. |
+| `keepsave-connector` | Bounded connector using only its per-attempt Unix relay. |
 
-The server has lifecycle goroutines for existing audit retention, database-pool
-metrics and token-denylist maintenance. Scheduled backups use the separate
-`cmd/keepsave-worker` binary, not an API goroutine. `cmd/keepsave-operator` enrolls
-an immutable user ID for operator authority; email-derived administration is
-rejected. `cmd/keepsave-vault` performs explicit baseline, encrypted verification
-and isolated recovery on a trusted host. None is an HTTP administration endpoint.
+Operator/recovery binaries are explicit trusted-host commands, not remote admin
+endpoints. The supervisor holds its enrollment key and container-engine access
+outside connector containers.
 
-## Request and authority path
+## Module boundaries
 
-Middleware enforces transport/body limits, request logging/redaction, trusted
-proxies, origins, rate limits, metrics and tracing. Authentication resolves the
-person or API key. Human admission checks current stored session authority;
-legacy untracked human JWTs require reauthentication. Project and scope guards
-reject early; the authorized vault service rechecks stored resource authority
-before decryption or mutation. A valid token or known resource ID is insufficient.
+| Package | Ownership |
+|---|---|
+| `internal/policy`, `internal/authority` | Shared decision vocabulary, stored authority and ordered database barriers. |
+| `internal/identity`, existing auth adapters | Accounts, sessions, verified contacts, method safety, proofs and scoped team changes. |
+| `internal/vault` | Value/key custody, revisions, lifecycle, recovery and ephemeral encrypted payloads. |
+| `internal/service/promotion_vault.go` | Existing promotion adapted to authorized vault transactions. |
+| `internal/auditview`, `internal/jobs` | Safe audit read/export and durable fenced work. |
+| `internal/mcpauth`, `internal/mcpgateway` | Delegated OAuth and stateless MCP translation. |
+| `internal/runs`, `internal/broker` | Grants, budgets, attempts/results and typed provider calls. |
+| `internal/automation`, `internal/harness` | Immutable source/profile/package governance and native rendering. |
+| `internal/runner` | Restricted supervisor/relay; no database, vault or provider credentials. |
 
-Current project roles come from personal ownership only while organization is
-NULL, otherwise current organization membership. API keys use their stored owner
-and project scope; agent tokens use live parent lineage. Database/session/policy
-failure never produces a cached allow fallback. Already-admitted work may finish.
+Legacy `internal/service` and `internal/repository` adapters remain where a
+capability has not fully moved. Narrow ports preserve compatibility without a
+second permission evaluator. Handlers translate requests; transport and harness
+adapters do not perform SQL, decryption or process execution. Existing exceptions
+are bounded by [`boundaries_test.go`](../../backend/internal/architecture/boundaries_test.go)
+and cannot expand.
 
-## Module direction
+## Admission and concurrency
 
-`internal/policy` is transport-independent; `internal/vault` and `internal/jobs`
-use ports and own their invariants. Existing `internal/service` and
-`internal/repository` are migration adapters. Typed actions and stored-resource
-resolution are shared across transports. Only vault/broker custody may obtain
-new credential material; only the future isolated runner executes connectors.
-Legacy exceptions are explicit in the architecture boundary test and credential
-inventory, and must not expand.
+Middleware validates transport, origin, body limits, logging, proxies and
+credentials. Authorized services reconstruct resource ownership and check current
+session, membership, scope, parent lineage, expiry and revocation under database
+barriers. The lock contract orders known humans, organizations/projects,
+membership state, sessions/delegations, provider/workload records, runs/attempts,
+approvals/vault and finally audit head. Intended lock modes are selected before
+acquisition; discovery is revalidated without network work in the transaction.
+Ownership drift currently fails closed; bounded automatic rediscovery is future
+work, not a delivered retry guarantee.
 
-The current source has not been completely reorganized into the target modules.
-Move a capability when its authorized service, transaction boundary, handler
-contract and real-database failure tests are complete. Do not introduce a generic
-repository/interface for every model or duplicate authorization in MCP/CLI/jobs.
-See [architecture](../ARCHITECTURE.md) for the ownership map and future slices.
-
-## Configuration and operational limits
-
-`config.Load()` reads exported process environment and does not parse `.env`.
-A copied dotenv file alone is insufficient for direct Go startup; use a trusted
-shell-compatible environment loader or explicit exported variables. Compose
-handles its own interpolation/env files. Use `backend/.env.example`, `backend/internal/config/config.go`,
-`docs/SOCIAL_LOGIN_SETUP.md` and the
-[self-hosted reference](../../deploy/self-hosted/README.md) as the current source
-for exact variables. Production rejects the committed development key, short JWT
-secret, wildcard CORS, insecure PostgreSQL DSN and deprecated administrator-email
-configuration. Vault Transit is the reference production wrapping-key source;
-environment keys are for disposable development. AWS/GCP adapters remain unwired.
-These checks do not prove TLS deployment, least-privilege database operation,
-capacity, outage recovery or two-replica correctness.
+`config.Load()` reads process environment, not dotenv implicitly. See
+[`config`](../../backend/internal/config/), [setup](../design/2026-10-02-harness-neutral-platform/SETUP.md)
+and the [control-host reference](../../deploy/self-hosted/README.md). Production
+refuses known development keys, short JWT secrets, wildcard CORS, insecure
+PostgreSQL settings and deprecated administrator-email configuration. New
+capabilities default off; configured components are not accepted installations.

@@ -1,170 +1,158 @@
-# KeepSave architecture and dependency map
+# KeepSave architecture
 
-> Historical/core baseline view. The 2026-10-02 harness-neutral working-tree [implementation checkpoint](design/2026-10-02-harness-neutral-platform/README.md) supersedes single-harness and unimplemented-platform descriptions below. This file is retained as context, not current release evidence.
+KeepSave is a **Go/Gin modular monolith with PostgreSQL and a trusted worker**.
+It provides an encrypted vault and a harness-neutral access core. This describes
+the integrated **source candidate**, reconciled 4 October 2026 against
+`6684aca`; it is not a production qualification. See [status](STATUS.md),
+[visual architecture](ARCHITECTURE_VIEWS.md) and the
+[implementation/evidence checkpoint](design/2026-10-02-harness-neutral-platform/README.md).
 
-Reconciled 2026-10-02 (Asia/Bangkok), unreleased core candidate. Source presence,
-local verification, independent review and production acceptance are separate
-states. The [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md)
-is the current evidence index; older SVG architecture views describe legacy
-components and are not proof of isolation or supported integrations.
+![KeepSave container and host boundaries](diagrams/c4-2-container.svg)
 
-## Current application and trust boundaries
+## Two credential contracts
+
+Ordinary vault APIs deliberately return authorized plaintext to Web, CLI, SDK,
+widget and CI callers. The GitHub tool broker instead authenticates structured
+provider operations itself. The connector and model receive permitted results,
+**never the GitHub token**. Sign-in OAuth, browser sessions, delegated MCP tokens,
+agent leases, provider credentials and runner identity remain separate.
 
 ```mermaid
 flowchart LR
-    U[Browser / CLI / SDK] -->|HTTPS and scoped identity| E[TLS reverse proxy]
-    E --> API[Go / Gin API]
-    API --> ID[Identity and live session checks]
-    API --> S[Authorized services and compatibility adapters]
-    S --> P[Policy port / stored resource authority]
-    S --> V[Versioned vault]
-    V --> C[AES-256-GCM / external wrapping key]
-    S --> DB[(PostgreSQL)]
-    V --> DB
-    W[Trusted backup worker] --> P
-    W --> V
-    W --> DB
-    W --> B[Private encrypted backup storage]
-    CLI[Trusted operator / recovery CLI] --> DB
-    CLI --> C
+    H[Codex / Hermes / future clients] --> M[Stateless MCP adapter]
+    U[Web / CLI / SDK] --> S[Authorized application services]
+    M --> S
+    S --> P[Current authority and policy]
+    S --> D[(PostgreSQL runs / audit / outbox)]
+    R[Separate enrolled runner] -->|mTLS claim and complete| S
+    C[Digest-pinned connector] -->|Unix relay| R
+    R -->|Typed attempt ticket| B[Trusted broker]
+    B --> P
+    B --> V[Vault custody]
+    B -->|Authenticated bounded reads| G[GitHub App API]
+    B --> D
+    S --> E[Reauthorized status and results]
 ```
 
-The API and trusted worker can decrypt vault values and belong to the control
-host's trust domain. A compromised control host or wrapping-key provider is not
-contained by database encryption. Metadata, identities and permissions are not
-all encrypted; sensitive vault values and wrapped key material are. API reads
-and exports return authorized plaintext to the caller. The later broker has a
-different custody contract and must not be inferred from those vault APIs.
+The diagram shows contracts, not a complete network graph. All decrypt-capable
+API/worker/broker components belong to the trusted control host. Database
+ciphertext cannot contain a compromised control host or wrapping-key source.
+Permitted repository content reaches the client's configured model. Local
+packages and administrator settings do not attest an unrestricted device.
 
-Human authentication verifies a stored active session on admission. Credential
-services additionally resolve the stored resource and current authority before
-access. Personal projects derive administrator authority from their stored
-owner; organization-bound projects derive it from current membership, including
-for the original owner and their API keys. Demotion, removal, expiry and
-revocation deny subsequent admissions. Already-admitted or dispatched work can
-complete and returned data cannot be recalled.
+## Current ownership and extension ports
 
-Marketing remains a separate static site at `keepsave.draveniq.dev`. The intended
-application is same-origin at `app.keepsave.draveniq.dev`. The
-[reference control-host bundle](../deploy/self-hosted/README.md) is not deployed
-and does not establish the future runner topology, two-replica correctness or
-availability.
+| Ownership | Current packages | Responsibility |
+|---|---|---|
+| Identity/current authority | `identity`, `auth`, `authority`, legacy `service`/`repository` adapters | Stable provider identities, tracked human sessions, contacts/proofs, membership epochs and ordered barriers |
+| Shared policy | `policy` | Transport-independent principal, resource, decision and permission vocabulary |
+| Vault/promotion | `vault`, `crypto`, promotion adapters in `service` | AES-GCM custody, immutable revisions, retained keys, recovery and protected environment mutation |
+| Runs | `runs` | Client-bound admission, limits, idempotency, attempts, cancellation and receipts |
+| Broker | `broker` | Stored bindings, GitHub App custody, typed bounded provider requests and ticket redemption |
+| Automation/native adapters | `automation`, `harness` | Immutable skill/profile/package versions and native export/check |
+| MCP/OAuth adapters | `mcpgateway`, `mcpauth` | Stateless protocol translation, discovery, consent and delegated token families |
+| Audit/jobs | `auditview`, `events`, `jobs`, transactional repository append | Safe read models, consistent exports, outbox, fencing and external-effect state |
+| Runner/operator | `runner`, `diagnostics`, `cmd/*` | Enrolled supervisor, read-only doctor, explicit recovery and operator controls |
 
-## Package ownership and migration pattern
+`api.Dependencies` wires typed services. Handlers translate requests; application
+services resolve stored ownership, apply common authority and commit changes.
+Modules communicate through narrow consumer-owned ports. Existing adapters are
+migrated one capability at a time. Explicit legacy exceptions in
+[boundary tests](../backend/internal/architecture/boundaries_test.go) may not grow.
+Native harness adapters contain no SQL, provider decryption or policy decisions.
+Provider adapters accept stored targets and typed operations, not arbitrary URLs
+or caller-selected headers.
 
-```text
-cmd/server                  typed composition; API lifecycle and startup checks
-cmd/keepsave-worker          trusted durable vault maintenance; no connector execution
-cmd/keepsave-operator        explicit operator identity grants; no HTTP surface
-cmd/keepsave-vault           baseline, verification and isolated recovery
-cmd/keepsave                 existing API client / compatibility adapter
-internal/api                transport handlers, authentication and early rejection
-internal/service            existing authorized services and migration adapters
-internal/repository         existing identity/resource stores, transactions and audit
-internal/policy             transport-independent actions, principals and policy port
-internal/vault              journal, key continuity, backup and recovery use cases
-internal/jobs               leases, fences, retry and uncertain-effect state
-internal/crypto              AES-GCM and wrapping-key providers
-```
+Profiles are portable; **runs belong to one actor and registered client**. Codex
+and Hermes are qualification candidates using separate delegations/packages/runs.
+Future harnesses implement the same ports and need exact-version evidence; no
+universal support is claimed. The pilot registry accepts one instruction-only
+`SKILL.md` per source artifact; richer reference trees and Skills over MCP remain
+deferred.
 
-The target is a modular monolith, not a rewrite or a service per feature. Identity,
-policy, vault, promotion, broker, MCP, automation, audit and jobs own their
-invariants. REST, MCP, CLI and jobs use the same authorized application services.
-Consumer-owned ports cross module boundaries; one module must not use another
-module's repositories. Local changes join mutation, immutable revision, required
-audit and outbox in one database transaction. External effects are represented by
-durable attempts; an unknown outcome cannot be treated as a safe retry.
+## Admission and concurrency
 
-`api.Dependencies` is the current composition contract; the positional router
-constructor remains a compatibility adapter. Existing service/repository code is
-migrated a use case at a time. The source still contains legacy decryption and
-process-execution adapters. The core composition refuses unfinished AI, policy
-metadata, enterprise SSO, webhooks, legacy OAuth issuance, connector builds and
-MCP execution rather than claiming those adapters meet the new boundary.
+Every protected operation reconstructs stored resource, identity, membership,
+parent delegation, policy, binding, approved versions, expiry and revocation.
+Deny overrides allow. Missing authoritative state refuses access. A run ID,
+client name, prompt, skill or annotation cannot create permission.
 
-`internal/architecture/boundaries_test.go` checks policy isolation, vault/jobs
-ports, decryption custody and process imports. Its explicit legacy exceptions
-are an inventory to reduce, not approval for new bypasses. Module boundaries do
-not by themselves prove runtime authority, container isolation or live-client
-interoperability; actual-router PostgreSQL tests cover the core permission and
-transaction matrix.
+The ordered barrier is: sorted represented humans; organizations/projects;
+member authority; sessions/families/parent grants; connections/bindings/workloads;
+runs/budgets/attempts; approvals/vault records; audit head last. Discovery is
+revalidated under locks. Changed ownership fails closed; automatic bounded
+rediscovery retries are not implemented. Network calls occur outside the locked
+transactions. Organization offboarding advances a scoped member epoch; rejoining
+does not restore old grants, and unrelated organizations/personal projects/global
+sessions remain distinct.
 
-Template metadata uses current workspace membership for reads/application and
-current admin for mutations; personal templates use their creator. Removed
-workspace creators have no ownership bypass. A tracked session, metadata change,
-required audit and local template event share a transaction. Core global
-publication is refused while builtins remain available. Template default values
-are ordinary configuration, not encrypted vault storage; use placeholders. Vault
-application encrypts the permitted values through the shared journal.
+Admission persists the operation and required audit before credentials or external
+work. Local state, immutable revision, required audit and outbox commit together.
+Revocation denies admissions after commit. Already-admitted provider work may
+finish; result delivery still requires a separate current-authority check. A
+completed external read can be unavailable for retrieval without being rewritten
+as a cancelled provider outcome.
 
-Lease and agent-token create/revoke also require current principal/parent/
-membership checks and join their persisted mutation, required audit and local
-identity event. They delegate vault read authority; they are not broker runs.
+## Vault consistency and recovery
 
-## Consistency, deletion and recovery
+PostgreSQL journal adapters cover CRUD, import, templates, promotion, rollback,
+restoration and key rotation. Baseline enrollment labels existing ciphertext;
+it does not invent missing history. Expected revisions reject stale changes.
+Deletion retains tombstones and immutable audited identity fields. Keys remain
+while retained ciphertext needs them; automatic history/key purge is disabled.
 
-PostgreSQL credential mutation adapters cover CRUD, imports, template application,
-promotion, rollback, key rotation and version restoration. Current values,
-immutable revisions and snapshots reference retained wrapped key versions.
-Baseline enrollment labels existing ciphertext without inventing earlier history.
-A coordinated cutover drains old writers; startup refuses unenrolled active
-projects. Applied migrations are additive and may not be edited.
+Recovery version 2 includes lifecycle metadata and accepts legacy version 1
+bundles. This is **new-reader compatibility**, not permission to use old binaries
+with new writers. Recovery requires external material and a fresh isolated target;
+current-member mapping is explicit. It restores no sessions, grants, tokens,
+approvals or ephemeral operation results. Selected live restoration applies only
+reviewed records with expected revisions and does not resurrect deleted records.
 
-Secret deletion retains a journal tombstone. Project DELETE retains a project
-tombstone and closes active authority. Current access excludes deleted projects;
-immutable audited IDs survive deletion without rewriting hashed event fields.
-No automatic history or key purge is implemented. Restore appends a new revision,
-requires the current expected revision and does not undelete a record.
+Daily scheduling/retention is gated on an installation recovery drill: 02:00 UTC,
+30 verified scheduled bundles and at least two verified copies. Manual/pre-upgrade
+bundles require explicit deletion. Uncertain external effects remain visible and
+are not silently replayed. SMTP proof delivery stores only IDs in jobs and opens
+ephemeral encrypted material in the trusted adapter. SMTP acceptance is distinct
+from mailbox delivery. Contact/recovery proofs expire after 15 minutes; invitation
+proofs currently expire after 24 hours.
 
-Encrypted backups include recoverable vault records and required key references.
-Verification and isolated recovery use external recovery material. Selected live
-restore starts from a metadata diff and does not restore accounts, sessions,
-grants, approvals or deleted records. Scheduling defaults off until a fresh
-operator-confirmed recovery drill; the trusted worker then creates daily 02:00
-UTC bundles, keeps thirty verified scheduled bundles and at least two verified
-copies, and leaves manual/pre-upgrade artifacts untouched. Retention records an
-audited delete-pending state before unlinking; failures remain visible.
+SQLite and MySQL retain bounded legacy compatibility. **New journal/platform
+transaction guarantees are PostgreSQL-only** until equivalent acceptance passes.
 
-SQLite is a local/legacy option. MySQL 8.4 has bounded shipped-migration,
-identity/session/scoped CRUD/batch and workspace-role acceptance; it does not
-establish journal parity. Versioned vault and durable jobs are PostgreSQL-only;
-core history/recovery routes refuse unsupported dialects with 503. An authorized
-corrupt current secret returns a safe 500, not a misleading missing-record 404.
+## Bounded tool execution
 
-## Ordered feature delivery
+Preparing runs have no usable grant. The broker resolves the permitted reference,
+then a second transaction revalidates authority and immutable digests before
+activation on a repository/commit. Defaults: one non-production repository,
+ten minutes, 30-second provider deadline, four-MiB final response, 100 operations,
+32-MiB cumulative output and two concurrent operations. Extending requires a new
+run. Stored repository/commit authority prevents mutable-reference fallback.
 
-1. **Finish the current identity/vault release gate:** consolidated checks,
-   independent Security/Tech Lead review, Google/GitHub applications and real
-   sign-in UAT, external backup/isolated recovery and operational acceptance.
-2. **M2 — MCP and resource-bound OAuth:** exact official SDK pin, discovery,
-   pre-registered Codex public client with S256 PKCE, browser consent, atomic code
-   redemption, refresh replay detection, installation-qualified tool identities,
-   schema digests, bounded calls and real supported-Codex contract tests. Start
-   with a synthetic tool. Social login is not this OAuth server.
-3. **M3 — broker and isolated GitHub pilot:** explicit provider bindings, one
-   approved repository/commit per ten-minute run, current policy at admission and
-   broker use, signed enrolled workload identity and a vetted digest-pinned
-   connector. The broker makes authenticated GitHub requests; the connector and
-   model never receive the GitHub token. A separate rootless Linux runner has no
-   host home, database/vault keys, container socket or direct GitHub network path.
-4. **M4 — private skills and managed Codex:** immutable instruction-only skill
-   versions and manifests, exact approvals, pinned harness profiles, compatibility
-   refusal, configuration export and verified administrator requirements. A
-   prompt or client-reported harness name cannot grant authority. Native skill
-   installation is the pilot; Skills over MCP requires negotiated client support.
-5. **M5 — measured self-hosted team operation:** separate runner host, coordinated
-   migrations, database-backed admission limits, durable webhooks, restart/outage/
-   restore/upgrade/two-replica tests, runbooks and measured capacity/recovery.
+Operations use caller/run/request-key idempotency and canonical digests. Results
+are short-lived encrypted records, excluded from recovery/export/log/outbox
+payloads and inaccessible after run expiry/revocation. Explicit retry creates a
+linked attempt; uncertain dispatch is not blindly replayed. Status polls wait at
+most two seconds. Explicit operation/run cancellation is independent of native
+client interruption.
 
-M0 → M1/M2 → M3 → M4 → M5 remains the dependency order. Recovery acceptance is
-required before production; M2 synthetic protocol work can proceed after the
-shared authorization contract while remaining recovery work is completed.
-Incremental additions after the first team pilot can include repository-review
-profiles, connection diagnostics and receipt export before more providers or
-harnesses. Model-key relaying, arbitrary builds, marketplaces, device attestation,
-agent hosting, cloud-KMS expansion and multi-region operation remain deferred.
+A separate rootless Podman supervisor holds enrollment identity and engine access
+outside connector containers. Each connector receives only its per-attempt Unix
+relay. The private listener uses TLS 1.3 and mTLS; the public proxy returns 404 for
+runner routes. Reference restrictions are read-only filesystem, no IP network,
+64-MiB scratch, one CPU, 256-MiB memory and 32 processes. The current local host
+lacks CPU delegation and preflight refuses it; actual isolation is **unqualified**.
 
-See [approved program](design/2026-09-28-backend-platform/README.md),
-[core ADR](adr/0028-core-identity-and-vault-release.md),
-[credential entry points](design/2026-09-28-backend-platform/CREDENTIAL_ENTRYPOINTS.md)
-and [current threat model](THREAT_MODEL.md).
+## Deployment and release gates
+
+`keepsave.draveniq.dev` remains the static landing. The intended full application
+is same-origin at `app.keepsave.draveniq.dev`; the control/runner bundles are
+installation references. New admission flags default off; kill switches preserve
+authorized status, cancellation, revocation, audit and recovery.
+
+The first outstanding work is real Google/GitHub/SMTP acceptance, reviewed
+entrypoint coverage, native client qualification, disposable GitHub App and runner
+isolation, installation recovery/fault/upgrade drills, independent Security/TL
+review and exact-revision remote CI. No Kubernetes requirement, device-attestation,
+capacity or availability claim is introduced. See [roadmap](../Roadmap.md),
+[setup](design/2026-10-02-harness-neutral-platform/SETUP.md) and
+[threat model](THREAT_MODEL.md).

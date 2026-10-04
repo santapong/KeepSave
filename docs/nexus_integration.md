@@ -1,5 +1,7 @@
 # KeepSave + NEXUS Integration Guide
 
+> Historical proposed integration. API-host execution, public marketplace, A2A delivery and legacy OAuth issuance below are not accepted current capabilities. See [integrations](INTEGRATIONS.md) and [current architecture](ARCHITECTURE.md); qualify each retained client example independently.
+
 This guide covers how to use KeepSave to manage secrets, provide OAuth 2.0 authentication, and host MCP servers for [NEXUS](https://github.com/santapong/Nexus) — an Agentic AI Company-as-a-Service platform.
 
 ## Table of Contents

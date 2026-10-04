@@ -1,5 +1,7 @@
 # KeepSave — Go-To-Market & Testing Strategy (2026-06)
 
+> **Historical strategy, clarified 2026-10-04.** This June research includes explicit partial/refuted/unverifiable claims; its market numbers, positioning instructions and test recommendations have not been revalidated by this documentation update. Do not reuse them as current marketing or completed acceptance. Use the [current brand guide](../BRANDING.md), [documentation index](../README.md) and [implementation/acceptance checkpoint](../design/2026-10-02-harness-neutral-platform/README.md) for current product statements. Original observations, metrics and caveats are retained.
+
 > **How this was produced:** the [`/workflow`](../../.claude/skills/workflow/SKILL.md) skill ran a loop-engineered research harness ([`docs/HARNESS_ENGINEERING.md`](../HARNESS_ENGINEERING.md)) — **37 agents · 16 research streams · 16 claims fact-checked**, in three phases (Research → Verify → Synthesize), opus for judgement/synthesis and sonnet for breadth-gathering. Research streams read the in-repo competitor dossiers (`docs/research/competitors/`) and the codebase, then web-searched for current data.
 >
 > **Classification:** Type-3 (research/strategy). No code changed by this document. Any recommendation touching crypto/auth/promotion/embed remains gated by the [ADLC](../ADLC.md).
@@ -690,7 +692,7 @@ I now have everything needed. The CI is a single SHA-pinned least-privilege pipe
 | Where does it live? | **`tests/robot/` inside this repo** (integrated), mirroring the existing `tests/e2e/seidr/` precedent (§7). Not a separate repo, not a top-level `/qa`. |
 | What's the real cost? | A third toolchain (Python + Playwright browser binaries) in CI, and the cross-origin `postMessage` harness plumbing (§5). Classified **Type-2** under `CLAUDE.md`. |
 
-The single most important framing: **RF is the *tip* of the pyramid, not a second copy of the middle.** `tests/PYRAMID.md` already diagnoses KeepSave as an *inverted* pyramid — heavy unit coverage in crypto/auth, "essentially none for state-mutating endpoints" at integration, and "minimal coverage" at E2E ([`tests/PYRAMID.md:40-46`](tests/PYRAMID.md)). RF's job is to thicken the very top with black-box, human-readable acceptance scenarios — not to relitigate what Go already gates.
+The single most important framing: **RF is the *tip* of the pyramid, not a second copy of the middle.** `tests/PYRAMID.md` already diagnoses KeepSave as an *inverted* pyramid — heavy unit coverage in crypto/auth, "essentially none for state-mutating endpoints" at integration, and "minimal coverage" at E2E ([`tests/PYRAMID.md:40-46`](../../tests/PYRAMID.md)). RF's job is to thicken the very top with black-box, human-readable acceptance scenarios — not to relitigate what Go already gates.
 
 ---
 
@@ -698,14 +700,14 @@ The single most important framing: **RF is the *tip* of the pyramid, not a secon
 
 | Layer | Tooling today | Coverage | Source |
 |---|---|---|---|
-| Unit (crypto/auth/promotion) | Go `testing`, table-driven, benchmarks | Strong; crypto is "strongest coverage" | [`tests/PYRAMID.md:13-26`](tests/PYRAMID.md) |
-| Handler integration | Go `httptest` | **Dangerously thin** — `api` package: 30 code files, 3 test files, "NO handler-level integration tests" | [`tests/PYRAMID.md:15`](tests/PYRAMID.md) |
-| Frontend / widget | Vitest + Testing Library + jsdom | Component-level only; no real browser, no real cross-origin, no real shadow boundary | [`frontend/package.json:40-54`](frontend/package.json) (verified: no Playwright/Selenium/RF present) |
-| E2E | One Go tester + `docker-compose` (Seidr harness) | **One** scenario: register → login → create project → store secret → mint API key → fetch secret | [`tests/e2e/seidr/README.md:9-18`](tests/e2e/seidr/README.md) |
+| Unit (crypto/auth/promotion) | Go `testing`, table-driven, benchmarks | Strong; crypto is "strongest coverage" | [`tests/PYRAMID.md:13-26`](../../tests/PYRAMID.md) |
+| Handler integration | Go `httptest` | **Dangerously thin** — `api` package: 30 code files, 3 test files, "NO handler-level integration tests" | [`tests/PYRAMID.md:15`](../../tests/PYRAMID.md) |
+| Frontend / widget | Vitest + Testing Library + jsdom | Component-level only; no real browser, no real cross-origin, no real shadow boundary | [`frontend/package.json:40-54`](../../frontend/package.json) (verified: no Playwright/Selenium/RF present) |
+| E2E | One Go tester + `docker-compose` (Seidr harness) | **One** scenario: register → login → create project → store secret → mint API key → fetch secret | [`tests/e2e/seidr/README.md:9-18`](../../tests/e2e/seidr/README.md) |
 
-The Seidr harness is the apex today, and it proves exactly one contract. Its own README is explicit that it does **not** prove other user stories — though note the precise scope of that disclaimer (it concerns the *Seidr runtime*: circuit breaker, TTL cache, SLO ledger, key-rotation observation — [`tests/e2e/seidr/README.md:55-67`](tests/e2e/seidr/README.md)), **not** a blanket statement about KeepSave's promotion/approval/rotation user stories.
+The Seidr harness is the apex today, and it proves exactly one contract. Its own README is explicit that it does **not** prove other user stories — though note the precise scope of that disclaimer (it concerns the *Seidr runtime*: circuit breaker, TTL cache, SLO ledger, key-rotation observation — [`tests/e2e/seidr/README.md:55-67`](../../tests/e2e/seidr/README.md)), **not** a blanket statement about KeepSave's promotion/approval/rotation user stories.
 
-> **Fact-check flag (claim mis-cited in research).** One research item asserted that "all other multi-step user stories are untested at the acceptance level (**confirmed by README.md 'What this test does NOT prove' section**)." The *conclusion* is correct — `tests/e2e/` contains only the Seidr harness, and no Playwright/Cypress/acceptance suite exists anywhere — **but the cited evidence is wrong.** That README section is scoped to the Seidr runtime, not to KeepSave's user stories. The claim that the gap exists is backed by [`tests/PYRAMID.md:40-46`](tests/PYRAMID.md) ("minimal coverage" / "essentially none"), not by the Seidr README. Treat the *gap* as real; treat the *attribution* as corrected here.
+> **Fact-check flag (claim mis-cited in research).** One research item asserted that "all other multi-step user stories are untested at the acceptance level (**confirmed by README.md 'What this test does NOT prove' section**)." The *conclusion* is correct — `tests/e2e/` contains only the Seidr harness, and no Playwright/Cypress/acceptance suite exists anywhere — **but the cited evidence is wrong.** That README section is scoped to the Seidr runtime, not to KeepSave's user stories. The claim that the gap exists is backed by [`tests/PYRAMID.md:40-46`](../../tests/PYRAMID.md) ("minimal coverage" / "essentially none"), not by the Seidr README. Treat the *gap* as real; treat the *attribution* as corrected here.
 
 ---
 
@@ -713,11 +715,11 @@ The Seidr harness is the apex today, and it proves exactly one contract. Its own
 
 **Tooling:** [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests) (RequestsLibrary) + [`robotframework-jsonlibrary`](https://github.com/robotframework-thailand/robotframework-jsonlibrary).
 
-KeepSave's API is JSON-over-HTTP with header auth, which maps 1:1 onto RequestsLibrary's canonical pattern (`Create Session` → extract token from login JSON → put it in an `Authorization` / `X-API-Key` header dict → `POST/GET On Session` → assert status + body). The auth model is split between a JWT bearer path and a scoped-API-key path — both routing through the same retrieval logic, which is exactly what makes black-box round-trips meaningful (this is the property the Seidr Go tester already exploits, [`tests/e2e/seidr/README.md:46-51`](tests/e2e/seidr/README.md)).
+KeepSave's API is JSON-over-HTTP with header auth, which maps 1:1 onto RequestsLibrary's canonical pattern (`Create Session` → extract token from login JSON → put it in an `Authorization` / `X-API-Key` header dict → `POST/GET On Session` → assert status + body). The auth model is split between a JWT bearer path and a scoped-API-key path — both routing through the same retrieval logic, which is exactly what makes black-box round-trips meaningful (this is the property the Seidr Go tester already exploits, [`tests/e2e/seidr/README.md:46-51`](../../tests/e2e/seidr/README.md)).
 
-**Why this is the highest-leverage RF work:** it directly fills the gap `tests/PYRAMID.md` flags as the thinnest, highest-blast-radius layer. The negative-auth surface is already specified as a **12-endpoint × 11-attacker matrix** in [`tests/NEGATIVE_AUTH_PLAN.md:15-64`](tests/NEGATIVE_AUTH_PLAN.md) (E1–E12 × A1–A11), and that document is the natural backbone for the RF suite's negative cases.
+**Why this is the highest-leverage RF work:** it directly fills the gap `tests/PYRAMID.md` flags as the thinnest, highest-blast-radius layer. The negative-auth surface is already specified as a **12-endpoint × 11-attacker matrix** in [`tests/NEGATIVE_AUTH_PLAN.md:15-64`](../../tests/NEGATIVE_AUTH_PLAN.md) (E1–E12 × A1–A11), and that document is the natural backbone for the RF suite's negative cases.
 
-**Critical boundary (do not get this wrong):** The 132-cell matrix is **assigned to Go** (`httptest`, sub-millisecond, in-process — pseudocode given at [`tests/NEGATIVE_AUTH_PLAN.md:66+`](tests/NEGATIVE_AUTH_PLAN.md)). RF must **not** absorb it. Re-running 132 rejection checks over `docker-compose` would be ~100–200× slower for zero new signal and would invite the flakiness `tests/FLAKY.md` exists to prevent. RF's negative coverage is limited to the handful of **story-level** negatives where multi-step context is load-bearing — expired token *mid-flow*, wrong-environment key on a promotion, replayed/duplicate promotion — the three negative paths the QA 60-day plan calls for.
+**Critical boundary (do not get this wrong):** The 132-cell matrix is **assigned to Go** (`httptest`, sub-millisecond, in-process — pseudocode given at [`tests/NEGATIVE_AUTH_PLAN.md:66+`](../../tests/NEGATIVE_AUTH_PLAN.md)). RF must **not** absorb it. Re-running 132 rejection checks over `docker-compose` would be ~100–200× slower for zero new signal and would invite the flakiness `tests/FLAKY.md` exists to prevent. RF's negative coverage is limited to the handful of **story-level** negatives where multi-step context is load-bearing — expired token *mid-flow*, wrong-environment key on a promotion, replayed/duplicate promotion — the three negative paths the QA 60-day plan calls for.
 
 ---
 
@@ -734,7 +736,7 @@ this.attachShadow({ mode: 'open' });
 
 Playwright's locators traverse open shadow roots **by default, with no special syntax** ([Playwright locators docs](https://playwright.dev/docs/locators)), and the Browser library inherits this. This is *necessary and sufficient*: had the widget used `mode: 'closed'`, default locators would not reach it, and the only workaround would be monkey-patching `Element.prototype.attachShadow` — confirmed by the Playwright maintainers ("there is nothing in Playwright to allow forcibly entering a closed shadow DOM root", [microsoft/playwright#23047](https://github.com/microsoft/playwright/issues/23047)).
 
-**The widget's stable hooks are all real and reachable** (verified against [`frontend/src/embed/widget.ts`](frontend/src/embed/widget.ts)):
+**The widget's stable hooks are all real and reachable** (verified against [`frontend/src/embed/widget.ts`](../../frontend/src/embed/widget.ts)):
 
 | Purpose | Selector | Verified at |
 |---|---|---|
@@ -748,7 +750,7 @@ Playwright's locators traverse open shadow roots **by default, with no special s
 **Two firm shadow-DOM rules to bake into the suite:**
 
 1. **Never use XPath for widget internals.** "Locating by XPath does not pierce shadow roots" (Playwright docs) — an XPath locator silently stops at the boundary. Use CSS / text / `getByRole` only.
-2. **The open mode is now an implicit testability contract.** If anyone flips the widget to `mode: 'closed'` for hardening, the *entire* Playwright/Selenium E2E approach for the widget breaks. **Record this as an explicit constraint** ([`docs/EMBED_STATE.md`](docs/EMBED_STATE.md) or the widget's ADR / `docs/FOLLOWUPS.md`) so the change is a conscious, reviewed decision rather than a silent regression.
+2. **The open mode is now an implicit testability contract.** If anyone flips the widget to `mode: 'closed'` for hardening, the *entire* Playwright/Selenium E2E approach for the widget breaks. **Record this as an explicit constraint** ([`docs/EMBED_STATE.md`](../EMBED_STATE.md) or the widget's ADR / `docs/FOLLOWUPS.md`) so the change is a conscious, reviewed decision rather than a silent regression.
 
 **Why Browser/Playwright over SeleniumLibrary for *this* widget specifically:** the widget combines *both* shadow DOM *and* cross-origin framing. SeleniumLibrary's WebDriver `getShadowRoot()` path is clunkier for nested shadow content (often forcing `Execute Javascript` to fetch the element first) and is weaker on cross-origin frames — friction on both axes for no upside. *(Confidence: medium — this rests on community reports rather than first-party docs; the open-vs-closed and XPath facts are high-confidence first-party.)*
 
@@ -758,7 +760,7 @@ Playwright's locators traverse open shadow roots **by default, with no special s
 
 The widget's *defining security behavior* is not rendering — it's the ADR-0006 boot sequence and handshake. Verified against source:
 
-- Boot: fetch `GET /api/v1/embed-config/:project_id` (unauthenticated — [`backend/internal/api/router.go:57,67`](backend/internal/api/router.go)); refuse if `embed_policy_enabled` is false or the parent origin isn't in `allowed_origins` ([`keepsave-widget.ts:6-13`](frontend/src/embed/keepsave-widget.ts) `EmbedConfigResponse`).
+- Boot: fetch `GET /api/v1/embed-config/:project_id` (unauthenticated — [`backend/internal/api/router.go:57,67`](../../backend/internal/api/router.go)); refuse if `embed_policy_enabled` is false or the parent origin isn't in `allowed_origins` ([`keepsave-widget.ts:6-13`](../../frontend/src/embed/keepsave-widget.ts) `EmbedConfigResponse`).
 - Handshake: **strict origin equality**, silent drop on mismatch (to deny an attacker a probing oracle), and an outbound target origin that is **never `'*'`**:
 
 ```ts
@@ -768,7 +770,7 @@ if (event.origin !== allowedOrigin) { /* warn + return */ }
 window.parent.postMessage(request, allowedOrigin);
 ```
 
-To exercise this **end-to-end** you must: (1) serve a host page on a **distinct second origin** from `api:8080`/`frontend:3000`; (2) register that origin in the project's allow-list via `PUT /api/v1/projects/:id/embed-config` ([`router.go:101`](backend/internal/api/router.go)); and (3) script the host page to answer the widget's `keepsave-auth-request` with a `keepsave-auth` token. Playwright/Browser handles cross-origin frames well (per-frame contexts; `frameLocator`; the Browser library's `>>>` frame-piercing combinator) — better than Selenium — **but the harness plumbing is the cost**, and it is the only genuinely hard piece of this whole effort.
+To exercise this **end-to-end** you must: (1) serve a host page on a **distinct second origin** from `api:8080`/`frontend:3000`; (2) register that origin in the project's allow-list via `PUT /api/v1/projects/:id/embed-config` ([`router.go:101`](../../backend/internal/api/router.go)); and (3) script the host page to answer the widget's `keepsave-auth-request` with a `keepsave-auth` token. Playwright/Browser handles cross-origin frames well (per-frame contexts; `frameLocator`; the Browser library's `>>>` frame-piercing combinator) — better than Selenium — **but the harness plumbing is the cost**, and it is the only genuinely hard piece of this whole effort.
 
 **Keep the *negative*-origin behavior at the unit layer.** "Assert that nothing happened" (wrong origin → silently dropped, no DOM change) is an inherently weak, slow E2E test. The existing Vitest `auth.test.ts` already covers wildcard-origin refusal, masked-by-default, and `visibilitychange` re-masking on jsdom — that is where these belong. RF E2E should assert the **positive** path: a correctly-configured host completes the handshake and a scoped secret round-trips.
 
@@ -780,8 +782,8 @@ This is a hard boundary, not a guideline. RF asserts only **HTTP status codes, J
 
 | Forbidden in RF | Why | Owned by |
 |---|---|---|
-| Crypto correctness (AES-GCM round-trip, ciphertext bytes, key/nonce length) | Black-box can't see encryption-at-rest; re-implementing duplicates and risks contradicting the gate | Go crypto unit + `go test -fuzz` ([`tests/PYRAMID.md:60,68`](tests/PYRAMID.md): crypto ≥90% line / ≥85% branch) |
-| In-process middleware rejection (the 132-cell matrix) | Parametric, sub-ms `httptest`; 100–200× slower in RF for no new signal | Go ([`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md)) |
+| Crypto correctness (AES-GCM round-trip, ciphertext bytes, key/nonce length) | Black-box can't see encryption-at-rest; re-implementing duplicates and risks contradicting the gate | Go crypto unit + `go test -fuzz` ([`tests/PYRAMID.md:60,68`](../../tests/PYRAMID.md): crypto ≥90% line / ≥85% branch) |
+| In-process middleware rejection (the 132-cell matrix) | Parametric, sub-ms `httptest`; 100–200× slower in RF for no new signal | Go ([`tests/NEGATIVE_AUTH_PLAN.md`](../../tests/NEGATIVE_AUTH_PLAN.md)) |
 | Promotion business rules (env order, override policy, self-approval) | Pure Go logic | Go service tests |
 | Frontend component behavior / DOM logic | Already Vitest; RF over the rendered DOM is fragile for little gain | Vitest (`widget.test.ts`, `PromotionWizard.test.tsx`) |
 | Repository round-trips, audit-chain hash verification | In-process DB harness territory | Go repository tests |
@@ -794,7 +796,7 @@ This is a hard boundary, not a guideline. RF asserts only **HTTP status codes, J
 
 **Recommendation: integrated — `tests/robot/` inside this repo.** Reject a separate repo and a top-level `/qa`.
 
-The decisive precedent is `tests/e2e/seidr/`: a self-contained harness that ships its own [`docker-compose.yml`](tests/e2e/seidr/docker-compose.yml) (builds the backend from `context: ../../../backend` against an ephemeral `postgres:16-alpine`), an isolated Go module under `tester/`, and is run via `docker compose up --build --abort-on-container-exit --exit-code-from tester` ([`tests/e2e/seidr/README.md:24-29`](tests/e2e/seidr/README.md)). A RF suite at `tests/robot/` is the *same shape* with a Python runner.
+The decisive precedent is `tests/e2e/seidr/`: a self-contained harness that ships its own [`docker-compose.yml`](../../tests/e2e/seidr/docker-compose.yml) (builds the backend from `context: ../../../backend` against an ephemeral `postgres:16-alpine`), an isolated Go module under `tester/`, and is run via `docker compose up --build --abort-on-container-exit --exit-code-from tester` ([`tests/e2e/seidr/README.md:24-29`](../../tests/e2e/seidr/README.md)). A RF suite at `tests/robot/` is the *same shape* with a Python runner.
 
 | Option | Verdict | Reasoning |
 |---|---|---|
@@ -826,9 +828,9 @@ The runner targets services by **compose DNS** (`http://api:8080`, `http://front
 
 ### 8. CI wiring — the load-bearing step
 
-> **The gap that proves the point.** `tests/e2e/seidr/` is **not referenced anywhere in `.github/workflows/ci.yml`** (grep for `seidr|e2e|robot|compose` returns *nothing*). The harness exists but nothing runs it — so it can rot silently, violating PYRAMID's own definition-of-done: "It runs in CI. (Locally-only tests rot.)" ([`tests/PYRAMID.md:83`](tests/PYRAMID.md)). **Lesson for RF: adding the suite and gating on the suite are two distinct deliverables, and the second is the one that matters.**
+> **The gap that proves the point.** `tests/e2e/seidr/` is **not referenced anywhere in `.github/workflows/ci.yml`** (grep for `seidr|e2e|robot|compose` returns *nothing*). The harness exists but nothing runs it — so it can rot silently, violating PYRAMID's own definition-of-done: "It runs in CI. (Locally-only tests rot.)" ([`tests/PYRAMID.md:83`](../../tests/PYRAMID.md)). **Lesson for RF: adding the suite and gating on the suite are two distinct deliverables, and the second is the one that matters.**
 
-CI today is a single least-privilege pipeline: top-level `permissions: contents: read`, every `uses:` pinned to a full commit SHA with a tag comment ([`.github/workflows/ci.yml:9-25`](.github/workflows/ci.yml)). A RF job is a clean additive fit:
+CI today is a single least-privilege pipeline: top-level `permissions: contents: read`, every `uses:` pinned to a full commit SHA with a tag comment ([`.github/workflows/ci.yml:9-25`](../../.github/workflows/ci.yml)). A RF job is a clean additive fit:
 
 ```yaml
   e2e-robot:
@@ -894,11 +896,11 @@ CI today is a single least-privilege pipeline: top-level `permissions: contents:
 | Widget uses `mode: 'open'` at `keepsave-widget.ts:45`; this is what makes it pierceable | **High** | Direct read of source; corroborated by `docs/system/08-embed-widget.md`, `THREAT_MODEL.md`, Playwright #23047 |
 | Playwright/Browser pierces open shadow roots by default; XPath does not; closed is unsupported | **High** | First-party Playwright docs + maintainer thread #23047 |
 | API is JSON + JWT/`X-API-Key`; RequestsLibrary fits 1:1 | **High** | Source (`router.go`, `auth.ts`); Seidr tester already does this round-trip |
-| `api` package has 30 code / 3 test files, "NO handler-level integration tests" | **High** | [`tests/PYRAMID.md:15`](tests/PYRAMID.md) (direct read) |
-| Negative-auth surface is a 12×11 Go-assigned matrix | **High** | [`tests/NEGATIVE_AUTH_PLAN.md`](tests/NEGATIVE_AUTH_PLAN.md) (direct read) |
-| Frontend is Vitest+jsdom only; RF/Playwright/Selenium absent | **High** | [`frontend/package.json`](frontend/package.json) (direct read) |
+| `api` package has 30 code / 3 test files, "NO handler-level integration tests" | **High** | [`tests/PYRAMID.md:15`](../../tests/PYRAMID.md) (direct read) |
+| Negative-auth surface is a 12×11 Go-assigned matrix | **High** | [`tests/NEGATIVE_AUTH_PLAN.md`](../../tests/NEGATIVE_AUTH_PLAN.md) (direct read) |
+| Frontend is Vitest+jsdom only; RF/Playwright/Selenium absent | **High** | [`frontend/package.json`](../../frontend/package.json) (direct read) |
 | Seidr harness exists in-repo, self-contained compose; **not wired into CI** | **High** | Direct read of files; grep of `ci.yml` returns no match |
-| Widget selectors (`.ks-tab[data-env]`, `[data-action]`, `[data-input]`, `.ks-secret-value/mask`, `.ks-modal-overlay`) are all real | **High** | Direct read of [`widget.ts`](frontend/src/embed/widget.ts) (lines cited) |
+| Widget selectors (`.ks-tab[data-env]`, `[data-action]`, `[data-input]`, `.ks-secret-value/mask`, `.ks-modal-overlay`) are all real | **High** | Direct read of [`widget.ts`](../../frontend/src/embed/widget.ts) (lines cited) |
 | SeleniumLibrary is materially worse for nested shadow + cross-origin | **Medium** | Community reports, not first-party docs |
 | Specific pinned RF library versions | **Low** | Not verified against a live index (proxy 403) — mark **to-pin** |
 | "Seidr README confirms all other user stories untested at acceptance level" | **Corrected** | Conclusion true (backed by PYRAMID.md); the README citation is wrong — README scope is the Seidr *runtime* |

@@ -1,5 +1,7 @@
 # Grovernance Platform integration
 
+> Historical integration contract, not qualified current behavior. Legacy OAuth issuance is disabled in the restricted profile; the new resource-bound MCP delegation is not a general downstream identity provider. See [current integrations](INTEGRATIONS.md) and [architecture](ARCHITECTURE.md) before using these retained examples.
+
 The Grovernance Platform (https://github.com/santapong/grovernance-platfrom) is
 KeepSave's downstream deploy-governance gate. It uses KeepSave's OAuth
 infrastructure as its identity provider: every actor token that reaches

@@ -1,5 +1,7 @@
 # Pattern Adoption Matrix
 
+> **Snapshot scope, clarified 2026-10-04.** The “KeepSave today” column, source line numbers and adoption recommendations are the May 15 comparison. They are retained as research provenance, not a current API or permission matrix. Consult the [current architecture](../ARCHITECTURE.md) and [implementation/acceptance checkpoint](../design/2026-10-02-harness-neutral-platform/README.md) before designing or advertising a capability.
+
 - **Version:** v2
 - **Last updated:** 2026-05-15
 - **Versioning:** v2 (current); P1 columns added 2026-05-15.

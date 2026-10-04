@@ -1,5 +1,7 @@
 # Veto-List Audit (Security Engineer 30-day)
 
+> Historical governance audit. Preserve its original findings and scope; it is not a current 90-day review or a reviewer signature. See [current status](STATUS.md), [ADR index](adr/README.md) and [development rules](../CLAUDE.md) for outstanding independent reviews.
+
 The Security Engineer has veto power over PRs touching `internal/crypto`, `internal/auth`, and the promotion engine (`docs/ROLES.md` §2.2). This audit walks the last 90 days of commits in those paths and asks one question per commit: **did the change get a security review before merge?** If the commit message has no reference to threat model, ADR, or security sign-off, it's a candidate for retroactive review.
 
 Output is in three sections: (1) per-commit triage, (2) findings summary, (3) process change so this never has to be done by archaeology again.

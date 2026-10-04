@@ -1,12 +1,14 @@
 # Architecture review and evidence
 
+> **Historical review, clarified 2026-10-04.** Findings below remain scoped to the September 28 source inventory and dirty checkout named in the method. They are not a fresh audit or proof that the later candidate still has, or has closed, every finding. The [October implementation/acceptance checkpoint](../2026-10-02-harness-neutral-platform/README.md) records subsequent changes; the [current architecture](../../ARCHITECTURE.md) describes the maintained boundaries.
+
 ## Scope and method
 
 Checked 2026-09-28 in `KeepSave-landing`, branch `feat/landing-event-horizon-20260928`, base commit `9e2b3bafab76d4dc7beba478a87819e069cff34c`, including the existing uncommitted work. The canonical `KeepSave` checkout is not the implementation target of this review.
 
 This is a repository-wide architecture review: source inventory, dependency and caller searches, route/data-model inspection, and deeper reading of credential, MCP, persistence, execution, and deployment paths. It is **not** a claim that every line received a security audit or every feature was executed. No production database, user credentials, ignored environment files, or live provider integrations were inspected.
 
-The inventory contains 442 source/configuration/test files under the stated filter: 263 backend, 141 frontend, 7 SDK, 9 Helm, 3 integration implementations, 9 end-to-end test/support files, and 10 other workflow/script/config files. Markdown, lockfiles, media, private/ignored files, and generated build output are excluded from that count. Architecture and governance Markdown was reviewed separately. File paths, line counts, and hashes are recorded in [source-inventory.json](/mnt/data/keepsave-backend-design-2026-09-28/source-inventory.json); enumeration/hashing is not evidence of line-by-line review.
+The inventory contains 442 source/configuration/test files under the stated filter: 263 backend, 141 frontend, 7 SDK, 9 Helm, 3 integration implementations, 9 end-to-end test/support files, and 10 other workflow/script/config files. Markdown, lockfiles, media, private/ignored files, and generated build output are excluded from that count. Architecture and governance Markdown was reviewed separately. File paths, line counts, and hashes are recorded in `source-inventory.json` (historical private receipt: `/mnt/data/keepsave-backend-design-2026-09-28/source-inventory.json`); enumeration/hashing is not evidence of line-by-line review.
 
 ## Coverage map
 

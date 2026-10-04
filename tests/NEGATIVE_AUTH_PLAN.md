@@ -1,127 +1,60 @@
-# Negative-Auth Test Plan (QA + Backend 30-day)
+# KeepSave negative-authority coverage plan
 
-Authentication middleware exists and rejects bad requests in code (`backend/internal/api/middleware.go:59-120`), but **no test verifies it**. A middleware regression would land green. This plan enumerates the missing negative tests by endpoint.
+Source audit: October 4, 2026. The original Phase-A 12×11 proposal is historical;
+its claim that all middleware cases are untested is obsolete. Actual-router,
+PostgreSQL and compatibility fixtures now cover many denials. This document maps
+current sources and remaining qualification rather than marking every proposed
+cell complete without execution evidence.
 
-This is QA 30-day work item §2 + Backend 30-day work item §2 from `docs/ROLES_30_60_90.md`.
+## Current routes and test sources
 
----
+| Surface | Required denials | Source |
+|---|---|---|
+| `/auth/login`, protected browser routes | Bad signature, expiry, missing/revoked/hash-mismatched SID, database outage, generic unknown-user failures. | `identity_sessions_test.go`, `platform_authorization_test.go`, `negative_auth_test.go`, auth/service fixtures. |
+| `/projects/{id}/secrets`, batch and revisions | Foreign/missing project, viewer value read, wrong environment/key scope, denied referenced dependencies, parent/sibling widening, tombstone. | `negative_auth_matrix_test.go`, `platform_vault_test.go`, `platform_authorization_test.go`, `secret_scope_test.go`. |
+| `/api-keys`, project leases/agent-token | Current owner/membership/session, narrowed scope/expiry, revoked parents and concurrent recovery/mint. | `platform_lease_transactions_test.go`, `identity_recovery_delegations_test.go`, `platform_membership_authority_test.go`. |
+| Organization/project changes | Owner demotion, foreign assignment, cross-org transfer, nonempty deletion, offboard/rejoin stale epochs. | `platform_workspace_test.go`, `platform_membership_authority_test.go`, `identity_platform_test.go`. |
+| Promotion/rollback | Viewer, wrong project, requester self-approval, changed/expired source binding, concurrent execution and stale rollback. | `handlers_promotion_test.go`, `platform_vault_test.go`, service promotion tests. |
+| Proof/recovery/method changes | Replay, wrong account/purpose, stale resend, last method, revoked inviter, missing reset revocation port. | `identity_platform_test.go`, `identity_recovery_delegations_test.go`, identity/service PostgreSQL fixtures. |
+| Delegated OAuth/MCP | PKCE, callback/resource/issuer/client/Origin mismatch, code race, refresh replay, revoked parent/family. | `handlers_mcp_platform_test.go`, `mcpauth/*_test.go`, `mcpgateway/*_test.go`. |
+| Runs/operations/results | Foreign client/run/key, binding/artifact drift, expiry/budget/fence/ticket misuse, revoked result delivery. | `platform_tool_router_test.go`, `runs/service_postgres_test.go`. |
+| Safe audit/lifecycle | Foreign/missing parity, viewer constraints, cursor/selection limits, old-owner exports/downloads. | `platform_team_vault_test.go`, `platform_audit_publication_test.go`, `auditview/service_test.go`. |
 
-## Matrix: endpoint × attacker case
+Names in the source column are under `backend/internal/api` unless a package is
+shown. The canonical API-key creation/deletion paths are `/api/v1/api-keys` and
+`/api/v1/api-keys/{id}`, not the old proposed project-prefixed route. The exact POST
+secret batch is **read**, accepts 1–100 keys and conceals unauthorized keys as missing.
 
-For each endpoint and each attacker case, a test must exist that asserts the *correct* error response (status + sanitized body per `ERROR_HANDLING_STANDARD.md`).
+## Test requirements
 
-### Endpoints in scope (state-mutating + sensitive reads)
+Use the actual router and stored ownership/current authority. Browser fixtures
+need real tracked 24-hour SID/hash state; signature-only legacy middleware tests
+cannot prove current session revocation. API keys, agent tokens, OAuth delegates
+and enrolled workloads are distinct principals, not interchangeable headers.
+Foreign and nonexistent resources retain indistinguishable public denials.
+Validate safe body/envelope against the maintained OpenAPI contract per route;
+not every endpoint shares one hardcoded error-code shape.
 
-| ID  | Method | Path                                                       |
-|-----|--------|------------------------------------------------------------|
-| E1  | POST   | `/api/v1/projects/:id/secrets`                              |
-| E2  | PUT    | `/api/v1/projects/:id/secrets/:secret_id`                   |
-| E3  | DELETE | `/api/v1/projects/:id/secrets/:secret_id`                   |
-| E4  | GET    | `/api/v1/projects/:id/secrets/:secret_id` (plaintext reveal)|
-| E5  | POST   | `/api/v1/projects`                                          |
-| E6  | PUT    | `/api/v1/projects/:id`                                      |
-| E7  | DELETE | `/api/v1/projects/:id`                                      |
-| E8  | POST   | `/api/v1/projects/:id/api-keys`                             |
-| E9  | DELETE | `/api/v1/projects/:id/api-keys/:key_id`                     |
-| E10 | POST   | `/api/v1/projects/:id/promote`                              |
-| E11 | POST   | `/api/v1/projects/:id/promotions/:promotion_id/approve`     |
-| E12 | POST   | `/api/v1/projects/:id/promotions/:promotion_id/rollback`    |
+Force required-audit/outbox failure and assert rollback before success publication.
+Use real PostgreSQL for ordered-lock races and transaction guarantees, while
+keeping SQLite/MySQL compatibility fixtures separately scoped. Validate that
+no denied operation reaches credential custody/provider dispatch. A stored run ID,
+client name, skill or self-reported digest is never authorization.
 
-### Attacker cases
+Execution receipts must name source revision/runtime/scenarios/skips. Source
+presence is not a pass, and the older 12×11 matrix is not an exhaustive inventory
+of today's endpoints. Full provider/native harness/host acceptance remains open.
 
-| Case | Scenario                                                                 | Expected response                          |
-|------|--------------------------------------------------------------------------|--------------------------------------------|
-| A1   | No `Authorization` header and no `X-API-Key`                              | 401 `UNAUTHORIZED`                          |
-| A2   | Malformed `Authorization: Bearer ...` (truncated JWT, wrong segments)     | 401 `UNAUTHORIZED`                          |
-| A3   | Expired JWT (valid signature, `exp` in past)                              | 401 `UNAUTHORIZED`                          |
-| A4   | JWT signed with wrong secret                                              | 401 `UNAUTHORIZED`                          |
-| A5   | Valid JWT but for a user who has no membership of target project          | 403 `FORBIDDEN`                             |
-| A6   | API key valid but scoped to a different project ID                        | 403 `FORBIDDEN`                             |
-| A7   | API key valid but `environment` scope does not match the targeted env      | 403 `FORBIDDEN`                             |
-| A8   | API key valid but `scopes[]` does not include the required scope           | 403 `FORBIDDEN`                             |
-| A9   | API key valid but deleted (revoked) between issuance and request           | 401 `UNAUTHORIZED`                          |
-| A10  | Approver-equals-requester on E11 (promotion approve)                      | 403 `FORBIDDEN` (invariant — see ADR-0003)   |
-| A11  | Rate-limit exceeded on the auth endpoint                                  | 429 `RATE_LIMITED`                          |
+## Running and remaining work
 
-## Coverage matrix
-
-`✗` = test required and missing today. The whole matrix is `✗` today; this is the work.
-
-|     | E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10 | E11 | E12 |
-|-----|----|----|----|----|----|----|----|----|----|-----|-----|-----|
-| A1  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A2  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A3  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A4  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A5  | ✗  | ✗  | ✗  | ✗  | —  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A6  | ✗  | ✗  | ✗  | ✗  | —  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A7  | ✗  | ✗  | ✗  | ✗  | —  | —  | —  | —  | —  | ✗   | —   | —   |
-| A8  | ✗  | ✗  | ✗  | ✗  | —  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A9  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗  | ✗   | ✗   | ✗   |
-| A10 | —  | —  | —  | —  | —  | —  | —  | —  | —  | —   | ✗   | —   |
-| A11 | ✗  | —  | —  | —  | —  | —  | —  | —  | —  | —   | —   | —   |
-
-(`—` = not applicable to this endpoint.)
-
-## Test shape (Go)
-
-A single test helper makes this not-painful. Pseudocode:
-
-```go
-type authTest struct {
-    name     string
-    setup    func(t *testing.T, fx *fixture)
-    request  func(fx *fixture) *http.Request
-    wantCode int
-    wantCode string  // body code, e.g. "UNAUTHORIZED"
-}
-
-func runAuthMatrix(t *testing.T, endpoint string, cases []authTest) {
-    for _, tc := range cases {
-        t.Run(tc.name, func(t *testing.T) {
-            fx := newFixture(t)
-            if tc.setup != nil { tc.setup(t, fx) }
-            w := httptest.NewRecorder()
-            fx.handler.ServeHTTP(w, tc.request(fx))
-            require.Equal(t, tc.wantCode, w.Code)
-            // assert sanitized body
-            var body struct{ Error struct{ Code string `json:"code"` } `json:"error"` }
-            require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-            require.Equal(t, tc.wantCode, body.Error.Code)
-        })
-    }
-}
+```bash
+# From the canonical repository root; unique disposable PostgreSQL only.
+bash scripts/test-platform-postgres.sh
 ```
 
-Each endpoint then exposes a slice of `authTest` cases. The matrix above translates directly into table entries.
-
-## Priority of implementation
-
-Day 1-3:
-- E10 (promote) all cases — highest blast radius.
-- E11 (approve) including A10 (the invariant). A10 may require a code change if not enforced at the DB layer; that's a Backend item.
-
-Day 3-7:
-- E1/E2/E3 (secret CRUD) all cases.
-
-Day 7-14:
-- E5/E6/E7 (project CRUD); E8/E9 (API key CRUD); E12 (rollback).
-
-Day 14-21:
-- E4 (read) all cases; A11 (rate-limit) across endpoints. The read path needs the audit/sampling decision (see `AUDIT_LOG_COVERAGE.md` §"Reads") before testing.
-
-Day 21-30:
-- Coverage gates wired in CI: PR blocked if a new state-mutating endpoint lacks at least A1+A3+A5+A9 coverage.
-
-## Definition of done
-
-- All `✗` cells become `✓` cells with a test file:line ref.
-- A CI presence-check ensures the matrix doesn't regress: new endpoints without negative-auth tests fail the build.
-- This file is updated in the same PR as any new endpoint or attacker case.
-
-## References
-
-- `backend/internal/api/middleware.go:59-120`
-- `docs/ERROR_HANDLING_STANDARD.md` (the body shape these tests assert)
-- ADR-0003 §Open Questions (A10 invariant)
-- `docs/THREAT_MODEL.md` v1.2.0 §"Findings new" §2
+The [current ledger](../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+records executed negative/rollback/concurrency coverage. The original per-endpoint
+presence checker and full automated coverage matrix remain unclaimed unless
+implemented and actually run. Follow the [threat model](../docs/THREAT_MODEL.md),
+[safe error standard](../docs/ERROR_HANDLING_STANDARD.md),
+[architecture](../docs/ARCHITECTURE.md) and [documentation hub](../docs/README.md).

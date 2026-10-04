@@ -1,81 +1,84 @@
-# CI Runner Permissions (DevOps 30-day)
+# KeepSave CI permissions and release evidence
 
-`GITHUB_TOKEN` is auto-issued to every workflow run. Without an explicit `permissions:` block, Actions defaults to **broad write** (contents, packages, pull-requests, issues, actions, security-events). On a secrets product, that's a credential a workflow exploit can use to push malicious code or alter security alerts. We narrow it.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-This is DevOps Engineer 30-day work item §2 from `docs/ROLES_30_60_90.md`.
+Source reconciled 2026-10-04 against [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+CI runs on pushes and pull requests targeting **both `develop` and `main`**.
+The canonical project is `/mnt/data/company/apps/KeepSave`. Local passing checks
+and remote CI are separate evidence; a source push is not a production deployment.
 
----
+## Least-privilege token policy
 
-## What we changed in this PR
+The workflow declares `contents: read` at the top level. Job-local overrides add
+only their publishing needs. Do not describe every job as read-only: security
+publishing and the disabled signing scaffold have explicit extra permissions.
 
-`.github/workflows/ci.yml` now declares a top-level least-privilege default:
+| Job group | Current permissions | Behavior |
+|---|---|---|
+| Documentation and diagrams | `contents: read` | Python standard-library `check_docs.py`: document map, local links/fences, SVG structure and deterministic generator |
+| PostgreSQL contracts, backend lint/test/build, SDK tests | `contents: read` | Synthetic test databases, vet/race/shuffle/fuzz/coverage, binaries and local SDK contracts |
+| Frontend type/test/audit/build | `contents: read` | Pinned lockfile install, generated-type check, unit tests, high-level npm audit and app/widget build |
+| govulncheck | `contents: read` | Blocking reachable-vulnerability command and report artifact |
+| gosec and CodeQL | `contents: read`, `security-events: write` | SARIF/security publishing; gosec uses `-no-fail` and is not a clean-finding gate |
+| Docker build/Trivy/SBOM | `contents: read`, `security-events: write` | Local images, HIGH/CRITICAL Trivy gate with `ignore-unfixed: true`, security results and SBOM artifacts |
+| Cosign scaffold | `contents: read`, `packages: write`, `id-token: write` | **Disabled with `if: false`**; no signed/pushed-image/provenance claim |
+| Robot API acceptance | `contents: read` | **Dry-run parsing**, not live HTTP/browser acceptance |
 
-```yaml
-permissions:
-  contents: read
-```
+Actions are pinned to full commit SHAs. The initial runtime pins are Go **1.27.1**
+and Node **24.21.0**, with Trivy **0.74.0** and govulncheck **1.8.0**. Record actual
+built image digests and scan database dates in the acceptance receipt; a pinned
+installer does not prove a fresh vulnerability database or a clean image.
 
-Effect: every job inherits `contents: read` only. No write to PRs, issues, packages, security-events, or repository contents. Jobs that need more must override locally.
+The PostgreSQL script owns disposable fixtures and must never use an operator
+DSN. Do not expose production secrets through test databases, artifacts, shell
+arguments or logs. Synthetic `MASTER_KEY`, `JWT_SECRET` or `DATABASE_URL` names
+in a test configuration are not production access. Real providers, SMTP, Transit,
+GitHub and native harness qualification use separately authorized exercises.
 
-## Job-by-job permission needs (current pipeline)
+## Repository review and protection
 
-| Job                   | Needs                                                                 | Permission override            |
-|-----------------------|-----------------------------------------------------------------------|---------------------------------|
-| Backend Lint          | Reads source                                                          | inherit (`contents: read`)      |
-| Backend Tests         | Reads source; uploads coverage artifact                               | inherit + `actions: write` (only required if using `actions/upload-artifact@v4` to publish to a different repo; on same-repo, `contents: read` is enough). Today: inherit. |
-| Backend Build         | Reads source; builds binary                                           | inherit                         |
-| Frontend Lint         | Reads source                                                          | inherit                         |
-| Frontend Tests        | Reads source                                                          | inherit                         |
-| Frontend npm audit    | Reads source; calls `npm audit`                                       | inherit                         |
-| Frontend Build        | Reads source                                                          | inherit                         |
-| Security Scan         | Reads source; uploads security-report artifact                        | inherit                         |
-| Docker Build          | Reads source; builds images locally (no registry push currently)      | inherit                         |
+[CODEOWNERS](../.github/CODEOWNERS) exists. It names the owner placeholder for
+crypto, auth, promotion and workflow paths; it does not prove an independent
+Security Engineer/Tech Lead signature or coverage of all newly sensitive modules.
+Review the ownership map as module boundaries grow. No edit to this document
+changes actual hosted branch-protection rules.
 
-**No job needs write access today.** If a future workflow needs to (e.g., push images to GHCR, create release tags), it MUST declare its own narrower `permissions:` block — not relax the default.
+Verify in the GitHub web settings:
 
-## Future jobs that will need permission overrides
+- Required checks match the actual current workflow job names on `develop` and
+  the release line, including PostgreSQL and SDK/generated-contract gates.
+- No force pushes to permanent branches; required reviews/code-owner review are
+  configured as intended by [repository rules](../CLAUDE.md).
+- Fork/PR jobs receive no production secrets or broadly privileged token.
+- `pull_request_target` does not execute untrusted source with target privileges.
+- Security publishing behavior is handled explicitly for forks/unavailable
+  repository security features; do not silently call a failed upload accepted.
 
-| Future job                          | Permission needed                | Justification                                                |
-|-------------------------------------|-----------------------------------|--------------------------------------------------------------|
-| Release tagging / GitHub release    | `contents: write`                 | Create tags and release records.                              |
-| Image push to GHCR                  | `packages: write`                 | Push container images.                                        |
-| CodeQL / security-events publish    | `security-events: write`          | Required by `github/codeql-action/analyze`.                   |
-| Auto-PR on Dependabot               | `pull-requests: write`            | Open / update PRs from Dependabot's branch.                   |
-| Issue comment from CI bot           | `issues: write`                   | Post lint summaries on PRs.                                   |
+Current workflow source contains no `pull_request_target` trigger. Hosted review
+rules, repository security-feature availability and organization/team assignments
+still require read-back evidence from the web UI. Plain Git manages branches;
+GitHub-only settings/reviews use the web UI, not `gh`.
 
-Each of these should be added job-locally (`jobs.<id>.permissions:`), not raised to top-level.
+## Current remote status and interpretation
 
-## Branch protection requirements
+The October 3 publication runs were rechecked on October 4 and **failed**:
+[main run 37136794513](https://github.com/santapong/KeepSave/actions/runs/37136794513)
+and [develop run 37136794569](https://github.com/santapong/KeepSave/actions/runs/37136794569).
+These dated results must not be rewritten as passing because local tests succeeded.
+Record any repair/rerun at its own exact revision. See the current documentation
+hub and publication/validation receipts for reconciled evidence.
 
-Permissions alone do not stop a malicious PR from a fork running with elevated tokens. Pair this with:
+CI has no enabled full-application production deployment job. Image signing is a
+scaffold, SAST findings are not all blocking, Robot dry-run does not call the API,
+and a frontend type check is not an application-wide lint/a11y review. Preserve
+these limits in README/release notes. Formal reviews, real-provider recovery and
+operational gates remain separate even when every applicable CI job passes.
 
-- **Required status checks** on `main` for: Backend Lint, Backend Tests, Backend Build, Frontend Lint, Frontend Tests, Frontend Build, Frontend npm audit, Security Scan. (Configure in GitHub branch protection rules.)
-- **No force-pushes** to `main` or release branches.
-- **Required reviews** = 1 (minimum), plus CODEOWNERS for protected paths (see `docs/VETO_LIST_AUDIT.md` §3b).
-- **`pull_request_target` is forbidden** in this repo's workflows — it grants the target branch's secrets to fork PRs.
+## Before declaring a release gate closed
 
-## Secrets in CI
-
-CI does **not** need any production secret. The current workflow does not reference `MASTER_KEY`, `JWT_SECRET`, or `DATABASE_URL`. If a future workflow needs:
-
-- **DB tests:** spin up a Postgres service in the job (`services.postgres:`). Use a workflow-scoped throwaway DB. Never connect to production.
-- **Integration tests against a real KMS:** never. Use a mock provider or skip those tests in CI; they belong in a separate `integration-staging` workflow gated by environment protections.
-- **Image push:** use OIDC federation to short-lived cloud credentials, never long-lived secrets.
-
-## Forking and PR-from-fork safety
-
-PRs from forks run with read-only token by default (GitHub policy). With our explicit `contents: read`, fork PRs get exactly the same permission set as the maintainer-branch PRs — no privilege gap. This is the desired behavior.
-
-## Verification checklist
-
-- [x] Top-level `permissions: contents: read` set.
-- [ ] Add CODEOWNERS (Tech Lead 30-day — separate file).
-- [ ] Verify branch protection rules in GitHub UI match this doc (Tech Lead).
-- [ ] Confirm no workflow uses `pull_request_target` (grep clean today; add a lint rule).
-- [ ] Add an annual review to `docs/ROLES_30_60_90.md` quarterly retro section.
-
-## References
-
-- GitHub docs: "Workflow permissions for the `GITHUB_TOKEN`".
-- `.github/workflows/ci.yml` (this PR's change).
-- `docs/SECRET_SOURCES.md` (where production secrets *do* live — and why CI doesn't see them).
+Confirm exact revision/run conclusion; inspect failed/skipped jobs, report scope
+and scan date; retain binary/image digests and actual fixture runtimes. Verify the
+supported client contract and rollback/recovery exercise at that source. A tag
+or source merge alone is not acceptance. Consult [DEPLOYMENT_PLAN](DEPLOYMENT_PLAN.md),
+[SECRET_SOURCES](SECRET_SOURCES.md) and the
+[acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).

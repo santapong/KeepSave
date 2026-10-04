@@ -1,5 +1,7 @@
 # KeepSave - Ideas & Security Improvements
 
+> Historical record, relocated from `idea.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 This document tracks ideas for enhancing KeepSave's security posture, developer experience, and feature set beyond the current roadmap.
 
 ---

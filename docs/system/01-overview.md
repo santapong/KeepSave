@@ -1,40 +1,59 @@
 # 1. System overview
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
 
-KeepSave is an encrypted project credential vault with environment promotion,
-scoped access and recovery. The current bounded backend release adds dependable
-identity, revocable sessions, explicit team workspaces and PostgreSQL journal
-adapters. It is an unreleased candidate; see the
-[acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+KeepSave is a self-hosted credential vault and harness-neutral access platform for
+developer teams. The integrated source candidate contains reliable identity and
+vault services plus team lifecycle controls, delegated MCP/OAuth, portable review
+profiles, client-bound runs, a GitHub broker and a separate runner reference.
+**Source availability is not operational acceptance.** The package remains
+`1.4.0-rc.1`, unreleased and untagged; use the
+[current acceptance ledger](../validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+for executed checks and remaining gates.
 
-A person registers or signs in, creates a named workspace explicitly, and creates
-or attaches an authorized personal project. Registration itself creates no
-project, sample secret or global permission. Workspaces use current membership
-for project authority, including for the original project owner after assignment.
-Admin manages configuration, editor reads/writes credentials, promoter approves
-eligible promotions and viewer inspects permitted metadata. API keys and leases
-also remain inside their parent project/environment/key scope and expiry.
+## User journeys and scope
 
-The trusted API uses Go/Gin, policy ports, AES-256-GCM and PostgreSQL. A separate
-trusted worker performs opted-in backup maintenance. These trusted processes can
-access decrypted values; an authorized vault API read returns plaintext to the
-caller. Database-at-rest encryption is not control-host isolation.
+A user signs in with password or an operator-configured Google/GitHub provider,
+explicitly creates a named workspace, manages credentials, inspects history,
+restores a revision and verifies encrypted recovery material. Registration
+creates no sample projects, secrets or global permission. Personal projects stay
+personal until their stored owner and a destination administrator authorize
+attachment. Assigned projects use current workspace membership for everyone.
 
-Core local mutation, immutable revision, required audit and durable outbox share
-one transaction. Secret and project DELETE retain tombstones; history/key
-versions remain while needed. Restoration appends a new revision with an
-expected-current-revision condition. Encrypted recovery starts with verification
-and an isolated fresh database; selected live restore uses a metadata diff and
-never restores source sessions, grants or approval authority.
+The tool-access candidate adds a separate journey: an administrator approves an
+instruction-only review profile and exact package digests, binds a GitHub App to
+one nonproduction repository, and authorizes a developer/client. The developer
+starts a bounded run whose reference resolves to a commit before activation.
+MCP reads queue operations; result delivery checks authority again. The broker
+makes authenticated GitHub calls, keeping the provider token out of the connector
+and model. Codex and Hermes use separate delegations and runs for the same
+portable profile; neither is yet qualified as a supported real client.
 
-The accepted future journey is repository review through Codex: one approved
-GitHub repository and resolved commit, a ten-minute run, a vetted connector on a
-separate rootless runner, and a broker that makes authenticated GitHub requests
-without exposing the token. Standards-based MCP/OAuth is M2, broker/runner M3,
-private skills/profiles M4 and measured self-hosted team operation M5. These
-remain future acceptance programs, not delivered capabilities.
+| Surface | Boundary |
+|---|---|
+| Ordinary vault | Authorized clients receive permitted plaintext values. |
+| Controlled provider tools | Broker retains provider credentials and returns permitted repository content. |
+| Skills and native configuration | Instructions and packaging; they grant no server authority or device attestation. |
+| Revocation | Denies later admissions and protected result retrieval after commit; admitted calls may finish. |
+| Recovery | Imports encrypted vault data into explicitly authorized targets, never source identity/grants. |
 
-See [architecture](../ARCHITECTURE.md) for data flow, module ownership and the
-ordered plan, [security](05-security.md) for enforcement limits and
-[core ADR0028](../adr/0028-core-identity-and-vault-release.md) for settled decisions.
+## Architecture and product identity
+
+Go/Gin remains a modular monolith with PostgreSQL and a trusted worker. Shared
+policy and authority services serve REST, MCP and compatible clients. Local
+mutations join required audit, immutable revisions and outbox writes in one
+transaction. The connector supervisor belongs on a separate Linux host and has
+no database or vault access. New platform guarantees are PostgreSQL-only;
+SQLite and MySQL retain bounded legacy compatibility.
+
+The accepted visual identity is **Field Twist / Event Horizon**, with violet and
+mint accents and legible task icons. KeepSave's black-hole imagery is a visual
+metaphor, not a security guarantee. See [branding](../BRANDING.md),
+[current architecture](../ARCHITECTURE.md) and
+[architecture views](../ARCHITECTURE_VIEWS.md).
+
+The canonical local project is `/mnt/data/company/apps/KeepSave`.
+`keepsave.draveniq.dev` serves the separate static landing; the same-origin full
+application at `app.keepsave.draveniq.dev` remains a deployment target. All new
+platform flags default off. Real sign-in/SMTP/GitHub/harness acceptance, runner
+isolation, independent reviews and full operational drills remain required.

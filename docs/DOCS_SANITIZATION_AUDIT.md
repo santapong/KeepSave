@@ -1,5 +1,7 @@
 # Docs Sanitization Audit (Tech Writer interim — Phase A)
 
+> Historical initial sanitization pass and ongoing writing rules. Its findings are not an October 2026 full scan. Current documentation checks and limitations are recorded [separately](validation/2026-10-04-documentation/README.md); all example credentials remain placeholders or explicitly disposable values.
+
 Docs that contain example secrets in shell snippets, screenshots with real values, or curl examples with plaintext credentials are a leak surface. This audit walks every doc file and flags anything that needs sanitization. Tech Writer is not yet hired in Phase A; interim owner is Tech Lead.
 
 This is Tech Writer / Developer Advocate 30-day work item §1 from `docs/ROLES_30_60_90.md`.

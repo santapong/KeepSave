@@ -1,5 +1,7 @@
 # MCP, skills, harnesses, and credential control
 
+> **Design boundary, clarified 2026-10-04.** These are the original September proposed controls. Later decisions use broker-only upstream credential custody, harness-neutral profiles and separate client-bound runs, with no device-attestation claim. Consult the [current threat model](../../THREAT_MODEL.md), [architecture](../../ARCHITECTURE.md) and [October acceptance checkpoint](../2026-10-02-harness-neutral-platform/README.md) for implemented scope and unverified controls; this document does not supply sign-off.
+
 Status: proposed controls and acceptance obligations, 2026-09-28. This document is a threat/design delta for future implementation, not evidence that these controls already exist.
 
 ## 1. What the product can enforce

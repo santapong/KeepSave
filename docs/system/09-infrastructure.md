@@ -1,42 +1,54 @@
-# 9. Infrastructure
+# 9. Infrastructure and deployment
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
 
-CI/container builds pin Go 1.27.1 and Node 24.21.0; exact image digests are in the
-Dockerfiles. The backend module minimum is now Go 1.26.0. The runtime backend
-image is distroless nonroot and includes API, trusted worker and explicit
-operator/recovery binaries; only API is the default entrypoint. The frontend
-uses nginx-unprivileged. Exact pins and passing image builds do not substitute
-for vulnerability, deployment or runtime acceptance.
+## Runtime pins and topology
 
-`docker-compose.yml` is disposable development, not production. It publishes
-API8080/frontend3002 and carries known development key/default settings. Production
-rejects those keys and wildcard/insecure settings. Never use the test database
-or development recovery material for a team installation.
+CI/container builds pin Go **1.27.1** and Node **24.21.0**; the Go module minimum is
+1.26.0. Exact base image pins are in the Dockerfiles. The API runtime is distroless
+nonroot, with explicit worker/operator/recovery/harness commands alongside the
+server entrypoint. The frontend runs nginx-unprivileged. Current image/scan
+receipts are in [OPERATIONS](../validation/2026-10-02-harness-neutral-platform/OPERATIONS.md);
+nonroot/pinned images do not establish a clean vulnerability inventory.
 
-The new [self-hosted reference](../../deploy/self-hosted/README.md) describes
-same-origin application TLS at `app.keepsave.draveniq.dev`: Caddy reverse proxy,
-frontend, API, PostgreSQL and separate trusted backup worker on the control host.
-Environment/key files are outside the repository; private backup storage has
-explicit ownership/permissions. Only TLS exposes ports. The API trusts the
-specified proxy address, database verification uses configured CA material and
-public metrics are denied. Config/schema validation used synthetic files without
-starting a service; no DNS, certificates or deployment are claimed.
+| Deployment surface | Purpose and current status |
+|---|---|
+| Development Compose | Disposable local API/frontend/PostgreSQL; API8080/frontend3002, known development defaults. |
+| Static landing | Separately published `keepsave.draveniq.dev`, retaining Field Twist / Event Horizon identity. |
+| Control host reference | Same-origin `app.keepsave.draveniq.dev`: TLS proxy, frontend, API, PostgreSQL, trusted worker, private storage and Vault Transit. Not production deployed/accepted. |
+| Separate runner reference | Enrolled rootless Podman supervisor on another Linux host, private mTLS connection and digest-pinned Unix-relay connectors. Actual isolation unqualified. |
+| Legacy Helm/split-host material | Historical/compatibility reference, not current multi-instance or security acceptance. |
 
-Marketing remains a separately deployed static site at `keepsave.draveniq.dev`.
-The older split-host ADR0016 is superseded for the core application by
-[ADR0028](../adr/0028-core-identity-and-vault-release.md). Existing Helm material
-is compatibility source, not proof of two-replica operation, current session/
-vault cutover or enforced runner network policy. Kubernetes is not required for
-the first team installation.
+The [control-host bundle](../../deploy/self-hosted/README.md) exposes TLS rather
+than database/API ports and keeps operator key/environment files outside Git.
+The optional private-listener overlay binds an explicit private IP, verifies runner
+client certificates and does not proxy runner authority through public forwarded
+headers. The [runner reference](../../deploy/runner/README.md) has no database or
+vault mount. Kubernetes is not required for the first team installation.
 
-The approved M5 topology adds a connector supervisor on a separate Linux runner
-host. It has not been delivered. M5 also requires measured restart/outage/
-upgrade/recovery and two-API checks, database-backed admission limits, durable
-webhooks and operator runbooks. No throughput, uptime or recovery target is
-advertised before measurement.
+## Runner enforcement requirements
 
-CI retains race/vet/format/coverage/fuzz/dependency, frontend, container, SAST,
-CodeQL and Robot checks for main/develop changes. Source workflow checks are not
-remote CI evidence. Exact executed local gates and tool failures belong in the
-[acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+The supported host must prove rootless Podman, cgroups v2 CPU/memory/PID delegation
+and seccomp. Connector reference limits are read-only root, no IP network, 64 MiB
+scratch, one CPU, 256 MiB memory and 32 processes. Only an attempt-specific Unix
+relay is mounted; the supervisor's identity/engine access stays outside. The
+current development host lacks CPU delegation and preflight refuses execution.
+A successful preflight alone would still not prove file/network/resource attacks
+are contained; those actual host tests remain gates.
+
+## Configuration and availability
+
+New identity/team/MCP/run/admission/dispatch flags default false. SMTP acceptance
+and recovery acceptance are separate operator records. Production startup refuses
+known development keys, short signing secrets, wildcard/insecure origins and
+insecure PostgreSQL settings. Vault Transit is the reference wrapping-key source;
+recovery material must be independently retained. Configuration/schema checks use
+synthetic files and do not create DNS, certificates, provider apps or services.
+
+[ADR0028](../adr/0028-core-identity-and-vault-release.md) and
+[ADR0029](../adr/0029-harness-neutral-platform.md) supersede hosted/single-harness
+planning for the current candidate. Full worker/supervisor/database/Transit faults,
+two-API deployment, upgrade/compatible rollback, isolated key/storage recovery
+and measured fixed-hardware capacity remain unaccepted. October 3 main/develop
+CI runs were checked failed on October 4; local passing receipts are not green
+remote CI. See [testing](11-testing.md) and the [publication note](../releases/2026-10-03-source-publication.md).

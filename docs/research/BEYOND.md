@@ -1,5 +1,7 @@
 # BEYOND — Where KeepSave Can Leapfrog the Field
 
+> **Historical ideas, clarified 2026-10-04.** These May hypotheses and comparative claims are research inputs, not current feature availability or verified market differentiation. Later scope and priorities are maintained in the [harness-neutral program](../design/2026-10-02-harness-neutral-platform/README.md) and [documentation index](../README.md). No adoption, security review or release follows from an idea being listed here.
+
 - **Status:** Skeleton (seeded ideas only; analyst evidence pending)
 - **Last updated:** 2026-05-15
 - **Owner:** Research Lead

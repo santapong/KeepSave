@@ -1,65 +1,78 @@
 # 10. Operations and recovery
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
-The [self-hosted reference runbook](../../deploy/self-hosted/README.md) is the
-current operator starting point; it is not a completed production installation.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
+
+Start with the [control-host reference](../../deploy/self-hosted/README.md),
+[platform setup](../design/2026-10-02-harness-neutral-platform/SETUP.md) and
+[runner reference](../../deploy/runner/README.md). The canonical checkout is
+`/mnt/data/company/apps/KeepSave`; private runtime/recovery files and raw evidence
+belong outside Git. Read-only `keepsave doctor` distinguishes configuration from
+operator acceptance and does not send mail or probe providers implicitly.
 
 ## Coordinated cutover
 
-Drain old API/worker writers. Preserve an external encrypted backup and separate
-recovery material before additive migrations. Resolve ambiguous canonical account
-identities explicitly; never automatically merge them. Apply shipped migrations,
-run trusted `keepsave-vault -action baseline` for old active projects and verify
-the journal/audit chain. Baseline labels current encrypted values only. Startup
-refuses unenrolled active projects. Admit traffic using compatible binaries and
-require legacy human sessions to reauthenticate. An old binary must not resume
-writing after enrollment or serve as an unsupported session/format rollback.
+Drain incompatible API/worker writers. Preserve an external encrypted backup and
+separate recovery material. Resolve canonical-email collisions explicitly, apply
+additive migrations 001–033 and run `keepsave-vault -action baseline` for old active
+projects. Baseline enrolls current ciphertext without inventing past history.
+Startup refuses unenrolled active projects. Legacy untracked human JWTs must
+reauthenticate. Do not roll back to old session/vault writers or an incompatible
+bundle reader; rollback requires a reviewed compatible binary.
 
-Operator enrollment uses `keepsave-operator` and an immutable user ID, not an
-email claim. Provider configuration uses the exact application callback/origin
-and private operator secrets; see [social setup](../SOCIAL_LOGIN_SETUP.md).
-No live credentials or provider applications are installed by test fixtures.
+Operator enrollment uses immutable user ID. Register exact configured Google/
+GitHub sign-in callbacks separately from the GitHub App broker. SMTP requires
+certificate-verified authenticated STARTTLS and installation acceptance before
+contact/invitation/recovery endpoints become available. Do not label SMTP accepted
+as delivered. Account recovery invalidates sessions and retained delegated
+credentials atomically; missing revocation wiring refuses the reset.
 
-## Recovery and retention
+## Encrypted recovery and retention
 
-Verify an external encrypted bundle with `keepsave-vault -action verify`. An
-isolated drill uses an explicitly confirmed fresh PostgreSQL database with no non-system tables and a new
-project name. It must prove independent recovery material, record/key continuity
-and absence of imported accounts/sessions/grants. A database with existing non-system tables is refused before migrations; an
-operator advisory lock prevents concurrent recovery admission.
-Live selected restore first shows metadata differences, then checks exact
-selected backup/current revisions. It does not replace an entire project or
-resurrect deleted records/authority.
+Verify an external bundle with `keepsave-vault -action verify` and independently
+recoverable wrapping material. `recover-isolated` requires explicit confirmation
+of a genuinely fresh PostgreSQL database, creates a local custodian/project and
+never imports source accounts, sessions, grants or approvals. Recovery v2 carries
+lifecycle metadata; map source owners explicitly to the isolated custodian using
+`--map-lifecycle-owners-to-isolated-custodian`. Readers accept v1 with unknown
+missing fields; deploying a compatible reader precedes v2 writers.
 
-Scheduled maintenance and retention default off. After a fresh isolated drill the operator
-can enable `KEEPSAVE_RECOVERY_VERIFIED` for `keepsave-worker`; daily 02:00 UTC
-backups retain thirty verified scheduled artifacts and at least two verified
-copies. Manual/pre-upgrade artifacts stay held. The private 0700 directory is
-trusted local storage; durable jobs use leases/fences and stable per-job file
-identity. Catalog/audit delete-pending commits before filesystem unlink; failures
-remain visible. Verify actual external-copy/key dependencies before production.
+An incorrect/missing lifecycle mapping imports no vault records or authority but
+leaves locally created target scaffolding. Correct it and use another fresh
+isolated target; the failed target is no longer empty. Inspect recovered history,
+keys/snapshots and metadata before selected live restoration. Live restore checks
+current value/metadata revisions and explicit currently permitted owner mapping;
+it does not replace a whole project or undelete records.
 
-Secret/project deletion retains tombstones and dependent encrypted history/key
-versions. There is no automatic historical/key purge. Audit retention stays 365
-days by default; the chain retains its existing re-anchor semantics. Do not
-recompute hashes to conceal corruption. A wrapping-key incident can render data
-unrecoverable; process memory and external key custody remain trusted.
+`KEEPSAVE_RECOVERY_VERIFIED` remains false until installation-specific recovery,
+key dependencies and private/external storage pass. Then the trusted worker
+schedules daily 02:00 UTC verified encrypted bundles, retaining30 scheduled copies
+and always at least two. Manual/pre-upgrade copies require explicit deletion.
+Durable jobs use leases/fences and stable artifact identity; retention commits
+catalog/audit delete-pending before unlink and records failures. Tombstones,
+historical/snapshot ciphertext and referenced keys have no automatic purge.
+Audit retention retains its existing 365-day default and re-anchor semantics.
 
-## Incident boundaries
+## Revocation and uncertain outcomes
 
-Revoke the specific active session/key/lease or later broker run; new admissions
-after commit must deny. Returned data cannot be recalled and already-admitted
-work may finish. Upstream credentials previously disclosed by vault APIs need
-provider-side rotation. The promotion kill switch denies new promotion/approval
-while status/reject/rollback remain accessible for draining.
+Disable new admission/dispatch first while preserving authorized status,
+receipts, cancellation, revocation, audit and recovery. Revoke the specific
+session/family/grant/run/workload/binding under current authority. Later admissions
+and result retrieval deny after commit, but an admitted upstream call may finish.
+Report external outcome separately from denied delivery. Already returned content
+cannot be recalled; credentials disclosed by ordinary vault clients may require
+provider-side rotation.
 
-Database/key-provider outage fails protected access closed; no stale allow
-fallback is acceptable. Check readiness and audit/key integrity after restart.
-Unknown external-effect outcomes are uncertain, not blindly retried. Queue
-primitives and maintenance fixtures do not establish durable webhook execution.
+Operations reconcile lost replies by caller/run/request key and canonical digest;
+changed arguments conflict. Explicit retry creates a linked attempt, not silent
+reexecution of uncertainty. Explicit proof resend invalidates old proofs; an
+uncertain SMTP send is not automatically repeated. Native client interruption is
+not evidence of durable cancellation—use the owned operation/run control.
+Promotion's kill switch independently gates new promotion/approval and preserves
+permitted rejection/rollback/status.
 
-Production release still requires actual TLS/origin validation, provider UAT,
-production key/storage recovery, host/storage failures, upgrade/rollback and broad
-two-replica tests. Local external-file recovery and two running API instances'
-session revocation passed; they do not measure production availability/capacity. Document exact
-commands and outcomes in the [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md).
+Authoritative database/Transit outages fail protected access closed. Never restore
+stale allows, rewrite audit hashes to hide corruption or resurrect revoked grants
+from recovery. Record restart/failure/drill evidence with exact source/image/host
+versions. Bounded two-API revocation and external CLI recovery passed locally;
+full deployed faults/upgrades and measured capacity remain gates in the
+[acceptance ledger](../validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).

@@ -1,5 +1,7 @@
 # Competitor Dossier — <Vendor Name>
 
+> **Research-review boundary.** “Accepted” in this template means a reviewed research recommendation. It does not establish implemented support, vendor compatibility or independent Type-1 sign-off. Record the exact source/version and evidence date; link subsequent implementation and executed acceptance separately. The [documentation index](../README.md) identifies the current product baseline.
+
 > Copy this file to `docs/research/competitors/<vendor-slug>.md` and fill in. All 13 sections are required for P0 dossiers. P1 may collapse §3–5. P2 is a single paragraph. Word caps: P0 ≤ 2500; P1 ≤ 400; P2 ≤ 100.
 
 ## 1. Header

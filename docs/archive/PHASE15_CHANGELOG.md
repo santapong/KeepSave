@@ -1,5 +1,7 @@
 # Phase 15 - AI Intelligence & Smart Operations
 
+> Historical record, relocated from `PHASE15_CHANGELOG.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 Completed: 2026-04-16
 
 ## Added

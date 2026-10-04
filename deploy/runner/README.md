@@ -1,12 +1,36 @@
-# Isolated connector supervisor — local implementation
+# KeepSave isolated connector supervisor reference
 
+![KeepSave — Your secrets. In the right orbit.](../../docs/assets/keepsave-header.svg)
+
+Reconciled 2026-10-04; canonical project: `/mnt/data/company/apps/KeepSave`.
 Observed 2026-10-02: the focused synthetic Go race suite passed. This reference
 has not been deployed, enrolled with operator credentials or used against
-GitHub. No connector image was built or pulled in this task. Independent
+GitHub. The dated implementation exercise built or pulled no connector image. Independent
 Security Engineer and Tech Lead review, approved image review and isolated-host
-acceptance remain release gates under ADR0029.
+acceptance remain release gates under [ADR0029](../../docs/adr/0029-harness-neutral-platform.md).
+See the [current architecture](../../docs/ARCHITECTURE.md),
+[deployment plan](../../docs/DEPLOYMENT_PLAN.md) and
+[acceptance ledger](../../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
 
 ## Topology and custody
+
+```mermaid
+flowchart LR
+  subgraph Host[Separate enrolled runner host]
+    Supervisor[Supervisor / mTLS identity] --> Connector[Digest-pinned isolated connector]
+    Connector --> Socket[One-attempt Unix relay]
+    Socket --> Supervisor
+  end
+  Supervisor --> Listener[Private direct TLS 1.3 listener]
+  Listener --> Broker[Current-authority broker admission]
+  Broker --> GitHub[Structured GitHub read]
+  Broker --> Vault[Vault credential custody]
+```
+
+The Field Twist brand may identify the service; it does not attest the supervisor
+or the host. Harness packages grant no permission. Codex, Hermes and future
+qualified clients use portable profiles through separate client-bound runs.
+
 
 Install `keepsave-runner` as a dedicated nonroot Linux user on a host separate
 from the control API, PostgreSQL and vault. It makes outbound TLS1.3 mutual-TLS
@@ -157,3 +181,18 @@ approved host for:
 Independent reviews, real GitHub/harness UAT, operational install and recovery
 remain pending. Synthetic passing tests and supported flags establish neither
 production readiness nor isolated-host acceptance.
+
+## Operational acceptance boundary
+
+New admission/dispatch flags default off. Disable new work during an incident
+while retaining permitted status, receipts, explicit cancellation, revocation,
+audit and recovery. A preflight failure denies execution; do not remove CPU,
+seccomp or network restrictions to make an unsupported host pass.
+
+An enrollment certificate identifies the supervisor, not a hardware-attested
+device. The host and kernel/runtime remain trusted isolation dependencies.
+Already-admitted upstream calls may finish after revocation; protected result
+retrieval rechecks current authority, and returned content cannot be recalled.
+The runner does not hold model-provider credentials or make a configured model
+local. See [threat model](../../docs/THREAT_MODEL.md) and
+[runbook](../../docs/RUNBOOK.md) for custody, uncertainty and recovery.

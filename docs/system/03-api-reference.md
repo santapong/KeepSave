@@ -1,58 +1,71 @@
 # 3. API reference
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
 
-The maintained management contract is
-[`backend/internal/api/openapi/core.json`](../../backend/internal/api/openapi/core.json),
-embedded and served at `/api/docs`. It contains 52 paths, 70 operations and 87
-schemas for the bounded core. `openapi_contract_test.go` validates actual router
-response shapes and mounted paths. The generated frontend types are
-`frontend/src/api/coreTypes.ts`; regenerate/check with
-`node scripts/generate-core-api-types.mjs [--check]` from the repository root.
+The sole maintained management contract is
+[`core.json`](../../backend/internal/api/openapi/core.json), served at `/api/docs`.
+It contains **112 paths, 141 operations and 177 schemas** in this candidate.
+Actual-router tests verify response envelopes and mounted paths; generated
+frontend wire types live in [`coreTypes.ts`](../../frontend/src/api/coreTypes.ts).
+From the canonical repository root, run
+`node scripts/generate-core-api-types.mjs --check` to detect drift.
 
-| Group | Contract / authority |
+## Interface groups
+
+Paths below begin with `/api/v1` unless an absolute protocol/probe path is shown.
+The OpenAPI file, not this summary, defines request fields and exact responses.
+
+| Group | Routes and purpose |
 |---|---|
-| `/api/v1/auth/register`, `/login` | Public identity admission; `{user,token}`. Registration creates no workspace. |
-| `/auth/providers`, `/auth/social/:provider/start`, `/complete` | Configuration-aware Google/GitHub sign-in; exact callback/state/PKCE. |
-| `/auth/logout`, `/account/sessions` | Current-session logout, owned metadata and individual revoke; no token material in list. |
-| `/account/connections` | Explicit same-session provider linking; no automatic account merge by email. |
-| `/organizations` and members | Explicit named workspace and current administrator operations; optional caller-scoped creation `Idempotency-Key`. |
-| `/organizations/:orgId/projects` | Active personal-project assignment requires stored owner and destination administrator; no cross-org transfer. |
-| `/projects` and `/:id` | Authorized metadata, transactional project enrollment and retained project DELETE tombstone. |
-| `/projects/:id/secrets`, `/batch`, `/:secretId` | Scoped credential CRUD and bounded POST batch; explicit reads return values. |
-| `/:secretId/versions`, `/:version`, `/:version/restore` | Metadata history list, explicit historical value read, append-as-new restore with expected current revision. |
-| `/projects/:id/backups` | Encrypted bundle creation and metadata catalog. |
-| `/backups/verify`, `/preview`, `/restore` | Authenticated bundle verification, metadata diff and explicitly selected live restore. |
-| `/env-import`, `/env-export`, `/rotate-keys`, `/verify-encryption` | Authorized import/export and versioned project key continuity; export deliberately contains permitted plaintext. |
-| `/promote`, `/promote/diff`, `/promotions` and actions | Exact source artifact, current authority, eligible four-eyes approve/reject and revision-aware rollback. |
-| `/templates`, `/builtin`, `/:templateId`, `/apply` | Personal creator/current workspace read/admin scope; tracked human metadata mutation/audit/outbox; global publication refused in core. Defaults are ordinary config/placeholders. |
-| API keys, leases and agent tokens | Current parent/session/membership, narrowed scope/expiry, required mutation/audit/outbox; vault read delegation, not broker runs. |
-| `/capabilities` | Truthful current profile/availability metadata. |
+| Sign-in | `/auth/register`, `/auth/login`, `/auth/providers`, `/auth/social/{provider}/start`, `/complete`, `/auth/logout`. |
+| Account | `/account/sessions`, `/account/connections`, `/account/methods`, `/account/contacts`, `/account/contact-proofs`, `/account/proofs`, `/account/notifications`, `/account/delegations`. |
+| Recovery identity | `/auth/recovery/request`, `/auth/recovery/confirm`; generic initiation and nonlogged body proofs. |
+| Teams | `/organizations`, members, explicit project attachment, invitations and member offboarding preview/execution. |
+| Vault | `/projects/{id}/secrets`, `/batch`, `/{secretId}`, `/versions`, explicit historical reads and `/restore`. |
+| Lifecycle | `/projects/{id}/secret-lifecycle`, `/secrets/{secretId}/lifecycle`; metadata independent of value revision. |
+| Encrypted recovery | `/projects/{id}/backups`, `/verify`, `/preview`, `/restore`. |
+| Existing workflows | Project env import/export, promotion/diff/approval/rejection/rollback, rotation, templates, API keys, leases and agent tokens. |
+| Audit | `/projects/{id}/audit-log` compatibility; `/audit`, `/audit/exports`, export status and authorized download. |
+| Tool management | `/projects/{id}/tool-platform`: catalog, artifacts, profiles, packages, connections, bindings, workloads, grants, runs, operations and receipts. |
+| Consent | `/mcp/consent` preview/decision and owned delegation-family revocation. |
+| Operator | `/operator/readiness`, operator-ID gated; `/capabilities` reports profile availability. |
+| MCP/OAuth | `/mcp`, `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server`, `/oauth/mcp/authorize`, `/token`, `/revoke`. |
+| Probes | `/healthz`, `/readyz`; `/metrics` requires private exposure. |
 
-All project IDs and secret ownership are resolved from stored records. Human
-routes require active stored sessions; key routes apply current project role and
-parent scopes. An assigned project's former owner is governed by current
-organization membership. Viewer metadata permission does not grant credential
-reads. A run ID, prompt or client-reported harness cannot grant authority.
+The private `/api/v1/runner/operations/{claim,execute,status}` surface is mounted
+only on a dedicated verified mTLS listener. It is not a public frontend route and
+cannot derive identity from forwarded headers.
 
-Safe errors use the existing `{error: ...}` envelope. Stale restoration is 409;
-unsupported core history/recovery on non-PostgreSQL is 503. Authorized current
-ciphertext corruption is a safe 500 rather than an absent-record 404. Bodies are
-limited to 1 MiB generally and 90 MiB on exact encrypted recovery verification/
-preview/restore paths. Raw provider/DB/crypto error details are not public contracts.
+## Contracts that matter to clients
 
-## Compatibility surfaces
+- Human sign-in preserves `{user, token}` and Bearer authentication with a
+  database-revocable 24-hour session. A valid signature or known ID alone is
+  insufficient. Browser sessions and opaque MCP delegation tokens are distinct.
+- Batch accepts `{environment, keys}` with 1–100 selected keys. The exact POST is
+  classified as a read; out-of-scope records are concealed in `missing_keys`.
+- History lists and recovery previews return metadata. Explicit vault value
+  reads and env export return permitted plaintext. Restore appends a revision
+  using an expected-current-revision condition.
+- Run creation accepts approved scope and an owned client delegation. A
+  `preparing` run has no usable grant until reference resolution/revalidation.
+  Operation creation is asynchronous and uses a stable request key; changed
+  arguments under the same key conflict. Status does not include result data.
+- Results reauthorize current authority separately from provider-call outcome.
+  Client-owned run/operation IDs are handles, not authorization.
 
-`router.go` retains the existing `/api/v1` route families incrementally. Core
-promotion/import/export/template/key/grant controls have actual-router contract
-checks. Applications, widget, feedback and operations remain individually inventoried in the
-[acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md); they are
-not all newly verified frontend/SDK contracts. Applications/favorites remain
-metadata, not harness management.
+Errors retain safe existing envelopes; contract variants are specified per
+response. Stale revisions conflict; unavailable platform adapters/authoritative
+state fail closed. Raw SQL, provider and crypto errors are not public contracts.
+General body limits and exact larger encrypted-recovery limits are enforced by
+the router; MCP separately limits request payloads and full response envelopes.
 
-Unfinished AI, policy metadata, enterprise SSO, webhook automation, legacy OAuth
-issuance, event replay, plugin mutation and API-host MCP operations return explicit
-capability refusal in the core profile. Legacy OAuth discovery is not a delivered
-MCP authorization server. Standards-based `/mcp` is M2 and provider bindings/run
-grants are M3. Health/readiness remain probes; `/metrics` requires private operator
-exposure and the reference public TLS proxy denies it.
+## Availability and compatibility
+
+New identity/team/MCP/tool controls require PostgreSQL and their default-off
+flags. SMTP-dependent flows also require installation acceptance. The legacy
+OAuth server, API-host MCP execution/builds, unfinished AI/SSO/compliance,
+metadata-only policy enforcement and nondurable webhook automation remain
+unavailable in the restricted profile. Source presence does not expand support.
+Use the [acceptance ledger](../validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+and [protocol receipt](../design/2026-10-02-harness-neutral-platform/PROTOCOL.md)
+for exact tested lanes and external qualification gaps.

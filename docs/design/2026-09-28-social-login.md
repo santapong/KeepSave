@@ -1,5 +1,7 @@
 # Event Horizon login and external identity — RFC
 
+> **Identity scope, clarified 2026-10-04.** The initial no-session-change/no-unlink description below is historical, and the appended core checkpoint records its later replacement. Subsequent safe login-method management and delegated-authority changes are in the [harness-neutral checkpoint](2026-10-02-harness-neutral-platform/README.md). Current operator setup and real-provider acceptance requirements remain in [SOCIAL_LOGIN_SETUP](../SOCIAL_LOGIN_SETUP.md); synthetic fixtures do not qualify either provider for production.
+
 2026-09-28. Explicit owner request: apply the proposed login now and support GitHub and Google. Owner confirmed neither OAuth app exists and requested setup steps. No live provider configuration or production action is authorized by this implementation record.
 
 Type-2 additive external identity adapters and UI, with security review required before integration. Existing JWT signing/expiry, password checks, agent API keys and ownership middleware remain unchanged. No breaking schema, crypto primitive or key hierarchy change. The new trust surface is Internet/provider → backend identity exchange → existing human session. This supersedes the login concept's earlier omission of social providers.

@@ -1,39 +1,56 @@
-# Migrations
+# KeepSave migrations
 
-Per dialect. `repository.RunMigrations` (`internal/repository/migrate.go`)
-auto-selects the subdirectory matching the detected DB driver:
+Source audit: October 4, 2026. The canonical platform database is PostgreSQL.
+See [data model](../../docs/system/04-data-model.md),
+[architecture](../../docs/ARCHITECTURE.md), [cutover/recovery](../../docs/system/10-operations.md)
+and [acceptance ledger](../../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
 
-| Dialect    | Directory  | Status                                           |
-|------------|------------|--------------------------------------------------|
-| PostgreSQL | `postgres/`| **Canonical.** Production target. Complete.      |
-| MySQL      | `mysql/`   | Parity-maintained. Community-supported.          |
-| SQLite     | `sqlite/`  | Tests + embedded. Rarely used in production.     |
+[`repository.RunMigrationsFS`](../internal/repository/migrate.go) selects the
+stored driver's directory, sorts SQL filenames and records applied filename
+versions in `schema_migrations`. On-disk and embedded sources share this path.
+An already recorded version is skipped; this registry is not permission to edit
+an applied migration or claim checksum-validated migration history.
 
-Migrations run transactionally at startup. The `schema_migrations` table
-records what has already been applied so reruns are no-ops.
+| Directory | Current scope |
+|---|---|
+| `postgres/` | Migrations 001–033 for the current identity/vault/harness-neutral platform candidate. Real PostgreSQL transaction/concurrency evidence exists, with installation/release gates still open. |
+| `sqlite/` | Shipped local/legacy compatibility. New PostgreSQL-only entries can be explicit no-ops; equal registry counts do not imply feature parity. |
+| `mysql/` | Bounded MySQL 8.4 legacy identity/session/scoped-vault/workspace-role exercise. Journal/recovery/run parity is unproven. |
+| Root historical `.sql` | Predialect fallback only if the selected dialect directory is absent; not new migration source. |
 
-The flat `.sql` files at the top of `backend/migrations/` (e.g.
-`001_initial_schema.sql`, `006_application_dashboard.sql`,
-`008_phase15_quotas.sql`) predate the per-dialect split and are kept as a
-historical fallback (`migrate.go` falls back when the dialect subdir is
-absent). They are **not** the source of truth - add new migrations only
-under the three dialect subdirectories.
+## Evolution and transactions
 
-## Conventions
+Use the next monotonically increasing three-digit prefix for additive owning-slice
+changes. Never renumber/rewrite applied files. New tables/relationships must keep
+stored tenant/project ownership and immutable-journal constraints; a no-op adapter
+must be accurately marked unsupported at runtime. Do not promise MySQL parity
+because a matching filename exists.
 
-- Numeric prefix, three digits, monotonically increasing.
-- One feature or schema concern per file.
-- Use `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... IF NOT EXISTS` so
-  partial runs do not block re-execution.
-- Cross-dialect: if a feature is dialect-specific (e.g. JSONB), provide a
-  parity file in the other two dialects even if it only contains
-  `SELECT 1` - this keeps the schema_migrations row counts identical.
-- Test against an in-memory SQLite plus a docker-compose Postgres before
-  merging.
+PostgreSQL applies each migration body and registry insert in a transaction.
+SQLite/MySQL execute split statements through dialect adapters; MySQL DDL can
+implicitly commit, so this is **not atomic MySQL DDL**. Existing legacy adapters
+preserve applied file identities while handling driver syntax. The runner does
+not establish a global multi-instance migration contention guarantee. Coordinate
+one migration writer during cutover; concurrent startup/upgrade acceptance remains
+a release gate.
 
-## Why MySQL is supported
+Drain incompatible API/worker writers, preserve external encrypted backups and
+independent key material, apply additive migrations and explicitly baseline old
+active vault projects. The labeled baseline does not invent history. Deploy
+compatible recovery readers before new bundle writers; do not resume old session/
+vault writers after enrollment or use unsupported binaries as rollback.
 
-KeepSave runs primarily on Postgres (Neon for managed, RDS / Cloud SQL
-otherwise). MySQL parity exists for integrators with an existing MySQL
-estate and is not gated by the cutover plan - see
-`docs/DEPLOYMENT_PLAN.md` §3 (UAT tier picks).
+## Validation
+
+From the canonical repository root (`/mnt/data/company/apps/KeepSave`):
+
+```bash
+bash scripts/test-platform-postgres.sh
+bash scripts/test-legacy-mysql.sh
+```
+
+These create only unique disposable fixtures, ignore operator DATABASE_URL and
+publish no database port. Retain shipped SQLite migration fixtures too. Source
+checks/registry counts are not fresh execution; the dated ledger records actual
+migrations 001–033 race/restore tests. Production Transit/key recovery, migration
+contention and compatible upgrade/rollback still require operator acceptance.

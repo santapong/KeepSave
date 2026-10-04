@@ -1,12 +1,20 @@
-# Core control-host deployment reference
+# KeepSave self-hosted control-host reference
+
+![KeepSave — Your secrets. In the right orbit.](../../docs/assets/keepsave-header.svg)
 
 This is a reviewable **reference bundle**, separate from development Compose.
 It has not been deployed or subjected to production availability/load/upgrade
 acceptance. Independent review and the acceptance ledger remain release gates.
-It does not deliver M3 runner isolation or complete M5 operations.
+The harness-neutral runner source exists separately; actual isolation and the
+complete G6 operational journey remain unqualified. Reconciled 2026-10-04;
+canonical project: `/mnt/data/company/apps/KeepSave`. Follow the
+[current deployment plan](../../docs/DEPLOYMENT_PLAN.md),
+[documentation hub](../../docs/README.md) and dated acceptance ledger.
 
 The application shares `https://app.keepsave.draveniq.dev` for SPA, API and
-provider callbacks. The existing marketing origin remains unchanged. Only the
+provider callbacks. The existing marketing origin `https://keepsave.draveniq.dev` remains separate.
+Preserve its accepted Field Twist mark and Event Horizon identity; the application
+origin is a deployment target, not a published backend service. Only the
 TLS service publishes ports. PostgreSQL, API, frontend and trusted worker have
 no host ports. Public metrics are refused at the proxy. The proxy overwrites
 forwarded client information; the API trusts only its explicit private IP.
@@ -55,16 +63,21 @@ approval. Caddy's internal ports8080/8443 map to public80/443 as described in it
 
 ## Coordinated existing-database cutover
 
-1. Drain all old API/worker writers and keep the recovery backup/key outside the
-   target. Apply the additive migration chain with one controlled process;
+1. Drain all old API/worker writers and session-unaware binaries, and keep the
+   recovery backup/key outside the target. Apply additive migrations 001–033
+   with one controlled process;
    concurrent migrations are not an accepted procedure.
 2. Before opening traffic, run the new image's `/app/keepsave-vault -action
    baseline` explicitly on the trusted host against the intended database.
    It validates encrypted current/snapshot records and adds a labeled baseline,
    without claiming unavailable historical revisions. Startup refuses active
    unenrolled projects. Migration023 retains project/audit identities,
-   024 binds promotion source artifacts, and025 adds the backup metadata catalog.
-3. Start the new API/frontend only after successful enrollment and readiness.
+   024 binds promotion source artifacts, and025 adds the backup metadata catalog. Migrations026–033 add authority epochs,
+   proofs, delegation, artifacts/runs/operations, lifecycle/export/offboarding
+   and immutable admitted scope. Missing older scope stays unknown and grants
+   no provider authority.
+3. Start the new API/frontend with new platform flags off only after successful
+   enrollment and readiness. Users must reauthenticate using tracked sessions.
    Do not restart older writers on the enrolled vault. Verify login, scoped
    read, one new revision and an encrypted backup before admitting the team.
 4. Enable the worker with `KEEPSAVE_RECOVERY_VERIFIED=false` to process local
@@ -90,12 +103,13 @@ checks for live restoration. Deleted secrets/projects are not undeleted.
 
 ## Operational limits
 
-This bundle is one control host. It does not prove two-replica revocation,
-coordination under migration contention, throughput, recovery time, rollback of
-unsupported journal formats or hardware failure. Do not advertise those results
+This bundle describes one control host. A dated local two-API HTTP exercise
+proved bounded committed session revocation; this reference does not establish
+full multi-replica fault coordination, migration contention, throughput, recovery
+time, unsupported journal rollback or hardware failure. Do not advertise those results
 before their recorded exercises. Preserve key/history dependencies and do not
 purge ciphertext or keys speculatively. Revocation/status/audit/recovery stay
-available when future run admission is switched off.
+available when controlled-tool admission is switched off.
 
 Keep local backup storage private, monitor durable job/catalog states, retain
 external copies and regularly repeat the isolated recovery drill. Never rollback
@@ -117,3 +131,27 @@ The runtime worker requires canonical application origin for proof links. It
 receives no runner-listener key; mount runner TLS only into the API. Version2
 recovery requires explicit lifecycle custodian mapping; legacy version1 remains
 a reader contract. Do not use incompatible older readers/writers for rollback.
+
+## Independent admission and acceptance settings
+
+| Setting | Default and operator meaning |
+|---|---|
+| `KEEPSAVE_IDENTITY_ENABLED` | False; identity method/proof/team candidate |
+| `KEEPSAVE_TEAM_VAULT_ENABLED` | False; lifecycle/reminders and safe audit controls |
+| `KEEPSAVE_MCP_ENABLED` | False; delegated OAuth and stateless protocol candidate |
+| `KEEPSAVE_RUNS_ENABLED` | False; tool-platform management/execution availability |
+| `KEEPSAVE_RUN_ADMISSION_ENABLED` | False; new-run/operation admission switch |
+| `KEEPSAVE_BROKER_DISPATCH_ENABLED` | False; external dispatch switch |
+| `KEEPSAVE_SMTP_ACCEPTED` | False; record actual authenticated send acceptance before email proofs |
+| `KEEPSAVE_RECOVERY_VERIFIED` | False; record an external recovery drill before scheduled backups |
+
+Configured, locally tested and operationally accepted states are distinct. SMTP
+accepted is not delivered; uncertain sends are not automatically replayed. The
+worker's local proof material is ephemeral encrypted custody, with ID-only jobs.
+Vault recovery excludes sessions/grants/tokens/approvals and operation results.
+
+Independent review, remote exact-revision CI, real Google/GitHub/SMTP, exact
+Codex/Hermes, disposable GitHub App, actual separate-host restrictions and
+installation key/TLS/storage/fault/upgrade acceptance remain release gates. Do
+not deploy from a source merge alone or reuse older incompatible session/vault
+binaries as rollback. See [RUNBOOK](../../docs/RUNBOOK.md).

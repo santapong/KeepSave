@@ -1,234 +1,133 @@
-# KeepSave Widget - Integration Guide (v2.0)
+# KeepSave widget integration guide
 
-The `<keepsave-widget>` is a Web Component that can be embedded in any website to manage secrets stored in KeepSave. It uses Shadow DOM for style isolation and supports multiple authentication methods.
+Source audit: October 4, 2026. The widget is a retained vault compatibility client,
+not a GitHub broker or qualified native harness. Build/distribution source exists;
+no published `keepsave-widget` NPM package or CDN/version 2 release is established by
+this checkout. See the [documentation hub](../../../docs/README.md),
+[widget chapter](../../../docs/system/08-embed-widget.md),
+[branding](../../../docs/BRANDING.md) and
+[acceptance ledger](../../../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
 
-> **v2.0 Changes:** Updated to align with KeepSave SDK v2.0.0. The programmatic API now supports batch secret fetch. For full SDK features (retry, circuit breaker, caching), use the dedicated language SDKs (`@keepsave/sdk`, `keepsave` Python package, or Go module).
+## Build and host your reviewed bundle
 
-## Quick Start
+From the canonical project `/mnt/data/company/apps/KeepSave`:
 
-### CDN (UMD)
+```bash
+cd frontend
+npm ci
+npm run build:widget
+```
+
+Vite emits `dist-embed/keepsave-widget.es.js` and
+`dist-embed/keepsave-widget.umd.js` without source maps. Host a reviewed immutable
+bundle yourself; these example paths are yours to provide, not a live KeepSave CDN.
+Both entrypoints register `<keepsave-widget>`. The ES bundle also exports
+`KeepSaveAPI`, `KeepSaveWidget` and `register`.
 
 ```html
-<script src="https://your-cdn.com/keepsave-widget.umd.js"></script>
-
+<script src="/assets/keepsave-widget.umd.js"></script>
 <keepsave-widget
-  project-id="your-project-id"
-  api-url="https://your-keepsave-server.com"
-  api-key="ks_your_api_key"
+  id="vault-widget"
+  project-id="approved-project-uuid"
+  api-url="https://app.example.test"
   theme="light"
   mode="read"
 ></keepsave-widget>
 ```
 
-### ES Module
+The `api-url` is the installation origin without `/api/v1`. The example application
+origin is illustrative; `app.keepsave.draveniq.dev` is currently a deployment
+target. Prepare a real host page, configured API origins and scoped test credentials
+before browser acceptance.
 
-```html
-<script type="module">
-  import 'https://your-cdn.com/keepsave-widget.es.js';
-</script>
+## Attributes and auth modes
 
-<keepsave-widget
-  project-id="your-project-id"
-  api-url="https://your-keepsave-server.com"
-  token="your-jwt-token"
-></keepsave-widget>
-```
+| Attribute | Default | Actual behavior |
+|---|---|---|
+| `project-id` | Required | Active project UUID; server stored ownership/scopes remain authoritative. |
+| `api-url` | Current origin | Base origin of the API. |
+| `theme` | `light` | `light` or `dark`; style isolation only. |
+| `mode` | `read` | `readwrite` adds mutation controls; not a permission grant. |
+| `token` | Absent | Direct browser Bearer token, taking precedence over `api-key`. |
+| `api-key` | Absent | Direct scoped key; authorizes only its server-side scope/expiry. |
 
-### NPM Package
+Direct attributes bypass postMessage bootstrap and deliberately trust the host
+with credentials. Do not embed long-lived keys in public HTML. Current human
+tokens belong to database-revocable 24-hour SID/hash sessions; the widget has no
+human refresh-token flow. Revocation blocks subsequent requests but cannot recall
+values already fetched.
 
-```bash
-npm install keepsave-widget
-```
-
-```typescript
-import { register } from 'keepsave-widget';
-
-register(); // registers <keepsave-widget> custom element
-```
-
-## HTML Attributes
-
-| Attribute    | Required | Default               | Description                                      |
-|-------------|----------|-----------------------|--------------------------------------------------|
-| `project-id` | Yes      | —                     | The KeepSave project ID to display secrets for  |
-| `api-url`    | No       | Current origin        | Base URL of the KeepSave API server             |
-| `theme`      | No       | `light`               | Color theme: `light` or `dark`                  |
-| `mode`       | No       | `read`                | Access mode: `read` (view only) or `readwrite`  |
-| `token`      | No       | —                     | JWT token for direct authentication             |
-| `api-key`    | No       | —                     | API key for direct authentication               |
-
-## Authentication
-
-The widget supports three authentication methods:
-
-### 1. Direct API Key (simplest)
-
-Pass an API key directly via the `api-key` attribute:
-
-```html
-<keepsave-widget
-  project-id="my-project"
-  api-key="ks_abc123..."
-></keepsave-widget>
-```
-
-### 2. Direct JWT Token
-
-Pass a JWT token via the `token` attribute:
-
-```html
-<keepsave-widget
-  project-id="my-project"
-  token="eyJhbG..."
-></keepsave-widget>
-```
-
-### 3. postMessage Handshake (recommended for cross-origin)
-
-If no `token` or `api-key` attribute is provided, the widget initiates a postMessage handshake:
-
-1. The widget sends a `keepsave-auth-request` message to `window.parent`
-2. The host page responds with a `keepsave-auth` message containing credentials
+Without direct credentials, the widget first reads
+`GET /api/v1/embed-config/{project_id}`. A missing/disabled/failed policy or absent
+specific parent-origin allowlist refuses the handshake. Only then does it send
+`keepsave-auth-request` to the exact allowlisted parent. Inbound `keepsave-auth`
+requires that exact origin and contains token or API key, never secret values.
+For an iframe integration, the host should also verify the expected window:
 
 ```javascript
-// Host page listens for auth requests
-window.addEventListener('message', (event) => {
-  if (event.data.type === 'keepsave-auth-request') {
-    // Send credentials back to the widget
-    event.source.postMessage({
-      type: 'keepsave-auth',
-      token: 'your-jwt-token',
-      // OR: apiKey: 'ks_your_api_key'
-    }, '*');
-  }
-});
-```
-
-**Message Types:**
-
-```typescript
-// Widget -> Host (request)
-interface AuthRequestMessage {
-  type: 'keepsave-auth-request';
-  widgetId: string;
-}
-
-// Host -> Widget (response)
-interface AuthMessage {
-  type: 'keepsave-auth';
-  token?: string;
-  apiKey?: string;
+// Integrator supplies a reviewed credential getter; no secret is committed here.
+function installWidgetHandshake(frame, widgetOrigin, getCredential) {
+  const onRequest = async (event) => {
+    if (event.origin !== widgetOrigin || event.source !== frame.contentWindow) return;
+    if (event.data?.type !== 'keepsave-auth-request') return;
+    const credential = await getCredential();
+    if (event.source !== frame.contentWindow) return;
+    if (typeof credential?.token === 'string') {
+      event.source.postMessage({ type: 'keepsave-auth', token: credential.token }, widgetOrigin);
+    } else if (typeof credential?.apiKey === 'string') {
+      event.source.postMessage({ type: 'keepsave-auth', apiKey: credential.apiKey }, widgetOrigin);
+    }
+  };
+  window.addEventListener('message', onRequest);
+  return () => window.removeEventListener('message', onRequest);
 }
 ```
 
-## Theming
+`getCredential` must return only the reviewed `{token}` or `{apiKey}` for the
+current caller/project; it is an integrator responsibility, not an implemented
+public credential-delivery endpoint. `widgetOrigin` must be the fixed origin of
+your reviewed iframe page, never `*`. Configure the project's parent origin
+allowlist independently. Shadow DOM or postMessage does not protect values from
+a malicious host page with DOM/script control.
 
-### Built-in Themes
+## Programmatic API and batch
 
-Set the `theme` attribute to `light` or `dark`:
+Import the locally built ES bundle and pass a credential obtained in the current
+reviewed context; do not print it or returned values:
 
-```html
-<keepsave-widget theme="dark" ...></keepsave-widget>
+```javascript
+import { KeepSaveAPI } from './assets/keepsave-widget.es.js';
+
+const api = new KeepSaveAPI('https://app.example.test');
+// A scopedKey is supplied by your explicitly reviewed integration context.
+api.setApiKey(scopedKey);
+const result = await api.batchGetSecrets(projectId, 'alpha', ['DATABASE_URL']);
+// result.secrets contains permitted values; missing_keys conceals denied/absent keys.
 ```
 
-### Custom CSS Variables
+The source exports `listSecrets`, `createSecret`, `updateSecret`, `deleteSecret`
+and `batchGetSecrets`. Token/key setters clear the other credential. Batch's
+actual backend route is POST `/api/v1/projects/{id}/secrets/batch`, accepts
+`{environment,keys}` with 1–100 keys and is classified as a **read**. This lightweight
+client supplies no full language-SDK retry/circuit-breaker/cache guarantee or
+server-revocation-aware plaintext cache clearing.
 
-Override CSS custom properties on the host element to customize colors:
+## Rendering, theme and qualification
 
-```css
-keepsave-widget {
-  --ks-color-bg: #fafafa;
-  --ks-color-surface: #ffffff;
-  --ks-color-primary: #6366f1;
-  --ks-color-primary-hover: #4f46e5;
-  --ks-color-danger: #ef4444;
-  --ks-color-text: #111827;
-  --ks-color-text-secondary: #6b7280;
-  --ks-color-border: #e5e7eb;
-}
-```
+Current rendering uses `createElement`/`textContent`/`setAttribute`, typed key
+confirmation for delete and immediate remasking when the tab becomes hidden.
+Environment changes reset reveal/edit state; disconnect removes global listeners.
+A timed reveal timeout is not claimed. Credentials and values remain in memory
+in the embed source; direct attribute/host access remains a separate trust risk.
 
-### Available CSS Variables
+`--ks-color-*` custom properties style the host element. Follow Field Twist's
+violet/mint identity with readable light/dark contrasts when customizing, rather
+than claiming the legacy blue widget palette already matches every app asset.
+A read-only UI mode does not override backend roles. Modern Web Component APIs are
+used, but the old Chrome/Firefox/Safari minimum-version list was not an executed
+browser matrix and is not a support promise.
 
-| Variable                     | Description           |
-|-----------------------------|-----------------------|
-| `--ks-color-bg`             | Widget background     |
-| `--ks-color-surface`        | Card/item background  |
-| `--ks-color-surface-hover`  | Hover state           |
-| `--ks-color-primary`        | Primary action color  |
-| `--ks-color-primary-hover`  | Primary hover color   |
-| `--ks-color-danger`         | Delete/error color    |
-| `--ks-color-danger-hover`   | Danger hover color    |
-| `--ks-color-success`        | Success/connected     |
-| `--ks-color-text`           | Primary text          |
-| `--ks-color-text-secondary` | Secondary text        |
-| `--ks-color-border`         | Border color          |
-| `--ks-color-input-bg`       | Input background      |
-
-## Modes
-
-### Read-only (`mode="read"`)
-
-- View secrets across environments (Alpha, UAT, PROD)
-- Reveal/hide secret values
-- No create, edit, or delete actions
-
-### Read-write (`mode="readwrite"`)
-
-- All read-only capabilities
-- Add new secrets
-- Edit existing secret values
-- Delete secrets
-
-## Programmatic API
-
-The widget also exports a standalone API client:
-
-```typescript
-import { KeepSaveAPI } from 'keepsave-widget';
-
-const api = new KeepSaveAPI('https://your-keepsave-server.com');
-api.setApiKey('ks_your_api_key');
-
-// List secrets
-const secrets = await api.listSecrets('project-id', 'alpha');
-
-// Create a secret
-await api.createSecret('project-id', 'DB_HOST', 'localhost', 'alpha');
-
-// Update a secret
-await api.updateSecret('project-id', 'secret-id', 'new-value');
-
-// Delete a secret
-await api.deleteSecret('project-id', 'secret-id');
-```
-
-## Style Isolation
-
-The widget uses Shadow DOM to ensure:
-
-- Widget styles do not affect the host page
-- Host page styles do not affect the widget
-- CSS variable overrides are the only intentional bridge
-
-## Browser Support
-
-The widget uses standard Web Components APIs supported in all modern browsers:
-
-- Chrome 67+
-- Firefox 63+
-- Safari 10.1+
-- Edge 79+
-
-## Building from Source
-
-```bash
-cd frontend
-
-# Build the widget bundle
-npm run build:widget
-
-# Output files in dist-embed/:
-#   keepsave-widget.es.js   (ES module)
-#   keepsave-widget.umd.js  (UMD for script tags)
-```
+Vitest and widget-build receipts are dated in the ledger. Qualified integrator
+origin checks, current-session failure handling, actual browser accessibility and
+host cleanup require their own tests. New backend history/recovery/tool guarantees
+are PostgreSQL-only; merely loading this bundle does not qualify them.

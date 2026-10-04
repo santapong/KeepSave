@@ -1,5 +1,7 @@
 # Event Horizon workspace and orbit-vault icon
 
+> **Design lineage, clarified 2026-10-04.** This records the September 28 workspace pass and intermediate orbit-vault mark. Field Twist is the later selected brand identity; use the [current brand guide](../../BRANDING.md) for assets. The preserved `previous-icon.svg` is historical reference material. This document does not authorize reverting current workspace behavior or branding.
+
 2026-09-28. Owner request: update the icon and redesign the workspace now. This extends the selected Event Horizon direction; no renewed direction-selection gate is needed. DravenIQ provides product-profile restraint and hierarchy, while KeepSave keeps its own amber/violet identity, Geist typography and name.
 
 Type-2 frontend presentation/navigation change, implemented inline in the existing isolated worktree. No new backend/auth/crypto/promotion behavior or trust boundary. Preserve the earlier social-login work and the accepted public page structure. The shared icon changes across public/auth/workspace surfaces under the explicit icon-update request.
