@@ -1,69 +1,88 @@
-# Embed Widget — State Machine + Security Invariants
+# KeepSave widget state and security contract
 
-Companion to `frontend/src/embed/`. Documents the widget's state machine, the security invariant of each transition, and the audit-log requirement attached to it. **Every transition that touches a secret value MUST emit an audit-log event back to the backend** — today most do not, which is the most important gap on this page.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-This is a working spec used by Frontend Engineer 30-day work item §3 of `docs/ROLES_30_60_90.md`. It also feeds the Security Engineer's threat-model refresh.
+Source reconciled 2026-10-04 against [widget.ts](../frontend/src/embed/widget.ts),
+[element lifecycle](../frontend/src/embed/keepsave-widget.ts) and
+[embed API](../frontend/src/embed/api.ts). This updates the historical Phase A
+gap list; it does not claim new live browser/widget acceptance. See
+[origin policy](EMBED_ORIGIN_POLICY.md), [current status](STATUS.md) and
+[acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
 
----
+## States and transitions
 
-## States
+| State / transition | Current source behavior | Security boundary |
+|---|---|---|
+| Mounted → auth prompt | PostMessage mode loads public per-project policy first; direct attributes are a separate path | Origin equality is not authorization; server checks current credential scope |
+| Auth prompt → authenticated | Matched-origin handshake sets either browser token or API key in the API object | No credential or value browser-storage writes in embed source |
+| Authenticated → loading | List values for selected project/environment | A real permitted vault read, independently audited by the server |
+| Loading → values / empty / error | Populated in-memory list, empty message or visible failure | Masking is presentation; authorized plaintext already exists in memory |
+| Values → revealed / hidden | Toggle a record's reveal set | Never persist value to DOM attributes or browser storage; edit gets value from memory |
+| Revealed → hidden tab | `visibilitychange` immediately clears reveal set and rerenders | Masks visible value; does not erase all value/edit memory |
+| Environment change → loading | Clear revealed set and active forms before new load | Server reauthorizes new environment; async response isolation needs separate review |
+| Values → editing / adding | In-memory form state; cancel clears the active form's buffer | No value in postMessage, logs, public errors or data attributes |
+| Edit/add → saved | API mutation, clear active buffer and reload | Server transaction owns revision, required audit/outbox and permission |
+| Delete requested → confirmed | Modal requires exact key typing; cancel sends no delete | Readwrite UI mode does not grant server write scope |
+| Element reconfiguration/disconnect | Destroy handshake/renderer listeners; new setup rebuilds API/renderer | Listener teardown does not prove secure zeroization or cancellation of in-flight fetches |
 
-| State              | Definition                                                        | File:line                                |
-|--------------------|-------------------------------------------------------------------|------------------------------------------|
-| `unauthenticated`  | Widget mounted but no credentials yet; awaiting host postMessage  | `frontend/src/embed/keepsave-widget.ts:85` |
-| `authenticated`    | Token or API key received; widget initialized                     | `frontend/src/embed/keepsave-widget.ts:108-113` |
-| `loading`          | `listSecrets` (or other read) fetch in flight                     | `frontend/src/embed/widget.ts:45`        |
-| `secrets_loaded`   | List in memory                                                    | `frontend/src/embed/widget.ts:50`        |
-| `empty`            | List loaded but length 0                                          | `frontend/src/embed/widget.ts:193`       |
-| `revealed`         | One or more secret IDs in the `revealed: Set<string>`             | `frontend/src/embed/widget.ts:10`        |
-| `editing`          | Inline edit form open on one secret                               | `frontend/src/embed/widget.ts:11`        |
-| `adding`           | Add-secret form open                                              | `frontend/src/embed/widget.ts:13`        |
-| `error`            | API or network failure surfaced to user                           | `frontend/src/embed/widget.ts:52`        |
+`mode="read"` is the default and hides mutation controls; `readwrite` exposes them.
+The backend enforces actual role/scope. An attacker changing an HTML attribute
+cannot obtain server permission. Project/environment context and errors must stay
+clear, with KeepSave's Field Twist visual identity and recognizable action icons.
 
-## Transitions and their security contracts
+## Audit ownership
 
-| #  | From → To                     | Action            | Security invariant                              | Audit event today | Audit event REQUIRED |
-|----|-------------------------------|-------------------|-------------------------------------------------|-------------------|----------------------|
-| 1  | unauthenticated → authenticated | postMessage auth | Origin MUST match integrator allow-list (gap §3) | none              | `widget.authenticated` |
-| 2  | authenticated → loading       | mount or env switch | identity confirmed; project_id from attribute trusted | none              | none (read precedes audit) |
-| 3  | loading → secrets_loaded      | listSecrets ok    | response must be in expected shape              | server-side       | server-side OK |
-| 4  | loading → error               | listSecrets fail  | error message MUST NOT contain secret values    | none              | `widget.read_failed` |
-| 5  | secrets_loaded → revealed     | reveal click      | plaintext briefly in DOM; **no localStorage write** | none              | **`widget.secret_revealed`** |
-| 6  | revealed → secrets_loaded     | hide click / env switch | auto-hide timer fires? (gap)              | none              | `widget.secret_hidden` |
-| 7  | secrets_loaded → editing      | edit click        | plaintext in `<input>`; no persist               | none              | `widget.edit_started` |
-| 8  | editing → secrets_loaded      | save success      | server side audits update; UI may add own       | server-side       | server-side OK |
-| 9  | secrets_loaded → secrets_loaded | delete (confirm) | confirm() shown; cancel = no-op                | server-side       | server-side OK |
-| 10 | secrets_loaded → adding       | add click         | empty form; no secret yet                       | none              | none |
-| 11 | adding → secrets_loaded       | save success      | server side audits create                       | server-side       | server-side OK |
-| any | * → error                    | unhandled         | error UI MUST NOT include the value, only key   | none              | `widget.error` |
+Sensitive credential reads and enabled PostgreSQL mutations are audited by the
+server's authorized vault service. Local mutation, immutable revision, required
+audit and outbox commit together. UI reveal/hide/edit-start transitions do **not**
+currently emit `widget.*` journal events. A client-reported UI event would not
+prove an authorized server read; do not claim those proposed event names are wired.
+See [AUDIT_LOG_COVERAGE](AUDIT_LOG_COVERAGE.md).
 
-## Storage rules
+## Storage and current limits
 
-- **In-memory only** for tokens, API keys, plaintext secret values, edit buffers.
-- `localStorage` / `sessionStorage` / `indexedDB` writes of any of the above are **forbidden**.
-- Today the *embed* widget complies (no storage usage in `frontend/src/embed/`). The *dashboard* (non-embed) has plaintext-token concerns tracked separately — see "Dashboard storage debt" below.
+The widget API keeps one token/API key in memory, and its renderer retains
+permitted values/edit buffers in memory. Embed source uses no localStorage,
+sessionStorage or IndexedDB credential/value persistence. Attribute credentials
+remain visible to host scripts; Shadow DOM is style isolation, not confidentiality
+against a malicious host or XSS.
 
-## Dashboard storage debt (not in scope of this widget, but tracked)
+The dashboard is a separate implementation. Its canonical `keepsave_token`
+accessor prefers **sessionStorage**, migrates known legacy keys and explicitly
+falls back to **localStorage** if sessionStorage is inaccessible. User metadata
+may also use localStorage. Consequently, unconditional tab-only token storage
+is not a current guarantee. No dashboard secret-value storage is permitted.
 
-Found during the embed audit. These are non-embed paths, but they're real:
-
-- `frontend/src/api/client.ts:27, 31, 35` — JWT in `localStorage('keepsave_token')`.
-- `frontend/src/api/ai.ts` — JWT in `localStorage('keepsave_token')`.
-- `frontend/src/pages/HelpPage.tsx` — reads `localStorage('jwt')` (note: different key name — likely a bug).
-- `frontend/src/hooks/useAuth.ts:9, 36, 46` — user PII (email, id, name) in `localStorage('keepsave_user')`.
-
-This is the standard trade-off (refresh-without-relogin vs. token-on-disk). Acceptable for the dashboard if (a) we keep the JWT 24h TTL of ADR-0002, and (b) we *never* extend this pattern to secret plaintext. Open follow-up: harmonize key names (`keepsave_token` vs `jwt`) and move tokens to `sessionStorage` for tab-scoped survival without disk persistence. Tracked in `docs/FOLLOWUPS.md` (to be added).
+The application client has account-switch guards and protected-401 cache/proof
+clearing; the retained embed API does not implement that automatic reset path.
+Its error mapper can convert a nested error object to unhelpful text. Do not
+claim equivalent cache-clearing/error UX across every adapter. Treat these as
+bounded compatibility limitations, not silently successful logout or erasure.
 
 ## Auto-clear / timeout policy
 
-**Not implemented today.** Required behavior for the widget:
+Implemented in the widget: visibility-hidden remasking, environment-change
+remasking, typed delete confirmation and edit/add cancellation buffer clearing.
+The previous proposal's **60-second reveal inactivity timer** and **five-minute
+edit inactivity clearing/save prompt** are not implemented in `widget.ts`; they
+remain requirements to close before making that widget timeout claim. Renderer
+destruction removes listeners, not all plaintext memory.
 
-- Revealed secrets auto-hide after **60 seconds** of no interaction.
-- Edit buffer auto-clears after **5 minutes** of inactivity (also triggers a save-prompt).
-- Page visibility change (`document.visibilitychange` → hidden) hides any revealed secret immediately.
+The dashboard Secrets panel separately implements a **30-second reveal countdown**,
+visibility-hidden remasking, typed delete, request-generation guards and a
+best-effort **20-second clipboard clear** that first checks the copied value.
+These behaviors do not establish the widget timers or guarantee clipboard erasure.
 
-Owner: Frontend Engineer. Due: 30 days.
+## Verification obligations
 
-## Test obligations
+Preserve unit checks for exact origin, token/API-key selection, default masking,
+hidden-tab remasking, typed delete, safe edit source and DOM construction.
+Source fixtures are in [embed tests](../frontend/src/embed/). For changes, extend
+actual server/router scope/read-audit/transaction tests and real integrator
+acceptance for loading, empty, denied, expired, failed and account/context-switch
+states. Exercise late responses and teardown explicitly rather than inferring
+cancellation from listener removal. Never record live credentials in screenshots.
 
-A Playwright/Chromatic test for each numbered transition above. Visual regression baseline for state **5** (revealed) is the priority — it's the highest-leakage screen.
+Security Engineer review remains required for credential reveal/edit/copy,
+origin-policy changes or storage boundaries. Source presence, rendering and
+synthetic unit checks are distinct from real end-to-end acceptance.

@@ -1,32 +1,59 @@
-# KeepSave — Follow-ups
+# KeepSave follow-ups and qualification gates
 
-This is the single source of truth for tracked technical debt and deferred work. Every entry has an **owner** (a role from `docs/ROLES.md`) and a **due date**. No-owner items are not tracked here — they're either assigned or deleted.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
+
+This tracker combines current qualification gates with dated technical-debt
+observations. A committed delivery item needs a human-assigned **owner** from
+[ROLES](ROLES.md) and a **due date**. Proposed role owners and relative milestone
+order below are planning input until assigned; they are not promised deadlines.
 
 **Cadence:** reviewed at the monthly ADR review (`docs/ROLES.md` §6). Items past due without an explanation get pulled into the next 30-day plan.
 
-## Current reconciliation — 2026-10-02
+## Current reconciliation — 2026-10-04
 
-The historical Phase A/B entries below retain their original observations and
-closed sections. They are not a current missing-feature inventory. Candidate
-`8fa8d6e`, integrated by `1fb27c4`, and the
-[acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md) supersede
-contradictory historical status claims; integration is not production approval.
+Canonical project: `/mnt/data/company/apps/KeepSave`. Source candidate `6684aca`
+was integrated to `develop` by `1021435` and published to `main` by `202cc5d` on
+October 3 under bounded owner authorization. This is source publication, not a
+tag, deployment, formal independent review or operational platform acceptance.
+The October 3 main/develop CI runs were observed failed on October 4; inspect
+[CI_PERMISSIONS](CI_PERMISSIONS.md) and exact subsequent-revision results.
 
-| Historical item | Current state / remaining work |
+Historical Phase A/B observations and closeouts below retain their dates. The
+[current acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+and [implementation checkpoint](design/2026-10-02-harness-neutral-platform/README.md)
+supersede contradictory current-state claims. Roles below are proposed delivery
+owners; dates require human assignment rather than invented deadlines.
+
+| Slice | Implemented/local evidence | Remaining acceptance | Proposed owner |
+|---|---|---|---|
+| G0 identity/vault | Tracked sessions, scoped permissions, retained revisions/keys, external encrypted recovery | Independent reviews, remote CI, real Google/GitHub consent, installation key/recovery/cutover | Security / Tech Lead / Backend / Operator |
+| G1 authority/audit | Ordered stored authority barriers, member epochs, safe denials/read-only doctor, bounded audit search/export | Complete entrypoint review and full fault exercises; ownership drift denies, automatic rediscovery retry not claimed | Backend / Security / QA |
+| G2 team vault/identity | Lifecycle/reminders, method safety, proofs/invitations/recovery, scoped offboarding, v2 recovery | Installation authenticated SMTP accepted-send, live proof/method/team UAT and worker operation | Identity / Vault / Operator / QA |
+| G3 MCP/OAuth | SDK v1.8.0, stateless restricted lanes, resource-bound opaque public S256 clients | Exact Codex 0.153.3 and isolated Hermes 0.21.5 OAuth/tool/cancellation qualification | Protocol / QA |
+| G4 broker/runner | GitHub App custody, bindings, immutable commit/client-bound runs, fenced operations/results, private mTLS and supervisor | Disposable live GitHub A/B/revocation/canaries and actual rootless isolation; observed host lacks CPU delegation | Broker / Runner / Security / Operator |
+| G5 private artifacts | Single instruction-only SKILL.md, portable profiles, digest approvals, native candidate export/check/unpack | Native discovery/use/admin-control evidence; richer reference-file trees follow later | Automation / Protocol / QA |
+| G6 operations | Control/runner references, trusted worker, bounded actual two-API revocation, pinned image receipts | Full two-API faults/upgrade/compatible rollback, production storage/Transit/TLS and measured capacity | Operator / QA / Tech Lead |
+
+All new platform flags default off and guarantees remain PostgreSQL-only. Keep
+status/cancel/revocation/audit/recovery available under admission kill switches.
+The landing remains separate; the application domain is a deployment target.
+
+| Historical item | Reconciled direction |
 |---|---|
-| #0/#9 required mutation audit; S-M6 chain | Core PostgreSQL mutations join required audit/outbox; serialized persisted chain head and continuity tests exist. Independent review/operational acceptance remain. Retained legacy routes have explicit availability status. |
-| #2 backup tamper test | Local encrypted-bundle wrong-key/corruption and external isolated recovery drills passed. Production key/storage/recovery acceptance remains. |
-| #3 DEK rotation | Implemented with retained history/promotion key dependencies and local router/journal tests; no new rotation engine is needed. |
-| #5 self-approval | Service/DB protections plus exact artifact/revision-bound local promotion tests exist. |
-| Phase B human JWT revocation/scopes | Revocable tracked human sessions, denylist/agent issuance and project/environment/key/parent scope checks are implemented. Workload broker identities remain M3, device attestation deferred. |
-| #6 experimental intelligence | Preserved source is unavailable in core; do not advertise or enable it through this roadmap. |
-| Go SDK module | Local module/example/build checks exist; remote module publishing remains separate. |
-| Current delivery | Independent reviews/CI, real provider UAT, staging rollback and installation-specific operations remain release gates. |
+| #0/#9 mutation audit and S-M6 chain | Enabled PostgreSQL vault/platform mutations use required transactional audit/outbox and persisted chain continuity; best-effort historical advice is superseded |
+| #2 backup integrity and #3 DEK rotation | Implemented and locally exercised, including external isolated v2 recovery and retained historical/promotion keys; installation drill remains |
+| #5 self-approval | Exact revision/digest/current-epoch independent approval controls exist; independent human review is separate |
+| JWT/scopes/workload identity | Browser sessions, API-key/agent lineage and enrolled runner source exist; production/native/host acceptance still pending, device attestation deferred |
+| #0g CODEOWNERS | File exists with owner placeholders; hosted protection, new module coverage and independent reviewer assignment need verification |
+| AWS/GCP KMS | Adapter source remains unwired; Vault Transit is the selected implemented reference, additional cloud KMS is deferred |
+| Go SDK distribution | Local standalone module and CI contracts exist; remote package/module publishing is separate |
+| Experimental services | Legacy AI/analytics, executable SSO, metadata policy enforcement, old OAuth, API-host execution and non-durable webhooks remain unavailable |
 
-The [new product plan](design/2026-10-02-product-roadmap/README.md) and
-[proposed backlog](design/2026-10-02-product-roadmap/BACKLOG.md) define F01–F09.
-Their role owners/relative dependencies are proposals, not assigned due dates
-or completed work. The existing M2–M5 program remains in order.
+The [product backlog](design/2026-10-02-product-roadmap/BACKLOG.md) is historical
+planning input; its former missing-feature status must be reconciled with G0–G6.
+External secret delivery, arbitrary scripts/builds, model credentials, marketplaces,
+remote attestation and multi-region operation remain deferred. Keep the Field Twist
+identity and clear status labels as task-focused integration controls expand.
 
 ---
 
@@ -342,7 +369,7 @@ Captured here so they're not lost, **not** to be worked on until Phase B starts.
 - **Fine-grained API-key scopes:** project/environment/key/parent narrowing is implemented; preserve compatibility semantics and the current acceptance matrix.
 - **Three-of-N approval for PROD** (ADR-0003). Build if regulatory pressure or a customer commitment forces it.
 - **Subkey derivation (HKDF) for auxiliary purposes** (audit-log MAC, etc.; ADR-0004). Only with a new ADR.
-- **Workload identity:** API-key expiry and short-lived vault leases/tokens are implemented; the original immortal-key description is historical. Tenant-bound runner enrollment is planned M3. SPIFFE/remote device attestation is deferred; the future broker grant is not an existing vault token.
+- **Workload identity:** API-key expiry and short-lived vault leases/tokens are implemented; the original immortal-key description is historical. Tenant-bound runner enrollment and broker grants exist in the local candidate; separate-host/provider qualification remains pending. SPIFFE/remote device attestation is deferred; a broker grant is distinct from a vault lease/token.
 - **Lease-renewal grammar for `SecretLease`** (`backend/internal/models/models.go:367-377`). Today `SecretLease` has `ExpiresAt` + `Revoked` but no renewal endpoint; long-running agents must re-issue and lose audit-trail continuity across a single session. **Trigger:** first customer agent runs longer than current lease max-TTL, OR first complaint about lease-ID churn fragmenting audit search. Pattern source: HashiCorp Vault lease-renewal grammar — see `docs/research/competitors/vault.md` Candidate 5. Owner: Backend Engineer (when trigger fires).
 
 ---
@@ -353,4 +380,4 @@ Captured here so they're not lost, **not** to be worked on until Phase B starts.
 - **Closing an item:** move it under the "Closed" section with a one-line description of the artifact that closes it (commit SHA, file path, or PR number). Don't delete — historical follow-ups are useful in post-mortems.
 - **Slipping a due date:** allowed *once*, with a written reason here. Second slip triggers a re-plan of that role's 30/60/90.
 
-Once Phase A items close, `SECURITY_AUDIT.md` v1.1.0 can be re-stamped v1.1.1 and the "Known follow-ups" block removed there.
+Historical audit reports keep their original dates and conclusions. Record new acceptance and review evidence in new dated receipts; do not restamp an old audit as if it were rerun.

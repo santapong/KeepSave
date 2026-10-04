@@ -1,5 +1,7 @@
 # OWASP ASVS v4.0.3 Level-2 Audit — KeepSave
 
+> Historical record, relocated from `SECURITY_AUDIT_ASVS.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 **Date:** 2026-07-02
 **Scope:** KeepSave backend (Go/Gin) + embeddable frontend widget, current branch `claude/three-project-vercel-plan-hrd22f`.
 **Standard:** OWASP Application Security Verification Standard (ASVS) v4.0.3, Level 2.

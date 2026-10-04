@@ -1,204 +1,115 @@
-# Audit-Log Coverage Spec (Backend 30-day)
+# KeepSave audit coverage and transaction contract
 
-The 30-day audit revealed that **secret, project, and API-key mutations are not audit-logged today**. This document is the spec to close that gap. It enumerates every state-mutating handler, the audit event it MUST emit, and the test that asserts the audit row exists.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-This is Backend Engineer 30-day work item §1 from `docs/ROLES_30_60_90.md`. Security Engineer review required (per ROLES.md §2.2).
+Reconciled 2026-10-04 against the harness-neutral source candidate. This replaces
+the May/June implementation proposal as the current coverage guide. Historical
+findings and their original closeouts remain in [audits](audits/) and
+[FOLLOWUPS](FOLLOWUPS.md). Independent review is pending; local executed scope is
+in the [acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
 
----
+## Required behavior
 
-## Principle
+For enabled PostgreSQL security/vault paths, the local mutation, immutable revision
+when applicable, required audit event and outbox entry share one database
+transaction. A failed required audit/outbox write aborts the operation. Return a
+successful mutation or newly issued credential only after commit. The old advice
+to log an audit failure and still return success is superseded.
 
-> If an action is not in the audit log, it didn't happen — and the feature isn't done. (ROLES.md §1, operating principle 5.)
+Admissions record the permitted read/dispatch before decryption or external work.
+Do not sample sensitive read admissions or defer `secret.read` on enabled vault
+paths. Network calls occur outside authority transactions: persisted admission,
+external outcome and permitted delivery are distinct records. A required outcome
+publication failure cannot be reported as a successfully delivered result.
 
-This is non-negotiable. A PR adding or modifying a state-mutating handler must include:
-1. An audit emit call in the service or handler, with the canonical event name and metadata fields below.
-2. A test that asserts the audit row was created.
+The persisted audit-chain head is locked **last** in the shared authority order.
+Concurrent writers serialize chain updates across processes. Immutable audited
+user/project IDs remain stable through deletion; tombstones and migration 023
+avoid foreign-key actions rewriting previously hashed content. Do not recompute
+old hashes to conceal a mismatch. The existing chain format is unchanged.
 
-Reviewers reject PRs that fail either.
+## Event inventory by owner
 
-## Canonical event taxonomy
+The following is a source-backed event-family index, not a claim that every
+legacy route is enabled or operationally qualified. Exact details are defined by
+the owning implementation; actor/project/environment fields also live in the
+audit row. Avoid inventing fields from the historical taxonomy.
 
-| Action            | Event name                | Required metadata fields                                                       |
-|-------------------|---------------------------|--------------------------------------------------------------------------------|
-| Secret create     | `secret.created`          | `project_id`, `environment`, `secret_key`, `actor_id`                          |
-| Secret update     | `secret.updated`          | `project_id`, `environment`, `secret_key`, `actor_id`, `previous_version_id`    |
-| Secret delete     | `secret.deleted`          | `project_id`, `environment`, `secret_key`, `actor_id`                          |
-| Secret read (sensitive) | `secret.read`        | `project_id`, `environment`, `secret_key`, `actor_id`, `auth_method` (jwt/apikey) |
-| Project create    | `project.created`         | `project_id`, `actor_id`, `name`                                                |
-| Project update    | `project.updated`         | `project_id`, `actor_id`, `changed_fields[]`                                    |
-| Project delete    | `project.deleted`         | `project_id`, `actor_id`, `name`                                                |
-| API key create    | `apikey.created`          | `project_id`, `actor_id`, `key_id`, `scopes[]`, `environment` (nullable)         |
-| API key delete    | `apikey.deleted`          | `project_id`, `actor_id`, `key_id`                                              |
-| Promotion request | `promotion_requested`     | (already present) `project_id`, `actor_id`, `source_env`, `target_env`, `keys[]` |
-| Promotion approve | `promotion_approved`      | **new** — `project_id`, `approver_id`, `promotion_id`                            |
-| Promotion execute | `promotion_completed`     | (present) `promoted_keys[]`, `skipped_keys[]`, `override_policy`                  |
-| Promotion reject  | `promotion_rejected`      | (present) `project_id`, `approver_id`, `promotion_id`, `reason`                  |
-| Promotion rollback| `promotion_rollback`      | (present) `restored_keys[]`                                                      |
-| Auth login        | `auth.login`              | `user_id`, `ip`, `success` (bool)                                                |
-| Auth login failed | `auth.login_failed`       | `email_attempted`, `ip` — **no user_id** (the email may not be a real user)      |
-| Auth logout       | `auth.logout`             | `user_id`                                                                        |
-| Key rotation (master) | `key.master_rotated`  | `actor_id`, `provider`                                                          |
-| Key rotation (DEK)| `key.dek_rotated`         | `project_id`, `actor_id`, `secrets_rotated`, `environments` — emitted by `keyrotation_service.go::RotateProjectKey` (one row per project; bulk rotation emits per-project rows) |
-| Origin allow-list update | `embed.origins_updated` | `project_id`, `actor_id`, `added[]`, `removed[]` — once allow-list lands       |
+| Owner | Representative current event names | Safe metadata |
+|---|---|---|
+| Identity/login/session adapters | `auth.register`, `auth.login`, `auth.login_failed`, `auth.session_created`, `auth.session_revoked` | Method, session ID, success/failure context; no signed token/hash/password |
+| Organization/project/API-key adapters | `org.created`, `org.member_added`, `org.member_role_updated`, `org.member_removed`, `project.created`, `project.deleted`, `apikey.created`, `apikey.deleted` | Immutable resource IDs, roles, permitted scope metadata; no key plaintext |
+| Vault | `vault.baseline.created`, `secret.created`, `secret.updated`, `secret.deleted`, `secret.read`, `secret.restored`, `key.dek_rotated` | Secret ID, revision, key identifier and environment; no value or ciphertext key material |
+| Promotion | `promotion_requested`, `promotion_approved`, `promotion_completed`, `promotion_rejected`, `promotion_rollback` | Exact promotion/snapshot/version metadata; legacy names retained |
+| Lifecycle | `secret.lifecycle_updated`, `secret.lifecycle_restored`, `secret.reminder_created` | Record and metadata/lifecycle revision, reminder count; no credential value |
+| Recovery/backups | `backup.created`, `backup.verified`, `backup.restore.previewed`, `backup.restore.admitted`, `backup.isolated_recovery.admitted`, `backup.isolated_recovery.completed`, `backup.scheduled`, `backup.stored`, `backup.retention.requested` | Bundle/job IDs, counts/integrity/revision metadata; no recovery key or authority payload |
+| Identity proofs and methods | `identity.proof_requested`, `identity.proof_rejected`, `identity.proof_consumed`, `identity.method_removed` | Proof ID, purpose, method and account ID; no proof string or raw proof URL |
+| SMTP delivery | `identity.delivery_dispatched`, `identity.delivery_completed`, `identity.delivery_uncertain`, `identity.delivery_cancelled`, `identity.delivery_recovered` | Delivery/proof IDs, state and safe reason code; accepted is not delivered |
+| Invitations/offboarding | `identity.invitation_created`, `identity.invitation_revoked`, `identity.invitation_accepted`, `identity.offboarding_preview_created`, `identity.member_offboarded` | Organization/member/preview/receipt IDs; no invitation proof |
+| Delegated OAuth | `mcp.token_issued`, `mcp.token_refreshed`, `mcp.refresh_replay`, `mcp.token_revoked`, `mcp.delegation_revoked` | Client, consent/family IDs; no authorization code/access/refresh token |
+| Artifacts and connections | `tool.artifact.created`, `tool.profile.created`, `tool.profile.approved`, `tool.package.created`, `tool.package.approved`, `tool.connection.created`, `tool.binding.created`, `tool.workload.enrolled` and scoped revocations | Exact IDs/digests/repository target; no GitHub private key or installation token |
+| Disclosed diagnostics | `tool.connection.check.admitted`, `tool.connection.check.access`, `tool.connection.check.completed`, `tool.connection.check.expired` | Check IDs, declared external read/token mint, commit/status; no upstream raw response |
+| Runs/operations | `tool.grant.issued`, `tool.operation.queued`, `tool.attempt.dispatched` and run/attempt/receipt lifecycle events | Client/run/operation/attempt/fence/receipt IDs and safe outcome; no result content |
+| Safe exports | `audit.export_created`, `audit.export_ready`, `audit.export_failed` | Export ID, bounded row count/publication state; no raw journal payload |
 
-### A-02 sweep — previously-uncovered service mutations (added 2026-06)
+New names use dotted entities and snake_case sub-actions; legacy `promotion_*`
+names remain compatible. Existing event string literals are the runtime source;
+there is no claimed universal generated event-constants registry.
 
-These 13 service groups performed state mutations but emitted no audit event.
-The A-02 sweep wired `auditRepo` into each and now emits one row per successful
-mutation. All events use the `entity.action` form. `actor_id` is the audit row's
-`user_id`; `ip` is `ip_address`. Secret values, client secrets and SSO secrets
-are NEVER placed in `details`.
+## Application implementation pattern
 
-| Action                  | Event name                  | Required metadata fields                                  |
-|-------------------------|-----------------------------|-----------------------------------------------------------|
-| Org create              | `org.created`               | `actor_id`, `organization_id`, `name`                     |
-| Org update              | `org.updated`               | `actor_id`, `organization_id`, `name`                     |
-| Org delete              | `org.deleted`               | `actor_id`, `organization_id`, `name`                     |
-| Org member add          | `org.member_added`          | `actor_id`, `organization_id`, `target_user_id`, `role`   |
-| Org member role update  | `org.member_role_updated`   | `actor_id`, `organization_id`, `target_user_id`, `role`   |
-| Org member remove       | `org.member_removed`        | `actor_id`, `organization_id`, `target_user_id`           |
-| Webhook register        | `webhook.registered`        | `actor_id`, `project_id`, `url`, `events`                 |
-| Webhook remove          | `webhook.removed`           | `actor_id`, `project_id`, `removed_count`                 |
-| Template create         | `template.created`          | `actor_id`, `template_id`, `name`                         |
-| Template update         | `template.updated`          | `actor_id`, `template_id`, `name`                         |
-| Template delete         | `template.deleted`          | `actor_id`, `template_id`                                 |
-| Env-file import         | `envfile.imported`          | `actor_id`, `project_id`, `environment`, `created_count`, `updated_count`, `skipped_count` |
-| SSO configure           | `sso.configured`            | `actor_id`, `organization_id`, `provider`                 |
-| SSO delete              | `sso.deleted`               | `actor_id`, `organization_id`, `provider`                 |
-| Compliance report       | `compliance.generated`      | `actor_id`, `organization_id`, `report_id`, `report_type` |
-| Backup create           | `backup.created`            | `actor_id`, `project_id`, `backup_id`, `type`, `secret_count` |
-| Secret policy set        | `policy.set`                | `actor_id`, `project_id`, `max_age_days`, `require_rotation` |
-| Lease create            | `lease.created`             | `actor_id` (api key id), `project_id`, `environment`, `lease_id`, `secret_keys` |
-| Lease revoke            | `lease.revoked`             | `actor_id`, `lease_id` (no `project_id` — UPDATE is keyed by lease id alone) |
-| Agent token mint        | `agent.token.minted`        | `actor_id`, `project_id`, `lease_id`, `jti`, `expires_at` (ADR-0021) |
-| Agent token revoke      | `agent.token.revoked`       | `actor_id`, `project_id`, `jti` (ADR-0021) |
-| MCP server register     | `mcp.server_registered`     | `actor_id`, `mcp_server_id`, `name`                       |
-| MCP server update       | `mcp.server_updated`        | `actor_id`, `mcp_server_id`, `name`                       |
-| MCP server delete       | `mcp.server_deleted`        | `actor_id`, `mcp_server_id`                               |
-| MCP server install      | `mcp.server_installed`      | `actor_id`, `mcp_server_id`, `installation_id`, `project_id` (nullable) |
-| MCP installation update | `mcp.installation_updated`  | `actor_id`, `installation_id`, `enabled`                  |
-| MCP installation uninstall | `mcp.installation_deleted` | `actor_id`, `installation_id` |
-| OAuth client register   | `oauth.client_registered`   | `actor_id`, `oauth_client_id`, `client_id`, `name`        |
-| OAuth client delete     | `oauth.client_deleted`      | `actor_id`, `oauth_client_id`                             |
-| Application create      | `application.created`       | `actor_id`, `application_id`, `name`                      |
-| Application update      | `application.updated`       | `actor_id`, `application_id`, `name`                      |
-| Application delete      | `application.deleted`       | `actor_id`, `application_id`                              |
-| Anomaly rule create     | `anomaly.rule_created`      | `actor_id`, `rule_id`, `rule_type`, `project_id` (nullable) |
-| Anomaly rule update     | `anomaly.rule_updated`      | `actor_id`, `rule_id`, `enabled`                          |
-| Anomaly rule delete     | `anomaly.rule_deleted`      | `actor_id`, `rule_id`                                     |
-| Anomaly acknowledge     | `anomaly.acknowledged`      | `actor_id`, `anomaly_id`                                  |
-| Anomaly resolve         | `anomaly.resolved`          | `actor_id`, `anomaly_id`                                  |
-| Feedback submit         | `feedback.submitted`        | `actor_id`, `category`, `issue_number`, `repo` — the feedback message text is NEVER placed in `details` |
-| Drift detect            | `drift.detected`            | `actor_id`, `project_id`, `drift_check_id`, `source_env`, `target_env`, `total_keys`, `drifted_keys`, `missing_in_source`, `missing_in_target` — DetectDrift decrypts every secret in both envs, so it MUST audit; decrypted secret keys/values are NEVER placed in `details` |
+The transport handler authenticates/translates and calls an authorized service.
+The service resolves stored ownership, acquires ordered authority locks, checks
+current policy and mutates through its own repository. Its transaction-aware
+`event` helper calls `AuditRepository.CreateTx` and enqueues identifier/safe-metadata
+outbox work before `Commit`.
 
-### Naming convention
+[vault/service.go](../backend/internal/vault/service.go),
+[identity/service.go](../backend/internal/identity/service.go),
+[runs/service.go](../backend/internal/runs/service.go) and
+[mcpauth/service.go](../backend/internal/mcpauth/service.go) show the concrete
+patterns. Required audit dependency absence denies the operation. Retained
+compatibility services using the historical best-effort helper do not establish
+the new transaction guarantee; their availability and migration need explicit review.
 
-Event names use the `entity.action` form: a dotted `entity` and a snake_case
-sub-action (e.g. `key.dek_rotated`, `auth.login_failed`, `org.member_added`).
-The five `promotion_*` events (`promotion_requested`, `promotion_approved`,
-`promotion_completed`, `promotion_rejected`, `promotion_rollback`) predate this
-convention and use a flat `promotion_<action>` form; they are **legacy** and are
-kept as-is for compatibility. New events MUST use `entity.action`.
+Outbox payloads contain only identifiers/safe metadata. Email delivery material
+and operation results use separate ephemeral encrypted custody. A fenced worker
+acknowledges only its current attempt. Uncertain SMTP/provider work is recorded
+and requires explicit resend/retry/reconciliation; no exactly-once external-effect
+claim follows from a database transaction.
 
-Events are currently emitted as string literals via the `emitAudit` helper in
-`backend/internal/service/audit_helper.go` (e.g.
-`emitAudit(s.auditRepo, &actor, &project, "org.created", env, details, ip)`).
-A shared `backend/internal/events/events.go` constants file is a tracked
-follow-up; until it lands, the canonical spelling is the one in the tables above.
+## Safe browsing and export
 
-## Implementation pattern
+`auditview` projects a limited typed-reference allowlist rather than rendering
+arbitrary `details`. It checks current access, uses deterministic
+`(created_at,id)` cursors and caps browsing at 100 rows. Exports materialize safe
+metadata in a real repeatable-read snapshot: defaults are a 31-day window,
+10,000 rows, 20 MiB and one-hour download expiry. Trusted publication is fenced;
+status distinguishes pending, ready and failed. Downloads reauthorize current
+sessions/member access. Failed publication cannot become ready through a stale job.
 
-Every state-mutating service gets an `auditRepo` dependency:
+Safe exports exclude values, proofs, tokens, raw request/provider payloads and
+operation results. Older raw journal access is separately authorized and is not
+the safe projection. Current audit retention defaults to 365 days. Retention of
+chain/key dependencies must preserve verifiability; an HMAC chain is tamper evidence
+under control-host/key trust, not an external immutable notarization service.
 
-```go
-type SecretService struct {
-    repo      SecretRepo
-    cryptoSvc *crypto.Service
-    auditRepo AuditRepo  // ← new
-}
+## Verification and operations
 
-func (s *SecretService) Create(ctx context.Context, in CreateSecretInput) (*Secret, error) {
-    // … existing logic
-    if _, err := s.auditRepo.Create(ctx, &AuditEntry{
-        Action:    events.SecretCreated,
-        ProjectID: in.ProjectID,
-        ActorID:   in.ActorID,
-        Metadata: map[string]any{
-            "environment": in.Environment,
-            "secret_key":  in.Key,
-        },
-    }); err != nil {
-        // log but do not fail the request — audit failures get their own alert
-        s.logger.Error("audit emit failed", "event", events.SecretCreated, "err", err)
-    }
-    return secret, nil
-}
-```
+For each enabled mutation, sensitive credential read and dispatch contract,
+exercise the actual router and
+real PostgreSQL with success, cross-tenant/role denial, missing dependency,
+audit/outbox failure, concurrency and restart scenarios. Force an audit failure
+and assert no partial mutation, issued authority, revision, consumed ticket or
+misleading success survives. Verify chain continuity across resource deletion and
+process restart. Use synthetic values only.
 
-**Why audit-emit failures don't fail the request:** if Postgres is healthy enough to commit the secret mutation, audit emit on the same DB should also succeed. If audit emit fails, that's its own operational signal (likely a schema or migration issue, not a request issue). We do NOT want a working write path blocked by a degraded audit table.
+The dated local receipts prove bounded scenarios, including concurrent writers,
+rollback, two-process session revocation, export terminal failure and broker
+admission canaries. They do not replace live provider/SMTP/runner qualification
+or a full operational fault drill. Monitor chain verification, failed/uncertain
+jobs, export publication, backup retention and refusal rates. Do not claim an
+alert integration or metric exists unless its shipped configuration is checked.
 
-However, **a failed audit emit MUST raise a metric** (`keepsave_audit_emit_failed_total{event}`) which is alertable. See DevOps work item.
-
-## Test obligations
-
-For each event in the taxonomy above, at least one test:
-
-1. **Handler-level integration test** that exercises the endpoint and reads the `audit_log` table to confirm a matching row exists. Example shape:
-
-```go
-func TestCreateSecret_EmitsAudit(t *testing.T) {
-    db := testdb.New(t)
-    svc := buildSecretService(db, …)
-    h := api.NewSecretHandler(svc, …)
-
-    req := newAuthedRequest(t, "POST", "/api/v1/projects/"+pid+"/secrets",
-        `{"key":"DATABASE_URL","value":"postgres://...","environment":"alpha"}`)
-    w := httptest.NewRecorder()
-    h.Create(w, req)
-
-    require.Equal(t, 201, w.Code)
-    rows := testdb.AuditRowsFor(t, db, pid)
-    require.Len(t, rows, 1)
-    require.Equal(t, events.SecretCreated, rows[0].Action)
-    require.Equal(t, "DATABASE_URL", rows[0].Metadata["secret_key"])
-    require.Equal(t, "alpha", rows[0].Metadata["environment"])
-}
-```
-
-2. **Service-level unit test with mock `auditRepo`** asserting the call shape (action, fields). Cheaper than the integration test; runs on every commit. Both layers are required — the unit test catches refactor breakage, the integration test catches plumbing breakage.
-
-## Order of implementation
-
-1. **Secret service** — highest value, highest exposure. (Days 1-7.)
-2. **Project service.** (Days 7-10.)
-3. **API key service** — keys are credentials; audit creation/deletion is critical. (Days 10-14.)
-4. **Auth login / logout** — populates the actor identity for all of the above. (Days 14-17.)
-5. **Promotion `promotion_approved`** — emit the distinct event before executing. (Days 17-20.)
-6. **All read-side audits (`secret.read`)** — lowest priority because reads happen at high volume and need rate-aware emission; defer to days 20-30 with separate volume-handling design.
-
-## Reads — special handling
-
-`secret.read` is high-frequency. Emitting a row per read may overwhelm `audit_log`. Options for the read path:
-
-- **(a) Per-read row, partitioned table.** Real audit, real cost.
-- **(b) Sampled audit** (1 in N) — loses individual events; not acceptable for a security audit log.
-- **(c) Aggregate counter per (actor, project, secret) per minute** — preserves "who read what when" at minute granularity without row blowup.
-
-**Decision deferred** to a Type-1 ADR. For now, do not emit `secret.read` until the ADR lands. Tracked in `FOLLOWUPS.md`.
-
-## Failure modes and alerts
-
-| Failure                                                        | Alert (where)                                                       |
-|-----------------------------------------------------------------|---------------------------------------------------------------------|
-| Audit emit returns error                                       | `keepsave_audit_emit_failed_total{event}` > 0 → page on-call         |
-| Audit row count for a mutation endpoint is zero for > 5 minutes during steady traffic | composite metric: `requests_total{...} > 0 ∧ audit_rows_total{...} == 0` |
-| Audit log grows faster than expected baseline                  | informational; check if a new read path was added without sampling design |
-
-## References
-
-- `backend/internal/service/secret_service.go` (Create/Update/Delete — currently no audit emit)
-- `backend/internal/service/project_service.go` (same)
-- `backend/internal/service/apikey_service.go` (same)
-- `backend/internal/service/promotion_service.go:189, 257, 357, 399` (existing emit points — model to follow)
-- `backend/internal/models/models.go:63-72` (audit_log shape)
-- `backend/internal/repository/audit_repo_test.go` (existing test shape to extend)
+See [THREAT_MODEL](THREAT_MODEL.md), [RUNBOOK](RUNBOOK.md),
+[architecture](ARCHITECTURE.md) and the sole [management contract](../backend/internal/api/openapi/core.json).

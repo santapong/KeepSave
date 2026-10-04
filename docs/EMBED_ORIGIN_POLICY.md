@@ -1,143 +1,99 @@
-# Embed Widget — postMessage / Cross-Origin Policy
+# KeepSave embed origin and messaging policy
 
-The embed widget (`<keepsave-widget>`) runs on integrator origins. Today's policy is **too permissive** — this doc states both the current behavior (so it's auditable) and the required behavior (so the gap is explicit and fixable).
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-This is the Frontend Engineer 30-day work item §2 from `docs/ROLES_30_60_90.md`.
+Reconciled 2026-10-04 from [auth.ts](../frontend/src/embed/auth.ts),
+[keepsave-widget.ts](../frontend/src/embed/keepsave-widget.ts) and the
+[embed handlers](../backend/internal/api/handlers_embed.go). The original
+wildcard/no-allowlist proposal is preserved in
+[EMBED_ORIGIN_LEGACY](archive/EMBED_ORIGIN_LEGACY.md); it is not current behavior.
+See [ADR0006](adr/0006-embed-widget-origin-allowlist.md), [widget states](EMBED_STATE.md)
+and [current status](STATUS.md). Local fixtures do not constitute a live integrator
+security assessment.
 
----
+## Current boot and API contract
 
-## What the widget does *today*
+The postMessage path loads `GET /api/v1/embed-config/:project_id` **before** starting
+the credential handshake. This public, rate-limited endpoint returns only
+`{project_id, allowed_origins, embed_policy_enabled}`. Missing/disabled projects
+share a 404 response; it returns no owner, key, secret identifier or value.
 
-**Outbound `postMessage`** (`frontend/src/embed/auth.ts:33`):
-```ts
-window.parent.postMessage(
-  { type: 'keepsave-auth-request', widgetId },
-  '*'                          // ← wildcard target origin
-)
-```
+`PUT /api/v1/projects/:id/embed-config` is authenticated and uses current project
+management authority. It sets the explicit origins/enabled setting and refuses
+a wildcard. A project ID alone never grants vault authority.
 
-**Inbound listener** (`frontend/src/embed/auth.ts:21-26`):
-```ts
-window.addEventListener('message', (ev) => {
-  if (ev.data?.type === 'keepsave-auth' && (ev.data.token || ev.data.apiKey)) {
-    onAuth(ev.data.token, ev.data.apiKey)  // ← no ev.origin check
-  }
-})
-```
+The widget:
 
-**No allow-list** of integrator origins exists. Credentials may be accepted from *any* origin posting a message of the right shape.
+1. Requires the selected project ID and loads its public embed configuration.
+2. Refuses missing/disabled/unavailable configuration and an empty valid origin list.
+3. Detects the parent origin from `document.referrer`, falling back to its own
+   `window.location.origin`; requires exact membership in the stored allowlist.
+4. Starts a handshake bound to that one matched origin. `createAuthHandshake`
+   refuses empty/`*`, rejects inbound `event.origin` mismatches and uses the same
+   exact outbound target origin.
+5. Passes the resulting token or API key to the normal protected API. Stored
+   project/environment/key/parent scopes remain server enforced.
 
-**Direct embed mode** (`frontend/src/embed/keepsave-widget.ts:61, 65`) reads `token` and `api-key` as HTML attributes — those are trusted by the host page already, so no cross-origin issue, but a credential in an HTML attribute is observable by every script on the page.
+The origin is scheme + hostname + port. `localhost` and `127.0.0.1` are distinct.
+Do not widen an allowlist to make an unexpected host work; configure the intended
+integrator origin deliberately. Failed boot renders an inert auth prompt and
+safe console diagnostics. CORS and a handshake allowlist are browser boundaries,
+not credential authorization.
 
-## Threat model
+## Messages and direct-attribute mode
 
-| Threat                                                | Today | After policy enforcement |
-|-------------------------------------------------------|-------|--------------------------|
-| Malicious page embeds widget, sends fake `keepsave-auth` from `window` itself → widget accepts attacker's token | **Open** | Mitigated by origin allow-list |
-| Legit integrator's page is XSS'd; attacker reads the token attribute | Open | Still open (attribute mode) |
-| Widget exfiltrates secret via `postMessage` to `*` | Not done today | Forbidden by policy |
-| Widget receives `keepsave-secret-set` from a malicious sibling iframe | N/A — no such message exists | Stays N/A — never accept secret values inbound |
+The implemented outbound request is `keepsave-auth-request` with a widget ID.
+The implemented inbound type is `keepsave-auth` with a token or API key. Secret
+**values** must never be added to postMessage payloads. Authentication credentials
+are distinct from secret content and still require careful host custody.
 
-## Required policy (target behavior)
+Current code checks the expected type and presence of a credential but does not
+provide a general exhaustive message-schema validator, source-window binding,
+per-message MAC or replay protocol. Do not claim these proposed controls exist.
+Shadow DOM style isolation is not a security boundary against the host's scripts.
 
-### 1. Allow-list of integrator origins
+`token` and `api-key` attributes provide a separate direct mode and bypass the
+postMessage boot allowlist. They are observable by scripts on the host page.
+Use a trusted host with scoped short-lived authority; never place a production
+credential in static HTML/source control. Attribute mode does not confer broader
+server scope and cannot protect against a compromised integrator page.
 
-Source of truth: a server-side per-project setting (`projects.allowed_embed_origins TEXT[]`). The widget bootstrap fetches this list with the project ID *before* accepting any auth message. No origin in the list → no widget activates.
+## Integration configuration
 
-- **Schema migration:** additive — `ALTER TABLE projects ADD COLUMN allowed_embed_origins TEXT[] DEFAULT '{}'`.
-- **API:** `GET /api/v1/projects/:id/embed-config` returns `{ allowed_origins: string[] }`. Unauthenticated read — only project ID is required, because the widget hasn't been authenticated yet at this point. The endpoint must rate-limit by IP to avoid enumeration of valid project IDs.
-
-### 2. Strict origin checks on every message
-
-```ts
-// outbound
-window.parent.postMessage(msg, ALLOWED_ORIGIN)   // never '*'
-// inbound
-addEventListener('message', (ev) => {
-  if (!allowedOrigins.has(ev.origin)) return       // drop silently
-  // … existing handling
-})
-```
-
-Wildcard `'*'` is forbidden in both directions. Code reviewers reject it.
-
-### 3. Message schema is fixed and exhaustive
-
-Permitted message types (outbound from widget): `keepsave-auth-request`, `keepsave-resize`, `keepsave-error`.
-Permitted message types (inbound to widget): `keepsave-auth`.
-
-**Secret values are NEVER carried in any postMessage**, inbound or outbound. Period. No exceptions. Code review rejects PRs adding a message type that includes a value.
-
-### 4. Framing controls
-
-Widget MUST refuse to run inside a frame whose top window's origin is not in the allow-list:
-
-```ts
-if (window.top !== window && !allowedOrigins.has(document.referrer.origin)) {
-  renderError("This origin is not authorized to embed KeepSave.")
-  return
-}
-```
-
-This is belt-and-suspenders to the server-side allow-list — even if a malicious page somehow obtains a project ID and serves the widget bundle, the widget self-disables.
-
-### 5. CSP for the *host* page
-
-We publish a recommended CSP for integrators:
-
-```
-Content-Security-Policy:
-  frame-src https://widget.keepsave.example;
-  frame-ancestors 'self';
-```
-
-Integrators apply this to their own pages. We document it in `docs/EMBED_INTEGRATION.md` (to be written by Tech Writer interim Tech Lead).
-
-## What gets implemented in Phase A (30 days)
-
-- Allow-list migration + endpoint (Backend Engineer).
-- Strict origin checks in the widget (Frontend Engineer).
-- Framing guard (Frontend Engineer).
-- Documentation: this file + integrator CSP guidance (Tech Writer / interim).
-
-## What gets deferred to Phase B
-
-- **Per-message MAC / replay protection.** Considered but not needed at the current scope; `postMessage` semantics + origin checks are enough. Revisit if a customer with a high-threat model asks.
-- **SRI / signed widget bundles.** Browser-level integrity for the script tag is a separate concern, owned by DevOps.
-
-## Test plan
-
-- Unit: origin allow-list helper accepts known good, rejects unknown, rejects malformed.
-- Integration: Playwright host page that posts auth from a non-allow-listed origin — widget must not authenticate.
-- Integration: Playwright host page that *is* allow-listed — widget authenticates.
-- Negative: malformed message types are dropped, no exceptions propagate.
-
-## Operator note: `api-url` attribute is required when frontend ≠ backend origin
-
-Per audit F-M1 / ADR-0016: when the SPA is hosted on Vercel and the
-backend lives on a different origin (Fly.io, Cloud Run, etc.), the
-embed widget MUST be initialized with an explicit `api-url` attribute
-pointing at the backend. Without it, the widget falls back to
-`window.location.origin`, which would be the host page's origin — not
-KeepSave's backend — and every API call would 404.
-
-Correct:
+The widget defaults `api-url` to the hosting page origin. For a third-party host,
+set the intended KeepSave application origin explicitly; it is an origin, not
+an `/api/v1` suffix:
 
 ```html
+<script src="https://your-keepsave-host/embed/keepsave-widget.js"></script>
 <keepsave-widget
-  api-url="https://api-uat.keepsave.example"
-  project-id="abc-123"
-></keepsave-widget>
+  api-url="https://your-keepsave-host"
+  project-id="your-project-id"
+  mode="read"
+  theme="dark">
+</keepsave-widget>
 ```
 
-For same-origin embeds (the rare case where the integrator hosts both
-their page and the KeepSave backend behind a single reverse proxy)
-the attribute can be omitted.
+The first-release application target is `https://app.keepsave.draveniq.dev`;
+the static landing is not an API host. Use exact CORS origins and a host CSP that
+allows only the selected script/API/frame destinations required by the actual
+embedding mode. CSP/SRI configuration belongs to the integrator deployment; this
+source guide does not prove it is installed. The
+[integration guide](../frontend/src/embed/INTEGRATION.md) describes supported attributes.
 
-## References
+## Security boundaries and required acceptance
 
-- `frontend/src/embed/auth.ts:21-33`
-- `frontend/src/embed/keepsave-widget.ts:61, 65, 85, 108-113`
-- ADR-0002 (auth model — origin trust is auth-adjacent)
-- ADR-0016 (deployment topology — drives the cross-origin requirement)
-- HTML Living Standard §`window.postMessage`
+| Threat | Implemented control | Remaining boundary |
+|---|---|---|
+| Another origin injects a message | Exact inbound/outbound origin, public-policy boot | Same-origin hostile script/source-window ambiguity is not attested |
+| Missing/disabled project enumeration | Same 404 config response, rate limit, minimal metadata | Enabled embed metadata is intentionally public |
+| Host page reads a credential/value | Scoped server authority and in-memory widget handling | Host/XSS can read attributes/DOM/memory; no device or host attestation |
+| Credential changes widen project access | Protected API resolves current ownership/scopes | Origin/mode alone is not permission |
+| Claimed iframe restrictions | Exact detected-origin check | No claim of an independently enforced top-ancestor-origin protocol |
+| Secret exfiltration through messages | Secret content is absent from current message types | New messages need security review; host compromise remains |
+
+Preserve no-wildcard, no-secret-message and no-browser-storage-for-widget-values
+requirements. Test matched/mismatched origins, disabled/missing config, malformed
+messages, credential substitution, CORS and scoped server denials. Repeat real
+integrator/browser acceptance on exact deployed origins and retained client
+versions. Unit fixtures and existing widget builds are scoped local evidence.

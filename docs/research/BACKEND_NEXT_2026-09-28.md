@@ -1,5 +1,7 @@
 # Backend development intake — 2026-09-28
 
+> **Historical intake, clarified 2026-10-04.** “Current evidence” and the recommended sequence below refer to the September 28 source and tests. Subsequent identity, journal, recovery and harness-neutral code is recorded in the [October checkpoint](../design/2026-10-02-harness-neutral-platform/README.md) and its linked acceptance ledger. The stated historical test counts and unresolved review obligations are preserved.
+
 The owner accepted the frontend in the conversation on 2026-09-28 and asked to shift effort to backend development and features. Keep the current frontend as the design baseline. Worktree: `KeepSave-landing`, `feat/landing-event-horizon-20260928`, base `9e2b3ba`; earlier uncommitted frontend/social-login work is preserved.
 
 Later owner direction on the same date: plan the broader backend architecture for maintainability and expansion, with MCP, skills, and controlled developer-harness credentials. The [backend platform proposal](../design/2026-09-28-backend-platform/README.md) extends this intake with a repository-wide architecture review, module boundaries, credential security design, current standards research, and staged acceptance criteria. It is a proposal; the recovery and platform features are not marked implemented.

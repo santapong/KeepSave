@@ -1,130 +1,109 @@
-# Integrations
+# KeepSave integration inventory
 
-Integration inventory, reconciled 2026-10-02. Supported local exercises and
-remaining client gates are in the [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md).
-MCP execution, old OAuth issuance, SSO and webhook automation are unavailable
-in the current core profile; their guides are legacy/design references.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-There are two kinds. **First-party integrations** ship in this repository and
-are how most people wire KeepSave into a codebase or pipeline. **Partner
-integrations** are separate products that use KeepSave as their secret vault or historical integration target — each has its own guide. A guide
-does not establish a current end-to-end acceptance result.
+Reconciled 2026-10-04. KeepSave retains its vault clients and adds a
+**harness-neutral access candidate**: portable profiles, client-bound runs and
+broker-held provider credentials. Local/synthetic checks do not qualify a real
+client or provider. Read the [acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+and [documentation hub](README.md) before treating an integration as supported.
 
----
+The canonical project is `/mnt/data/company/apps/KeepSave`. The published landing
+is `keepsave.draveniq.dev`; the same-origin full application target is
+`app.keepsave.draveniq.dev`. Keep the accepted Field Twist identity in first-party
+packages. Native provider logos identify providers and must remain recognizable.
 
-## First-party
+## Vault consumers
 
-These live in this repo and are versioned with it.
-
-### SDKs
-
-Fetch secrets at runtime without ever putting them in a `.env` file. Each SDK
-authenticates with a scoped API key and caches in memory only.
-
-| Language | Path | Package |
+| Consumer | Source | Contract and boundary |
 |---|---|---|
-| Go | [`sdks/go/`](../sdks/go/) | `package keepsave` — see the note below |
-| Node.js | [`sdks/nodejs/`](../sdks/nodejs/) | `@keepsave/sdk` |
-| Python | [`sdks/python/`](../sdks/python/) | `keepsave` |
+| Go SDK | [sdks/go](../sdks/go/) | Standalone local module `github.com/santapong/KeepSave/sdks/go`; no new remote module/tag qualification |
+| Node SDK | [sdks/nodejs](../sdks/nodejs/) | `@keepsave/sdk` source and local contract tests; package publication is separate |
+| Python SDK | [sdks/python](../sdks/python/) | `keepsave` source and local contract tests; package publication is separate |
+| CLI | [keepsave CLI](../backend/cmd/keepsave/) | Scoped vault operations and read-only doctor; inspect command help and actual router contract |
+| GitHub Actions | [integration source](../integrations/github-action/) | Authorized runtime secret consumption; action distribution/live pipeline qualification separate |
+| GitLab CI | [integration source](../integrations/gitlab-ci/) | Authorized CI consumption; review environment scope and output handling |
+| Terraform consumer | [integration source](../integrations/terraform/) | Data-source consumer, not a full resource provider; plaintext may enter Terraform state/output |
+| Embedded widget | [embed source](../frontend/src/embed/) | Browser component with explicit origin policy; scoped user/API credentials remain distinct |
 
-> **Go SDK status.** `sdks/go/go.mod` now declares the standalone local module
-> `github.com/santapong/KeepSave/sdks/go`, and CI has a dedicated SDK test job.
-> No new published module version/tag or remote `go get` acceptance is claimed.
-> Use a local module replacement for this uncommitted candidate; published
-> distribution remains the tracked release step in [FOLLOWUPS](FOLLOWUPS.md).
+Vault consumers intentionally receive **authorized plaintext**. In-memory caching
+cannot recall values already returned when authority is revoked. Do not describe
+these adapters as the credential-confined broker. Environment export is an explicit
+plaintext export boundary; avoid committing or logging its output.
 
-The pattern is the same in all three: the only configuration your service needs
-is a KeepSave URL, an API key, and a project ID. Everything else is fetched.
+Batch reads use `POST /api/v1/projects/:id/secrets/batch` with
+`{environment, keys}` and return `{secrets, missing_keys}`. The supported selection
+is 1–100 keys; out-of-scope entries are concealed as missing and this exact POST
+is classified as read. All references need independent current authorization.
+See the maintained [management OpenAPI](../backend/internal/api/openapi/core.json)
+for request/response types rather than duplicating route descriptions in adapters.
 
-```python
-from keepsave import KeepSaveClient
+## Controlled developer tools
 
-ks = KeepSaveClient(os.environ["KEEPSAVE_URL"], api_key=os.environ["KEEPSAVE_API_KEY"])
-secrets = ks.list_secrets(os.environ["KEEPSAVE_PROJECT_ID"], "alpha")
+```mermaid
+flowchart LR
+  Clients[Codex / Hermes / future clients] --> MCP[Authenticated MCP adapter]
+  MCP --> Runs[Current-authority client-bound runs]
+  Runs --> Runner[Separate isolated supervisor / connector]
+  Runner --> Broker[Trusted structured-operation broker]
+  Broker --> GitHub[GitHub App API]
+  Broker --> Custody[Vault credential custody]
+  Runs --> Receipts[Safe receipts / authorized expiring results]
 ```
 
-### CI/CD
+The broker makes authenticated GitHub requests; a connector/model never receives
+its installation token. The candidate only lists bounded repository trees and
+reads bounded UTF-8 files at the stored run commit. It accepts no arbitrary URLs,
+HTTP headers, shell commands or broader provider actions. Repository content may
+still reach the client/model after an authorized result read.
 
-Inject environment variables at build or deploy time, scoped to the environment
-being deployed.
+| Surface | Candidate | Qualification still required |
+|---|---|---|
+| MCP transport | Official Go SDK v1.8.0; stateless Streamable HTTP; restricted `2026-07-28` and `2025-11-25` lanes | Actual exact-client negotiation/authentication/cancellation |
+| Delegated OAuth | Public S256 clients; exact issuer/resource/callback; opaque rotating families bound to a current browser parent | Real consent and native refresh/replay/revocation exercises |
+| Codex | Candidate 0.153.3; dedicated workspace/native package | Exact build tool invocation and native skill discovery/use |
+| Hermes | Isolated candidate 0.21.5 / v2026.9.24; separate profile | Exact build legacy lane, native skill use and interrupt evidence |
+| GitHub App broker | Explicit installation/repository/environment binding; read-only | Disposable live A-success/B-denial/revocation/canary exercise |
+| Rootless Podman runner | Separate host, pinned connector, Unix relay and private mTLS | Actual host isolation; observed local host lacks CPU delegation |
 
-| Integration | Path |
-|---|---|
-| GitHub Actions | [`integrations/github-action/`](../integrations/github-action/) |
-| GitLab CI | [`integrations/gitlab-ci/`](../integrations/gitlab-ci/) |
+Profiles are portable; grants and runs belong to one stored developer and client
+family. Another client cannot use a run merely by knowing its ID. Skill text,
+configuration and reported package digests do not grant permission or attest a
+device. See [harness engineering](HARNESS_ENGINEERING.md),
+[protocol receipt](design/2026-10-02-harness-neutral-platform/PROTOCOL.md) and
+[setup](design/2026-10-02-harness-neutral-platform/SETUP.md).
 
-### Infrastructure as code
+Do not change installed Hermes 0.21.3, its chosen non-Anthropic provider, sessions
+or memory to qualify the newer isolated candidate. Additional harnesses implement
+the same adapter contracts and require their own versioned compatibility evidence;
+KeepSave does not promise universal compatibility from an exporter alone.
 
-| Integration | Path |
-|---|---|
-| Terraform data-source consumer | [`integrations/terraform/`](../integrations/terraform/) |
+GitHub **social sign-in** uses a separate OAuth app and requests no repository
+permission. It creates no broker connection/binding/grant. New controlled-tool
+flags default off. API-host connector build/execution and old OAuth issuance remain
+unavailable; registry/catalog metadata does not override that refusal.
 
-The existing Terraform adapter consumes permitted secret values; it is not a
-full KeepSave resource provider. Review its state/output handling before use.
+## Partner and historical designs
 
-### Embeddable widget
+| Product | Guide | Current interpretation |
+|---|---|---|
+| NEXUS | [nexus_integration.md](nexus_integration.md) | Historical vault/agent/OAuth design; no new live end-to-end qualification |
+| MedQCNN | [medqcnn_integration.md](medqcnn_integration.md) | Historical vault/promotion/tooling design; no claim of enabled API-host execution |
+| Grovernance | [grovernance_integration.md](grovernance_integration.md) | Historical secret/identity integration reference |
+| Seidr | [SEIDR_INTEGRATION.md](SEIDR_INTEGRATION.md) | Design/compatibility fixtures; separate runtime acceptance |
 
-A `<keepsave-widget>` Web Component that drops a secrets panel into any web app
-with a single `<script>` tag. Shadow DOM isolates styles from the host page, and
-`postMessage` is origin-restricted.
+A guide's existence does not prove a deployed partner service. Enterprise SSO,
+experimental AI/analytics, assessed compliance, unenforced metadata policy and
+non-durable webhook automation remain unavailable in the restricted profile.
+External secret-delivery adapters, arbitrary scripts/builds, model credentials,
+marketplaces, device attestation and multi-region operation remain deferred.
 
-```html
-<script src="https://your-keepsave-host/embed/keepsave-widget.js"></script>
-<keepsave-widget
-  api-url="https://your-keepsave-host"
-  project-id="your-project-id"
-  theme="dark">
-</keepsave-widget>
-```
+## Adding an adapter
 
-See [`EMBED_STATE.md`](EMBED_STATE.md) for the state machine and
-[`EMBED_ORIGIN_POLICY.md`](EMBED_ORIGIN_POLICY.md) for the cross-origin rules —
-including why wildcard `postMessage` targets are forbidden.
-
-### MCP clients
-
-Standards-based `/mcp` and resource-bound Codex OAuth are M2. The current core
-refuses API-host gateway execution/build/install/config generation. Registry and
-catalog metadata do not establish client compatibility or credential confinement.
-The approved M3 broker makes structured authenticated GitHub requests and keeps
-GitHub App tokens from the connector/model; social GitHub login is separate.
-See the [ordered architecture plan](ARCHITECTURE.md).
-
----
-
-## Partner products
-
-Separate products that use KeepSave. Each guide covers project setup, secret
-import, environment promotion, MCP registration and OAuth client registration
-for that product specifically.
-
-| Product | What it is | KeepSave's role | Guide |
-|---|---|---|---|
-| **NEXUS** | Agentic AI "Company-as-a-Service" — every department staffed by an AI agent | Vault for LLM API keys, OAuth provider for the A2A gateway, MCP host for agent tools, per-environment spend limits | [`nexus_integration.md`](nexus_integration.md) |
-| **MedQCNN** | Hybrid quantum-classical CNN for medical image diagnostics | Vault for DB/JWT/Kafka credentials, promotion across qubit-count tiers, MCP host for `diagnose` tooling | [`medqcnn_integration.md`](medqcnn_integration.md) |
-| **Grovernance** | Governance platform | Secret storage and identity | [`grovernance_integration.md`](grovernance_integration.md) |
-| **Seidr** | — | **Design only.** No code ships yet; the document fixes the contract so both sides agree on shape before implementation | [`SEIDR_INTEGRATION.md`](SEIDR_INTEGRATION.md) |
-
----
-
-## The shape of an integration
-
-For an authorized core vault integration, use these steps:
-
-1. **Create a project** — the vault scope. Explicit workspace attachment requires
-   stored personal ownership and destination administrator authority.
-2. **Import secrets** — bulk-import an existing `.env`, or push keys
-   individually. Values are sealed with AES-256-GCM before they reach storage.
-3. **Issue a scoped API key** — read-only, bound to one project and one
-   environment, so a compromised runtime key cannot reach production.
-MCP/provider/harness setup is deferred to the specific M2–M4 slices. Core vault
-clients receive authorized plaintext; caching cannot recall previously returned
-data after revocation. The [API contract](system/03-api-reference.md) describes
-current paths and safe revision/idempotency behavior.
-
-## Adding a new integration
-
-Partner guides live in `docs/` and are linked from the table above. Keep them
-self-contained: a reader should be able to follow one guide end to end without
-also reading another. Cross-reference the API reference rather than duplicating
-endpoint documentation, so there is one place to update when an endpoint moves.
+Keep transport/native-format code outside the shared security core. Call the
+same authorized application services used by REST. Define typed operations,
+stored targets, schema/artifact digests, exact supported builds and a capability
+report. Never introduce SQL, decryption, credential custody or policy decisions
+into a harness adapter. Provider adapters accept structured stored targets, not
+caller-selected destinations or headers. Record success, denial, failure,
+revocation and cancellation acceptance separately from structural validation.

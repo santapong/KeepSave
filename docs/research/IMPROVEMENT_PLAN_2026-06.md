@@ -1,5 +1,7 @@
 # KeepSave — Security Hardening & Expansion Plan (2026-06)
 
+> **Historical build proposal, clarified 2026-10-04.** The June source findings and wave recommendations below are preserved at their original evidence scope. They are not a fresh audit of the integrated candidate, and old code line numbers may have moved. Current implementation, pending reviews and delivery gates are maintained in the [October checkpoint](../design/2026-10-02-harness-neutral-platform/README.md) and [current documentation](../README.md).
+
 > **Status:** Draft for review. Produced from a 10-agent deep-research sweep of the
 > codebase on 2026-06-21. This document is the synthesis + build plan; the build
 > sequence is gated on Tech-Lead/Security sign-off per `docs/ROLES.md` and the

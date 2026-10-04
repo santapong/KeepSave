@@ -1,255 +1,181 @@
-# KeepSave Incident Runbook
-
-**Audience:** on-call operators. **Severity taxonomy:** P0 = data loss or
-production outage; P1 = security incident with contained blast radius;
-P2 = degraded service.
-
-## Contents
-
-1. Lost master key (P0)
-2. Compromised API key (P1)
-3. Database failover (P0)
-4. Rotate-everything drill (P2)
-5. govulncheck regression (P2)
-6. Deploy rollback drill (P2 — drill, not incident)
-7. Break-glass production secret read (procedure)
-8. Promotion kill switch (P1 tool)
-
----
-
-## 1. Lost master key
-
-**Symptom:** startup fails with `MasterKeyProvider returned zero bytes` or
-all decrypt operations return `message authentication failed`.
-
-**Containment**
-
-1. Put service into read-only mode (`ENABLE_WRITES=false`). *Note:
-   `ENABLE_WRITES` is aspirational — no implementation exists yet. The
-   promotion-specific kill switch (section 8) IS implemented; use it when
-   the blast radius is the promotion engine.*
-2. Rotate the KMS key alias to the last known good version (AWS KMS:
-   `aws kms update-alias --alias-name alias/keepsave-master --target-key-id ...`).
-3. Restart one pod, confirm DEK unwrap succeeds against a sample project.
-
-**Recovery**
-
-1. If the key is truly lost, restore from the most recent encrypted backup
-   (see section 4) which carries its own DEK wrapped by the old master.
-2. If backups are also unreadable, re-provision secrets from source of truth.
-3. Post-mortem required. Add a timeline entry to `docs/INCIDENTS.md`.
-
-**Prevent recurrence:** enable KMS key deletion protection; add a weekly
-`RestoreSnapshot` smoke test to CI.
-
-## 2. Compromised API key
-
-**Symptom:** anomaly service raises `UnusualKeyAccess` or a user reports
-leak.
-
-**Containment** (target: under 5 minutes)
-
-1. Revoke the key: `keepsave api-key revoke <key-id>`.
-2. Invalidate dependent leases: `keepsave lease revoke --api-key <key-id>`.
-3. Rotate any secrets the key could read: per-project `POST /rotate-keys`.
-
-**Recovery**
-
-1. Export audit log for the key's active window.
-2. Identify accessed secrets; treat them as compromised.
-3. Notify affected owners via configured webhooks.
-
-## 3. Database failover
-
-**Symptom:** `/readyz` returns 503; backend logs show `driver: bad connection`.
-
-**Steps**
-
-1. Confirm primary is down (cloud console or `pg_isready`).
-2. Promote replica to primary.
-3. Update `DATABASE_URL` secret in Kubernetes and `kubectl rollout restart`
-   the backend deployment.
-4. Verify migrations are at expected version: `SELECT * FROM migrations ORDER BY id DESC LIMIT 1`.
-5. Resume traffic.
-
-## 4. Rotate-everything drill
-
-Quarterly exercise to prove rotation plumbing works.
-
-1. Rotate master key: issue new KMS data key, update `KEEPSAVE_KMS_CIPHERTEXT`.
-2. Roll pods one at a time; confirm each accepts the new ciphertext.
-3. For each project: `POST /api/v1/projects/:id/rotate-keys`.
-4. Rotate all API keys older than 90 days.
-5. Rotate JWT signing secret (forces all users to re-auth).
-6. Create fresh backup snapshot; verify restore on staging.
-
-## 5. govulncheck regression
-
-**Symptom:** CI `security-scan` job fails on a previously green branch.
-
-1. Review the report artifact (90-day retention).
-2. If the vuln is **called**: pin or upgrade the dependency in the same PR.
-3. If **not called**: annotate `errorlog.md` and open a Dependabot PR to
-   upgrade on the next cycle. Do not merge unless the team agrees.
-
-## 6. Deploy rollback drill
-
-**Purpose:** prove that rolling back a bad deploy in staging takes < 5 minutes and leaves no orphaned state. Run quarterly.
-
-**Procedure**
-
-1. **Capture baseline.** Note the current deployed image digest:
-   ```
-   kubectl -n keepsave get deploy keepsave-api -o jsonpath='{.spec.template.spec.containers[0].image}'
-   ```
-   Save to `/tmp/rollback-drill-<date>.txt`.
-2. **Deploy a known-broken image.** Push a tag with a deliberate `panic("rollback drill")` in `cmd/server/main.go` to the staging registry. Helm upgrade with the new tag.
-3. **Confirm failure mode.** `/readyz` should return 503 within 30 seconds; pod restart loop visible.
-4. **Roll back.** `helm rollback keepsave <previous-revision>` (or `kubectl rollout undo deploy/keepsave-api`).
-5. **Verify recovery.** `/healthz` and `/readyz` green; spot-check one secret read and one promotion (against pre-prepared test fixtures).
-6. **Verify clean state.** No stuck migrations, no half-written audit rows, no abandoned promotion records with status `pending` from the broken deploy.
-7. **Time the whole thing.** Record start-to-recovery time in `docs/INCIDENTS.md` (drill section). Anything over 5 minutes is itself a follow-up.
-
-**Pass criteria:** recovery in < 5 minutes; no orphaned state; rollback procedure is the same one written in this runbook (not a special drill version).
-
-**Failure modes worth specifically testing:**
-- Migration mid-flight: deploy a broken image during an active migration. Rollback must not corrupt schema state.
-- DEK key cache cold: rollback to a pod that has never seen the current master key. Must boot.
-
-## 7. Break-glass production secret read
-
-**When to use:** recovering from a P0 where on-call operator needs to read a production Kubernetes Secret to diagnose (e.g., DB password mismatch). Never for routine operation.
-
-**Procedure**
-
-1. **Page Tech Lead and Security Engineer.** Break-glass is a two-person operation. The second person witnesses and confirms.
-2. **Open an incident issue** with the break-glass label *before* the read. Include reason, expected reads, and predicted duration.
-3. **Read via the audited path.** `kubectl -n keepsave get secret <name> -o yaml` from a CI-audited bastion (NOT a personal machine).
-4. **Cloud-provider audit log records the read.** That log is the audit log for this action — KeepSave's own audit log is not used (we may be in the middle of fixing KeepSave).
-5. **Close the incident issue** with the actual reads and outcome. Attach the cloud-provider audit-log timestamp.
-6. **Rotate the secret afterward.** Default assumption: anything read via break-glass is now in human heads / terminal scrollback. Rotate within 24 hours.
-
-**Anti-patterns (block at review):**
-- Copying a production secret to a Slack message, ticket, or doc.
-- Reading "just to compare" without an incident issue.
-- Skipping the post-read rotation.
-
-## 8. Promotion kill switch (P1 tool)
-
-**When to use:** ADR-0003 rollback plan step 1 — a suspected promotion-engine
-bug (wrong values copied, approval bypass, crash loop in `/promote`). The
-switch stops new promotions and approvals while you diagnose; it does NOT
-undo anything (step 2, `promotion_rollback`, stays available for that).
-
-**How to disable promotions** (env flip + restart; no image build):
-
-- Fly.io: `fly secrets set KEEPSAVE_PROMOTIONS_ENABLED=false -a <app>`
-  (triggers a restart automatically).
-- Kubernetes: `kubectl set env deploy/keepsave-api KEEPSAVE_PROMOTIONS_ENABLED=false`.
-- docker-compose: add `KEEPSAVE_PROMOTIONS_ENABLED=false` to the backend
-  environment and `docker-compose up -d backend`.
-
-**Verify:** an authenticated `POST /api/v1/projects/<id>/promote` returns
-`503` with `error_code: "SERVICE_UNAVAILABLE"` and message "promotions are
-temporarily disabled by the operator". The startup log also prints
-`promotions disabled by kill switch`.
-
-**What stays available while disabled** (by design — these ARE the incident
-response): `reject` (drain the pending-approval queue), `rollback`
-(undo a bad promotion), `promote/diff`, `GET /promotions`, audit-log reads.
-Only `POST /promote` and `POST /promotions/:id/approve` are gated.
-
-**Re-enable:** set `KEEPSAVE_PROMOTIONS_ENABLED=true` (or unset it — absent
-means enabled) and restart. A malformed value (anything not parseable as a
-boolean) fails the boot loudly by design — fix the value rather than
-deleting the variable under pressure unless you intend to re-enable.
-
-## §7. UAT cutover (added 2026-05-18)
-
-The full prerequisite-by-prerequisite cutover runbook lives in
-[`docs/DEPLOYMENT_PLAN.md`](DEPLOYMENT_PLAN.md) §4. This section is the
-operator's quick-reference — read the DEPLOYMENT_PLAN for the long-form
-text + rollback procedure.
-
-### Before cutover
-
-All of `DEPLOYMENT_PLAN.md` §2 gates G1–G14 closed (verified by Phase 2
-audit-team recheck in `docs/audits/AUDIT_2026-05-19_RECHECK.md`).
-
-### Day-of checklist
-
-1. **Provision Neon** project `keepsave-uat`; capture pooled DSN.
-2. **Generate per-env secrets.** `openssl rand -base64 32` for
-   `MASTER_KEY`; `openssl rand -base64 48` for `JWT_SECRET`. Store in
-   the team vault under `keepsave/uat/*`.
-3. **Deploy backend** to Fly.io (`fly secrets set ... && fly deploy
-   --strategy rolling --wait-timeout 300`). `KEEPSAVE_ENV=uat` (or
-   `production` once you're ready to enforce the strict guards).
-   Confirm `/readyz` returns 200.
-4. **Configure Vercel** project (Root Directory = `frontend`); add
-   `VITE_API_BASE_URL=https://api-uat.keepsave.example/api/v1` for the
-   Preview + Production scopes. `vercel.json` is already committed.
-5. **Push to the cutover tag** — Vercel auto-builds and promotes.
-6. **Smoke-test** per `DEPLOYMENT_PLAN.md` §4.1 step 7 (12 checks).
-7. **Announce** the URL with a link to the smoke-test summary.
-
-### CORS pattern reminder
-
-`CORS_ORIGINS` accepts a comma-separated allow-list with single-`*`
-glob patterns for Vercel previews, e.g.
-`https://app.example.com,https://keepsave-uat-*-yourteam.vercel.app`.
-Never `*` in any deployed env (`internal/config/config.go` enforces).
-
-### Rollback
-
-- **Frontend**: Vercel → Deployments → Promote previous build.
-- **Backend**: `fly releases list` then `fly deploy --image
-  registry.fly.io/keepsave-uat:<prev-tag>`.
-- **Database**: Neon → Branches → restore from PITR to T-5min.
-
-### KMS caveat (UAT only)
-
-UAT uses a HashiCorp Vault dev sidecar per ADR-0012 / ADR-0016. **This
-is dev-only**. Production cutover requires the AWS / GCP KMS adapter
-work tracked as `FOLLOWUPS.md #1` (deferred from Phase 1 per ADR-0016).
-
-### Where to look when things go sideways during cutover
-
-- `/healthz`, `/readyz`, `/metrics` are unauthenticated and safe to
-  curl from any operator workstation.
-- Backend startup log includes `version` (sourced from
-  `internal/version`) and `provider` so you can confirm what's running.
-- `audit_log` table is the audit trail — the Phase 1 sweep wired
-  `secret/project/apikey/auth` mutations to it.
-
-## §8. Operational reminders (added 2026-05-19)
-
-These do not require code; they are notes operators must internalize.
-
-### S-L3 — the dev MASTER_KEY is permanently leaked
-
-`docker-compose.yml:25` ships `MASTER_KEY=43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=`. This value is in git history and on every contributor's machine. **It must never appear in any non-dev environment.** The `KEEPSAVE_ENV=production` startup check refuses it by SHA-256 hash (`backend/internal/config/config.go:17`); the check is the safety net, not the policy. If you copy it into staging/UAT/PROD by accident, treat the affected env as a compromise — rotate immediately and audit access logs from the moment the key entered the env.
-
-### S-L4 — where TLS terminates
-
-KeepSave's HSTS header is emitted unconditionally by `security_headers.go`. HSTS is meaningful only over HTTPS; if you terminate TLS at the Go process (`TLS_CERT_FILE`/`TLS_KEY_FILE` set), the HSTS chain is end-to-end. If you terminate TLS at an upstream ingress (Vercel edge, Cloud Run frontend, Fly handler), the Go process speaks plaintext to that ingress and HSTS still propagates correctly to the browser because the browser's hop is HTTPS. Confirm per environment that:
-
-- the ingress speaks HTTPS to the browser
-- the ingress propagates `X-Forwarded-Proto: https` (so KeepSave knows it's behind TLS for OAuth redirect-URI building)
-- the backend is NOT directly reachable from the public internet bypassing the ingress
-
-### DB pool gauges (B-L1)
-
-Three new gauges appear at `/metrics`:
-
-- `keepsave_db_open_connections` — total established connections
-- `keepsave_db_in_use_connections` — checked-out connections
-- `keepsave_db_idle_connections` — idle pool members
-
-Alert when `in_use / open` stays > 0.8 for 5 minutes (saturation) or when `open` oscillates more than 25% in a 1-minute window (pool churn from Neon idle eviction — re-check `ConnMaxLifetime`).
-
-## Contact paths
-
-- Primary on-call: PagerDuty `keepsave-oncall`
-- Security escalation: `security@<org>` + post in `#sec-incident`
-- Leadership notification for P0 after 30 minutes
+# KeepSave incident and recovery runbook
+
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
+
+Reconciled 2026-10-04 against the harness-neutral source candidate. The canonical
+project is `/mnt/data/company/apps/KeepSave`. This runbook describes implemented
+controls and required operator exercises; it does not record a production deployment.
+See the [documentation hub](README.md), [deployment plan](DEPLOYMENT_PLAN.md) and
+[dated acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md).
+
+Severity: **P0** is data loss or service outage, **P1** is a credential/authority
+incident, and **P2** is a bounded degradation. Assign real incident contacts when
+installing KeepSave; no PagerDuty, chat channel or staffed on-call service is
+configured by the repository.
+
+## 1. Establish the affected installation
+
+Record source revision, actual image digests, migration level, affected resource
+IDs, incident time and last verified external backup. Keep credentials, raw proof
+URLs, provider tokens and secret values out of reports. Inspect `/healthz`,
+`/readyz` and private metrics. An operator-granted account can use
+`GET /api/v1/operator/readiness` or `keepsave doctor` for read-only diagnostics.
+Configured components and operationally accepted components are separate states.
+
+The reference topology uses one control host with API, frontend, trusted worker,
+PostgreSQL and private storage, plus a separate enrolled runner host. Its
+application origin is `https://app.keepsave.draveniq.dev`; the published landing
+at `https://keepsave.draveniq.dev` is separate. Do not route incident traffic to
+the landing or treat it as a backend health check.
+
+## 2. Stop new controlled-tool work
+
+Set `KEEPSAVE_RUN_ADMISSION_ENABLED=false` and
+`KEEPSAVE_BROKER_DISPATCH_ENABLED=false` in the affected installation's private
+configuration, then perform its authorized coordinated restart. These are
+process settings, not a live admin-toggle API. New platform flags default off.
+
+Verify new issuance/admission/dispatch is unavailable while current authorized
+status, receipts, cancellation, revocation, audit and recovery remain reachable.
+Do not assume a disabled flag revokes an existing record. Revoke affected
+sessions, delegation families, grants, runs, bindings or workloads explicitly.
+Reenabling a flag must not resurrect revoked authority.
+
+A database outage denies protected operations. Do not introduce a cached allow,
+weaker identity check or a runner fallback to bypass it. There is no implemented
+universal `ENABLE_WRITES` switch; for a vault-wide incident, drain writers and
+restrict traffic using the installation's reviewed operational procedure.
+
+## 3. Compromised browser, API key or delegated authority
+
+1. Identify the stored actor and credential family without copying the token.
+2. Revoke the owned session through Account or
+   `DELETE /api/v1/account/sessions/:sessionId`; current logout uses
+   `POST /api/v1/auth/logout`. Failed commits are not successful server logout.
+3. Revoke affected API keys/leases/agent issuance through their supported
+   management routes. For delegated tool access, revoke the family and affected
+   run/grant. Use [OpenAPI](../backend/internal/api/openapi/core.json) for exact
+   paths and authority requirements; no undocumented revoke CLI is assumed.
+4. Inspect safe audit metadata and receipts for the affected window. Authorized
+   exports are bounded, expire and reauthorize downloads; they contain no values.
+5. Rotate the **upstream credential** if its plaintext may have been read.
+   Rewrapping/project-key rotation alone does not change that provider credential.
+
+Revocation denies admissions after its database commit and denies subsequent
+protected result retrieval. Already-admitted provider requests may finish, and
+returned data cannot be recalled. Preserve the external outcome separately from
+whether KeepSave is still permitted to deliver its result.
+
+Successful password recovery atomically changes the password, consumes its proof,
+revokes browser/linking authority, expires retained API keys, revokes related
+leases and denylists persisted agent issuance. Delegated OAuth also checks its
+revoked browser parent. An unavailable revocation dependency refuses recovery;
+there is no partial-success reset. Unrelated accounts keep their authority.
+
+## 4. Organization offboarding
+
+Create a current organization-scoped preview, inspect its exact impact and
+execute with the matching preview/revision and a stable caller idempotency key.
+Keep the durable receipt. A changed impact requires a fresh preview; do not
+silently execute against different resources.
+
+Removal invalidates the member's old organization authority epoch and dependent
+approvals, grants, connections/workloads and runs. Rejoining creates new authority
+and does not revive those grants. Unrelated organizations, personal projects and
+global browser sessions remain intact. Use separate session/account controls
+when the incident requires broader containment.
+
+## 5. Lost or compromised wrapping material
+
+Stop writers and external dispatch. Check the configured key source and retained
+wrapped material through the operator's private key-provider procedure.
+**Vault Transit is the implemented production reference.** AWS/GCP adapters are
+not wired in this binary. Do not substitute a new wrapping key, delete retained
+versions or regenerate historical ciphertext to make authentication errors disappear.
+
+An encrypted bundle is recoverable only with its required independent wrapping
+material. Losing both ciphertext dependencies and their keys cannot be repaired
+by a database restore. Retain Transit key versions and the wrapped master material
+needed by current values, revisions, snapshots and external backups. Reprovision
+upstream secrets only if recovery is impossible and document the loss honestly.
+
+For project rotation, use the authorized project rotation route. Verify current,
+historical and promotion-snapshot reads on approved fixtures and create a new
+verified external backup. Signing-key changes and browser-session cutover require
+a coordinated operation; do not roll an old session-unaware binary back into traffic.
+
+## 6. External vault recovery
+
+1. Obtain an independently retained encrypted bundle and its documented key
+   dependencies. Keep both outside the served frontend tree and checkout.
+2. On a trusted host, load the private instance configuration without printing it.
+   Run `keepsave-vault -action verify -bundle <external-file>`; this authenticates
+   the bundle and returns metadata, not restored authority.
+3. Select a genuinely fresh **isolated PostgreSQL database**. Set its private DSN
+   in that trusted process, then use `keepsave-vault -action recover-isolated
+   -bundle <external-file> -target-name <explicit-name>
+   -confirm-empty-isolated-database`.
+4. For v2 lifecycle records, supply the explicit
+   `-map-lifecycle-owners-to-isolated-custodian=<source UUIDs>` mapping. A missing
+   or wrong mapping imports no vault records, but locally created scaffolding
+   remains; retry with the corrected mapping in another fresh target.
+5. Inspect recovered metadata, selected authorized values, retained history and
+   rotated key continuity. Recovery imports no source users, sessions, tokens,
+   grants, approvals, operation results or reminder authority.
+6. For live restoration, preview and choose explicit records with expected current
+   value/metadata revisions and current-member owner mappings. Restoration appends
+   revisions; it does not replace a whole project or undelete records.
+
+Record installation-specific evidence before setting
+`KEEPSAVE_RECOVERY_VERIFIED=true`. Scheduled backups become due at 02:00 UTC;
+retain 30 verified scheduled bundles and at least two. Manual/pre-upgrade bundles
+require explicit deletion. Retention failures must remain visible. Local storage
+alone is not disaster recovery: maintain independent private external copies.
+
+## 7. Database, worker or runner failure
+
+Drain traffic/writers before a database migration or recovery. Restore authoritative
+state through the reviewed installation procedure, then verify migrations, audit
+continuity, current revocation and readiness before admitting users. No generic
+replica-promotion or DNS failover command is supplied by the reference bundle.
+
+Durable work uses leases/fences and bounded retries. Inspect attempts and outcomes
+before retrying. An uncertain external provider or SMTP effect is not blindly
+replayed. Explicit provider retries create linked attempts; explicit email resend
+invalidates the old proof. Record **SMTP accepted**, not delivered.
+
+A failed runner preflight, broker outage, deadline, denial or cancellation must
+refuse/tear down execution. The current development-host observation lacks CPU
+cgroup delegation; `cgroup_cpu_missing` is expected refusal, not a reason to
+weaken isolation. Inspect the [separate runner reference](../deploy/runner/README.md).
+
+## 8. Promotion kill switch
+
+`KEEPSAVE_PROMOTIONS_ENABLED=false` plus an authorized restart denies new promotion
+requests and approvals. Reject, rollback, diff, permitted listing and audit remain
+available. Verify `POST /api/v1/projects/:id/promote` is refused before reenabling.
+This switch does not undo a completed promotion. Promotion rollback uses the
+retained snapshot and normal current-authority/versioned-vault path.
+
+## 9. Upgrade, rollback and break-glass gates
+
+Retain a verified external pre-upgrade bundle and compatible image digests. Drain
+old vault/session writers, apply additive migrations with one controlled process,
+explicitly baseline existing active projects and validate readiness. New readers
+accept v1/v2 recovery bundles; that does not mean old readers accept v2.
+
+Rollback uses a reviewed **compatible** binary. Binaries without enrolled-vault,
+tracked-session or admitted-scope guarantees are unsupported rollback targets.
+Never reverse immutable journal migrations or restore source authority from a vault
+bundle. Measure staging recovery time rather than promising a five-minute result.
+
+If an operator must access production key material, obtain the installation's
+required second-person authorization, use its externally audited key/storage path,
+record the incident and rotate affected credentials afterward. Do not print keys
+in terminal transcripts, chat, tickets or documents. The repository does not
+configure an external break-glass audit service.
+
+Independent Security Engineer/Tech Lead reviews, real provider/SMTP/native-client
+acceptance, actual runner isolation and full outage/upgrade drills remain release
+gates. Historical May deployment steps are retained in dated audits and ADRs;
+they are not the current self-hosted procedure.

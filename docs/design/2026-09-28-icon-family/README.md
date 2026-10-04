@@ -1,10 +1,12 @@
 # KeepSave Orbit icon family
 
+> **Brand lineage, clarified 2026-10-04.** This preserves the September 28 product-icon implementation and palette rationale. The later Field Twist brand mark is specified in the [current brand guide](../../BRANDING.md); the icon family is a set of recognizable product/action glyphs, not permission to restore an older logo. Provider marks, semantic status colors and accessible control names remain separate from cosmic decoration. Gallery/preview references below are historical review artifacts.
+
 Implemented locally on 2026-09-28 in `KeepSave-landing`, continuing the accepted Event Horizon direction. The owner requested black-hole/singularity inspiration across frontend icons, while keeping their meanings easy to understand and retaining KeepSave's identity.
 
 ## References and decisions
 
-- [DravenIQ theme skill](/home/santapong/.codex/skills/draveniq-theme/SKILL.md): adopted the 24-unit grid, 1.75-unit rounded strokes, accessible labels and restrained repetition. KeepSave retains its own orbital vault mark and violet/amber palette; no DravenIQ logo substitution.
+- DravenIQ theme skill (historical local source: `/home/santapong/.codex/skills/draveniq-theme/SKILL.md`): adopted the 24-unit grid, 1.75-unit rounded strokes, accessible labels and restrained repetition. KeepSave retains its own orbital vault mark and violet/amber palette; no DravenIQ logo substitution.
 - [NASA: Anatomy of a Black Hole](https://science.nasa.gov/universe/black-holes/anatomy/), consulted 2026-09-28: orbital apertures, a dark central core and curved light paths informed product symbols. These are stylized brand details, not physical representations of a singularity.
 - [Carbon: Icon usage](https://carbondesignsystem.com/elements/icons/usage/), consulted 2026-09-28: recognizable silhouettes, consistent sizing, alignment and readable contrast informed the controls. NASA imagery and Carbon icon assets were not copied into the SVG family.
 

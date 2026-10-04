@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+<title id="title">KeepSave — Your secrets. In the right orbit.</title>
+<desc id="desc">The accepted Field Twist mark. A reliable vault and harness-neutral controlled tool access, currently an unreleased source candidate.</desc>
+<rect width="1200" height="400" rx="24" fill="#0b0a12"/>
+<g transform="translate(62 47) scale(1.15)">
+
+
+  <defs>
+    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#e7a566"/><stop offset="1" stop-color="#ffe2ad"/></linearGradient>
+    <linearGradient id="cool" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#d6c9ff"/><stop offset="1" stop-color="#9680dc"/></linearGradient>
+  </defs>
+  <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool)"/>
+</g>
+<g transform="translate(815 90) scale(3.6)" opacity=".92">
+
+
+  <defs>
+    <linearGradient id="warm-large" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#e7a566"/><stop offset="1" stop-color="#ffe2ad"/></linearGradient>
+    <linearGradient id="cool-large" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#d6c9ff"/><stop offset="1" stop-color="#9680dc"/></linearGradient>
+  </defs>
+  <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm-large)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool-large)"/>
+</g>
+<text x="155" y="98" font-family="Geist, Inter, system-ui, sans-serif" font-size="42" font-weight="650" fill="#eeecf3">KeepSave</text>
+<text x="65" y="187" font-family="Geist, Inter, system-ui, sans-serif" font-size="42" font-weight="600" fill="#eeecf3">Your secrets.</text>
+<text x="65" y="241" font-family="Geist, Inter, system-ui, sans-serif" font-size="42" font-weight="600" fill="#d6c9ff">In the right orbit.</text>
+<text x="65" y="293" font-family="Geist, Inter, system-ui, sans-serif" font-size="23" fill="#b4aec3">A reliable vault. Controlled developer-tool access.</text>
+<text x="65" y="350" font-family="Geist, Inter, system-ui, sans-serif" font-size="16" font-weight="550" letter-spacing="1.6" fill="#4fe3b8">SELF-HOSTED · HARNESS-NEUTRAL · SOURCE CANDIDATE</text>
+</svg>

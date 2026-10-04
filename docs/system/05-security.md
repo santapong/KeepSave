@@ -1,68 +1,90 @@
 # 5. Security model
 
-Part of the [system documentation](README.md), reconciled 2026-10-02.
-The current [threat model](../THREAT_MODEL.md) is the detailed control/limit
-matrix; [ADR0028](../adr/0028-core-identity-and-vault-release.md) records the local
-core implementation decision. Independent Security Engineer/Tech Lead review
-has not occurred.
+Part of the [system documentation](README.md). Source reconciled October 4, 2026.
 
-AES-256-GCM seals credential values with fresh nonces and per-project data keys.
-An external wrapping key protects those keys; Vault Transit is the production
-reference source. The encrypted database/backups require documented external
-recovery material. Rotation preserves retained journal and snapshot key
-references. Crypto and audit HMAC format changes require separate review; this
-slice keeps those formats. Database encryption cannot contain an API/worker
-process that already has key custody, and metadata is not all encrypted.
+The [threat model](../THREAT_MODEL.md), [ADR0028](../adr/0028-core-identity-and-vault-release.md)
+and [ADR0029](../adr/0029-harness-neutral-platform.md) describe the controls and
+review gates. Independent Security Engineer/Tech Lead signatures remain pending;
+local tests and source publication do not supply those reviews.
 
-Human sign-in returns the compatible Bearer token shape with a tracked session.
-HS256 verification alone is insufficient: sid/jti, stored token hash, expiry and
-revocation are checked on admission. Sessions have a 24-hour maximum and no
-human refresh flow. Logout and individual owned revocation close new admissions;
-unavailable authoritative state fails closed. Already-admitted work can finish.
-Google/GitHub social flows use verified provider identities, one-use state/PKCE
-and exact configured callbacks. Email collisions require explicit recent
-same-session linking; signup never grants operator authority.
+## Credential custody and trust domains
 
-Personal projects grant their stored owner administrator authority. An assigned
-project uses its organization's current membership for everyone, including its
-original owner and delegated API keys. Viewer can inspect permitted metadata;
-editor reads/writes values; promoter approves eligible promotion; admin manages
-configuration. API-key and agent scopes intersect current role, stored project,
-environment, selected keys and parent expiry/revocation. Parent authority cannot
-be widened. Organization ownership cannot be demoted/removed; cross-org project
-transfer is refused in v1.
+AES-256-GCM seals values with fresh nonces and versioned project keys. An external
+wrapping key protects project keys; Vault Transit is the production reference.
+Current/history/promotion ciphertext keeps its required key dependencies.
+Encryption and audit formats are unchanged. Database encryption cannot contain a
+trusted API/worker process with custody, and metadata is not all encrypted.
 
-Private workspace templates use current membership for reads/list/application
-and current admin for metadata mutation; a removed creator has no bypass.
-Personal templates belong to their creator. Metadata mutation requires a tracked
-human session and a required audit/local outbox transaction. Core global
-publication is refused. Template defaults are ordinary config/placeholders,
-not encrypted credential storage. Lease and agent-token mutations likewise join
-required audit/outbox with current session/parent/membership checks.
+Ordinary vault clients receive values they are permitted to read. Controlled
+GitHub tools use a different boundary: only the trusted broker obtains the App
+private key/installation token and makes authenticated typed GitHub requests.
+The runner/connector and model receive permitted results, never that token.
+Provider adapters accept stored identifiers and structured paths, not arbitrary
+URLs or caller HTTP headers. Social GitHub sign-in is a separate credential flow.
 
-Core vault mutations join required audit/outbox and immutable revision in the
-same PostgreSQL transaction. Failed audit denies success. Secret/project
-DELETE retains tombstones and referenced keys/history; this is not erasure.
-Immutable audited identity fields survive deletion. Verification and isolated
-restore precede selected live recovery; restoration excludes authority and
-rejects stale current revisions or undelete attempts.
+## Current identity and permission checks
 
-The restricted composition refuses unfinished AI, policy metadata, enterprise
-SSO, old OAuth issuance, webhook automation, event replay, plugin mutation and
-MCP execution. Current vault APIs intentionally return authorized plaintext.
-GitHub credential confinement belongs to the future broker, not social sign-in
-or an ordinary secret read. Future broker calls must check live authority twice
-and only the broker makes the authenticated structured GitHub request.
+Human JWT use checks signature, sid/jti, token hash, current user/session, expiry
+and revocation. Sessions last at most 24 hours with no human refresh flow. Social
+flows retain stable subjects, provider-bound one-time state, PKCE and Google's
+nonce/signature checks. Email collisions require explicit authenticated linking;
+link initiation requires authentication within ten minutes. Signup/workspace
+ownership never grants a global operator role.
 
-The accepted managed-Codex plan does not claim administrator-proof devices or
-remote attestation. A skill, prompt, tool annotation or self-reported harness
-cannot grant authority. A separate restricted runner must prove its actual file,
-network and resource boundaries before M3 acceptance. Self-hosting also does
-not make Codex's configured model local or recall already-returned data.
+Personal ownership or current organization membership supplies project roles.
+Viewer sees permitted metadata, editor reads/writes credentials, promoter approves
+eligible protected promotion, and admin manages configuration. API-key/agent
+permissions intersect stored parent/project/environment/key scopes and expiry.
+A secret reference authorizes each dependency independently. Shared authority
+barriers make stored revocation/membership changes visible at admission.
+Offboarding epochs prevent old grants from working after rejoin while preserving
+unrelated organizations, personal projects and global sessions.
 
-Production configuration refuses leaked development key material, short signing
-secret, wildcard origin and insecure PostgreSQL settings; trusted proxies are
-explicit. The reference TLS proxy restricts metrics and exact recovery body
-limits. These source controls are not a completed deployment/availability review.
-See [acceptance ledger](../validation/2026-10-01-core-release/ACCEPTANCE.md) for
-executed negative tests, real-provider UAT and operational release gates.
+Account-method removal requires successful authentication through a remaining
+method. Password recovery atomically changes the password, consumes the proof,
+revokes sessions/link proofs and retained delegated keys/leases/agent issuance,
+and writes audit/outbox. A missing revocation port refuses partial recovery.
+Contact/recovery proofs are hashed, purpose/account-bound and bounded; their
+15-minute lifetime differs from the invitation proof's 24-hour lifetime.
+Delivery material is ephemeral encrypted custody; jobs carry IDs only. SMTP
+requires authenticated certificate-verified STARTTLS. Accepted does not mean
+mailbox-delivered; uncertain sends are not blindly replayed.
+
+## Delegated tools and result authority
+
+MCP public OAuth uses S256, exact callbacks/canonical resource/issuer, hash-only
+opaque credentials, atomic 60-second codes, ten-minute access and rotating
+families bounded by eight hours and the parent human session. Replay revokes the
+family. Present Origin must match configured authority; authenticated native
+requests may omit it. No dynamic registration or weaker fallback is enabled.
+
+Portable profiles bind exact artifacts and limits; separate runs belong to
+registered client delegations. Approval cannot be self-issued. Authority checks
+intersect current actor/membership/epoch, parent lineage, binding, profile/package
+approval, immutable admitted repository/commit and budgets. Admission is recorded
+before credential use. Result retrieval checks current authority again; retained
+operation handles do not bypass revocation. Encrypted results expire no later
+than their run and are excluded from backups/audit exports/logs/outbox payloads.
+
+The separate runner reference uses rootless Podman, no IP network, read-only root,
+bounded scratch/CPU/memory/processes, seccomp and an attempt-specific Unix relay.
+Its enrolled supervisor key/container-engine socket stay outside the connector.
+Broker mTLS checks a verified client chain and exact enrolled fingerprint. Host
+preflight currently refuses missing CPU delegation; actual isolation remains
+unqualified. No permissive fallback or device-attestation claim exists.
+
+## Limits and unavailable surfaces
+
+Revocation denies admissions after its commit; already admitted external calls
+may finish, and returned content cannot be recalled. Native client interruption
+is separate from explicit durable run/operation cancellation. Local instructions,
+reported digests and administrator settings neither grant permission nor prove a
+device obeyed them. Self-hosting does not make a harness's model local.
+
+Failed authoritative state denies access. Required audit failure rolls back local
+mutations. Historical corruption is surfaced, not skipped. Recovery excludes
+authority and rejects stale/live undelete attempts. New flags default off; legacy
+API-host MCP execution/builds, old OAuth issuance, unfinished AI/SSO/compliance and
+nondurable webhook automation remain unavailable. See the
+[acceptance ledger](../validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+for tested scenarios, retained advisories and real-provider/host/release gates.

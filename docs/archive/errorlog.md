@@ -1,5 +1,7 @@
 # Error Log
 
+> Historical record, relocated from `errorlog.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 ## API Key Creation - `[object Object]` Error Display
 
 ### 2026-03-14: API key error shows `[object Object]` instead of message (RESOLVED)

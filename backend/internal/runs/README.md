@@ -1,6 +1,10 @@
 # Durable controlled tool runs
 
-This is the default-off PostgreSQL implementation under ADR0029. Synthetic
+Source audit: October 4, 2026. This is the default-off PostgreSQL source
+candidate under [ADR0029](../../../docs/adr/0029-harness-neutral-platform.md).
+See the [documentation hub](../../../docs/README.md),
+[architecture](../../../docs/ARCHITECTURE.md), [branding](../../../docs/BRANDING.md)
+and [acceptance ledger](../../../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md). Synthetic
 GitHub, OAuth, PostgreSQL and runner tests are local evidence. Independent
 review, real GitHub/harness use and an isolated runner-host drill remain gates.
 
@@ -49,7 +53,7 @@ resolves the approved reference to a commit and tree SHA. Activation rechecks
 current authority and the resolution deadline. Each provider call repeats
 admission and charges an actual HTTP call, including installation-token minting.
 
-Migration033 captures repository ID/name, environment ID/name, installation ID
+Migration 033 captures repository ID/name, environment ID/name, installation ID
 and requested reference at preparation. The snapshot and reference cannot be
 rewritten; discovery, listing and status return these admitted values. A changed
 binding, installation or environment denies subsequent operation/result access
@@ -75,7 +79,9 @@ four-MiB ceiling. Spool expiry never exceeds operation/run/parent authority.
 
 Cancellation marks dispatched work as cancellation-requested and blocks further
 broker admissions/publication. It cannot recall already returned data or prove
-that an in-flight upstream read stopped. Deadline recovery records dispatched
+that an in-flight upstream read stopped. External outcome remains separate from
+delivery authority; revoked result retrieval does not rewrite a completed call
+as cancelled. Deadline recovery records dispatched
 attempts as uncertain and never replays them. Expired undispatched leases become
 an explicit pre-dispatch failure; safe retry is a separate authorized operation
 with a new fence. Periodic maintenance deletes expired spools and retains audit
@@ -92,7 +98,7 @@ revocations are PostgreSQL authority shared across API instances.
 Management routes are under `/api/v1/projects/:id/tool-platform`. The maintained
 core OpenAPI contract includes their actual DTOs. Runner routes exist only on
 the dedicated mTLS listener under `/api/v1/runner/operations/{claim,execute,status}`;
-caller headers do not authenticate a runner. See `deploy/runner/README.md`.
+caller headers do not authenticate a runner. See the [runner reference](../../../deploy/runner/README.md).
 
 Connection checks require explicit acknowledgments for external metadata reads
 and authorization-token creation. They perform exactly the bounded token/repo/

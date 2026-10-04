@@ -1,5 +1,7 @@
 # KeepSave: product, persistence, efficiency, and research
 
+> **Evidence scope, clarified 2026-10-04.** The September measurements and executed checks below apply to the stated branch, fixtures and dates; this update does not rerun them. Later vault recovery, session and harness-neutral changes have separate [October implementation/acceptance evidence](../design/2026-10-02-harness-neutral-platform/README.md). Current architecture and operational instructions begin at the [documentation index](../README.md).
+
 Implemented and checked locally on 2026-09-08–09 (Asia/Bangkok). Baseline: clean `main` at `15d84aa`, matching the local origin ref; no remote fetch. Work branch: `feature/realistic-product-and-efficiency`. This initial report describes local execution, not production deployment or remote CI. Its baseline, frontend test count, static-landing observations, and dependency snapshot are historical; see the later design passes and develop integration record in [the design specification](../design/BLACK_HOLE_LANDING.md).
 
 ## What changed

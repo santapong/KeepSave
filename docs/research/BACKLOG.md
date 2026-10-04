@@ -1,5 +1,7 @@
 # Post-Initiative Backlog
 
+> **Historical tracker, clarified 2026-10-04.** “Canonical,” “current,” phase timing, old branch instructions and closure statements below apply to the original May research initiative and its recorded follow-ups. They do not replace the current harness-neutral delivery program or authorize new overrides. Use the [October program/checkpoint](../design/2026-10-02-harness-neutral-platform/README.md), [current documentation](../README.md) and repository branch rules for new work. Original pending signatures and historical exceptions are retained; no review is inferred from source publication.
+
 - **Initiative closed:** 2026-05-15 (research branch `claude/research-auth-competitors-H8VmQ` merged via PR #48)
 - **Purpose:** canonical post-Day-90 tracker for everything the research initiative surfaced but did not itself implement.
 - **Owner:** acting PM (interim Tech Lead).

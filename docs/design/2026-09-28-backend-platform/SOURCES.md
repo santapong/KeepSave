@@ -1,5 +1,7 @@
 # Primary-source research and design implications
 
+> **Research date boundary, clarified 2026-10-04.** The observations below retain their September 28 retrieval scope. Later implementation pins and synthetic protocol evidence are recorded in the [October protocol receipt](../2026-10-02-harness-neutral-platform/PROTOCOL.md). Native Codex/Hermes qualification and Skills-over-MCP availability cannot be inferred from a standards link.
+
 Checked 2026-09-28. These sources inform the proposal; none proves KeepSave implements a standard. Current pages can change, so pin exact specification/SDK/artifact revisions in the implementation spike. A release candidate blog found during search was not used to infer release status; the official specification’s `latest` link resolved to `2026-07-28` at review time.
 
 | Source | Observed guidance | KeepSave implication |

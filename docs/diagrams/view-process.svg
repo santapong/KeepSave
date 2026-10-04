@@ -1,47 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="940" height="420" viewBox="0 0 940 420" role="img" aria-label="KeepSave — 4+1 Process view">
-<title>KeepSave — 4+1 Process view</title>
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a4560"/></marker></defs>
-<rect width="940" height="420" fill="#0b0a12"/>
-<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#eeecf3" text-anchor="start">4+1 · Process view — concurrency and runtime flows</text>
-<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#928da0" text-anchor="start">Three independent request paths share one crypto layer and one audit trail.</text>
-<rect x="50" y="96" width="190" height="62" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="145.0" y="123.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">HTTP request loop</text>
-<text x="145.0" y="140.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">Gin handlers, per-request goroutine</text>
-<rect x="50" y="186" width="190" height="62" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="145.0" y="213.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCP gateway proxy</text>
-<text x="145.0" y="230.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">per tool call</text>
-<rect x="50" y="276" width="190" height="62" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="145.0" y="303.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Background workers</text>
-<text x="145.0" y="320.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">lease expiry, backups</text>
-<rect x="370" y="96" width="200" height="62" rx="8" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
-<text x="470.0" y="123.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Service layer</text>
-<text x="470.0" y="140.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">business rules</text>
-<rect x="370" y="186" width="200" height="62" rx="8" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
-<text x="470.0" y="213.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Process runner</text>
-<text x="470.0" y="230.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">spawns MCP server</text>
-<rect x="370" y="276" width="200" height="62" rx="8" fill="#16131f" stroke="#3c3849" stroke-width="1.5"/>
-<text x="470.0" y="303.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Scheduler</text>
-<text x="470.0" y="320.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">ticks, retries</text>
-<rect x="690" y="140" width="200" height="70" rx="8" fill="#251d3d" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="790.0" y="171.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#c4a3ff" text-anchor="middle">Crypto layer</text>
-<text x="790.0" y="188.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#a9a3bb" text-anchor="middle">serialised DEK unwrap</text>
-<rect x="690" y="250" width="200" height="70" rx="8" fill="#141220" stroke="#6d5bb0" stroke-width="1.5"/>
-<text x="790.0" y="281.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Audit sink</text>
-<text x="790.0" y="298.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="400" fill="#928da0" text-anchor="middle">append-only writes</text>
-<path d="M240 127 L368 127" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M240 217 L368 217" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M240 307 L368 307" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M570 127 L688 165" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="607.2" y="137.0" width="43.599999999999994" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="629.0" y="149.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">unseal</text>
-<path d="M570 217 L688 190" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="596.0" y="194.5" width="66.0" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="629.0" y="206.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">inject env</text>
-<path d="M570 307 L688 285" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="612.8" y="287.0" width="32.4" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="629.0" y="299.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">emit</text>
-<path d="M790 210 L790 248" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="745.8" y="220.0" width="88.39999999999999" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="790.0" y="232.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">every mutation</text>
-<text x="50" y="380" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="500" fill="#928da0" text-anchor="start">Rate limiting keys on the derived client IP; TRUSTED_PROXIES decides whether X-Forwarded-For is believed.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" role="img" aria-labelledby="title desc">
+<title id="title">KeepSave — Admission, transactions and effects</title>
+<desc id="desc">No network call runs while authority/database locks are held. Source candidate, reviewed against the October 2 implementation. External acceptance remains pending.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#a78bfa"/></marker></defs>
+<rect width="1200" height="740" rx="20" fill="#0b0a12"/>
+<g transform="translate(32 25) scale(.8)">
+
+
+  <defs>
+    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#e7a566"/><stop offset="1" stop-color="#ffe2ad"/></linearGradient>
+    <linearGradient id="cool" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#d6c9ff"/><stop offset="1" stop-color="#9680dc"/></linearGradient>
+  </defs>
+  <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool)"/>
+</g>
+<text x="103" y="47" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="650" text-anchor="start">KeepSave</text>
+<text x="103" y="74" fill="#a78bfa" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="550" text-anchor="start">Admission, transactions and effects</text>
+<text x="40" y="108" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="400" text-anchor="start">No network call runs while authority/database locks are held.</text>
+<path d="M40 649H1160" stroke="#685c80"/>
+<text x="40" y="684" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="500" text-anchor="start">SOURCE CANDIDATE · PostgreSQL platform · New admission flags default off</text>
+<text x="40" y="711" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="start">Real providers, harnesses, runner isolation and production acceptance remain separate gates.</text>
+<text x="40" y="144" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="550" text-anchor="start">ADMIT + COMMIT</text>
+<rect x="40" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Authenticate</text>
+<text x="160.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Stored session / delegation</text>
+<rect x="330" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#d6c9ff" stroke-width="1.5"/>
+<text x="450.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Current authority</text>
+<text x="450.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Ordered locks / deny closed</text>
+<rect x="620" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="740.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Persist admission</text>
+<text x="740.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Budget / attempt / audit /</text>
+<text x="740.0" y="240" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">outbox</text>
+<rect x="910" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#4fe3b8" stroke-width="1.5"/>
+<text x="1030.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Commit transaction</text>
+<text x="1030.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Only then dispatch</text>
+<path d="M280 217.0L330 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M570 217.0L620 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M860 217.0L910 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="40" y="425" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="550" text-anchor="start">EXTERNAL OUTCOME + AUTHORIZED DELIVERY</text>
+<rect x="40" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Return permitted data</text>
+<text x="160.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Completed call ≠ delivery right</text>
+<rect x="330" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#d6c9ff" stroke-width="1.5"/>
+<text x="450.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Reauthorize retrieval</text>
+<text x="450.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Current client / run / expiry</text>
+<rect x="620" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="740.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Commit outcome</text>
+<text x="740.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Receipt + encrypted result</text>
+<rect x="910" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="1030.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Execute external read</text>
+<text x="1030.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Per-ticket broker recheck</text>
+<path d="M1030.0 271L1030.0 444" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="1112.0" y="357.5" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="500" text-anchor="middle">dispatch</text>
+<path d="M910 498.0L860 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M620 498.0L570 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M330 498.0L280 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
 </svg>

@@ -1,107 +1,97 @@
-# Secret Sources Map (DevOps 30-day)
+# KeepSave credential custody and configuration sources
 
-Where does every secret KeepSave depends on for its own operation live? Who can read it? How is it rotated? This is the bootstrap-paradox doc — KeepSave stores other people's secrets, so its own secrets need a clear story.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
 
-This is DevOps Engineer 30-day work item §1 from `docs/ROLES_30_60_90.md`. Required reading before any production deployment.
+Reconciled 2026-10-04 against current source. The canonical project is
+`/mnt/data/company/apps/KeepSave`; actual private configuration and recovery
+material must live **outside** it. This describes the self-hosted reference,
+not a deployed key service. Read the [control reference](../deploy/self-hosted/README.md),
+[runbook](RUNBOOK.md) and [threat model](THREAT_MODEL.md).
 
----
+## Runtime custody
 
-## The secrets KeepSave itself needs
+| Material | Source / location | Authorized consumer and boundary |
+|---|---|---|
+| Master wrapping material | Vault Transit plus retained Transit-wrapped master ciphertext | Trusted API/worker/recovery host; not frontend or isolated runner |
+| Project encryption keys | Versioned encrypted vault records | Vault custody; retain keys referenced by values/history/promotion snapshots/backups |
+| Browser JWT signing secret | Installation-private runtime configuration | API/identity; browser receives signed token only |
+| PostgreSQL credential and CA | Private runtime/database files; `sslmode=verify-full` | API and trusted worker; separate runner has no database access |
+| Google/GitHub sign-in client secrets | Backend-only runtime configuration | Social identity adapters, transient provider checks; never `VITE_` variables |
+| GitHub App private key/token | Authorized encrypted broker connection | Broker performs structured authenticated upstream requests; no connector/model token |
+| SMTP authenticated credential | Private trusted-worker runtime configuration | Certificate-verified STARTTLS mail adapter; no plaintext fallback |
+| Proof delivery material | Short-lived Vault-encrypted payload, hash-only verification proof | Trusted mail adapter decrypts for sending; jobs contain identifiers only |
+| Runner client certificate/key | Separate enrolled supervisor host, private regular files | Supervisor mTLS; connector receives only one-attempt Unix socket |
+| Private listener server key/client CA | API-only private mount on control host | Direct TLS 1.3 verified runner listener; no forwarded-header identity |
+| Recovery bundles | Private local storage plus independent external encrypted copy | Trusted verification/recovery CLI; exclude source sessions/grants/tokens/approvals/results |
+| Operation results | Short-lived encrypted run-bound storage | Authorized result retrieval; excluded from backups, audit exports, logs and job payloads |
 
-| Secret               | Used by                                        | Read access (production)                            |
-|----------------------|------------------------------------------------|------------------------------------------------------|
-| `MASTER_KEY`         | `internal/crypto/keyprovider` to wrap DEKs     | KeepSave process at startup; KMS service principals |
-| `JWT_SECRET`         | `internal/auth` to sign / verify session tokens | KeepSave process; rotation operator                |
-| `DATABASE_URL`       | `internal/repository` (Postgres connection)    | KeepSave process; on-call operator (read-only)      |
-| OAuth client secrets | `internal/auth` (OAuth provider integrations)  | KeepSave process; integration owner                 |
-| TLS private key      | Ingress (load balancer or sidecar)             | Ingress only; never reaches the Go process          |
-| Webhook signing keys | Audit / event webhooks                         | KeepSave process; webhook receiver                  |
+The broker's GitHub App is distinct from the GitHub OAuth **sign-in** app. KeepSave
+OAuth delegation credentials authorize KeepSave, not GitHub. Model credentials,
+subscription sessions and external secret-delivery adapters remain deferred.
 
-## Source per environment
+## Development versus production
 
-### Local development (`docker-compose.yml`)
+Development Compose deliberately uses disposable synthetic keys/passwords.
+Those values are public test fixtures and must never be reused in staging,
+production or real recovery. Production startup guards are a safety net, not
+permission to reuse development material. Do not print fixture values in setup
+instructions or copy them into a deployment checklist.
 
-| Secret         | Source                                   | Notes                                                                          |
-|----------------|------------------------------------------|--------------------------------------------------------------------------------|
-| `MASTER_KEY`   | Hard-coded env value in `docker-compose.yml` | **Dev only.** Value `43uH/WMSJGjGgaJseq39Mt0h5eAoGgElK3k53ddRZMM=` is a known test key. **MUST be different in every non-dev env.** |
-| `JWT_SECRET`   | `dev-jwt-secret-change-me`               | Dev only.                                                                       |
-| `DATABASE_URL` | Plaintext in compose                     | Dev only.                                                                       |
+`KEEPSAVE_KEY_PROVIDER=vault` is the implemented production reference. The
+`env` provider is development-only and does not supply a production rotation
+procedure. AWS/GCP KMS adapter source exists but is **not wired** in the server;
+startup rejects those selections. This is deferred expansion, not a prerequisite
+to claim Vault Transit exists. Kubernetes/ExternalSecrets patterns in older
+ADRs remain historical alternatives, not the chosen deployment.
 
-**Risk:** the dev `MASTER_KEY` value is in git. If someone reuses it in staging or production by accident, all secrets in that environment are effectively unprotected. Treat the dev key as a known-leaked value forever; never reuse it.
+Supply private files with mode 0600 and storage directories with mode 0700,
+owned for the selected nonroot service identity. Follow the reference's actual
+mount/user permissions. Store only file paths/placeholders in commands and docs.
+Do not commit completed env files, keys, certificates containing private keys,
+raw bundle recovery material or credential-bearing diagnostic output.
 
-### Staging (Kubernetes via Helm chart `helm/keepsave/`)
+## Identity and authority
 
-| Secret         | Source                                              | Rotation                                            |
-|----------------|-----------------------------------------------------|-----------------------------------------------------|
-| `MASTER_KEY`   | Kubernetes `Secret` `keepsave-master`, populated from cloud KMS at deploy time. **Should** be ExternalSecrets / SealedSecrets backed; today is plain `Secret` (gap). | Manual; quarterly drill (per RUNBOOK §4). |
-| `JWT_SECRET`   | Kubernetes `Secret` `keepsave-jwt`                  | Manual; 90 days.                                    |
-| `DATABASE_URL` | Kubernetes `Secret` `keepsave-db`                   | When credentials rotate; via DB IAM if available.   |
-| TLS key        | cert-manager via Let's Encrypt staging              | Automatic.                                          |
+Public signup, provider email assertions and workspace ownership confer no
+platform operator role. An operator-issued grant is keyed to an immutable user
+UUID through `keepsave-operator`; deprecated email-admin configuration stays
+empty. Provider identities use stable subject IDs; matching email does not merge
+accounts automatically.
 
-**Gap:** Helm chart currently expects plain Kubernetes Secrets. Production-grade deployments need ExternalSecrets / SealedSecrets / Vault-injector. Tracked as DevOps 60-day item.
+Browser tokens have tracked SID/JTI/hash/current status and a 24-hour maximum.
+API keys, agent issuance, OAuth families and workload identities have distinct
+lineage and revocation. All protected operations reconstruct current authority
+from stored records. Database unavailability denies rather than using stale allow.
+A secret read/export intentionally reveals permitted plaintext; revocation cannot
+recall data that already reached a consumer's memory or environment.
 
-### Production (Kubernetes + KMS)
+## Recovery and rotation
 
-| Secret         | Source                                                                                  | Read access                                                    |
-|----------------|-----------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| `MASTER_KEY`   | **Not stored directly.** `MasterKeyProvider` calls KMS (AWS / GCP / Vault) at boot.    | KeepSave service account (KMS IAM grant); KMS auditors.        |
-| `JWT_SECRET`   | KMS-encrypted Kubernetes Secret OR HashiCorp Vault dynamic secret                       | KeepSave service account.                                      |
-| `DATABASE_URL` | Cloud-managed DB IAM token (preferred) OR rotated credentials via Vault                  | KeepSave service account.                                      |
-| TLS key        | cert-manager via Let's Encrypt production OR cloud LB-managed certs                      | Ingress controller only.                                       |
-| OAuth secrets  | Vault                                                                                   | KeepSave service account; integration owners (read-only audit).|
+Retain wrapping/key dependencies for every required ciphertext, history revision,
+promotion snapshot and external bundle. Automatic history/key purge is disabled.
+Rewrapping/project encryption-key rotation does not renew an upstream secret;
+rotate the upstream credential separately after exposure.
 
-**Important:** the production `MasterKeyProvider` MUST NOT be `EnvProvider`. ADR-0004 §Operational calls this dev-only; `keyprovider/env.go:40-42` returns `ErrUnsupported` for rotation, so any rotation drill against `EnvProvider` fails. Wire the AWS / GCP adapters before going to production (`FOLLOWUPS.md` §1).
+Record a successful external-bundle/fresh-isolated-database drill using independent
+recovery material before enabling daily 02:00 UTC backups. Retain 30 verified
+scheduled bundles and at least two; manual/pre-upgrade bundles require explicit
+deletion. A local file on the control host alone is not disaster recovery.
 
-## Who can read what
+Recovery imports encrypted vault records, not original identity or authority.
+Version 2 lifecycle owners require explicit mapping to permitted current members
+or the new isolated custodian. Existing missing metadata remains unknown.
+Compatible readers precede new writers; old session/vault binaries are unsupported
+rollback targets. For key loss/incident access, follow the installation's reviewed,
+externally audited two-person recovery process in [RUNBOOK](RUNBOOK.md).
 
-| Principal                  | Dev | Staging | Production |
-|----------------------------|-----|---------|------------|
-| Local developer            | ✅   | ❌       | ❌          |
-| CI runner                  | ❌   | ❌       | ❌          |
-| KeepSave service account   | n/a | ✅       | ✅          |
-| On-call operator           | n/a | ✅ (read-only via `kubectl get secret`) | ✅ (audited break-glass) |
-| Tech Lead                  | n/a | ✅       | break-glass only |
-| Random engineer            | n/a | ❌       | ❌          |
+## CI and evidence
 
-**Break-glass procedure** (production secret read) is documented in `docs/RUNBOOK.md`. Every break-glass read writes to an external audit log (cloud-provider audit, not KeepSave's own log — KeepSave is what's being recovered).
+CI uses synthetic databases/keys/provider fixtures and has no need for production
+credentials. A workflow-scoped PostgreSQL DSN is test configuration, not proof that
+CI should access an operator database. Real Transit, SMTP, social providers,
+GitHub and native harness acceptance are separate authorized exercises.
 
-## CI runner secrets
-
-CI does NOT need any production secret. The current `.github/workflows/ci.yml` does not reference `MASTER_KEY`, `JWT_SECRET`, or `DATABASE_URL`. If a future workflow needs DB access (e.g., migration smoke tests), it MUST use a CI-scoped dummy DB, not production.
-
-`GITHUB_TOKEN` is auto-issued by Actions. Currently the workflow has **no explicit `permissions:` block**, which defaults to broad write access. This is addressed in the workflow edit accompanying this doc.
-
-## Rotation cadence summary
-
-| Secret         | Rotation cadence                                          | Drill cadence                                |
-|----------------|-----------------------------------------------------------|----------------------------------------------|
-| `MASTER_KEY`   | On suspicion of compromise; otherwise annual               | Quarterly table-top; semi-annual live (staging) |
-| `JWT_SECRET`   | 90 days; immediate on incident                            | Per rotation event                            |
-| `DATABASE_URL` | When credential expires (90 days max with rotation policy) | Per rotation event                           |
-| OAuth secrets  | Per-provider; min annual                                  | Per rotation event                            |
-| TLS key        | cert-manager handles automatically (60 days typical)       | Watch monitoring; alert if not renewed       |
-
-## Migration to ExternalSecrets / SealedSecrets
-
-Phase A 60-day item. Two viable paths:
-
-- **External Secrets Operator** — preferred if AWS / GCP customer; binds Kubernetes Secrets to KMS-stored values without checking encrypted secrets into git.
-- **SealedSecrets (Bitnami)** — preferred for fully-cluster-internal model; encrypts to a controller-held cluster key. Encrypted secrets safe to commit.
-
-Decision is a Type-1 (key-source choice) → write an ADR before implementing.
-
-## Open follow-ups
-
-These feed `docs/FOLLOWUPS.md`:
-
-1. Wire AWS / GCP KMS adapters in `main.go` (already tracked).
-2. Choose ExternalSecrets vs. SealedSecrets via new ADR.
-3. Add audit hook: every read of `MASTER_KEY` Kubernetes Secret in staging/production must emit a Kubernetes audit event consumed by SIEM.
-4. Document break-glass procedure in `docs/RUNBOOK.md` (currently undocumented).
-
-## References
-
-- `docker-compose.yml` (dev values)
-- `helm/keepsave/values.yaml`, `helm/keepsave/templates/` (staging/production patterns)
-- ADR-0004 (key hierarchy)
-- `docs/RUNBOOK.md` §1 (lost master key)
+The workflow has explicit least-privilege permissions; selected security publishing
+jobs add `security-events: write`. Image signing remains a disabled scaffold.
+See [CI_PERMISSIONS](CI_PERMISSIONS.md). Source checks and local tests do not prove
+installation-specific key custody, delivery, recovery or independent review.

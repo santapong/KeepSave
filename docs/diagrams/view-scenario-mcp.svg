@@ -1,39 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="940" height="520" viewBox="0 0 940 520" role="img" aria-label="KeepSave — 4+1 Scenario: agent tool call with secret injection">
-<title>KeepSave — 4+1 Scenario: agent tool call with secret injection</title>
-<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a4560"/></marker></defs>
-<rect width="940" height="520" fill="#0b0a12"/>
-<text x="28" y="34" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="600" fill="#eeecf3" text-anchor="start">4+1 · Scenarios (+1) — an agent calls an MCP tool</text>
-<text x="28" y="54" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="500" fill="#928da0" text-anchor="start">The scenario that ties the other four views together. The agent never receives the credential.</text>
-<rect x="60" y="92" width="150" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="135.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">AI Agent</text>
-<path d="M135 138 L135 452" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
-<rect x="270" y="92" width="150" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="345.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCP Gateway</text>
-<path d="M345 138 L345 452" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
-<rect x="500" y="92" width="150" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="575.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">Secret Vault</text>
-<path d="M575 138 L575 452" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
-<rect x="730" y="92" width="150" height="46" rx="8" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
-<text x="805.0" y="118.5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13.5" font-weight="600" fill="#eeecf3" text-anchor="middle">MCP Server</text>
-<path d="M805 138 L805 452" stroke="#4a4560" stroke-width="1.2" stroke-dasharray="4 5"/>
-<path d="M135 178 L345 178" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="162.2" y="165.0" width="155.6" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="240.0" y="177.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">1  tools/call (name, args)</text>
-<path d="M345 226 L575 226" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="390.6" y="213.0" width="138.79999999999998" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="460.0" y="225.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">2  resolve env_mappings</text>
-<path d="M575 274 L345 274" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="368.2" y="261.0" width="183.6" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="460.0" y="273.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">3  decrypted values (in memory)</text>
-<path d="M345 322 L805 322" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="480.4" y="309.0" width="189.2" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="575.0" y="321.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">4  exec with secrets as env vars</text>
-<path d="M805 370 L345 370" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="530.8" y="357.0" width="88.39999999999999" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="575.0" y="369.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">5  tool result</text>
-<path d="M345 418 L135 418" fill="none" stroke="#4a4560" stroke-width="1.6" marker-end="url(#a)"/>
-<rect x="184.6" y="405.0" width="110.8" height="16" rx="4" fill="#0b0a12" opacity="0.92"/>
-<text x="240.0" y="417.0" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#928da0" text-anchor="middle">6  result to agent</text>
-<rect x="60" y="452" width="820" height="44" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-<text x="76" y="479" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#c4a3ff" text-anchor="start">Audit: mcp.tool.called is written before the result returns. The plaintext never leaves the gateway process.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" role="img" aria-labelledby="title desc">
+<title id="title">KeepSave — Repository-review operation</title>
+<desc id="desc">GitHub credentials stay inside the broker; returned repository content reaches the client/model. Source candidate, reviewed against the October 2 implementation. External acceptance remains pending.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#a78bfa"/></marker></defs>
+<rect width="1200" height="740" rx="20" fill="#0b0a12"/>
+<g transform="translate(32 25) scale(.8)">
+
+
+  <defs>
+    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#e7a566"/><stop offset="1" stop-color="#ffe2ad"/></linearGradient>
+    <linearGradient id="cool" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#d6c9ff"/><stop offset="1" stop-color="#9680dc"/></linearGradient>
+  </defs>
+  <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool)"/>
+</g>
+<text x="103" y="47" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="650" text-anchor="start">KeepSave</text>
+<text x="103" y="74" fill="#a78bfa" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="550" text-anchor="start">Repository-review operation</text>
+<text x="40" y="108" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="16" font-weight="400" text-anchor="start">GitHub credentials stay inside the broker; returned repository content reaches the client/model.</text>
+<path d="M40 649H1160" stroke="#685c80"/>
+<text x="40" y="684" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="500" text-anchor="start">SOURCE CANDIDATE · PostgreSQL platform · New admission flags default off</text>
+<text x="40" y="711" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="start">Real providers, harnesses, runner isolation and production acceptance remain separate gates.</text>
+<text x="40" y="144" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="550" text-anchor="start">START A CLIENT-BOUND REVIEW</text>
+<rect x="40" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="160.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Approved client</text>
+<text x="160.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Own delegation / portable</text>
+<text x="160.0" y="240" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">profile</text>
+<rect x="330" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="450.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Preparing run</text>
+<text x="450.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Authorize + persist resolution</text>
+<rect x="620" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="740.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Activate run</text>
+<text x="740.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Recheck / commit-bound scope</text>
+<rect x="910" y="163" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="1030.0" y="195" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Admit operation</text>
+<text x="1030.0" y="220" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Request key / budget / receipt</text>
+<path d="M280 217.0L330 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M570 217.0L620 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M860 217.0L910 217.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="40" y="425" fill="#4fe3b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="550" text-anchor="start">EXECUTE AND READ THE RESULT</text>
+<rect x="40" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#e7a566" stroke-width="1.5"/>
+<text x="160.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Connector relay</text>
+<text x="160.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Unix socket / one-use ticket</text>
+<rect x="330" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#d6c9ff" stroke-width="1.5"/>
+<text x="450.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Broker dispatch</text>
+<text x="450.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Recheck / GitHub token custody</text>
+<rect x="620" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#4fe3b8" stroke-width="1.5"/>
+<text x="740.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Encrypted outcome</text>
+<text x="740.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Bounded / short-lived / fenced</text>
+<rect x="910" y="444" width="240" height="108" rx="14" fill="#17141f" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="1030.0" y="476" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="600" text-anchor="middle">Result retrieval</text>
+<text x="1030.0" y="501" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="400" text-anchor="middle">Current authority / run expiry</text>
+<path d="M280 498.0L330 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M570 498.0L620 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M860 498.0L910 498.0" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<path d="M1030.0 271L1030.0 444" fill="none" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="1112.0" y="357.5" fill="#b4aec3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="500" text-anchor="middle">status / result</text>
 </svg>

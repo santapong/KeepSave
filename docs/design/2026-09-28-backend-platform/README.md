@@ -1,5 +1,7 @@
 # KeepSave backend direction: vault, MCP, skills, and controlled harness access
 
+> **Superseded scope, clarified 2026-10-04.** This September proposal and its diagrams preserve the original design exploration. The maintained [architecture](../../ARCHITECTURE.md) and [harness-neutral checkpoint](../2026-10-02-harness-neutral-platform/README.md) supersede its single-harness, custody and not-yet-implemented descriptions. In the current broker design, only the trusted broker makes authenticated GitHub requests; connectors receive permitted results, not provider tokens or direct GitHub access. Local implementation and source publication remain separate from real-client/provider acceptance and independent review.
+
 Status: **Proposed architecture and delivery plan**. Checked 2026-09-28. No implementation, deployment, or security approval is implied by this document.
 
 ## Recommendation

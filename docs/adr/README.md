@@ -31,34 +31,55 @@ If you have to ask whether it's a Type-1, write the ADR. The cost of an extra AD
 
 Sequential. `0001`, `0002`, `0003`, ... — never reused, never skipped. If a draft is abandoned, mark it `Rejected` and keep the number.
 
-## Index
+## Current decision index
 
-| #    | Title                                  | Status   | Date       |
-|------|----------------------------------------|----------|------------|
-| 0001 | [Envelope encryption with AES-256-GCM](0001-envelope-encryption.md) | Accepted | 2026-05-12 |
-| 0002 | [Authentication model: JWT + API keys](0002-auth-model.md) | Accepted | 2026-05-12 |
-| 0003 | [Promotion engine: decrypt-and-rewrap](0003-promotion-engine.md) | Accepted | 2026-05-12 |
-| 0004 | [Two-level key hierarchy: master + per-project DEK](0004-key-hierarchy.md) | Accepted | 2026-05-12 |
-| 0005 | [`RequireProjectAccess` middleware](0005-require-project-access-middleware.md) | Accepted† | 2026-05-15 |
-| 0006 | [Embed widget origin allow-list](0006-embed-widget-origin-allowlist.md) | Accepted† | 2026-05-15 |
-| 0007 | [Approver ≠ requester DB invariant](0007-approver-not-requester-db-invariant.md) | Accepted† | 2026-05-15 |
-| 0009 | [Mandatory default expiration on `ks_` API keys](0009-default-api-key-expiration.md) | Accepted† | 2026-05-15 |
-| 0010 | [MCP gateway command-execution hardening](0010-mcp-gateway-command-execution-hardening.md) | Accepted† | 2026-05-15 |
-| 0011 | [Graceful shutdown + DB timeouts](0011-graceful-shutdown-and-db-timeouts.md) | Accepted† | 2026-05-15 |
-| 0012 | [KMS auto-unseal (Vault for UAT)](0012-kms-auto-unseal.md) | Accepted† | 2026-05-15 |
-| 0013 | [Webhook emission with SSRF guard](0013-webhook-emission-with-ssrf-guard.md) | Accepted† | 2026-05-15 |
-| 0016 | [Deployment topology: Vercel + container + Neon](0016-deployment-topology.md) | Accepted† | 2026-05-18 |
+Reconciled 4 October 2026 from the records below. Status is the original record's
+status, not a newly supplied independent signature. Backfilled or sponsor-local
+acceptance must not be read as Security Engineer/Tech Lead approval.
 
-(ADRs 0001-0004 are **backfilled** — they document decisions already in the code, not decisions made today. Future ADRs will be written *before* implementation.)
+| ADR | Decision | Recorded state |
+|---|---|---|
+| 0001 | [Envelope encryption with AES-256-GCM](0001-envelope-encryption.md) | Accepted (backfilled) |
+| 0002 | [Authentication model — JWT for humans, API keys for agents](0002-auth-model.md) | Accepted (backfilled) |
+| 0003 | [Promotion engine — decrypt-and-rewrap, with PROD approval gate](0003-promotion-engine.md) | Accepted (backfilled) |
+| 0004 | [Two-level key hierarchy — master KEK + per-project DEK](0004-key-hierarchy.md) | Accepted (backfilled) |
+| 0005 | [`RequireProjectAccess` middleware for `/projects/:id/*` routes](0005-require-project-access-middleware.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0006 | [Embed widget origin allow-list (server-side, per-project)](0006-embed-widget-origin-allowlist.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0007 | [Enforce approver ≠ requester at the database layer for promotion approvals](0007-approver-not-requester-db-invariant.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0008 | [RS256 JWT signing with JWKS + `kid` rotation](0008-rs256-jwks-rotation.md) | Accepted (see record for scope) |
+| 0009 | [Mandatory default expiration on `ks_` API keys](0009-default-api-key-expiration.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0010 | [Harden the MCP gateway command-execution path (allowlist + sandbox + safe-goroutine + build budget)](0010-mcp-gateway-command-execution-hardening.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0011 | [Graceful shutdown, DB context timeouts, HTTP server timeouts, pool-lifetime tuning, and a shared `safego` helper](0011-graceful-shutdown-and-db-timeouts.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0012 | [KMS auto-unseal as production default for the master key](0012-kms-auto-unseal.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0013 | [Webhook emission with atomic SSRF guard, body-buffered retries, and per-org signing-secret rotation](0013-webhook-emission-with-ssrf-guard.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0014 | [Audit-log taxonomy extension — `role.changed`, `settings.changed`, `actor_type`](0014-audit-log-taxonomy-extension.md) | Proposed |
+| 0015 | [`getUserID`/`getActor` context helpers and per-use API-key audit emission](0015-safego-helper-and-audit-emission.md) | Proposed |
+| 0016 | [Deployment topology — Vercel frontend, container backend, Neon Postgres](0016-deployment-topology.md) | Accepted (sponsor-authorized); retroactive reviews pending |
+| 0017 | [Promotion engine integrity — atomic execution, idempotent claim, complete rollback](0017-promotion-engine-integrity.md) | Accepted |
+| 0018 | [Crypto integrity — atomic DEK rotation, service-secret sub-keys, key-material zeroization](0018-crypto-integrity-rotation-zeroization.md) | Accepted |
+| 0019 | [Tamper-evident audit log via a keyed hash chain](0019-tamper-evident-audit-chain.md) | Accepted (design); implementation tracked as the next Wave-3 task |
+| 0020 | [Secret-reference resolution at read time](0020-secret-reference-resolution.md) | Accepted |
+| 0021 | [Short-lived agent tokens with a JWT denylist](0021-short-lived-agent-tokens-denylist.md) | Accepted |
+| 0022 | [Per-secret / per-action API-key scope grammar](0022-per-secret-scope-grammar.md) | Accepted |
+| 0023 | [Authorized use cases and bounded grants](0023-authorized-use-cases.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0024 | [Transactional audit, key versions and recoverable history](0024-transactional-audit-recovery.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0025 | [Brokered credentials and isolated connector execution](0025-brokered-isolated-execution.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0026 | [MCP, approved skills and managed Codex compatibility](0026-mcp-skills-codex.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0027 | [Self-hosted team control and runner topology](0027-self-hosted-team-topology.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0028 | [Core identity and reliable vault release](0028-core-identity-and-vault-release.md) | Sponsor-authorized implementation; independent reviews pending |
+| 0029 | [Harness-neutral access platform](0029-harness-neutral-platform.md) | Sponsor-authorized implementation; independent reviews pending |
 
-† **Sponsor-authorized**: status flipped to Accepted with implementation landed in PR #54 (Phase 1 sweep, plus ADR-0009 from the Phase 3 sweep). Retroactive Security Engineer + Tech Lead sign-off pending per CLAUDE.md §"Decision classes" (Type-1). ADRs 0008, 0014, 0015 remain Proposed pending implementation.
+## Scope changes and publication
 
-## 2026-09-28 owner-authorized backend implementation
+[ADR0029](0029-harness-neutral-platform.md) is the current harness-neutral
+direction; [ADR0027](0027-self-hosted-team-topology.md) selects separate self-hosted
+control/runner hosts. Earlier Codex-only and hosted deployment decisions remain
+historical records. This index does not rewrite their original status or body.
+[ADR0028](0028-core-identity-and-vault-release.md) records the core candidate and
+its bounded develop integration. October 3 source publication is recorded
+[separately](../releases/2026-10-03-source-publication.md); it supplies no tag,
+production acceptance or standing review waiver.
 
-Sponsor acceptance authorizes local implementation only; independent Security/Tech Lead review and integration are pending.
-
-- [ADR-0023: Authorized use cases and bounded grants](0023-authorized-use-cases.md)
-- [ADR-0024: Transactional audit, key versions and recoverable history](0024-transactional-audit-recovery.md)
-- [ADR-0025: Brokered credentials and isolated connector execution](0025-brokered-isolated-execution.md)
-- [ADR-0026: MCP, approved skills and managed Codex compatibility](0026-mcp-skills-codex.md)
-- [ADR-0027: Self-hosted team control and runner topology](0027-self-hosted-team-topology.md)
+Use [current architecture](../ARCHITECTURE.md), [status](../STATUS.md) and
+[the documentation hub](../README.md) to reconcile source with dated evidence.
+New irreversible changes still follow the lifecycle above.

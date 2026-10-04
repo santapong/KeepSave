@@ -1,62 +1,55 @@
-# KeepSave GitHub Action
+# KeepSave GitHub Actions example
 
-Pull secrets from KeepSave and inject them into your GitHub Actions workflow.
+Source audit: October 4, 2026. This repository retains a composite vault-read
+example in [`action.yml`](action.yml); it is not a published/qualified marketplace
+action or the later credential-confined GitHub App broker. The earlier
+`santapong/keepsave-action@v1` reference has no publication evidence here. See
+[integration status](../../docs/INTEGRATIONS.md),
+[acceptance ledger](../../docs/validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
+and [branding](../../docs/BRANDING.md).
 
-## Usage
+## Local source use
+
+Only after reviewing the implementation and qualifying it on synthetic keys,
+check out an immutable KeepSave revision into your repository/workspace's
+`vendor/KeepSave`. A local example then refers to the actual source path:
 
 ```yaml
-- name: Pull secrets from KeepSave
-  uses: santapong/keepsave-action@v1
+- name: Fetch permitted configuration
+  uses: ./vendor/KeepSave/integrations/github-action
   with:
     api-url: ${{ secrets.KEEPSAVE_API_URL }}
     api-key: ${{ secrets.KEEPSAVE_API_KEY }}
-    project-id: 'your-project-id'
-    environment: 'prod'
-    export-to: 'env'  # env | file | json
+    project-id: 'approved-project-uuid'
+    environment: 'alpha'
+    export-to: 'json'
+    env-file-path: '.keepsave-input'
 ```
 
-## Inputs
+`api-url` is the installation origin, without `/api/v1`; the source adds that
+prefix. This example assumes the reviewed local source already exists; no
+external action distribution is installed. Do not echo returned values or publish
+the generated file as an artifact.
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `api-url` | KeepSave API URL | Yes | - |
-| `api-key` | KeepSave API key | Yes | - |
-| `project-id` | KeepSave project ID | Yes | - |
-| `environment` | Target environment | Yes | `alpha` |
-| `export-to` | Export format (env/file/json) | No | `env` |
-| `env-file-path` | Path for .env file output | No | `.env` |
+| Input/output | Actual source behavior |
+|---|---|
+| `api-url`, `api-key`, `project-id` | Required; `X-API-Key` requests the project's environment secret list. |
+| `environment` | Required input with source default `alpha`. |
+| `export-to` | `env` default, `file`, or `json`; no general unsupported-mode validation. |
+| `env-file-path` | Default `.env`; JSON mode writes this path plus `.json`. |
+| `secrets-count` | Number of returned records, not provider acceptance. |
 
-## Outputs
+## Limits requiring qualification
 
-| Output | Description |
-|--------|-------------|
-| `secrets-count` | Number of secrets pulled |
+The action deliberately exports authorized plaintext into the job environment or
+files. It does not retain credentials inside a broker. Its `env`/`file` modes
+write raw `key=value` lines without robust multiline/value validation; validate
+keys/values, output permissions and cleanup before using them. Inputs are also
+interpolated into shell code in this retained example; caller review is required
+and this documentation does not assert arbitrary-input safety. Automatic masking
+of returned values is not implemented. API-key scope/expiry and current project
+membership remain server checks; revocation cannot recall values already read.
 
-## Examples
-
-### Export as environment variables
-```yaml
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: santapong/keepsave-action@v1
-        with:
-          api-url: ${{ secrets.KEEPSAVE_API_URL }}
-          api-key: ${{ secrets.KEEPSAVE_API_KEY }}
-          project-id: 'my-project-id'
-          environment: 'prod'
-      - run: echo "Database URL is available as $DATABASE_URL"
-```
-
-### Export as .env file
-```yaml
-      - uses: santapong/keepsave-action@v1
-        with:
-          api-url: ${{ secrets.KEEPSAVE_API_URL }}
-          api-key: ${{ secrets.KEEPSAVE_API_KEY }}
-          project-id: 'my-project-id'
-          environment: 'uat'
-          export-to: 'file'
-          env-file-path: '.env.uat'
-```
+New platform guarantees are PostgreSQL-only. No real GitHub Actions job, published
+action reference or deployment was executed in this documentation audit. Further
+adapters and hardened delivery remain deferred under the [architecture](../../docs/ARCHITECTURE.md).

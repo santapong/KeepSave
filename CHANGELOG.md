@@ -8,6 +8,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — documentation, branding and workspace organization, 2026-10-04
+
+- Refreshed README, current system/operator/security/client guides and roadmap
+  around the harness-neutral source candidate; distinguish implemented, locally
+  tested, externally qualified and released behavior.
+- Added documentation/status/branding/folder indexes and a complete Markdown
+  inventory. Preserved dated research, audits, phase summaries and acceptance
+  receipts; moved earlier root notes into `docs/archive/`.
+- Rebuilt ten architecture/workflow SVGs using the selected Field Twist geometry,
+  and added a self-contained interactive architecture map with typed source and
+  artifact-bound visual checks. README uses the matching SVG header.
+- Kept `/mnt/data/company/apps/KeepSave` as the canonical local project and
+  organized supporting worktrees outside the product-app folder, preserving
+  the dirty landing checkout.
+
+### Fixed — integration verification wiring, 2026-10-04
+
+- Invoke the PostgreSQL fixture with Bash so Git's non-executable script mode
+  cannot stop CI before its tests run.
+- Collect the independent frontend scan and both image SBOMs after a backend
+  scan failure; HIGH/CRITICAL image findings remain blocking.
+
+### Availability — 2026-10-04 reconciliation
+
+- October3 main/develop CI both failed; no green remote acceptance is claimed.
+  The backend image scan still needs remediation. Formal reviews and real
+  providers/native clients/runner/recovery/operational qualification remain gates.
+- Contact/recovery proofs have 15-minute expiry; invitations currently have a
+  separate 24-hour expiry. This corrects broader earlier documentation without
+  changing authentication behavior.
+- This update targets `develop`; it creates no release tag, capability activation
+  or application deployment. Version remains the unreleased `1.4.0-rc.1` candidate.
+
 ### Added — local harness-neutral platform candidate, 2026-10-02
 
 - Shared authority barriers and membership epochs; parent/client-bound OAuth

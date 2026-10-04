@@ -1,5 +1,7 @@
 # External Review Preparation — Pentest Scope-of-Work
 
+> **Engagement scope, clarified 2026-10-04.** This is the May pre-engagement snapshot; it records neither a completed external penetration test nor sign-off for the later platform. A new review must scope the [current architecture](../ARCHITECTURE.md), [threat model](../THREAT_MODEL.md) and [October implementation/acceptance record](../design/2026-10-02-harness-neutral-platform/README.md). The original findings and proposed review scope below remain historical evidence.
+
 - **Audience:** External security firm engaged to pentest KeepSave.
 - **Status:** Pre-engagement briefing. All ADRs cited below are `proposed`, not yet accepted.
 - **Date of corpus snapshot:** 2026-05-15.

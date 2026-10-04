@@ -1,10 +1,13 @@
-# KeepSave threat model — core and harness-neutral local candidate
+# KeepSave threat model — vault and harness-neutral access candidate
 
-Reconciled 2026-10-02 (Asia/Bangkok) against the local unreleased implementation.
+![KeepSave — Your secrets. In the right orbit.](assets/keepsave-header.svg)
+
+Reconciled 2026-10-04 (Asia/Bangkok) against the published source candidate.
+Canonical project: `/mnt/data/company/apps/KeepSave`.
 This is a source/evidence update, not an independent security sign-off or a
 production risk rating. Historical May audit findings remain in
 `docs/audits/`; they must not be treated as the current implementation state.
-The [acceptance ledger](validation/2026-10-01-core-release/ACCEPTANCE.md) separates
+The [acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md) separates
 executed synthetic checks from review, provider UAT and operational gates.
 
 ## Assets and trust assumptions
@@ -41,7 +44,7 @@ provider application or runner isolation is established by this change.
 | E | Wrong project/tenant, viewer credential read, forged resource IDs | Stored resource and policy checks in `repository/authority_store.go`, project access and authorized services; actual-router denial tests. | Legacy compatibility adapters are inventoried; they cannot be assumed migrated. |
 | E | Original project owner bypasses workspace demotion/removal | Personal owner authority applies only while organization is NULL; assigned project authority uses current membership for sessions, keys and policy. | Regression covers demotion/removal and personal compatibility; explicit cross-org transfer is deferred. |
 | E | Workspace assignment steals foreign project or broadens old delegation | Stored owner + destination administrator, active project, same-org idempotency, cross-org refusal, source key/lease revocation in one transaction. | No implicit account/workspace/project bootstrap. |
-| E | Lease or token broadens parent project/environment/keys/expiry | Parent identity and live lineage, persisted issuance and revocation, legacy scope adapter; `agent_token_service`, `policy`. | Vault leases are not future broker run grants. Granted plaintext cannot be recalled. |
+| E | Lease or token broadens parent project/environment/keys/expiry | Parent identity and live lineage, persisted issuance and revocation, legacy scope adapter; `agent_token_service`, `policy`. | Vault leases are distinct from broker run grants. Granted plaintext cannot be recalled. |
 | E/I | Private workspace template is exposed or changed by a removed creator | Current stored membership for read/list/apply, current admin for workspace mutation, personal creator for personal mutation, strict human session; required metadata audit/outbox transaction. | Template defaults are ordinary configuration: use placeholders, not live credentials. Core global publication is refused; builtins remain available. |
 | T/R | Secret edit lacks a version or success is audited after failed mutation | PostgreSQL vault transaction joins current mutation, immutable revision, required audit and outbox; fixtures force audit failure. | PostgreSQL-only guarantees; unsupported versioned history/recovery refuse 503. No old writer may resume after enrollment. |
 | T | Concurrent restore/edit silently loses a newer value | Project serialization and expected current revision; restore appends rather than overwrites history. | Callers must supply explicit restore preconditions; stale revision returns conflict. |
@@ -51,19 +54,20 @@ provider application or runner isolation is established by this change.
 | T/I | Corrupt backup, wrong recovery key or partial recovery | Authenticated bundle verification, metadata preview, selected revision checks; CLI recovery refuses occupied/nonempty-schema targets before migration. External-file seven-check isolated recovery passed. | External key custody and production backup storage operation remain release gates. Recovery excludes authority. |
 | T/R | Duplicate jobs or stale worker acknowledges another attempt | `internal/jobs` leases, fencing, bounded retries and persisted uncertain states; PostgreSQL queue tests. | External effects are not atomic with DB; uncertain attempts require reconciliation. |
 | T/I | Backup retention deletes only recoverable copy or hides failure | Opt-in scheduling, verified catalog dependencies, thirty daily/minimum two, manual bundles held; audited delete-pending before unlink and failure state. | Worker defaults off until recovery confirmation; no historical key deletion. Operational storage failure drill remains separate. |
-| I | Secret/token in error, response, log or metrics | Safe error envelope and logging redaction; metadata-only history list/backup preview/session catalog. | Explicit vault reads/exports contain authorized plaintext. Do not advertise credential confinement before broker delivery. |
-| I/D | User-controlled connector command/build or outbound webhook | Core composition disables connector build/execute/install/config generation and unfinished webhook operations. | Legacy source remains an inventory, not an approved runtime. Restricted runner tests are M3. |
-| D | Oversized request / recovery bundle exhausts API | 1 MiB general body limit; exact recovery endpoints 90 MiB, corresponding proxy limit; bounded vault selections and worker resources. | No capacity/availability numbers are measured yet; DB-backed cross-replica admission remains M5. |
+| I | Secret/token in error, response, log or metrics | Safe error envelope and logging redaction; metadata-only history list/backup preview/session catalog. | Explicit vault reads/exports contain authorized plaintext. Broker source keeps provider credentials in custody; live provider/canary qualification remains pending. |
+| I/D | User-controlled connector command/build or outbound webhook | Core composition disables connector build/execute/install/config generation and unfinished webhook operations. | Legacy source remains an inventory, not an approved runtime. Restricted runner synthetic contracts exist; actual separate-host isolation remains unqualified. |
+| D | Oversized request / recovery bundle exhausts API | 1 MiB general body limit; exact recovery endpoints 90 MiB, corresponding proxy limit; bounded vault selections and worker resources. | No capacity/availability numbers are measured yet; Database-backed run budgets exist; multi-replica capacity/fault acceptance remains pending. |
 | S/I | Forged proxy origin/IP or leaked application token | Explicit trusted-proxy list, allowed origins, TLS/reference security headers; proxy does not log OAuth callback query. | CORS is browser isolation, not caller authorization. Host/browser compromise can steal a valid bearer token. |
-| E | Unfinished integration advertised as enforced policy | Core capability refusal for AI, policy metadata, legacy OAuth, enterprise SSO, replay and plugin execution. | SDK/widget/CLI compatibility UAT is separate. `/api/docs` covers the bounded core, not every legacy route. |
+| E | Unfinished integration advertised as enforced policy | Core capability refusal for AI, policy metadata, legacy OAuth, enterprise SSO, replay and plugin execution. | SDK/widget/CLI compatibility UAT is separate. `core.json` covers maintained management routes, not every legacy route or protocol envelope. |
 
 The source paths are intentionally file-level because this working tree changes
 rapidly. Exact executed evidence and dates belong in the acceptance ledger rather
-than stale line-number claims.
+than stale line-number claims. The Field Twist mark and violet/mint visual identity
+do not alter a trust boundary or supply evidence of security acceptance.
 
 ## Harness-neutral additions — implemented controls, pending qualification
 
-The following source controls now exist in the local working tree. The
+The following source controls exist in the published, untagged candidate. The
 [current acceptance ledger](validation/2026-10-02-harness-neutral-platform/ACCEPTANCE.md)
 records synthetic evidence; they do not establish deployed mitigations.
 
@@ -71,7 +75,7 @@ records synthetic evidence; they do not establish deployed mitigations.
 |---|---|---|
 | Token replay/resource substitution | New opaque OAuth path: exact canonical resource/client/issuer/callback, S256, atomic code consumption, refresh-family rotation/replay revocation, current browser parent checks | Exact native client negotiation and real consent remain unqualified; no dynamic registration |
 | Removed/rejoined member retains authority | Sorted subject/project barriers and member authority epochs; revision-bound scoped offboard snapshot/execution; full dependent grants/runs cascade | Unrelated org/personal authority remains; old returned data cannot be recalled |
-| Last login method removed / proof theft | Remaining-method recent successful auth, hashed256-bit purpose/account proofs, expiry/attempt bounds; successful recovery atomically invalidates delegated/browser/link authority | Real SMTP acceptance gated; verified contact does not attest a person |
+| Last login method removed / proof theft | Remaining-method recent successful auth, hashed 256-bit purpose/account proofs (contact/recovery 15 minutes; invitation 24 hours), expiry/attempt bounds; successful recovery atomically invalidates delegated/browser/link authority | Real SMTP acceptance gated; verified contact does not attest a person |
 | Proof leakage / repeated uncertain send | Vault-encrypted ephemeral delivery; ID-only jobs; clear browser fragments; STARTTLS certificate-verified SMTP; uncertain sends not automatically replayed | SMTP accepted is not delivered; operator mailbox/SMTP trust remains |
 | Audit/export exfiltration | Safe typed-reference projection, current admission/download, repeatable-read bounded snapshot, fenced publication, one-hour expiry | Raw legacy journal access is separately authorized; no immutable external notarization |
 | Wrong repository / altered profile | Stored binding/commit/client-family grant, independently approved source/profile/package digests, current policy/epoch checks at admission and broker redemption | Minimal fixed pilot profile; no universal harness/device enforcement |
@@ -96,7 +100,10 @@ references prevent speculative purge.
 ## Review and operational gates
 
 Independent Security Engineer/Tech Lead review is pending for Type-1 changes.
-Before production require real Google/GitHub UAT, coordinated migration/session/
+The October 3 main/develop CI runs were observed failed on October 4; see
+[CI_PERMISSIONS](CI_PERMISSIONS.md) for dated links and subsequent-revision handling.
+Before production require real Google/GitHub/SMTP and exact-client/GitHub-App UAT,
+actual separate-host isolation, coordinated migration/session/
 journal cutover, independent external-backup isolated recovery, deployment TLS/
 origin validation, outage/restart/upgrade tests and supported-client contracts.
 No unmeasured residual-risk score, throughput, uptime or exactly-once claim is

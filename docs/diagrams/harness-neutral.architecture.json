@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "KeepSave \u00b7 harness-neutral access candidate",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1240,
+      620
+    ],
+    "repository": {
+      "url": "https://github.com/santapong/KeepSave",
+      "revision": "6684aca5343543932c62ffa720947c3d9b400fd6"
+    }
+  },
+  "components": [
+    {
+      "id": "harnesses",
+      "type": "external",
+      "label": "Developer clients",
+      "sublabel": "Codex / Hermes candidates",
+      "pos": [
+        40,
+        80
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "transport",
+      "type": "frontend",
+      "label": "MCP / REST adapters",
+      "sublabel": "Translate scoped requests",
+      "pos": [
+        350,
+        80
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "services",
+      "type": "security",
+      "label": "Authorized services",
+      "sublabel": "Current authority / run limits",
+      "pos": [
+        660,
+        80
+      ],
+      "size": [
+        230,
+        88
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/policy/policy.go"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "Runs / audit / outbox / fences",
+      "pos": [
+        1010,
+        80
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "security",
+      "label": "Vault custody",
+      "sublabel": "Retained keys / sealed values",
+      "pos": [
+        660,
+        255
+      ],
+      "size": [
+        230,
+        88
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Trusted worker",
+      "sublabel": "Fenced jobs / private storage",
+      "pos": [
+        1010,
+        255
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "connector",
+      "type": "backend",
+      "label": "Pinned connector",
+      "sublabel": "No network / no credentials",
+      "pos": [
+        40,
+        435
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Runner supervisor",
+      "sublabel": "Rootless Podman / mTLS",
+      "pos": [
+        350,
+        435
+      ],
+      "size": [
+        220,
+        88
+      ]
+    },
+    {
+      "id": "broker",
+      "type": "security",
+      "label": "Trusted broker",
+      "sublabel": "Recheck / authenticate request",
+      "pos": [
+        660,
+        435
+      ],
+      "size": [
+        230,
+        88
+      ]
+    },
+    {
+      "id": "github",
+      "type": "external",
+      "label": "GitHub App API",
+      "sublabel": "One repository / pinned commit",
+      "pos": [
+        1010,
+        435
+      ],
+      "size": [
+        220,
+        88
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-request",
+      "from": "harnesses",
+      "to": "transport",
+      "label": "scoped request",
+      "variant": "emphasis"
+    },
+    {
+      "id": "service-admission",
+      "from": "transport",
+      "to": "services",
+      "label": "admission",
+      "variant": "security"
+    },
+    {
+      "id": "transaction",
+      "from": "services",
+      "to": "postgres",
+      "label": "transaction"
+    },
+    {
+      "id": "vault-use",
+      "from": "services",
+      "to": "vault",
+      "label": "vault use",
+      "variant": "security",
+      "labelDy": 75
+    },
+    {
+      "id": "job-claim",
+      "from": "postgres",
+      "to": "worker",
+      "label": "leased jobs",
+      "variant": "dashed",
+      "labelDy": 75
+    },
+    {
+      "id": "private-admission",
+      "from": "supervisor",
+      "to": "services",
+      "label": "mTLS claim / complete",
+      "variant": "security",
+      "labelDy": 75
+    },
+    {
+      "id": "relay",
+      "from": "connector",
+      "to": "supervisor",
+      "label": "Unix relay"
+    },
+    {
+      "id": "broker-redemption",
+      "from": "supervisor",
+      "to": "broker",
+      "label": "typed ticket",
+      "variant": "security",
+      "labelAt": [
+        615,
+        504
+      ]
+    },
+    {
+      "id": "custody",
+      "from": "broker",
+      "to": "vault",
+      "label": "credential custody",
+      "variant": "security"
+    },
+    {
+      "id": "provider-read",
+      "from": "broker",
+      "to": "github",
+      "label": "bounded read",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Source candidate",
+      "items": [
+        "New capabilities default off",
+        "Local fixtures do not qualify clients"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Credential boundary",
+      "items": [
+        "Broker alone authenticates GitHub calls",
+        "Connector and model receive no token"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Acceptance pending",
+      "items": [
+        "Real providers / clients / runner isolation",
+        "Independent reviews / operational drills"
+      ]
+    }
+  ]
+}

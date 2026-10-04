@@ -1,5 +1,7 @@
 # Security Audit Checklist - OWASP Top 10 Review
 
+> Historical record, relocated from `SECURITY_AUDIT.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 ## KeepSave v1.1.0 Security Assessment
 
 ### A01:2021 - Broken Access Control
@@ -116,7 +118,7 @@ All items addressed in v1.1.0 (Phase 16 - Production Hardening).
        ->  `AUDIT_LOG_RETENTION_DAYS` (default 365) in `backend/internal/config/config.go`.
            Nightly pruner scheduled in a follow-up PR so main.go changes stay surgical.
 
-**Outstanding follow-ups** (now tracked in [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) with owner + due date; this list is historical):
+**Outstanding follow-ups** (now tracked in [`docs/FOLLOWUPS.md`](../FOLLOWUPS.md) with owner + due date; this list is historical):
 
 - ✅ Nightly audit-log pruner wiring in `main.go` — closed.
 - ✅ KeepSave ↔ Seidr regression harness — closed.
@@ -124,4 +126,4 @@ All items addressed in v1.1.0 (Phase 16 - Production Hardening).
 - ⚠ AWS KMS / GCP KMS SDK adapters wiring — Phase A.
 - ⚠ Phase 15 service unit tests — Phase A.
 
-The 30-day audit (see [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) v1.2.0 "Findings new") surfaced additional gaps that supersede this list — see [`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) for the current set with owners and due dates.
+The 30-day audit (see [`docs/THREAT_MODEL.md`](../THREAT_MODEL.md) v1.2.0 "Findings new") surfaced additional gaps that supersede this list — see [`docs/FOLLOWUPS.md`](../FOLLOWUPS.md) for the current set with owners and due dates.

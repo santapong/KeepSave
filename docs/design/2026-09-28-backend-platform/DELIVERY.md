@@ -1,5 +1,7 @@
 # Incremental delivery plan
 
+> **Program boundary, clarified 2026-10-04.** The M0–M5 table below preserves the earlier staged plan and its original Codex-first assumption. The approved harness-neutral G0–G6 program, local implementations and pending exit gates are recorded in the [October checkpoint](../2026-10-02-harness-neutral-platform/README.md). Codex and Hermes are qualification candidates through separate client-bound runs; no universal harness support or completed qualification is implied. Use the [current documentation index](../../README.md) for delivery instructions.
+
 Approved program, originally drafted 2026-09-28; status reconciled 2026-10-02.
 Codex first, a read-only GitHub App, one approved repository/commit per ten-minute
 run, broker-held provider credentials, separate restricted Linux runner and

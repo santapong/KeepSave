@@ -1,5 +1,7 @@
 # Phase 16: Production Hardening (v1.1.0)
 
+> Historical record, relocated from `PHASE16_CHANGELOG.md` on 4 October 2026. Findings and past claims are retained; use the [current documentation](../README.md) and [status](../STATUS.md) for supported behavior and outstanding reviews.
+
 **Date:** 2026-04-19
 **Target tag:** `v1.1.0`
 **Theme:** close every open item in `SECURITY_AUDIT.md` ->

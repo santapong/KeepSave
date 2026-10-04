@@ -1,5 +1,7 @@
 # KeepSave + MedQCNN Integration Guide
 
+> Historical proposed integration. API-host MCP execution, general-purpose legacy OAuth issuance and marketplace behavior described below are unavailable in the current profile. Source examples are not live MedQCNN acceptance. See [integrations](INTEGRATIONS.md) and [current architecture](ARCHITECTURE.md).
+
 This guide covers how to use KeepSave to manage secrets, host MCP servers, and provide authentication for [MedQCNN](https://github.com/santapong/MedQCNN) — a hybrid quantum-classical CNN for medical image diagnostics.
 
 ## Table of Contents

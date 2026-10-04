@@ -1,5 +1,7 @@
 # P0 Remediation Design — MCP output scrubbing + missing audit emissions
 
+> **Historical scope, clarified 2026-10-04.** The held/proposed and implemented annotations below belong to the June remediation record; they are preserved together rather than treated as a new sign-off. The first-release profile now refuses API-host connector execution. Current custody, review gates and acceptance limits are maintained in the [architecture](../ARCHITECTURE.md) and [harness-neutral checkpoint](../design/2026-10-02-harness-neutral-platform/README.md).
+
 Status: **Proposed / HELD** — Security-Engineer sign-off required before implementation
 (crypto/auth/promotion + audit-log mandate fall under the ROLES.md §2.2 veto). This doc carries no
 implementation, per the gated process ("open a PR with the design first").

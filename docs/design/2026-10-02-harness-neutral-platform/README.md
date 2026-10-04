@@ -154,3 +154,17 @@ on fixed hardware, publish measured latency/recovery results, and expand bounded
 reference-file manifests and additional adapters behind the same policy/custody
 contracts. External secret delivery, arbitrary scripts/builds, model credentials,
 SSO/device attestation, marketplace and multi-region operation remain deferred.
+
+## 2026-10-04 documentation reconciliation
+
+The source candidate is integrated and published as recorded in the October 3
+note. Current architecture, diagrams, folder roles and branding are now indexed
+in [the documentation hub](../../README.md). This is a documentation review, not
+reexecution of the October 2 tests. Both exact October 3 CI runs were freshly
+checked and failed; see [status](../../STATUS.md). CI invocation is being repaired
+without weakening image-scan gates.
+
+Correction to broader earlier proof wording: source currently gives contact and
+password-recovery proofs 15 minutes, and invitation proofs 24 hours. This note
+does not change proof behavior. Automatic discovery retries, richer skill file
+trees, real clients/providers and actual runner isolation remain unclaimed.

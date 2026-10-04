@@ -1,5 +1,7 @@
 # Competitive Research Initiative — Auth, Secrets, Approval
 
+> **Corpus scope, reconciled 2026-10-04.** This index preserves the May research brief; the launch-status line and phase calendar below describe that initiative, not a currently running team. The repository now contains thirteen dated competitor dossiers and its historical [post-initiative backlog](BACKLOG.md). Research acceptance records the original research review only; it does not establish current vendor behavior, KeepSave support, production acceptance or independent Security Engineer/Tech Lead sign-off. Use the [documentation index](../README.md), [current architecture](../ARCHITECTURE.md) and [October implementation checkpoint](../design/2026-10-02-harness-neutral-platform/README.md) for the maintained product baseline.
+
 - **Branch of record:** `claude/research-auth-competitors-H8VmQ`
 - **Initiative kicked off:** 2026-05-15
 - **Sponsor:** acting PM (Tech Lead is interim per `docs/ROADMAP_NOT.md`)

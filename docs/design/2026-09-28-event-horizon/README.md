@@ -1,5 +1,7 @@
 # Event Horizon — landing story
 
+> **Design lineage, clarified 2026-10-04.** The accepted Event Horizon narrative remains the landing direction. This record preserves the September 28 implementation and original-mark references; the subsequently selected Field Twist identity and current assets are maintained in the [brand guide](../../BRANDING.md). Local preview and publication statements below describe their original dated requests, not the current deployment status.
+
 Date: 2026-09-28. Owner selected **Event Horizon** from the three visual directions and asked for storytelling that makes KeepSave easy to understand. This authorizes local landing implementation; it does not authorize publication. Exact selected image: `selected-reference.png`, SHA-256 `29208a53ccc8e2c4cb12e9b5fc9bcfc08b59c2ff1e673e64b51ba5cecb2fc015`. Exploration, sources and original prompts: `/mnt/data/keepsave-landing-design-2026-09-28/`.
 
 ## Scope / brief / RFC

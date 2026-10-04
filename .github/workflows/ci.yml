@@ -16,6 +16,16 @@ permissions:
   contents: read
 
 jobs:
+  documentation:
+    name: Documentation and diagrams
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Validate documentation inventory, links and generated diagrams
+        run: python3 scripts/check_docs.py
+
   platform-postgres:
     name: PostgreSQL platform contracts
     runs-on: ubuntu-latest
@@ -24,7 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test authorization, transactions and concurrency with real PostgreSQL
-        run: ./scripts/test-platform-postgres.sh
+        # Run the interpreter explicitly: Git stores this script as mode 0644.
+        run: bash scripts/test-platform-postgres.sh
 
   backend-lint:
     name: Backend Lint
@@ -309,13 +320,16 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Build backend image
+        id: build-backend
         run: docker build -t keepsave-backend:${{ github.sha }} ./backend
       - name: Build frontend image
+        id: build-frontend
         run: docker build -t keepsave-frontend:${{ github.sha }} ./frontend
 
       # Pin the installer and its source; verify published archive checksums
       # on every run instead of restoring an unchecked binary cache.
       - name: Install pinned Trivy
+        id: install-trivy
         uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
         with:
           version: v0.74.0
@@ -334,6 +348,8 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
       - name: Trivy scan (frontend)
+        # Keep collecting independent image evidence when the backend scan fails.
+        if: ${{ !cancelled() && steps.build-frontend.outcome == 'success' && steps.install-trivy.outcome == 'success' }}
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: keepsave-frontend:${{ github.sha }}
@@ -353,6 +369,7 @@ jobs:
 
       # --- SBOM generation (INF-2): Syft SPDX, uploaded as build artifacts ---
       - name: SBOM (backend)
+        if: ${{ !cancelled() && steps.build-backend.outcome == 'success' }}
         uses: anchore/sbom-action@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
         with:
           image: keepsave-backend:${{ github.sha }}
@@ -360,6 +377,7 @@ jobs:
           artifact-name: sbom-backend.spdx.json
           output-file: sbom-backend.spdx.json
       - name: SBOM (frontend)
+        if: ${{ !cancelled() && steps.build-frontend.outcome == 'success' }}
         uses: anchore/sbom-action@fc46e51fd3cb168ffb36c6d1915723c47db58abb # v0.17.7
         with:
           image: keepsave-frontend:${{ github.sha }}
