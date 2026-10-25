@@ -7,7 +7,7 @@ Current entry points are in [the hub](README.md) and [status](STATUS.md).
 Historical bodies and dated execution evidence remain distinct from current
 source explanations. Retained client examples may still need repair/qualification.
 
-**196 documents.** Regenerate with `python3 scripts/check_docs.py --write-map`.
+**200 documents.** Regenerate with `python3 scripts/check_docs.py --write-map`.
 Validate with `python3 scripts/check_docs.py`. The checker reports unresolved
 historical/vendored links separately; it does not imply those old examples work.
 
@@ -143,11 +143,13 @@ historical/vendored links separately; it does not imply those old examples work.
 | [docs/design/2026-10-02-product-roadmap/BACKLOG.md](design/2026-10-02-product-roadmap/BACKLOG.md) | Dated plan / implementation / publication |
 | [docs/design/2026-10-02-product-roadmap/README.md](design/2026-10-02-product-roadmap/README.md) | Dated plan / implementation / publication |
 | [docs/design/2026-10-02-product-roadmap/RESEARCH.md](design/2026-10-02-product-roadmap/RESEARCH.md) | Dated plan / implementation / publication |
+| [docs/design/2026-10-24-gargantua/README.md](design/2026-10-24-gargantua/README.md) | Dated plan / implementation / publication |
 | [docs/design/BLACK_HOLE_LANDING.md](design/BLACK_HOLE_LANDING.md) | Dated plan / implementation / publication |
 | [docs/grovernance_integration.md](grovernance_integration.md) | Historical observation / research |
 | [docs/medqcnn_integration.md](medqcnn_integration.md) | Historical observation / research |
 | [docs/nexus_integration.md](nexus_integration.md) | Historical observation / research |
 | [docs/releases/2026-10-03-source-publication.md](releases/2026-10-03-source-publication.md) | Dated plan / implementation / publication |
+| [docs/releases/landing-v2026.10.25.md](releases/landing-v2026.10.25.md) | Dated plan / implementation / publication |
 | [docs/releases/v1.4.0-rc.1.md](releases/v1.4.0-rc.1.md) | Dated plan / implementation / publication |
 | [docs/research/BACKEND_NEXT_2026-09-28.md](research/BACKEND_NEXT_2026-09-28.md) | Historical observation / research |
 | [docs/research/BACKLOG.md](research/BACKLOG.md) | Historical observation / research |
@@ -199,6 +201,7 @@ historical/vendored links separately; it does not imply those old examples work.
 | [docs/validation/2026-10-02-harness-neutral-platform/IDENTITY_TEAM.md](validation/2026-10-02-harness-neutral-platform/IDENTITY_TEAM.md) | Dated executed evidence |
 | [docs/validation/2026-10-02-harness-neutral-platform/OPERATIONS.md](validation/2026-10-02-harness-neutral-platform/OPERATIONS.md) | Dated executed evidence |
 | [docs/validation/2026-10-04-documentation/README.md](validation/2026-10-04-documentation/README.md) | Dated executed evidence |
+| [docs/validation/2026-10-25-documentation-ux/README.md](validation/2026-10-25-documentation-ux/README.md) | Dated executed evidence |
 | [frontend/public/images/providers/README.md](../frontend/public/images/providers/README.md) | Source / client / fixture guide |
 | [frontend/src/embed/INTEGRATION.md](../frontend/src/embed/INTEGRATION.md) | Source / client / fixture guide |
 | [integrations/github-action/README.md](../integrations/github-action/README.md) | Source / client / fixture guide |
@@ -209,3 +212,4 @@ historical/vendored links separately; it does not imply those old examples work.
 | [tests/PYRAMID.md](../tests/PYRAMID.md) | Source / client / fixture guide |
 | [tests/e2e/seidr/README.md](../tests/e2e/seidr/README.md) | Source / client / fixture guide |
 | [tests/robot/README.md](../tests/robot/README.md) | Source / client / fixture guide |
+| [tests/robot/UX_TESTING.md](../tests/robot/UX_TESTING.md) | Source / client / fixture guide |

@@ -1,6 +1,10 @@
 # KeepSave implementation and acceptance status
 
-Checked **4 October 2026**. Source candidate `6684aca` was integrated through
+Checked **25 October 2026**. The scoped [landing frontend release](releases/landing-v2026.10.25.md)
+is separate from the unreleased application. The dated backend evidence below
+remains historical; no new backend qualification is inferred.
+
+Baseline checked **4 October 2026**. Source candidate `6684aca` was integrated through
 `develop` (`1021435`) and published to `main` (`202cc5d`) on October 3. Their
 product-source trees match. The October 4 documentation/CI-wiring update does not
 create a release tag or deploy the full application.

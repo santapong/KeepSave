@@ -249,15 +249,15 @@ curl -X POST \\
 
 function EndpointDoc({ method, path, description, params, body }: { method: string; path: string; description: string; params?: string; body?: string }) {
   const methodColors: Record<string, string> = {
-    GET: 'bg-success hover:bg-success',
-    POST: 'bg-primary hover:bg-primary',
-    PUT: 'bg-warning hover:bg-warning',
-    DELETE: 'bg-destructive hover:bg-destructive',
+    GET: 'bg-success hover:bg-success text-success-foreground',
+    POST: 'bg-primary hover:bg-primary text-primary-foreground',
+    PUT: 'bg-warning hover:bg-warning text-warning-foreground',
+    DELETE: 'bg-destructive hover:bg-destructive text-destructive-foreground',
   };
   return (
     <div className="p-2.5 bg-muted rounded-lg border">
       <div className="flex items-center gap-2 mb-1">
-        <Badge className={`${methodColors[method] || 'bg-muted-foreground'} text-white text-[11px] font-bold font-mono px-2 py-0`}>
+        <Badge className={`${methodColors[method] || 'bg-muted text-muted-foreground'} text-[11px] font-bold font-mono px-2 py-0`}>
           {method}
         </Badge>
         <code className="text-xs text-foreground font-mono">{path}{params || ''}</code>

@@ -160,7 +160,7 @@ export function ProjectsPage() {
 
       <section className="ks-workspace-welcome" aria-label="KeepSave workflow">
         <div className="ks-welcome-copy"><span className="ks-section-kicker">A LITTLE ORDER. A LOT LESS WORRY.</span><h2>Keep your secrets<br /><em>in their own orbit.</em></h2><p>Separate every environment. Give each tool the access it needs. Review changes before they go live.</p><Link to="/help">Explore the guide <ArrowUpRight size={14} /></Link></div>
-        <div className="ks-welcome-art" aria-hidden="true"><img src="/images/event-horizon.webp" alt="" /></div>
+        <div className="ks-welcome-art" aria-hidden="true"><img src="/images/gargantua-horizon.webp" alt="" /></div>
         <div className="ks-workflow-steps">
           <div><span><KeyRound size={17} /></span><section><h3>01 <b>Store</b></h3><p>A separate vault for every project.</p></section></div>
           <div><span><Cable size={17} /></span><section><h3>02 <b>Connect</b></h3><p>Scoped access for your apps and agents.</p></section></div>

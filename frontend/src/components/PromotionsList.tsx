@@ -145,7 +145,7 @@ export function PromotionsList({ projectId }: PromotionsListProps) {
                 variant="secondary"
                 className={cn(
                   'ml-1.5 text-[11px] font-bold px-1.5 min-w-[20px] h-4',
-                  active ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground'
+                  active ? 'bg-primary-foreground/10 text-primary-foreground' : 'bg-muted text-muted-foreground'
                 )}
               >
                 {counts[f.key]}

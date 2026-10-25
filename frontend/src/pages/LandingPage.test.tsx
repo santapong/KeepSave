@@ -53,8 +53,16 @@ describe('LandingPage walkthrough', () => {
     await user.click(screen.getByRole('heading', { level: 1 }));
     expect(screen.queryByRole('navigation', { name: 'Mobile navigation' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open navigation' }));
-    await user.click(within(screen.getByRole('navigation', { name: 'Mobile navigation' })).getByRole('link', { name: 'Product' }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Mobile navigation' })).getByRole('link', { name: 'Use cases' }));
     expect(screen.queryByRole('navigation', { name: 'Mobile navigation' })).not.toBeInTheDocument();
+  });
+
+  it('keeps static landing actions public and identifies mock feedback', () => {
+    render(<MemoryRouter><LandingPage landingOnly /></MemoryRouter>);
+    expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Share your workflow' })).toHaveAttribute('href', expect.stringContaining('github.com/santapong/KeepSave/issues/new'));
+    expect(screen.getByText('Illustrative feedback · design mockup')).toBeVisible();
+    expect(screen.getAllByText('Sample quote')).toHaveLength(3);
   });
 
   it('keeps the product and primary action available when hero art fails', () => {
@@ -62,6 +70,6 @@ describe('LandingPage walkthrough', () => {
     fireEvent.error(container.querySelector('.ks-hero-art img')!);
     expect(container.querySelector('.ks-art-fallback')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeVisible();
-    expect(screen.getAllByRole('link', { name: 'Create your vault' })[0]).toHaveAttribute('href', '/register');
+    expect(screen.getAllByRole('link', { name: 'Find your use case' })[0]).toHaveAttribute('href', '#use-cases');
   });
 });

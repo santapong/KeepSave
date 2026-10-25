@@ -42,27 +42,27 @@ const ENVIRONMENTS = ['alpha', 'uat', 'prod'] as const;
 type Environment = (typeof ENVIRONMENTS)[number];
 
 const ENV_BADGE_CLASSES: Record<Environment, string> = {
-  alpha: 'bg-green-500 hover:bg-green-600 text-white',
-  uat: 'bg-primary hover:bg-primary text-white',
-  prod: 'bg-warning hover:bg-warning text-white',
+  alpha: 'bg-success hover:bg-success text-success-foreground',
+  uat: 'bg-primary hover:bg-primary text-primary-foreground',
+  prod: 'bg-warning hover:bg-warning text-warning-foreground',
 };
 
 const ENV_OUTLINE_CLASSES: Record<Environment, string> = {
-  alpha: 'border-green-500 text-green-500',
+  alpha: 'border-success text-success',
   uat: 'border-primary text-primary',
   prod: 'border-warning text-warning',
 };
 
 const ENV_TEXT_CLASSES: Record<Environment, string> = {
-  alpha: 'text-green-500',
+  alpha: 'text-success',
   uat: 'text-primary',
   prod: 'text-warning',
 };
 
 const ENV_BG_CLASSES: Record<Environment, string> = {
-  alpha: 'bg-green-500',
-  uat: 'bg-primary',
-  prod: 'bg-warning',
+  alpha: 'bg-success text-success-foreground',
+  uat: 'bg-primary text-primary-foreground',
+  prod: 'bg-warning text-warning-foreground',
 };
 
 interface SecretsPanelProps {
@@ -459,7 +459,7 @@ export function SecretsPanel({ projectId }: SecretsPanelProps) {
         <div className="flex flex-wrap items-center justify-between mb-3 gap-3">
           <div className="flex items-center">
             <span className={cn(
-              'inline-flex items-center justify-center min-w-[24px] h-6 rounded-full text-white text-xs font-bold mr-2 px-1.5',
+              'inline-flex items-center justify-center min-w-[24px] h-6 rounded-full text-xs font-bold mr-2 px-1.5',
               ENV_BG_CLASSES[env]
             )}>
               {secrets.length}

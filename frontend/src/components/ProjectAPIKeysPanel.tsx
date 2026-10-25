@@ -34,10 +34,10 @@ interface ProjectAPIKeysPanelProps {
 
 const SCOPES = ['read', 'write', 'delete', 'promote'] as const;
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
-  read: 'Fetch and list secrets, export .env files',
-  write: 'Create and update secret values',
-  delete: 'Permanently delete secrets from an environment',
-  promote: 'Create promotion requests and approve/reject them',
+  read: 'Read permitted secret values, including batch reads',
+  write: 'Create, update, and delete permitted secrets (legacy scope)',
+  delete: 'Delete permitted secrets; versioned vaults retain tombstones and history',
+  promote: 'Reserved legacy scope; promotion routes require a human session',
 };
 
 export function ProjectAPIKeysPanel({ projectId }: ProjectAPIKeysPanelProps) {

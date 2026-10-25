@@ -1,5 +1,14 @@
 # KeepSave Robot Framework fixtures
 
+## Application UX and resource slice — 25 October 2026
+
+The new `04_application_ux.robot` and `05_application_behaviour.robot` suites use
+an explicitly supplied synthetic loopback fixture and an owned disposable project.
+Follow [the UX testing and resource guide](UX_TESTING.md) to run them. The runner
+selects these files explicitly; their tags do not silently extend the legacy
+API-only job. Source preparation, dry-run parsing and executed results remain
+separate. The notes below describe the retained older fixtures.
+
 Source audit: October 4, 2026. This is the retained black-box HTTP/widget test tier,
 not current production/provider acceptance. Pinned dependency comments record a
 June 28, 2026 dry-run; a dry-run parses keywords without invoking the API/browser.

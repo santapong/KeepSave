@@ -79,7 +79,7 @@ const LENS_FRAG = /* glsl */ `
   uniform float uDiskOut;
   uniform vec3  uHot;        // inner annulus, gold-white
   uniform vec3  uFlare;      // mid, magenta
-  uniform vec3  uPlasma;     // outer, violet
+  uniform vec3  uPlasma;     // outer copper glow
   uniform float uExposure;
 
   const int   STEPS   = 110;
@@ -414,9 +414,9 @@ export function Singularity({
         uBasis: { value: new THREE.Matrix3() },
         uDiskIn: { value: 3.0 }, // ISCO
         uDiskOut: { value: 9.0 },
-        uHot: { value: new THREE.Color('#ffd9a0') },
-        uFlare: { value: new THREE.Color('#ff5fa8') },
-        uPlasma: { value: new THREE.Color('#8b5cf6') },
+        uHot: { value: new THREE.Color('#ffe1ad') },
+        uFlare: { value: new THREE.Color('#d98d50') },
+        uPlasma: { value: new THREE.Color('#bc7148') },
         uExposure: { value: 1.9 },
       };
 
@@ -453,8 +453,8 @@ export function Singularity({
             uSign: { value: sign },
             uBeta: { value: 0.93 },
             uTime: { value: 0 },
-            uCore: { value: new THREE.Color('#bcd8ff') },
-            uEdge: { value: new THREE.Color('#8b5cf6') },
+            uCore: { value: new THREE.Color('#fff0cf') },
+            uEdge: { value: new THREE.Color('#bc7148') },
           },
           vertexShader: JET_VERT,
           fragmentShader: JET_FRAG,

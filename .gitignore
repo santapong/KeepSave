@@ -37,3 +37,6 @@ Thumbs.db
 # Python SDK runtime artifacts
 __pycache__/
 *.py[cod]
+
+# Vercel local project metadata and generated output
+.vercel/

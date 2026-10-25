@@ -8,6 +8,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Release scope — 2026-10-25
+
+The frontend work below is included in the scoped `landing-v2026.10.25` release.
+Only its static public landing is published to Vercel; application source is
+integrated into `develop`. The core `1.4.0-rc.1` and controlled-tools platform
+remain unreleased. See [release notes](docs/releases/landing-v2026.10.25.md).
+
+### Fixed — palette consistency and navigation overflow, 2026-10-25
+
+- Replaced retained lavender in the landing walkthrough’s UAT selection, checks,
+  tool icons, scope chips and masked values with the warm brand/neutral palette.
+- Made large and legend UAT planets share one gradient rule.
+- Removed sidebar horizontal overflow and visible navigation scrollbars while
+  preserving wheel/keyboard access and native scrollbars in forced colors.
+- Verified seven focused tests, application/static landing packaging and a
+  13-case Robot journey; retained the initial fixture/package failures and fixes.
+
+### Changed — developer guides and Robot acceptance, 2026-10-25
+
+- Replaced the in-app documentation with 13 searchable task guides and shareable
+  section URLs, covering setup, API contracts, credential scope, history,
+  recovery, promotion and troubleshooting.
+- Corrected outdated paths, response examples and API-key scope descriptions;
+  distinguish current secret delivery from gated broker/MCP integrations.
+- Added an isolated Robot browser/API slice and a resource-observation runner
+  with explicit hard-limit and owner-approved Pi soft-watchdog modes. Execution
+  results remain scoped to the dated acceptance report; a parsed suite is not
+  a passing live gate.
+- Locally verified 172 frontend tests, lint/build and 11 synthetic Robot checks
+  on the Pi; recorded resources and limits in the
+  [dated acceptance record](docs/validation/2026-10-25-documentation-ux/README.md).
+
+### Changed — application-wide Gargantua identity, 2026-10-24
+
+- Extended the warm dark and light palette to all shared application surfaces,
+  authentication, account/workspace pages, dialogs and the embedded widget.
+- Refined the existing Field Twist mark in champagne/copper and bronze variants;
+  updated the favicon tile, icon details and asset cache versions.
+- Added a theme switch on authentication screens and verified that switching
+  appearance preserves entered credentials. Corrected filled-button, avatar and
+  environment-badge foregrounds for the new palette.
+- Prepared a loopback-only application trial with a separate synthetic PostgreSQL
+  vault; this does not configure providers or publish the application.
+
+### Changed — Gargantua landing design preview, 2026-10-24
+
+- Reorganized the landing around use cases, the product approach, capabilities,
+  illustrative user feedback, FAQ and contact, with a documented storyboard and
+  current website references.
+- Added original warm black-hole concept artwork and a charcoal/ivory/gold landing
+  palette while retaining Field Twist assets and scoped product-theme behavior.
+- Preserved the interactive vault walkthrough and keyboard/menu controls; added
+  clearly labeled fictional feedback at the owner's request and useful GitHub
+  contact/setup actions.
+- Reconciled the isolated static landing entry and public-module/asset allowlist.
+  Login/application/API routes remain outside that output. Tool access is labeled
+  preview and hosted availability is explained. Originally local design work;
+  now included in the scoped landing release. Quotes remain fictional examples.
+
 ### Changed — documentation, branding and workspace organization, 2026-10-04
 
 - Refreshed README, current system/operator/security/client guides and roadmap

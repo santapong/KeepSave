@@ -36,6 +36,20 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /enter the vault/i })).toBeInTheDocument();
   });
 
+  it('preserves entered credentials when switching appearance', async () => {
+    const user = userEvent.setup();
+    renderLogin();
+    const email = screen.getByLabelText(/email/i);
+    const password = screen.getByLabelText('Password', { exact: true });
+    await user.type(email, 'local@example.invalid');
+    await user.type(password, 'example-input-only');
+    const before = document.documentElement.dataset.theme;
+    await user.click(screen.getByRole('button', { name: /Switch to (light|dark) mode/ }));
+    expect(document.documentElement.dataset.theme).not.toBe(before);
+    expect(email).toHaveValue('local@example.invalid');
+    expect(password).toHaveValue('example-input-only');
+  });
+
   it('calls onLogin on successful login', async () => {
     const user = userEvent.setup();
     const mockUser = { id: '1', email: 'test@test.com', created_at: '', updated_at: '' };

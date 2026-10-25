@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 type StageId = 'alpha' | 'uat' | 'prod';
@@ -26,12 +25,6 @@ const DEFAULT_STAGES: PipelineStage[] = [
   { id: 'uat', label: 'uat', sub: 'Staging' },
   { id: 'prod', label: 'prod', sub: 'Production' },
 ];
-
-const PLANET_GRADIENT: Record<StageId, string> = {
-  alpha: 'radial-gradient(circle at 35% 30%, oklch(0.8 0.12 200), oklch(0.45 0.12 220))',
-  uat: 'radial-gradient(circle at 35% 30%, oklch(0.82 0.14 290), oklch(0.5 0.16 290))',
-  prod: 'radial-gradient(circle at 35% 30%, oklch(0.86 0.15 82), oklch(0.6 0.16 60))',
-};
 
 /**
  * OrbitalPipeline — the promotion pipeline (alpha → uat → prod) drawn as
@@ -75,8 +68,7 @@ export function OrbitalPipeline({ stages = DEFAULT_STAGES, className }: OrbitalP
           <div key={stage.id} className={cn('cz-pipe-stage', stage.id === 'prod' && 'cz-prod')}>
             <div className="cz-nm">
               <span
-                className="cz-mini-body"
-                style={{ background: PLANET_GRADIENT[stage.id] } as CSSProperties}
+                className={cn('cz-mini-body', `cz-${stage.id}`)}
               />
               {stage.label}
               {stage.badge && (

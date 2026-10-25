@@ -142,7 +142,7 @@ export function PromotionWizard({ projectId }: PromotionWizardProps) {
                 <div
                   className={cn(
                     'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
-                    isCompleted && 'bg-primary text-white',
+                    isCompleted && 'bg-primary text-primary-foreground',
                     isCurrent && 'bg-transparent border-2 border-primary text-primary',
                     !isCompleted && !isCurrent && 'bg-border text-muted-foreground'
                   )}

@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:landing": "tsc -b && vite build --config vite.landing.config.ts && node scripts/package-landing.mjs"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",

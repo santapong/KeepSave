@@ -2,11 +2,11 @@
 
 # KeepSave
 
-[![Release](https://img.shields.io/github/v/release/santapong/KeepSave?style=flat-square&color=8b5cf6&labelColor=0b0a12)](https://github.com/santapong/KeepSave/releases)
+[![Release](https://img.shields.io/github/v/release/santapong/KeepSave?style=flat-square&color=f4bf76&labelColor=08090d)](https://github.com/santapong/KeepSave/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/santapong/KeepSave/ci.yml?branch=develop&style=flat-square&label=CI&color=4fe3b8&labelColor=0b0a12)](https://github.com/santapong/KeepSave/actions)
 [![Go](https://img.shields.io/badge/Go-1.27.1-00ADD8?style=flat-square&labelColor=0b0a12)](https://go.dev)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&labelColor=0b0a12)](https://react.dev)
-[![License](https://img.shields.io/badge/license-MIT-a78bfa?style=flat-square&labelColor=0b0a12)](#license)
+[![License](https://img.shields.io/badge/license-MIT-b77840?style=flat-square&labelColor=0b0a12)](#license)
 
 **Your secrets. In the right orbit.**
 
@@ -29,8 +29,26 @@ still require provider, isolation, operational and independent review acceptance
 See the [source-publication note](docs/releases/2026-10-03-source-publication.md).
 
 The existing static landing page is at [keepsave.draveniq.dev](https://keepsave.draveniq.dev/).
+The **`landing-v2026.10.25` frontend release** adds the Gargantua story, warm
+dark/light identity, Field Twist refinements, developer guides and sidebar fixes.
+Only the isolated static landing package is intended for Vercel; the application
+changes remain on the integration line. See the
+[scoped release notes](docs/releases/landing-v2026.10.25.md) for evidence and limits.
 `app.keepsave.draveniq.dev` is the intended application origin; this backend work
 has not deployed it.
+
+## Developer guides and interface checks
+
+Open **Documentation** in a running workspace for 13 searchable task guides.
+Share a specific guide using paths such as `/help#developer-guide`,
+`/help#api`, `/help#history`, and `/help#troubleshooting`. Examples explain the
+actual request/response contract, credential choice, expected outcome and failure
+handling. Availability is checked against the running instance.
+
+The [Robot UX testing guide](tests/robot/UX_TESTING.md) describes the synthetic
+browser/API slice and resource observations. Its dry-run, executed scenarios and
+resource guards are separate evidence; they do not establish full accessibility,
+production capacity or provider acceptance.
 
 ## What the operator needs to prepare
 
