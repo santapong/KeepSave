@@ -191,7 +191,7 @@ export function OrganizationManagePage() {
       <div className="flex items-center gap-3.5 mb-6">
         <div
           className="w-11 h-11 rounded-full text-white flex items-center justify-center font-bold text-lg shrink-0"
-          style={{ background: ACCENT_AVATAR, color: 'oklch(0.13 0.02 280)' }}
+          style={{ background: ACCENT_AVATAR, color: 'var(--color-primary-foreground)' }}
         >
           {org.name.charAt(0).toUpperCase()}
         </div>
@@ -378,7 +378,7 @@ export function OrganizationManagePage() {
                     <CardContent className="p-3 flex items-center gap-3">
                       <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0"
-                        style={{ background: ACCENT_AVATAR, color: 'oklch(0.13 0.02 280)' }}
+                        style={{ background: ACCENT_AVATAR, color: 'var(--color-primary-foreground)' }}
                       >
                         {p.name.charAt(0).toUpperCase()}
                       </div>

@@ -27,7 +27,7 @@ const avatarStyle: CSSProperties = {
   placeItems: 'center',
   flex: 'none',
   background: 'linear-gradient(135deg, var(--cz-accent-hi), var(--cz-plasma))',
-  color: 'oklch(0.13 0.02 280)',
+  color: 'var(--color-primary-foreground)',
   fontWeight: 600,
   fontSize: 18,
   fontFamily: 'var(--cz-sans)',

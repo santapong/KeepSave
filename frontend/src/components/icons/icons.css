@@ -1,7 +1,7 @@
 .ks-icon { display:inline-block; flex-shrink:0; vertical-align:middle; overflow:visible; }
 .ks-icon-detail { stroke:var(--ks-icon-detail,currentColor); }
-/* Gold is reserved for product navigation and project objects; status/actions inherit their text. */
-.ks-nav-link .ks-icon,.ks-project-symbol .ks-icon { --ks-icon-detail:var(--ks-gold,currentColor); }
+/* Accretion gold/bronze marks navigation and project objects. Status/actions retain their semantic text color. */
+.ks-nav-link .ks-icon,.ks-project-symbol .ks-icon { --ks-icon-detail:var(--cz-accent,var(--ks-gold,currentColor)); }
 @media (forced-colors:active) {
   .ks-icon,.ks-nav-link .ks-icon,.ks-project-symbol .ks-icon { --ks-icon-detail:currentColor; }
 }

@@ -1,34 +1,38 @@
 export function getWidgetStyles(theme: 'light' | 'dark'): string {
   const colors = theme === 'dark'
     ? {
-        bg: '#1f2937',
-        surface: '#374151',
-        surfaceHover: '#4b5563',
-        primary: '#3b82f6',
-        primaryHover: '#2563eb',
-        danger: '#ef4444',
-        dangerHover: '#dc2626',
-        success: '#22c55e',
-        text: '#f9fafb',
-        textSecondary: '#9ca3af',
-        border: '#4b5563',
-        inputBg: '#1f2937',
-        maskBg: '#4b5563',
+        bg: '#08090d',
+        surface: '#111217',
+        surfaceHover: '#241e1c',
+        primary: '#f4bf76',
+        primaryHover: '#f8cc91',
+        primaryForeground: '#21170e',
+        danger: '#f19d9d',
+        dangerHover: '#f6b1b1',
+        dangerForeground: '#2b1015',
+        success: '#8bdbb1',
+        text: '#f5f1e8',
+        textSecondary: '#b5b2b8',
+        border: '#353139',
+        inputBg: '#111217',
+        maskBg: '#19191f',
       }
     : {
-        bg: '#f8f9fa',
-        surface: '#ffffff',
-        surfaceHover: '#f3f4f6',
-        primary: '#2563eb',
-        primaryHover: '#1d4ed8',
-        danger: '#dc2626',
-        dangerHover: '#b91c1c',
-        success: '#16a34a',
-        text: '#1f2937',
-        textSecondary: '#6b7280',
-        border: '#e5e7eb',
-        inputBg: '#ffffff',
-        maskBg: '#f3f4f6',
+        bg: '#f7f4ee',
+        surface: '#fffdf9',
+        surfaceHover: '#eee7dc',
+        primary: '#8b511d',
+        primaryHover: '#784316',
+        primaryForeground: '#ffffff',
+        danger: '#b52d45',
+        dangerHover: '#a0253c',
+        dangerForeground: '#ffffff',
+        success: '#187344',
+        text: '#29251f',
+        textSecondary: '#706657',
+        border: '#d9cdbd',
+        inputBg: '#fffdf9',
+        maskBg: '#eee7dc',
       };
 
   return `
@@ -44,8 +48,10 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
       --ks-color-surface-hover: ${colors.surfaceHover};
       --ks-color-primary: ${colors.primary};
       --ks-color-primary-hover: ${colors.primaryHover};
+      --ks-color-primary-foreground: ${colors.primaryForeground};
       --ks-color-danger: ${colors.danger};
       --ks-color-danger-hover: ${colors.dangerHover};
+      --ks-color-danger-foreground: ${colors.dangerForeground};
       --ks-color-success: ${colors.success};
       --ks-color-text: ${colors.text};
       --ks-color-text-secondary: ${colors.textSecondary};
@@ -200,7 +206,7 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
     .ks-btn-primary {
       background: var(--ks-color-primary);
       border-color: var(--ks-color-primary);
-      color: #ffffff;
+      color: var(--ks-color-primary-foreground);
     }
 
     .ks-btn-primary:hover {
@@ -213,8 +219,8 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
     }
 
     .ks-btn-danger:hover {
-      background: var(--ks-color-danger);
-      color: #ffffff;
+      background: var(--ks-color-danger-hover);
+      color: var(--ks-color-danger-foreground);
     }
 
     .ks-btn-sm {
@@ -250,8 +256,8 @@ export function getWidgetStyles(theme: 'light' | 'dark'): string {
 
     .ks-error {
       padding: 10px 12px;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
+      background: color-mix(in srgb, var(--ks-color-danger) 9%, var(--ks-color-bg));
+      border: 1px solid color-mix(in srgb, var(--ks-color-danger) 35%, var(--ks-color-bg));
       border-radius: 6px;
       color: var(--ks-color-danger);
       font-size: 13px;

@@ -33,8 +33,8 @@ README uses the Field Twist SVG header.
 
 The application sources are [index.css](../frontend/src/index.css),
 [cosmic.css](../frontend/src/styles/cosmic.css) and
-[workspace.css](../frontend/src/styles/workspace.css). UI tokens use OKLCH and
-separate semantic light/dark values. Documentation SVG uses these portable hex
+[workspace.css](../frontend/src/styles/workspace.css). UI tokens use shared semantic light/dark values;
+Gargantua uses explicit hex base colors, with optional accent variants. Documentation SVG uses these portable hex
 approximations on an opaque dark ground:
 
 | Role | Documentation value |
@@ -82,3 +82,42 @@ when an owner-approved mark changes.
 The [architecture view guide](ARCHITECTURE_VIEWS.md) documents the source and
 validation process for the interactive map. Brand consistency, structural
 validation, browser behavior and owner acceptance remain separate checks.
+
+
+## Gargantua landing study — 24 October 2026
+
+The owner requested a new landing composition and palette inspired by Gargantua.
+The [working storyboard](design/2026-10-24-gargantua/README.md) introduces a warmer
+marketing expression: charcoal `#08090d`, ivory `#f5f1e8`, gold `#f4bf76`, quiet
+surfaces and restrained violet `#b8a3ef`. Tokens are scoped to `.ks-landing`;
+workspace, account and documentation palettes retain their own meanings.
+Field Twist geometry and the familiar icon family stay unchanged.
+
+The retained-violet statement above records the initial draft. The owner’s
+25 October correction supersedes it for default interactive controls: selected
+states, UAT accents, tool chips and glyphs now use gold/copper, with neutral
+masked text. Status colors and explicitly chosen alternative accents remain
+distinct. Large and legend planets share their stage paint rules.
+
+This is a local design preview pending owner acceptance and publication. Original
+black-hole artwork is conceptual; fictional feedback is visibly labeled. Neither
+establishes scientific accuracy, real customers or accepted provider support.
+
+
+## Application-wide Gargantua theme — 24 October 2026 follow-up
+
+The owner expanded the selected landing direction to every application page and
+requested the updated icon. `index.css` now supplies one shared palette for
+workspace, accounts, dialogs, help and all other routes. Authentication surfaces
+follow the same light/dark preference; their theme control preserves entered form
+values. The separately scoped embedded widget has matching defaults and distinct
+button foregrounds. The landing remains a deliberately dark marketing scene.
+
+Field Twist's two ribbon silhouettes are unchanged. Dark paint is champagne/gold
+and copper; light paint is deeper bronze/copper. The favicon adds a quiet charcoal
+tile for small-size contrast. Shared icon detail inherits the warm accent while
+status colors retain their meaning. Source images use cache version
+`gargantua-field-twist-v3`.
+
+The local trial uses synthetic data and a separately initialized PostgreSQL vault.
+This does not establish provider setup, release acceptance or production deployment.

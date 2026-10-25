@@ -6,20 +6,20 @@ describe('getWidgetStyles', () => {
     const styles = getWidgetStyles('light');
 
     expect(styles).toContain(':host');
-    expect(styles).toContain('--ks-color-bg: #f8f9fa');
-    expect(styles).toContain('--ks-color-surface: #ffffff');
-    expect(styles).toContain('--ks-color-primary: #2563eb');
-    expect(styles).toContain('--ks-color-text: #1f2937');
+    expect(styles).toContain('--ks-color-bg: #f7f4ee');
+    expect(styles).toContain('--ks-color-surface: #fffdf9');
+    expect(styles).toContain('--ks-color-primary: #8b511d');
+    expect(styles).toContain('--ks-color-text: #29251f');
   });
 
   it('returns dark theme styles', () => {
     const styles = getWidgetStyles('dark');
 
     expect(styles).toContain(':host');
-    expect(styles).toContain('--ks-color-bg: #1f2937');
-    expect(styles).toContain('--ks-color-surface: #374151');
-    expect(styles).toContain('--ks-color-primary: #3b82f6');
-    expect(styles).toContain('--ks-color-text: #f9fafb');
+    expect(styles).toContain('--ks-color-bg: #08090d');
+    expect(styles).toContain('--ks-color-surface: #111217');
+    expect(styles).toContain('--ks-color-primary: #f4bf76');
+    expect(styles).toContain('--ks-color-text: #f5f1e8');
   });
 
   it('includes all required CSS classes', () => {

@@ -1,0 +1,24 @@
+{
+  "created": "2026-10-24",
+  "kind": "original image_gen concept artwork; not a film still or scientific simulation",
+  "prompt": "asset-prompt.txt",
+  "assets": [
+    {
+      "file": "exec-87ef2811-70ee-40c9-b1a9-4b83f517e2b6.png",
+      "format": "PNG",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2019985,
+      "sha256": "b906f8255e59134b60552f24c709a1dd314ba5daffe015977c427e2dc06affe2"
+    },
+    {
+      "file": "gargantua-horizon.webp",
+      "format": "WEBP",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 123742,
+      "sha256": "05971d267fe8ebb8f600148ef64b09463406f4d6fff2acddcb08fc012dc745db"
+    }
+  ],
+  "runtime_asset": "frontend/public/images/gargantua-horizon.webp"
+}

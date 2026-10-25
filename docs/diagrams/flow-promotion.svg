@@ -7,11 +7,11 @@
 
 
   <defs>
-    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#e7a566"/><stop offset="1" stop-color="#ffe2ad"/></linearGradient>
-    <linearGradient id="cool" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#d6c9ff"/><stop offset="1" stop-color="#9680dc"/></linearGradient>
+    <linearGradient id="warm" x1="10" y1="35" x2="44" y2="12" gradientUnits="userSpaceOnUse"><stop stop-color="#d98d50"/><stop offset="1" stop-color="#f8dda2"/></linearGradient>
+    <linearGradient id="copper" x1="54" y1="29" x2="23" y2="54" gradientUnits="userSpaceOnUse"><stop stop-color="#f1ba76"/><stop offset="1" stop-color="#b96743"/></linearGradient>
   </defs>
   <path d="M45 11C34 3 19 8 12 19C6 29 8 41 17 48C13 37 18 23 29 21C35 20 40 22 44 27C42 18 34 13 26 14C33 10 39 10 45 11Z" fill="url(#warm)"/>
-  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#cool)"/>
+  <path d="M19 53C30 61 45 56 52 45C58 35 56 23 47 16C51 27 46 41 35 43C29 44 24 42 20 37C22 46 30 51 38 50C31 54 25 54 19 53Z" fill="url(#copper)"/>
 </g>
 <text x="103" y="47" fill="#eeecf3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="650" text-anchor="start">KeepSave</text>
 <text x="103" y="74" fill="#a78bfa" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="550" text-anchor="start">Versioned environment promotion</text>

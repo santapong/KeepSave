@@ -120,9 +120,10 @@ Environment changes reset reveal/edit state; disconnect removes global listeners
 A timed reveal timeout is not claimed. Credentials and values remain in memory
 in the embed source; direct attribute/host access remains a separate trust risk.
 
-`--ks-color-*` custom properties style the host element. Follow Field Twist's
-violet/mint identity with readable light/dark contrasts when customizing, rather
-than claiming the legacy blue widget palette already matches every app asset.
+`--ks-color-*` custom properties style the host element. The widget defaults now
+match the Gargantua application palette: charcoal/gold in dark mode and
+ivory/bronze in light mode, with separate filled-button foreground tokens.
+Keep semantic status colors distinct and preserve contrast when customizing.
 A read-only UI mode does not override backend roles. Modern Web Component APIs are
 used, but the old Chrome/Firefox/Safari minimum-version list was not an executed
 browser matrix and is not a support promise.

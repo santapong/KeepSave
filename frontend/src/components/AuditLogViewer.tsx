@@ -149,7 +149,7 @@ export function AuditLogViewer({ projectId }: AuditLogViewerProps) {
       <div className="mb-4">
         <div className="flex items-center gap-2.5">
           <h3 className="text-lg font-bold">Audit Log</h3>
-          <Badge className="bg-primary text-white text-[11px] font-bold px-2 min-w-[24px] h-[22px]">
+          <Badge className="bg-primary text-primary-foreground text-[11px] font-bold px-2 min-w-[24px] h-[22px]">
             {filteredEntries.length}
           </Badge>
         </div>

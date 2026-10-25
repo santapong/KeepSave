@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowRight, ArrowUpRight, Bot, Check, ChevronDown, Code2, FileCode2, FolderClosed, GitBranch, History, KeyRound, LockKeyhole, Menu, Server, ShieldCheck, Terminal, X } from '@/components/icons';
+import { ArrowDown, ArrowRight, ArrowUpRight, Bot, Check, ChevronDown, Code2, FolderClosed, GitBranch, History, KeyRound, LockKeyhole, Menu, MessageCircle, Server, ShieldCheck, Users, X } from '@/components/icons';
 import { Brand } from '../components/cosmic/Brand';
 import { EhMark } from '../components/cosmic/EhMark';
 import { EventHorizon } from '../components/cosmic/EventHorizon';
 import '../styles/landing.css';
 
 const REPO = 'https://github.com/santapong/KeepSave';
-const DOCS = `${REPO}/tree/develop/docs/system`;
-const DOC_FILE = `${REPO}/blob/develop/docs/system`;
+const DOCS = `${REPO}/tree/develop/docs`;
+const SETUP = `${REPO}#local-development`;
+const FEEDBACK = `${REPO}/issues/new?title=KeepSave%20workflow%20feedback&body=My%20team%27s%20workflow%3A%20%0A%0AWhat%20I%27d%20like%20to%20improve%3A%20%0A%0APlease%20do%20not%20include%20credentials%20or%20private%20data.`;
 const ENVIRONMENTS = [
   { id: 'alpha', name: 'Alpha', purpose: 'Build and experiment', description: 'Development keys live here. Work on your app without reaching into testing or production.' },
   { id: 'uat', name: 'UAT', purpose: 'Test before release', description: 'User acceptance testing has its own values. Try a change here before it reaches your live app.' },
@@ -102,12 +103,37 @@ function VaultWalkthrough() {
   </div>;
 }
 
-export function LandingPage() {
+const USE_CASES = [
+  { number: '01', label: 'FOR YOUR APPLICATIONS', title: 'Ship without the secret sprawl.', description: 'Give each project a home for its keys, from the first local build to the next production change.', icon: Code2, destination: '#product', link: 'Explore the vault' },
+  { number: '02', label: 'FOR YOUR TEAM', title: 'Bring everyone into the same orbit.', description: 'Keep environments distinct and make access a deliberate choice, even as your team grows.', icon: Users, destination: '#features', link: 'See team controls' },
+  { number: '03', label: 'FOR YOUR TOOLS', title: 'A smaller boundary. A clearer task.', description: 'Explore controlled access for developer tools, with permission checks around the work they do.', icon: Bot, destination: '#tool-access', link: 'Explore the preview' },
+];
+const FEATURES = [
+  { icon: LockKeyhole, label: '01 / ORGANIZE', title: 'Every environment, in its place.', text: 'Keep Alpha, UAT and production values separate inside an encrypted project vault.', detail: 'Encrypted storage · Project vaults' },
+  { icon: KeyRound, label: '02 / CONTROL', title: 'Give access a clear boundary.', text: 'Scope keys to a project and environment, and revoke browser sessions when access should end.', detail: 'Scoped keys · Revocable sessions' },
+  { icon: History, label: '03 / RECOVER', title: 'A history you can return to.', text: 'Inspect earlier revisions and restore a selected value as a new change, with retained key history.', detail: 'Secret revisions · Selected restoration' },
+  { icon: GitBranch, label: '04 / REVIEW', title: 'Know what moves forward.', text: 'Compare environment changes, configure promotion approvals, and follow the recorded activity.', detail: 'Deliberate promotion · Audit trail' },
+];
+const VOICES = [
+  { initials: 'PE', role: 'Platform engineer', quote: 'One place for the keys. One clear answer when someone asks which value is current.' },
+  { initials: 'DL', role: 'Development lead', quote: 'I can give a tool the access it needs without opening up every project.' },
+  { initials: 'FD', role: 'Full-stack developer', quote: 'Seeing the change before it reaches production makes the whole handoff feel calmer.' },
+];
+const FAQS = [
+  { question: 'What does KeepSave help me manage?', answer: 'API keys, database URLs, passwords and other configuration secrets. Group them by project, keep different values for Alpha, UAT and production, and decide which people or tools can access them.' },
+  { question: 'Does changing a secret update production automatically?', answer: 'No. Updating a value in one environment does not promote it to another. Promotion is a separate action, and your team can configure approval requirements for production changes.' },
+  { question: 'Can I self-host KeepSave?', answer: 'Yes. The repository contains the self-hosted application and setup references. Your team operates the service, database and encryption-key infrastructure. The current source candidate still needs installation-specific recovery, security review and operational acceptance before production use.' },
+  { question: 'Can I look back at an earlier secret?', answer: 'The PostgreSQL vault records immutable revisions. Authorized users can inspect history and restore a selected revision as a new change. Recovery requires the documented key material; backups do not restore login sessions or access grants.' },
+  { question: 'Will it work with my AI coding tool?', answer: 'Controlled tool access is a preview built around shared MCP and authorization contracts. Codex and Hermes are initial qualification candidates. Compatibility is tested per client version; KeepSave does not promise universal harness support or expose provider tokens to the model.' },
+  { question: 'Can I sign up for a hosted workspace today?', answer: 'This page introduces the project and includes an illustrative product walkthrough. The public hosted application has not launched. Explore the source and self-hosting references, or share your workflow to help shape the next release.' },
+];
+
+export function LandingPage({ landingOnly = false }: { landingOnly?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [artFailed, setArtFailed] = useState(false);
-  const [integration, setIntegration] = useState<'apps' | 'mcp'>('apps');
   const header = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const navItems = [{ href: '#use-cases', label: 'Use cases' }, { href: '#product', label: 'Our approach' }, { href: '#features', label: 'Features' }, { href: '#faq', label: 'FAQ' }];
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -124,46 +150,45 @@ export function LandingPage() {
     <a className="ks-skip" href="#main">Skip to content</a>
     <header ref={header} className="ks-header">
       <div className="ks-nav ks-container">
-        <Brand className="ks-brand" size={36} />
-        <nav className="ks-desktop-nav" aria-label="Main navigation"><a href="#product">Product</a><a href="#workflow">How it works</a><a href="#developers">Developers</a><a href={DOCS}>Docs <ArrowUpRight size={13} /></a></nav>
-        <div className="ks-nav-actions"><Link to="/login" className="ks-sign-in">Sign in</Link><Link to="/register" className="ks-button ks-button-small">Get started <ArrowRight size={14} /></Link><button ref={menuButton} type="button" className="ks-menu-toggle" aria-expanded={menuOpen} aria-controls="ks-mobile-nav" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button></div>
+        <Brand className="ks-brand" size={35} />
+        <nav className="ks-desktop-nav" aria-label="Main navigation">{navItems.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}<a href={DOCS}>Docs <ArrowUpRight size={12} /></a></nav>
+        <div className="ks-nav-actions">{!landingOnly && <Link to="/login" className="ks-sign-in">Sign in</Link>}<a href="#contact" className="ks-button ks-button-small">Let’s talk <ArrowUpRight size={14} /></a><button ref={menuButton} type="button" className="ks-menu-toggle" aria-expanded={menuOpen} aria-controls="ks-mobile-nav" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button></div>
       </div>
-      {menuOpen && <nav id="ks-mobile-nav" className="ks-mobile-nav" aria-label="Mobile navigation" onClick={() => setMenuOpen(false)}><a href="#product">Product</a><a href="#workflow">How it works</a><a href="#developers">Developers</a><a href={DOCS}>Documentation <ArrowUpRight size={15} /></a><Link to="/login">Sign in</Link></nav>}
+      {menuOpen && <nav id="ks-mobile-nav" className="ks-mobile-nav" aria-label="Mobile navigation" onClick={() => setMenuOpen(false)}>{navItems.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}<a href="#voices">User feedback</a><a href="#contact">Contact</a><a href={DOCS}>Documentation <ArrowUpRight size={15} /></a>{!landingOnly && <Link to="/login">Sign in</Link>}</nav>}
     </header>
     <main id="main" tabIndex={-1}>
       <section className="ks-hero" aria-labelledby="ks-hero-title">
-        <div className="ks-hero-art" aria-hidden="true">{artFailed ? <div className="ks-art-fallback"><EventHorizon size={540} /></div> : <img src="/images/event-horizon.webp" width="1536" height="1024" fetchPriority="high" alt="" onError={() => setArtFailed(true)} />}</div>
-        <div className="ks-hero-inner ks-container"><div className="ks-hero-copy"><div className="ks-eyebrow"><span className="ks-live-dot" /> SECRETS MANAGEMENT FOR TEAMS & AGENTS</div><h1 id="ks-hero-title">Your secrets.<br />In the right<br /><span>orbit.</span></h1><p className="ks-lead">Your apps need secret keys. KeepSave gives them one encrypted home, with controlled access and a clear path to production.</p><div className="ks-actions"><Link to="/register" className="ks-button">Create your vault <ArrowRight size={17} /></Link><a href="#product" className="ks-button ks-button-secondary">See how it works <ArrowDown size={16} /></a></div></div></div>
-        <div className="ks-proof ks-container"><span><LockKeyhole size={14} />Encrypted at rest</span><span><KeyRound size={14} />Scoped access</span><span><Code2 size={15} />Open source & self-hostable</span></div>
+        <div className="ks-hero-art" aria-hidden="true">{artFailed ? <div className="ks-art-fallback"><EventHorizon size={540} /></div> : <img src="/images/gargantua-horizon.webp" width="1536" height="1024" fetchPriority="high" alt="" onError={() => setArtFailed(true)} />}</div>
+        <div className="ks-hero-inner ks-container">
+          <div className="ks-hero-copy"><div className="ks-eyebrow"><span className="ks-live-dot" /> A CLEARER HOME FOR YOUR SECRETS</div><h1 id="ks-hero-title">Your secrets.<br /><span>In the right orbit.</span></h1><p className="ks-lead">One place for your application secrets.<br className="ks-desktop-break" /> Clear access for your team and tools.</p><div className="ks-actions"><a href="#use-cases" className="ks-button">Find your use case <ArrowDown size={16} /></a><a href={REPO} className="ks-text-link">Explore on GitHub <ArrowUpRight size={15} /></a></div><div className="ks-hero-proof"><span><LockKeyhole size={13} /> Encrypted at rest</span><span><Code2 size={14} /> Open source</span><span><Server size={13} /> Self-hostable</span></div></div>
+          <span className="ks-art-caption"><span /> GARGANTUA STUDY / 01</span>
+        </div>
+        <div className="ks-hero-bottom ks-container"><span>LESS SPRAWL. MORE INTENTION.</span><a href="#use-cases">Start with the work you do <ArrowDown size={14} /></a></div>
       </section>
 
-      <section id="product" className="ks-product-section ks-container" aria-labelledby="ks-product-title">
-        <div className="ks-section-intro"><div><span className="ks-eyebrow">LET’S FOLLOW ONE PROJECT</span><h2 id="ks-product-title">It starts with a few keys.</h2></div><p>A database URL. A payment key. A session secret.<br className="ks-desktop-break" /> Then a teammate, a test environment, an AI agent.<br className="ks-desktop-break" /> Here’s how KeepSave keeps it all organized.</p></div>
+      <section id="use-cases" className="ks-use-cases ks-container" aria-labelledby="ks-use-cases-title">
+        <div className="ks-section-intro ks-intro-compact"><div><span className="ks-eyebrow">01 / YOUR USE CASE</span><h2 id="ks-use-cases-title">Different work.<br /><span>One place to begin.</span></h2></div><p>From your first application to the tools helping you build it, start with the access your work actually needs.</p></div>
+        <div className="ks-use-case-grid">{USE_CASES.map(item => <a className="ks-use-case" href={item.destination} key={item.number}><div className="ks-use-case-top"><item.icon size={23} /><span>{item.number}</span></div><span className="ks-small-label">{item.label}</span><h3>{item.title}</h3><p>{item.description}</p><span className="ks-text-link">{item.link}<ArrowUpRight size={16} /></span></a>)}</div>
+      </section>
+
+      <section id="product" className="ks-product-section" aria-labelledby="ks-product-title"><div className="ks-container">
+        <div className="ks-section-intro"><div><span className="ks-eyebrow">02 / WHAT WE SERVE</span><h2 id="ks-product-title">A home for your keys.<br /><span>A path for your team.</span></h2></div><p>KeepSave brings encrypted project secrets, scoped access and reviewed environment changes into one workspace. Follow a small example.</p></div>
         <VaultWalkthrough />
-      </section>
-
-      <section id="workflow" className="ks-story ks-container" aria-labelledby="ks-story-title">
-        <div className="ks-story-intro"><span className="ks-eyebrow">LESS COPY-PASTE. MORE CONTROL.</span><h2 id="ks-story-title">A few keys.<br /><span>Too many copies.</span></h2><p>When configuration is scattered across files, messages, and deployment notes, a simple change becomes a guessing game.</p></div>
-        <div className="ks-story-columns"><div className="ks-scattered" aria-label="Illustration of scattered secret copies"><span className="ks-small-label">A FAMILIAR STARTING POINT</span><div className="ks-file-card"><FileCode2 size={20} /><div><strong>.env.local</strong><span>Which value is current?</span></div><span className="ks-file-mask">••••••</span></div><div className="ks-file-card"><Terminal size={20} /><div><strong>deployment notes</strong><span>Was production updated?</span></div><span className="ks-file-mask">••••••</span></div><div className="ks-file-card"><Code2 size={20} /><div><strong>team chat</strong><span>Who else has this copy?</span></div><span className="ks-file-mask">••••••</span></div><div className="ks-scattered-bottom"><ArrowRight size={19} /><span>Give those keys a home in KeepSave.</span></div></div>
-        <div className="ks-story-outcomes"><article><span>01</span><div><h3>One project. One place to look.</h3><p>Store named secrets in an encrypted vault. Separate values for development, testing, and production keep each stage clear.</p></div></article><article><span>02</span><div><h3>Access with a boundary.</h3><p>Give an application or agent a key scoped to its project and environment. Development access doesn’t need to include production.</p></div></article><article><span>03</span><div><h3>A change you can follow.</h3><p>Review what moves between environments, configure approvals for production, and look back through the audit trail.</p></div></article></div></div>
-      </section>
-
-      <section id="developers" className="ks-developers" aria-labelledby="ks-developers-title"><div className="ks-container"><div className="ks-section-intro"><div><span className="ks-eyebrow">KEEP THE TOOLS YOU KNOW</span><h2 id="ks-developers-title">Meet your secrets<br /><span>where you build.</span></h2></div><p>Use KeepSave from your code and pipelines, or connect tools through its MCP gateway. Choose the path that fits your project.</p></div>
-        <div className="ks-integration-picker" role="group" aria-label="Integration example"><button type="button" aria-pressed={integration === 'apps'} onClick={() => setIntegration('apps')}><Terminal size={17} /> Apps & pipelines</button><button type="button" aria-pressed={integration === 'mcp'} onClick={() => setIntegration('mcp')}><Bot size={17} /> MCP tools</button></div>
-        <div className="ks-integration-content"><div className="ks-integration-copy"><h3>{integration === 'apps' ? 'Your configuration. A central source.' : 'Connect tools through one gateway.'}</h3><p>{integration === 'apps' ? 'Access the secrets for your project and environment through the CLI or an SDK. Keep access scoped to the work that needs it.' : 'KeepSave resolves configured secrets for an MCP server at execution time. Your agent calls the tool through the gateway.'}</p><a className="ks-text-link" href={integration === 'apps' ? `${DOC_FILE}/13-sdks-integrations.md` : `${DOC_FILE}/03-api-reference.md`}>{integration === 'apps' ? 'Explore SDKs & integrations' : 'Read the gateway documentation'}<ArrowUpRight size={16} /></a></div>
-          <div className="ks-connection" aria-label={integration === 'apps' ? 'Illustrative flow from scoped project secrets to an application or pipeline' : 'Illustrative flow from an agent through KeepSave to an MCP server'}><span className="ks-small-label">ILLUSTRATIVE FLOW</span><div className="ks-connection-nodes"><div><div className="ks-connection-icon">{integration === 'apps' ? <FolderClosed size={26} /> : <Bot size={26} />}</div><strong>{integration === 'apps' ? 'storefront / UAT' : 'Your agent'}</strong><span>{integration === 'apps' ? 'Scoped project secrets' : 'Requests a tool call'}</span></div><ArrowRight className="ks-connection-arrow" size={22} /><div><div className="ks-connection-icon ks-connection-core"><EhMark size={43} /></div><strong>KeepSave</strong><span>{integration === 'apps' ? 'CLI or SDK' : 'MCP gateway'}</span></div><ArrowRight className="ks-connection-arrow" size={22} /><div><div className="ks-connection-icon">{integration === 'apps' ? <Terminal size={26} /> : <Server size={26} />}</div><strong>{integration === 'apps' ? 'Your application' : 'MCP server'}</strong><span>{integration === 'apps' ? 'Uses its configuration' : 'Runs the tool'}</span></div></div></div>
-        </div><div className="ks-stack-row"><span>BUILD YOUR WAY</span><a href={`${REPO}/tree/develop/backend/cmd/keepsave`}>CLI <ArrowUpRight size={12} /></a><a href={`${REPO}/tree/develop/sdks/python`}>Python <ArrowUpRight size={12} /></a><a href={`${REPO}/tree/develop/sdks/nodejs`}>Node.js <ArrowUpRight size={12} /></a><a href={`${REPO}/tree/develop/sdks/go`}>Go <ArrowUpRight size={12} /></a><a href={`${REPO}/tree/develop/integrations`}>CI/CD <ArrowUpRight size={12} /></a></div>
+        <div className="ks-product-note"><ShieldCheck size={15} /><p>An interactive example, with masked sample values. Your browser creates no keys, saves no secrets and calls no provider.</p></div>
       </div></section>
 
-      <section className="ks-faq ks-container" aria-labelledby="ks-faq-title"><div><span className="ks-eyebrow">A FEW THINGS WORTH KNOWING</span><h2 id="ks-faq-title">Before you<br /><span>get started.</span></h2></div><div className="ks-faq-list">
-        <details><summary>What counts as a secret?<ChevronDown size={18} /></summary><p>An API key, a database connection URL, a password, or another configuration value your software needs to access a service. KeepSave stores these as named values inside a project.</p></details>
-        <details><summary>What are Alpha, UAT, and PROD?<ChevronDown size={18} /></summary><p>Alpha is for development. UAT means user acceptance testing: a place to check a change before release. PROD is your live application. KeepSave gives each environment its own secret values.</p></details>
-        <details><summary>Does changing a key update production automatically?<ChevronDown size={18} /></summary><p>No. Changing a value in one environment does not promote it to another. A promotion is a separate action. Your team can configure approval requirements for production changes.</p></details>
-        <details><summary>Can I run KeepSave on my own infrastructure?<ChevronDown size={18} /></summary><p>Yes. KeepSave is open source and self-hostable. The repository includes Docker Compose setup instructions. You operate the service, its database, and its root encryption key. <a href={`${REPO}#quick-start`}>Read the setup guide <ArrowUpRight size={13} /></a></p></details>
-      </div></section>
+      <section id="features" className="ks-features ks-container" aria-labelledby="ks-features-title">
+        <div className="ks-section-intro"><div><span className="ks-eyebrow">03 / THE CAPABILITIES</span><h2 id="ks-features-title">The details that keep<br /><span>your work in order.</span></h2></div><a href={`${DOCS}/system`} className="ks-text-link">Explore the documentation <ArrowUpRight size={16} /></a></div>
+        <div className="ks-feature-grid">{FEATURES.map(feature => <article className="ks-feature" key={feature.title}><div className="ks-feature-icon"><feature.icon size={25} /></div><span className="ks-small-label">{feature.label}</span><h3>{feature.title}</h3><p>{feature.text}</p><span className="ks-feature-detail">{feature.detail}</span></article>)}</div>
+        <div id="tool-access" className="ks-tools-preview"><div className="ks-tools-copy"><span className="ks-preview-tag">CONTROLLED TOOL ACCESS / PREVIEW</span><h3>For the tools you use.<br /><span>And the ones that come next.</span></h3><p>A harness-neutral direction: check the task, its scope and its permission before a provider operation. Credentials stay with the broker.</p><a href={`${REPO}/blob/develop/docs/STATUS.md`} className="ks-text-link">See what’s implemented and what’s next <ArrowUpRight size={15} /></a></div><div className="ks-tools-diagram" aria-label="Illustrative preview: your tool requests a call, KeepSave checks access, then the broker performs an approved provider operation"><div><Bot size={26} /><strong>Your tool</strong><small>Request a task</small></div><ArrowRight size={19} /><div className="ks-tools-core"><EhMark size={49} /><strong>KeepSave</strong><small>Check the boundary</small></div><ArrowRight size={19} /><div><Server size={26} /><strong>Provider</strong><small>Approved operation</small></div><p>Illustrative flow · client and installation qualification required.</p></div></div>
+      </section>
 
-      <section className="ks-final ks-container" aria-labelledby="ks-final-title"><div className="ks-final-orbit" aria-hidden="true" /><span className="ks-eyebrow">YOUR NEXT PROJECT STARTS HERE</span><h2 id="ks-final-title">Keep your secrets.<br /><span>Keep your momentum.</span></h2><p>Give your team and your tools a clearer way to work.</p><div className="ks-actions"><Link to="/register" className="ks-button">Create your vault <ArrowRight size={17} /></Link><a href={`${REPO}#quick-start`} className="ks-button ks-button-secondary">Self-host KeepSave <ArrowUpRight size={16} /></a></div></section>
+      <section id="voices" className="ks-voices" aria-labelledby="ks-voices-title"><div className="ks-container"><div className="ks-section-intro"><div><span className="ks-eyebrow">04 / THE PEOPLE BEHIND THE WORK</span><h2 id="ks-voices-title">Less second-guessing.<br /><span>More room to build.</span></h2></div><p>What a clearer way of managing secrets could feel like.<br /><span className="ks-mock-label">Illustrative feedback · design mockup</span></p></div><div className="ks-quote-grid">{VOICES.map(voice => <figure className="ks-quote" key={voice.initials}><span className="ks-quote-mark" aria-hidden="true">“</span><blockquote>{voice.quote}</blockquote><figcaption><span className="ks-avatar" aria-hidden="true">{voice.initials}</span><span><strong>{voice.role}</strong><small>Sample quote</small></span></figcaption></figure>)}</div><p className="ks-feedback-note">These quotes are fictional examples for this design preview, not customer endorsements.</p></div></section>
+
+      <section id="faq" className="ks-faq ks-container" aria-labelledby="ks-faq-title"><div><span className="ks-eyebrow">05 / A LITTLE MORE CLARITY</span><h2 id="ks-faq-title">Good questions.<br /><span>Clear answers.</span></h2><p>Still curious?<br /><a href="#contact" className="ks-text-link">Let’s talk <ArrowUpRight size={15} /></a></p></div><div className="ks-faq-list">{FAQS.map(faq => <details key={faq.question}><summary>{faq.question}<ChevronDown size={18} /></summary><p>{faq.answer}</p></details>)}</div></section>
+
+      <section id="contact" className="ks-contact ks-container" aria-labelledby="ks-contact-title"><div className="ks-contact-ring" aria-hidden="true" /><span className="ks-eyebrow">06 / LET’S BUILD SOMETHING CLEARER</span><h2 id="ks-contact-title">Your next chapter.<br /><span>In a better orbit.</span></h2><p>Tell us how your team works with secrets.<br />Help shape the KeepSave you’d want to use.</p><div className="ks-actions"><a href={FEEDBACK} className="ks-button">Share your workflow <MessageCircle size={17} /></a><a href={SETUP} className="ks-button ks-button-secondary">Explore self-hosting <ArrowUpRight size={15} /></a></div><span className="ks-contact-note">Starts a conversation on GitHub. Please keep credentials and private data out of it.</span></section>
     </main>
-    <footer className="ks-footer ks-container"><div><Brand className="ks-brand" size={30} /><p>Encrypted secrets. Clear boundaries.</p></div><nav aria-label="Footer navigation"><a href={DOCS}>Documentation <ArrowUpRight size={13} /></a><a href={REPO}>GitHub <ArrowUpRight size={13} /></a><Link to="/login">Sign in</Link><a href="#top">Back to top <ArrowUpRight size={13} /></a></nav><span className="ks-footer-caption">KEEPSAVE / EVENT HORIZON</span></footer>
+    <footer className="ks-footer ks-container"><div><Brand className="ks-brand" size={31} /><p>Your secrets. In the right orbit.</p></div><nav aria-label="Footer navigation"><a href={DOCS}>Documentation <ArrowUpRight size={12} /></a><a href={REPO}>GitHub <ArrowUpRight size={12} /></a><a href="#contact">Contact <ArrowUpRight size={12} /></a><a href="#top">Back to top <ArrowUpRight size={12} /></a></nav><div className="ks-footer-bottom"><span>KEEPSAVE / A DRAVENIQ PROJECT</span><a href={`${REPO}/blob/develop/docs/STATUS.md`}>Source candidate · hosted application not yet launched <ArrowUpRight size={12} /></a><span>GARGANTUA STUDY / 2026</span></div></footer>
   </div>;
 }
