@@ -1,7 +1,7 @@
 # Build stage. The exact toolchain matches CI; go.mod retains its minimum version.
 # Digest-pinned for supply-chain integrity (INF-2); the trailing `# tag` comment
 # is the human-readable version Dependabot/Renovate bump against.
-FROM golang:1.27.1@sha256:e0174e51e81218523251d85d248a90d24c3d5e81543b4f07a5d66229397db190 AS builder
+FROM golang:1.27.3@sha256:f20d83a83e18dbd2a4714b8ffd4b30b287b6243962dd75608e86abcc63ba4efc AS builder
 # tag: golang:1.27.1
 
 WORKDIR /app
