@@ -31,7 +31,7 @@ See the [source-publication note](docs/releases/2026-10-03-source-publication.md
 The existing static landing page is at [keepsave.draveniq.dev](https://keepsave.draveniq.dev/).
 The **`landing-v2026.10.25` frontend release** adds the Gargantua story, warm
 dark/light identity, Field Twist refinements, developer guides and sidebar fixes.
-Only the isolated static landing package is intended for Vercel; the application
+Only the isolated static landing package is published on Vercel; the application
 changes remain on the integration line. See the
 [scoped release notes](docs/releases/landing-v2026.10.25.md) for evidence and limits.
 `app.keepsave.draveniq.dev` is the intended application origin; this backend work

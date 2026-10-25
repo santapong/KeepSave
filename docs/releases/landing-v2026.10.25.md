@@ -33,9 +33,22 @@ and ignore-rule edits. All ten final static hashes match the tested package.
 These are local/Pi synthetic results, not a green remote pipeline or real-provider
 acceptance. Earlier failures and their fixes remain recorded.
 
-Publication status and deployment identity will be recorded after staging and
-production checks. The previous production deployment is retained as the static
-rollback target. No database migration, key change or application cutover occurs.
+Published to production on 25 October 2026:
+
+- Build/source integration: `779bf33ec89b5d426bbe0c7e790aa9b5955ce9d0`.
+- Deployment: `dpl_4Boj2wXsXDQ7LGBUvW5bim1oqf6i`.
+- Immutable build URL: `keepsave-landing-gbcytp49u-santapongs-projects.vercel.app`.
+- Public domain: [keepsave.draveniq.dev](https://keepsave.draveniq.dev/).
+- Both staged and public checks passed 15/15: all ten exact file hashes,
+  five excluded-route 404s and required security headers. Live Chromium
+  inspection confirmed the six-part story, original art, warm palette and
+  persistent fictional-feedback labels. The release tag adds documentation
+  only after that source revision; its frontend/deployment trees match.
+- Static rollback target: `dpl_AwYvDqYw2X5dvJdVhW15z22oK7ey`, retained.
+
+No database migration, key change or application cutover occurs. The CLI used
+an already authorized session for the verified project; no new connector team
+grant, deployment-protection change or operator-secret pull was needed.
 
 ## Artifact-specific risk assessment
 
@@ -52,6 +65,12 @@ severity threshold was changed. Full application/build-tool remediation remains
 open; this is not a clean audit or a waiver of application CI. Source inventory
 and static exclusion support publication of this bounded package, not a general
 security certification. Audit JSON is retained with the local release evidence.
+
+The new [develop CI run](https://github.com/santapong/KeepSave/actions/runs/40175701517)
+passed frontend tests/build/type checks, documentation, SDK contracts, CodeQL,
+gosec and the Robot API dry-run at inspection. Its npm audit and Go vulnerability
+scan failed; backend/PostgreSQL jobs were still running. No aggregate green CI
+result is claimed. The static artifact contains no Go binary or container.
 
 The older full-repository image-scan failure, independent Security/Tech Lead
 reviews and provider/recovery/operational gates remain unresolved. The application

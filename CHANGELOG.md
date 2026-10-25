@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Release scope — 2026-10-25
 
 The frontend work below is included in the scoped `landing-v2026.10.25` release.
-Only its static public landing is published to Vercel; application source is
+The static public landing is live on Vercel at `keepsave.draveniq.dev`; application source is
 integrated into `develop`. The core `1.4.0-rc.1` and controlled-tools platform
 remain unreleased. See [release notes](docs/releases/landing-v2026.10.25.md).
 
