@@ -1,5 +1,5 @@
 # Build stage. Digest-pinned for supply-chain integrity (INF-2).
-FROM node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
+FROM node:26.13.0-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS build
 # tag: node:24.21.0-alpine
 WORKDIR /app
 COPY package*.json ./
